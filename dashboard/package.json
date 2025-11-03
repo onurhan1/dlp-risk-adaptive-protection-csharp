@@ -1,0 +1,37 @@
+{
+  "name": "dlp-risk-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "dev:3000": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "start:3000": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.6.2",
+    "date-fns": "^2.30.0",
+    "next": "^15.0.0",
+    "plotly.js": "^2.27.0",
+    "postcss": "^8.5.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-plotly.js": "^2.6.0",
+    "tailwindcss": "^3.4.18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/plotly.js": "^2.12.29",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^15.0.0",
+    "typescript": "^5.3.0"
+  },
+  "resolutions": {
+    "@types/react": "^18.2.0"
+  }
+}
