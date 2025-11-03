@@ -5,7 +5,7 @@ using System.IO;
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/reports")]
 public class ReportsController : ControllerBase
 {
     private readonly ReportGeneratorService _reportGenerator;
