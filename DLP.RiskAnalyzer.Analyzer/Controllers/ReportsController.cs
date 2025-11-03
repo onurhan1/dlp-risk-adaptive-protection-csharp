@@ -109,17 +109,24 @@ public class ReportsController : ControllerBase
 
             if (reportId < 1 || reportId > files.Count)
             {
-                return NotFound(new { detail = "Report not found" });
+                return NotFound(new { detail = $"Report not found. Available reports: {files.Count}" });
             }
 
             var filepath = files[reportId - 1];
-            var filename = Path.GetFileName(filepath);
+            
+            if (!System.IO.File.Exists(filepath))
+            {
+                return NotFound(new { detail = "Report file does not exist on disk" });
+            }
 
-            return PhysicalFile(filepath, "application/pdf", filename);
+            var filename = Path.GetFileName(filepath);
+            var fileBytes = System.IO.File.ReadAllBytes(filepath);
+
+            return File(fileBytes, "application/pdf", filename);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            return StatusCode(500, new { detail = $"Error downloading report: {ex.Message}", stackTrace = ex.StackTrace });
         }
     }
 
