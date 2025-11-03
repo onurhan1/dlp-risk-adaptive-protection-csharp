@@ -1,101 +1,192 @@
-# Forcepoint DLP Risk Adaptive Protection - C# Windows Native Application
+# Forcepoint Risk Adaptive Protection - C# Implementation
 
-## 📋 Proje Yapısı
+Windows native uygulama olarak geliştirilmiş Forcepoint DLP Risk Analiz ve Raporlama Sistemi.
 
-Bu proje, Python/Go/Next.js versiyonunun C# ile Windows native uygulama olarak yeniden implementasyonudur.
+## 📋 Proje Özeti
 
-### Solution Yapısı
+Bu proje, Forcepoint DLP API'sinden incident kayıtlarını toplayan, kullanıcı bazında risk skorlaması yapan ve yönetici raporları üreten performanslı bir sistemdir.
+
+### Özellikler
+
+- ✅ **Collector Service**: Forcepoint DLP API'den parallel request ile incident toplama
+- ✅ **Analyzer API**: ASP.NET Core Web API ile risk analizi ve hesaplama
+- ✅ **WPF Dashboard**: Windows native desktop uygulaması
+- ✅ **Web Dashboard**: Next.js ile modern web arayüzü
+- ✅ **Redis Stream**: Inter-service communication
+- ✅ **TimescaleDB**: Time-series veri depolama
+- ✅ **Risk Scoring**: Kullanıcı bazında otomatik risk hesaplama
+- ✅ **PDF Reports**: Otomatik rapor üretimi
+- ✅ **Anomaly Detection**: Anomali tespit algoritması
+- ✅ **Policy Management**: Policy yönetimi ve önerileri
+
+## 🏗️ Mimari
 
 ```
-DLP.RiskAnalyzer.Solution/
-├── DLP.RiskAnalyzer.Shared/          # Ortak modeller ve servisler
-├── DLP.RiskAnalyzer.Collector/       # Windows Service - DLP API veri toplama
-├── DLP.RiskAnalyzer.Analyzer/        # ASP.NET Core Web API - Risk analizi
-└── DLP.RiskAnalyzer.Dashboard/       # WPF Application - Windows native UI
+┌─────────────────┐
+│   Forcepoint    │
+│   DLP Manager   │
+│   (API Server)  │
+└────────┬────────┘
+         │
+         │ REST API (JWT)
+         │
+┌────────▼────────┐      ┌──────────────┐      ┌─────────────┐
+│    Collector    │─────▶│    Redis     │─────▶│  Analyzer   │
+│  (.NET Service) │      │   (Stream)   │      │ (ASP.NET)   │
+└─────────────────┘      └──────────────┘      └──────┬──────┘
+                                                       │
+                                              ┌────────▼────────┐
+                                              │  TimescaleDB   │
+                                              │  (PostgreSQL)  │
+                                              └─────────────────┘
+                                                       │
+                                              ┌────────▼────────┐
+                                              │  Web Dashboard  │
+                                              │   (Next.js)     │
+                                              └─────────────────┘
 ```
 
 ## 🛠️ Teknolojiler
 
 - **.NET 8.0** - Framework
-- **WPF (Windows Presentation Foundation)** - Desktop UI
 - **ASP.NET Core Web API** - Backend API
-- **Entity Framework Core** - ORM (PostgreSQL/TimescaleDB)
-- **StackExchange.Redis** - Redis client
-- **HttpClient** - Forcepoint DLP API bağlantısı
-- **QuestPDF** veya **iTextSharp** - PDF generation
-- **LiveCharts** veya **OxyPlot** - Chart visualization
+- **WPF (Windows Presentation Foundation)** - Desktop UI
+- **Next.js 15** - Web Dashboard
+- **Entity Framework Core** - ORM
+- **TimescaleDB** - Time-series database
+- **Redis** - Message streaming
+- **QuestPDF** - PDF generation
 
-## 📦 NuGet Paketleri
-
-### Shared Library
-- `System.Text.Json` - JSON serialization
-- `Microsoft.Extensions.Configuration` - Configuration
-
-### Collector
-- `StackExchange.Redis` - Redis client
-- `Newtonsoft.Json` - JSON handling
-- `System.Net.Http` - HTTP client
-
-### Analyzer (Web API)
-- `Microsoft.EntityFrameworkCore` - EF Core
-- `Npgsql.EntityFrameworkCore.PostgreSQL` - PostgreSQL provider
-- `StackExchange.Redis` - Redis client
-- `Swashbuckle.AspNetCore` - Swagger UI
-- `QuestPDF` - PDF generation
-
-### Dashboard (WPF)
-- `Microsoft.Extensions.Hosting` - Application hosting
-- `CommunityToolkit.Mvvm` - MVVM pattern
-- `LiveCharts.Wpf` - Charts
-- `MaterialDesignThemes` - Modern UI (opsiyonel)
-
-## 🚀 Kurulum
+## 🚀 Hızlı Başlangıç
 
 ### Gereksinimler
-- .NET 8.0 SDK
-- Visual Studio 2022 veya Visual Studio Code
-- PostgreSQL/TimescaleDB
-- Redis Server
-- Windows 10/11
 
-### Adımlar
+- .NET SDK 8.0
+- PostgreSQL 14+ (TimescaleDB extension ile)
+- Redis 6.0+
+- Node.js 18+ (Web Dashboard için)
 
-1. **Solution'ı Aç**
-   ```bash
-   cd "Risk Adaptive Protection CSharp"
-   dotnet restore
-   ```
+### Kurulum
 
-2. **appsettings.json Yapılandır**
-   - `appsettings.json` dosyalarını düzenle
-   - Forcepoint DLP API credentials'ları ekle
-   - Database connection string'leri ayarla
+```bash
+# 1. Dependency'leri kur (Windows)
+.\install-windows-dependencies.ps1
 
-3. **Database Migration**
-   ```bash
-   cd DLP.RiskAnalyzer.Analyzer
-   dotnet ef migrations add InitialCreate
-   dotnet ef database update
-   ```
+# 2. NuGet paketlerini restore et
+dotnet restore
 
-4. **Çalıştır**
-   - Analyzer: `dotnet run --project DLP.RiskAnalyzer.Analyzer`
-   - Dashboard: `dotnet run --project DLP.RiskAnalyzer.Dashboard`
+# 3. Yapılandırma dosyalarını düzenle
+# - DLP.RiskAnalyzer.Collector/appsettings.json
+# - DLP.RiskAnalyzer.Analyzer/appsettings.json
 
-## 🔧 Özellikler
+# 4. Database migration
+cd DLP.RiskAnalyzer.Analyzer
+dotnet ef database update
 
-- ✅ Windows Native WPF UI
-- ✅ ASP.NET Core Web API
-- ✅ Entity Framework Core ile database
-- ✅ Redis Stream desteği
-- ✅ Risk skorlama algoritması
-- ✅ PDF rapor üretimi
-- ✅ Real-time dashboard
-- ✅ UTC+3 timezone desteği
+# 5. Servisleri başlat
+cd ..
+.\start-mac.sh  # Mac için
+# veya
+.\quick-start.ps1  # Windows için
+```
+
+Detaylı kurulum için: [`KURULUM_VE_API_BAGLANTI_REHBERI.md`](KURULUM_VE_API_BAGLANTI_REHBERI.md)
+
+## 📁 Proje Yapısı
+
+```
+DLP.RiskAnalyzer.Solution/
+├── DLP.RiskAnalyzer.Shared/          # Ortak modeller ve servisler
+├── DLP.RiskAnalyzer.Collector/       # DLP API veri toplama servisi
+├── DLP.RiskAnalyzer.Analyzer/        # ASP.NET Core Web API
+├── DLP.RiskAnalyzer.Dashboard/       # WPF Desktop uygulaması
+└── dashboard/                         # Next.js Web Dashboard
+```
 
 ## 📚 Dokümantasyon
 
-Detaylı dokümantasyon için:
-- `docs/` klasörüne bakın
-- API dokümantasyonu: `http://localhost:8000/swagger`
+- **[Kurulum ve API Bağlantı Rehberi](KURULUM_VE_API_BAGLANTI_REHBERI.md)** - Detaylı kurulum ve yapılandırma
+- **[Windows Kurulum Rehberi](WINDOWS_INSTALLATION.md)** - Windows özel kurulum adımları
+- **[Mac Test Rehberi](MAC_TESTING_GUIDE.md)** - Mac ortamında test
+- **[Bağımlılıklar](DEPENDENCIES.md)** - Tüm dependency'lerin listesi
+- **[Özellik Karşılaştırması](FEATURES_COMPARISON.md)** - Python vs C# versiyonu karşılaştırması
 
+## 🔧 Yapılandırma
+
+### Forcepoint DLP API Bağlantısı
+
+`appsettings.json` dosyalarında:
+
+```json
+{
+  "DLP": {
+    "ManagerIP": "YOUR_DLP_MANAGER_IP",
+    "ManagerPort": 8443,
+    "Username": "YOUR_DLP_USERNAME",
+    "Password": "YOUR_DLP_PASSWORD"
+  }
+}
+```
+
+**⚠️ Önemli**: Hassas bilgileri `.gitignore` ile exclude edilmiştir. Production ortamında environment variables kullanın.
+
+## 🎯 API Endpoints
+
+- **Analyzer API**: `http://localhost:8000`
+- **Swagger UI**: `http://localhost:8000/swagger`
+- **Web Dashboard**: `http://localhost:3001`
+
+### Ana Endpoint'ler
+
+- `GET /api/incidents` - Incident listesi
+- `GET /api/risk/trends` - Risk trendleri
+- `GET /api/risk/daily-summary` - Günlük özet
+- `GET /api/risk/user-list` - Kullanıcı risk listesi
+- `POST /api/reports/generate` - Rapor oluştur
+- `GET /api/policies` - Policy listesi
+
+## 🔒 Güvenlik
+
+- ✅ Hassas bilgiler `.gitignore` ile exclude edilmiştir
+- ✅ SSL certificate validation bypass (development için)
+- ✅ JWT token based authentication
+- ✅ Environment variables desteği
+
+## 📊 Özellikler
+
+### Risk Skorlama
+- Severity bazlı hesaplama
+- Repeat count (tekrar sayısı) faktörü
+- Data sensitivity değerlendirmesi
+- Kullanıcı bazında risk trendleri
+
+### Raporlama
+- Günlük özet raporları
+- Departman bazlı analiz
+- PDF formatında rapor üretimi
+- Risk heatmap görselleştirmesi
+
+### Anomali Tespiti
+- Z-Score bazlı anomali algılama
+- Kullanıcı bazında baseline hesaplama
+- Otomatik uyarılar
+
+## 🤝 Katkıda Bulunma
+
+1. Fork edin
+2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Commit yapın (`git commit -m 'Add amazing feature'`)
+4. Push edin (`git push origin feature/amazing-feature`)
+5. Pull Request oluşturun
+
+## 📝 Lisans
+
+Bu proje özel bir projedir. Tüm hakları saklıdır.
+
+## 📞 İletişim
+
+Sorularınız için issue açabilirsiniz.
+
+---
+
+**Not**: Bu proje Forcepoint DLP API'sini kullanmak için geçerli lisans ve API erişim hakları gerektirir.
