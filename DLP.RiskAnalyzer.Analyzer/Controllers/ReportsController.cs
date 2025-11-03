@@ -99,34 +99,57 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("{reportId}/download")]
-    public ActionResult DownloadReport(int reportId)
+    public IActionResult DownloadReport(int reportId)
     {
         try
         {
+            // Ensure directory exists
+            if (!Directory.Exists(_reportsDirectory))
+            {
+                return NotFound(new { detail = "Reports directory does not exist" });
+            }
+
             var files = Directory.GetFiles(_reportsDirectory, "*.pdf")
                 .OrderByDescending(f => System.IO.File.GetCreationTime(f))
                 .ToList();
 
             if (reportId < 1 || reportId > files.Count)
             {
-                return NotFound(new { detail = $"Report not found. Available reports: {files.Count}" });
+                return NotFound(new { detail = $"Report not found. Available reports: {files.Count}, requested: {reportId}" });
             }
 
             var filepath = files[reportId - 1];
             
             if (!System.IO.File.Exists(filepath))
             {
-                return NotFound(new { detail = "Report file does not exist on disk" });
+                return NotFound(new { detail = $"Report file does not exist: {filepath}" });
             }
 
             var filename = Path.GetFileName(filepath);
             var fileBytes = System.IO.File.ReadAllBytes(filepath);
 
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                return StatusCode(500, new { detail = "Report file is empty" });
+            }
+
             return File(fileBytes, "application/pdf", filename);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            return StatusCode(500, new { detail = $"Directory not found: {ex.Message}" });
+        }
+        catch (FileNotFoundException ex)
+        {
+            return NotFound(new { detail = $"File not found: {ex.Message}" });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(500, new { detail = $"Access denied: {ex.Message}" });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = $"Error downloading report: {ex.Message}", stackTrace = ex.StackTrace });
+            return StatusCode(500, new { detail = $"Error downloading report: {ex.Message}", type = ex.GetType().Name });
         }
     }
 
