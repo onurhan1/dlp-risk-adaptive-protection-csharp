@@ -28,7 +28,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('authToken')
       const storedUsername = localStorage.getItem('username')
-      const storedRole = localStorage.getItem('userRole')
+      let storedRole = localStorage.getItem('userRole')
+
+      // Fallback: If role is missing but username is admin, set role to admin
+      if (storedToken && storedUsername === 'admin' && !storedRole) {
+        storedRole = 'admin'
+        localStorage.setItem('userRole', 'admin')
+      }
 
       if (storedToken) {
         setToken(storedToken)

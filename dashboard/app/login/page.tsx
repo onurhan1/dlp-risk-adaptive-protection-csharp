@@ -38,7 +38,14 @@ export default function LoginPage() {
       console.log('Login response:', response.data)
 
       if (response.data && response.data.token) {
-        const role = response.data.role || 'standard'
+        // Get role from response, or default to 'admin' if username is 'admin'
+        let role = response.data.role
+        if (!role) {
+          // Fallback: if username is admin and no role in response, set to admin
+          role = username.trim().toLowerCase() === 'admin' ? 'admin' : 'standard'
+        }
+        
+        console.log('Login - Role:', role, 'Response:', response.data)
         
         // Use AuthProvider login function
         login(response.data.token, response.data.username || username.trim(), role)
