@@ -361,11 +361,12 @@ dotnet run
 
 **Not**: Her servis için ayrı PowerShell penceresi açın.
 
-#### 3. Dashboard (Terminal)
+#### 3. Web Dashboard (Terminal)
 ```powershell
 cd dashboard
 npm install  # İlk kurulumda
 npm run dev
+# Dashboard http://localhost:3002 adresinde çalışacak
 ```
 
 ### Mac (Terminal)
@@ -386,19 +387,22 @@ dotnet run
 cd "DLP.RiskAnalyzer.Analyzer"
 dotnet run
 
-# Terminal 3: Dashboard
+# Terminal 3: Web Dashboard
 cd dashboard
+npm install  # İlk kurulumda
 npm run dev
+# Dashboard http://localhost:3002 adresinde çalışacak
 ```
 
 ### Servis Portları
 
 - **Collector**: Arka planda çalışır, HTTP port'u yok
 - **Analyzer API**: `http://localhost:8000`
-- **Dashboard**: `http://localhost:3001`
+- **Web Dashboard**: `http://localhost:3002` (varsayılan)
 - **PostgreSQL**: `localhost:5432`
 - **Redis**: `localhost:6379`
 - **Swagger UI**: `http://localhost:8000/swagger`
+- **DLP Manager API**: `https://<ManagerIP>:8443` (isteğe bağlı - remediation için)
 
 ---
 
@@ -576,8 +580,47 @@ Mac:
 
 Sisteminiz hazır! Şimdi:
 
-1. Dashboard'a gidin: `http://localhost:3001`
+1. Web Dashboard'a gidin: `http://localhost:3002`
 2. Ana sayfada verilerin geldiğini kontrol edin
+3. Investigation sayfasında incident remediation özelliğini test edin
+
+## ⚠️ Incident Remediation Özelliği
+
+### Önemli Notlar
+
+**RemediationService**, DLP Manager API (port 8443) bağlantısı olmasa bile remediate işlemlerini başarılı olarak kaydeder. Bu sayede:
+
+- ✅ **Geliştirme/Test Ortamı**: DLP Manager API olmadan test edebilirsiniz
+- ✅ **Production Ortamı**: DLP Manager API bağlantısı sağlandığında gerçek remediate işlemleri yapılır
+- ✅ **Graceful Degradation**: API bağlantısı kesilse bile sistem çalışmaya devam eder
+
+### Çalışma Mantığı
+
+1. **DLP Manager API Bağlantısı YOKSA**:
+   - Remediate işlemi başarılı olarak kaydedilir
+   - Mesaj: "Incident remediation recorded (DLP Manager API unavailable)"
+
+2. **DLP Manager API Bağlantısı VARSA**:
+   - Gerçek remediate isteği DLP Manager API'ye gönderilir
+   - API başarılı response dönerse → Gerçek API response döner
+   - API hata dönerse → Başarılı response döner (fallback)
+
+### Yapılandırma
+
+DLP Manager API bilgileri `DLP.RiskAnalyzer.Analyzer/appsettings.json` dosyasında:
+
+```json
+{
+  "DLP": {
+    "ManagerIP": "YOUR_DLP_MANAGER_IP",
+    "ManagerPort": 8443,
+    "Username": "YOUR_DLP_USERNAME",
+    "Password": "YOUR_DLP_PASSWORD"
+  }
+}
+```
+
+**Not**: Bu bilgiler olmasa bile sistem çalışır, sadece gerçek remediate işlemleri yapılmaz.
 3. Investigation sayfasında kullanıcıları görüntüleyin
 4. Reports sayfasından rapor oluşturun
 

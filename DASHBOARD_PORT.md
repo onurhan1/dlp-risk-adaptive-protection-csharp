@@ -2,20 +2,20 @@
 
 ## 🚀 Çalışan Port
 
-Dashboard şu anda **Port 3001**'de çalışıyor.
+Dashboard şu anda **Port 3002**'de çalışıyor.
 
-**URL**: http://localhost:3001
+**URL**: http://localhost:3002
 
 ## 📋 Port Yapılandırması
 
 ### Değişken Port ile Başlatma
 
 ```bash
-# Port 3001 (varsayılan)
+# Port 3002 (varsayılan)
 ./start-dashboard.sh
 
 # VEYA farklı port ile
-DASHBOARD_PORT=3002 ./start-dashboard.sh
+DASHBOARD_PORT=3001 ./start-dashboard.sh
 ```
 
 ### Manuel Başlatma
@@ -23,14 +23,17 @@ DASHBOARD_PORT=3002 ./start-dashboard.sh
 ```bash
 cd dashboard
 
-# Port 3001 (varsayılan)
+# Port 3002 (varsayılan)
 npm run dev
 
 # Port 3000
 npm run dev:3000
 
+# Port 3001
+npm run dev:3001
+
 # Özel port
-PORT=3002 npm run dev
+PORT=3003 npm run dev
 ```
 
 ## 🔧 Port Değiştirme
@@ -46,7 +49,7 @@ export DASHBOARD_PORT=3002
 
 `dashboard/package.json` dosyasında:
 ```json
-"dev": "next dev -p 3002"
+"dev": "next dev -p 3002"  // Varsayılan port 3002
 ```
 
 ### Yöntem 3: Doğrudan Komut
@@ -56,12 +59,13 @@ cd dashboard
 next dev -p 3002
 ```
 
-## 📍 Erişim URL'leri (Port 3001)
+## 📍 Erişim URL'leri (Port 3002)
 
-- **Ana Dashboard**: http://localhost:3001
-- **Investigation**: http://localhost:3001/investigation
-- **Reports**: http://localhost:3001/reports
-- **Settings**: http://localhost:3001/settings
+- **Ana Dashboard**: http://localhost:3002
+- **Investigation**: http://localhost:3002/investigation
+- **Reports**: http://localhost:3002/reports
+- **Users**: http://localhost:3002/users (Admin only)
+- **Settings**: http://localhost:3002/settings
 
 ## ⚙️ Diğer Servisler
 
