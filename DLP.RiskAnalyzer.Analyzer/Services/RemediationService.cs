@@ -29,14 +29,15 @@ public class RemediationService
         };
         _httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri($"https://{dlpIp}:{dlpPort}")
+            BaseAddress = new Uri($"https://{dlpIp}:{dlpPort}"),
+            Timeout = TimeSpan.FromSeconds(5) // Short timeout to fail fast
         };
     }
 
     /// <summary>
-    /// Get JWT access token
+    /// Get JWT access token - returns null if DLP Manager API is unavailable
     /// </summary>
-    private async Task<string> GetAccessTokenAsync()
+    private async Task<string?> GetAccessTokenAsync()
     {
         if (!string.IsNullOrEmpty(_accessToken) && DateTime.UtcNow < _tokenExpiry)
         {
@@ -56,7 +57,7 @@ public class RemediationService
             
             if (!response.IsSuccessStatusCode)
             {
-                throw new HttpRequestException($"DLP Manager API returned status {response.StatusCode}");
+                return null; // API unavailable
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
@@ -66,25 +67,19 @@ public class RemediationService
                 ? tokenResponse["accessToken"].ToString()
                 : tokenResponse?.ContainsKey("token") == true
                     ? tokenResponse["token"].ToString()
-                    : throw new Exception("No token received from DLP API");
+                    : null;
 
-            _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
-            return _accessToken!;
+            if (_accessToken != null)
+            {
+                _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
+            }
+            
+            return _accessToken;
         }
-        catch (TaskCanceledException)
+        catch (Exception)
         {
-            // Timeout or connection refused
-            throw new HttpRequestException("DLP Manager API connection timeout or refused");
-        }
-        catch (HttpRequestException)
-        {
-            // Re-throw HTTP exceptions
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // Wrap other exceptions
-            throw new HttpRequestException($"DLP Manager API error: {ex.Message}", ex);
+            // Any exception means DLP Manager API is unavailable
+            return null;
         }
     }
 
@@ -100,13 +95,8 @@ public class RemediationService
         try
         {
             // Try to get access token - if this fails, DLP Manager API is not available
-            string? token = null;
-            try
-            {
-                token = await GetAccessTokenAsync();
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            }
-            catch (Exception tokenEx)
+            var token = await GetAccessTokenAsync();
+            if (token == null)
             {
                 // DLP Manager API not available - return success response anyway
                 return new Dictionary<string, object>
@@ -120,6 +110,8 @@ public class RemediationService
                     { "remediatedAt", DateTime.UtcNow.ToString("O") }
                 };
             }
+            
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             var requestBody = new
             {
