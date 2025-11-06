@@ -84,10 +84,17 @@ cd ../..
 # Terminal 1: Analyzer API
 cd DLP.RiskAnalyzer.Analyzer
 dotnet run
+# API http://localhost:8000 adresinde çalışacak
 
 # Terminal 2: Collector
 cd DLP.RiskAnalyzer.Collector
 dotnet run
+
+# Terminal 3: Web Dashboard
+cd dashboard
+npm install  # İlk kurulumda
+npm run dev
+# Dashboard http://localhost:3002 adresinde çalışacak
 ```
 
 ## ✅ Test
@@ -101,7 +108,18 @@ curl http://localhost:8000/health
 
 # Swagger UI
 open http://localhost:8000/swagger
+
+# Web Dashboard
+open http://localhost:3002
 ```
+
+## ⚠️ Önemli Notlar
+
+### Incident Remediation
+RemediationService, DLP Manager API (port 8443) bağlantısı olmasa bile remediate işlemlerini başarılı olarak kaydeder. API bağlantısı sağlandığında gerçek remediate işlemleri yapılır.
+
+### Dashboard Port
+Web Dashboard varsayılan olarak **Port 3002**'de çalışır.
 
 ## 📚 Detaylı Dokümantasyon
 
