@@ -29,14 +29,16 @@ export default function LoginPage() {
 
     try {
       const response = await axios.post(`${API_URL}/api/auth/login`, {
-        username,
-        password
+        username: username.trim(),
+        password: password
       })
+
+      console.log('Login response:', response.data)
 
       if (response.data && response.data.token) {
         // Save token
         localStorage.setItem('authToken', response.data.token)
-        localStorage.setItem('username', response.data.username || username)
+        localStorage.setItem('username', response.data.username || username.trim())
         
         if (rememberMe) {
           localStorage.setItem('rememberMe', 'true')
@@ -44,18 +46,26 @@ export default function LoginPage() {
           localStorage.removeItem('rememberMe')
         }
 
-        // Redirect to dashboard
-        router.push('/')
+        // Wait a bit before redirect to ensure state is updated
+        setTimeout(() => {
+          router.push('/')
+          router.refresh()
+        }, 100)
       } else {
         setError('Invalid response from server')
+        setLoading(false)
       }
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        setError('Invalid username or password')
+      console.error('Login error:', err)
+      if (err.response?.status === 401 || err.response?.status === 404) {
+        setError('Invalid username or password. Please check your credentials.')
+      } else if (err.response?.status === 404) {
+        setError('API endpoint not found. Please check if the API is running.')
+      } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('Cannot connect to API. Please check if the API is running on http://localhost:8000')
       } else {
-        setError(err.response?.data?.detail || 'An error occurred during login')
+        setError(err.response?.data?.detail || err.message || 'An error occurred during login')
       }
-    } finally {
       setLoading(false)
     }
   }

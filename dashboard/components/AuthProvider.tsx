@@ -34,13 +34,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Protect routes except login page
-    if (pathname !== '/login') {
-      const storedToken = localStorage.getItem('authToken')
-      if (!storedToken) {
-        router.push('/login')
+    if (typeof window !== 'undefined') {
+      if (pathname !== '/login') {
+        const storedToken = localStorage.getItem('authToken')
+        if (!storedToken) {
+          router.push('/login')
+        }
+      } else if (pathname === '/login' && isAuthenticated) {
+        // Small delay to prevent flicker
+        setTimeout(() => {
+          router.push('/')
+        }, 100)
       }
-    } else if (pathname === '/login' && isAuthenticated) {
-      router.push('/')
     }
   }, [pathname, isAuthenticated, router])
 
