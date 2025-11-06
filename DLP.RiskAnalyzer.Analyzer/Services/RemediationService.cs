@@ -53,9 +53,18 @@ public class RemediationService
             var json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
+            HttpResponseMessage? response = null;
+            try
+            {
+                response = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
+            }
+            catch (Exception)
+            {
+                // Any exception means DLP Manager API is unavailable
+                return null;
+            }
             
-            if (!response.IsSuccessStatusCode)
+            if (response == null || !response.IsSuccessStatusCode)
             {
                 return null; // API unavailable
             }
