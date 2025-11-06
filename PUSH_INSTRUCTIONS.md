@@ -75,13 +75,20 @@ git push -u origin main
 **En kolay yöntem** - Personal Access Token:
 
 ```bash
-cd "/Users/onurhany/Desktop/DLP_Automations/Risk Adaptive Protection CSharp"
+cd "/Users/onurhany/Desktop/DLP_Adaptive Protection CSharp"
 git remote set-url origin https://github.com/onurhan1/dlp-risk-adaptive-protection-csharp.git
 git push -u origin main
 ```
 
 Username: `onurhan1`
 Password: `[Personal Access Token]`
+
+**Otomatik Push Script Kullanımı:**
+
+```bash
+cd "/Users/onurhany/Desktop/DLP_Adaptive Protection CSharp"
+./push-to-github.sh
+```
 
 ## ✅ Push Başarılı Olduğunda
 
