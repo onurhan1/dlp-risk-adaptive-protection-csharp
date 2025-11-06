@@ -31,8 +31,8 @@ interface InvestigationAlertDetailsProps {
 export default function InvestigationAlertDetails({ event }: InvestigationAlertDetailsProps) {
   if (!event) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500 p-8">
-        <p className="text-center">Select an alert from the timeline to view details</p>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '32px' }}>
+        <p style={{ textAlign: 'center' }}>Select an alert from the timeline to view details</p>
       </div>
     )
   }
@@ -45,32 +45,31 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
       {/* Summary Section */}
-      <div className="space-y-3 mb-6">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Channel:</span>
-          <span className="text-sm font-medium text-gray-900">{event.channel || 'Unknown'}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Channel:</span>
+          <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.channel || 'Unknown'}</span>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Action:</span>
-          <span className="text-sm font-medium text-gray-900">{event.action || 'Permit'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Action:</span>
+          <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.action || 'Permit'}</span>
         </div>
         {event.destination && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Destination:</span>
-            <span className="text-sm font-medium text-gray-900">{event.destination}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Destination:</span>
+            <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.destination}</span>
           </div>
         )}
         {event.classification && event.classification.length > 0 && (
           <div>
-            <span className="text-sm text-gray-600 block mb-2">Classification:</span>
-            <div className="flex flex-wrap gap-2">
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>Classification:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {event.classification.map((cls, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 rounded text-xs font-semibold text-white"
-                  style={{ backgroundColor: getClassificationColor(cls) }}
+                  style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', color: 'white', backgroundColor: getClassificationColor(cls) }}
                 >
                   {cls}
                 </span>
@@ -82,15 +81,15 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
 
       {/* Matched Rules */}
       {event.matched_rules && event.matched_rules.length > 0 && (
-        <div className="mb-6">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Matched Rule(s)</h4>
-          <div className="space-y-2">
+        <div style={{ marginBottom: '24px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Matched Rule(s)</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {event.matched_rules.map((rule, idx) => (
-              <div key={idx} className="flex items-center gap-2 text-sm">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-red-600 font-medium">NEO</span>
-                <span className="text-gray-700">IoB-{event.iob_number || '502'}</span>
-                <span className="text-gray-600">{event.description}</span>
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+                <span style={{ color: '#ef4444', fontWeight: '500' }}>NEO</span>
+                <span style={{ color: 'var(--text-primary)' }}>IoB-{event.iob_number || '502'}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{event.description}</span>
               </div>
             ))}
           </div>
@@ -98,47 +97,64 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       )}
 
       {/* Details Section */}
-      <div className="mb-6">
-        <h4 className="text-sm font-semibold text-gray-900 mb-3">Details</h4>
-        <div className="space-y-2 text-sm">
+      <div style={{ marginBottom: '24px' }}>
+        <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Details</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
           {event.source_application && (
             <div>
-              <span className="text-gray-600">Source application: </span>
-              <span className="text-gray-900 font-medium">{event.source_application}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Source application: </span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.source_application}</span>
             </div>
           )}
           {event.email_subject && (
             <div>
-              <span className="text-gray-600">Email Subject: </span>
-              <span className="text-gray-900 font-medium">{event.email_subject}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Email Subject: </span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.email_subject}</span>
             </div>
           )}
           {event.recipients && (
             <div>
-              <span className="text-gray-600">Recipients To: </span>
-              <span className="text-gray-900 font-medium">{event.recipients}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Recipients To: </span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.recipients}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Forensics Section */}
-      <div className="mb-6">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">Forensics</h4>
-        <p className="text-xs text-gray-600 mb-3">
+      <div style={{ marginBottom: '24px' }}>
+        <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Forensics</h4>
+        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
           Filter the table below by classification type or search for a specific file.
         </p>
 
         {/* Search and Filter */}
-        <div className="mb-4 space-y-2">
-          <div className="relative">
+        <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ position: 'relative' }}>
             <input
               type="text"
               placeholder="Search / select a file"
-              className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              style={{
+                width: '100%',
+                padding: '8px 32px 8px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                background: 'var(--background)',
+                color: 'var(--text-primary)',
+                outline: 'none'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--primary)'
+                e.target.style.boxShadow = '0 0 0 2px rgba(0, 168, 232, 0.2)'
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--border)'
+                e.target.style.boxShadow = 'none'
+              }}
             />
             <svg
-              className="absolute right-2 top-2.5 w-4 h-4 text-gray-400"
+              style={{ position: 'absolute', right: '8px', top: '10px', width: '16px', height: '16px', color: 'var(--text-muted)' }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -146,28 +162,49 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          <button className="w-full px-3 py-2 bg-teal-50 text-teal-700 rounded-md text-sm font-medium hover:bg-teal-100 transition-colors flex items-center justify-between">
+          <button style={{
+            width: '100%',
+            padding: '8px 12px',
+            background: 'rgba(0, 168, 232, 0.1)',
+            color: 'var(--primary)',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '500',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+          }}
+          >
             <span>Classifiers</span>
             <span>▼</span>
           </button>
         </div>
 
         {/* DLP Classifiers */}
-        <div className="mb-4 space-y-2">
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <div className="text-sm font-medium text-gray-900 mb-1">
+        <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '8px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
               DLP: US credit cards: all credit cards
             </div>
-            <div className="flex gap-4 text-xs text-gray-600">
+            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
               <span>Matches: 10</span>
               <span>Unique: 4</span>
             </div>
           </div>
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <div className="text-sm font-medium text-gray-900 mb-1">
+          <div style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '8px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
               US SSN With First And Last Names
             </div>
-            <div className="flex gap-4 text-xs text-gray-600">
+            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
               <span>Matches: 3</span>
               <span>Unique: 3</span>
             </div>
@@ -176,37 +213,43 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
 
         {/* Files Table */}
         {event.files && event.files.length > 0 && (
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+          <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', fontSize: '14px' }}>
+              <thead style={{ background: 'var(--background-secondary)' }}>
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Size</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Protected</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Classification</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Name</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Size</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Protected</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Classification</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody style={{ borderTop: '1px solid var(--border)' }}>
                 {event.files.map((file, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-900">{file.name}</td>
-                    <td className="px-3 py-2 text-gray-600">{file.size}</td>
-                    <td className="px-3 py-2">
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border)', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--surface-hover)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                  >
+                    <td style={{ padding: '8px 12px', color: 'var(--text-primary)' }}>{file.name}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{file.size}</td>
+                    <td style={{ padding: '8px 12px' }}>
                       {file.protected ? (
-                        <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                        <svg style={{ width: '16px', height: '16px', color: 'var(--text-secondary)' }} fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                         </svg>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-1">
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {file.classification.map((cls, clsIdx) => (
                           <span
                             key={clsIdx}
-                            className="px-1.5 py-0.5 rounded text-xs font-medium text-white"
-                            style={{ backgroundColor: getClassificationColor(cls) }}
+                            style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', color: 'white', backgroundColor: getClassificationColor(cls) }}
                           >
                             {cls}
                           </span>
@@ -222,7 +265,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       </div>
 
       {/* Remediate Button */}
-      <div className="mt-6 pt-4 border-t border-gray-200">
+      <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
         <RemediateButton
           incidentId={event.id}
           onRemediated={() => {

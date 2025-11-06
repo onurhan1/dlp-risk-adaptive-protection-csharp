@@ -84,21 +84,21 @@ export default function InvestigationUsersList({
   const endItem = Math.min(page * pageSize, total)
 
   return (
-    <div className="flex flex-col h-full">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Table Header */}
-      <div className="grid grid-cols-[80px_1fr] px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <span className="text-xs font-semibold text-gray-600 uppercase">Risk</span>
-        <span className="text-xs font-semibold text-gray-600 uppercase">User</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk</span>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</span>
       </div>
 
       {/* User List */}
-      <div className="flex-1 overflow-y-auto">
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
-          <div className="flex items-center justify-center py-8 text-gray-500">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             Loading users...
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-gray-500">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             No users found
           </div>
         ) : (
@@ -106,19 +106,36 @@ export default function InvestigationUsersList({
             <div
               key={idx}
               onClick={() => onUserSelect(user.user_email, user.risk_score)}
-              className={`grid grid-cols-[80px_1fr] px-4 py-3 cursor-pointer border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                selectedUser === user.user_email ? 'bg-teal-50 border-l-4 border-l-teal-500' : ''
-              }`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '80px 1fr',
+                padding: '12px 16px',
+                cursor: 'pointer',
+                borderBottom: '1px solid var(--border)',
+                background: selectedUser === user.user_email ? 'rgba(0, 168, 232, 0.1)' : 'transparent',
+                borderLeft: selectedUser === user.user_email ? '4px solid var(--primary)' : 'none',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedUser !== user.user_email) {
+                  e.currentTarget.style.background = 'var(--surface-hover)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedUser !== user.user_email) {
+                  e.currentTarget.style.background = 'transparent'
+                }
+              }}
             >
-              <div className="flex items-center justify-center">
-                <div className="relative w-10 h-10">
-                  <svg className="w-10 h-10 transform -rotate-90">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'relative', width: '40px', height: '40px' }}>
+                  <svg style={{ width: '40px', height: '40px', transform: 'rotate(-90deg)' }}>
                     <circle
                       cx="20"
                       cy="20"
                       r="16"
                       fill="none"
-                      stroke="#e5e7eb"
+                      stroke="var(--border)"
                       strokeWidth="4"
                     />
                     <circle
@@ -132,18 +149,17 @@ export default function InvestigationUsersList({
                       strokeLinecap="round"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span
-                      className="text-xs font-bold"
-                      style={{ color: getRiskColor(user.risk_score) }}
+                      style={{ fontSize: '12px', fontWeight: 'bold', color: getRiskColor(user.risk_score) }}
                     >
                       {user.risk_score}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                <span className="text-sm text-gray-900 font-medium">{user.user_email}</span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>{user.user_email}</span>
               </div>
             </div>
           ))
@@ -152,11 +168,30 @@ export default function InvestigationUsersList({
 
       {/* Pagination */}
       {total > 0 && (
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between text-xs text-gray-600">
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              padding: '4px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              cursor: page === 1 ? 'not-allowed' : 'pointer',
+              opacity: page === 1 ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (page !== 1) {
+                e.currentTarget.style.background = 'var(--surface-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (page !== 1) {
+                e.currentTarget.style.background = 'var(--surface)'
+              }
+            }}
           >
             Previous
           </button>
@@ -164,7 +199,26 @@ export default function InvestigationUsersList({
           <button
             onClick={() => setPage(p => p + 1)}
             disabled={endItem >= total}
-            className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              padding: '4px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              cursor: endItem >= total ? 'not-allowed' : 'pointer',
+              opacity: endItem >= total ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (endItem < total) {
+                e.currentTarget.style.background = 'var(--surface-hover)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (endItem < total) {
+                e.currentTarget.style.background = 'var(--surface)'
+              }
+            }}
           >
             Next
           </button>

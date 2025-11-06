@@ -80,35 +80,67 @@ export default function InvestigationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', background: 'var(--background)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">Investigation</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-1.5">
+      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '16px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>Investigation</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 12px', background: 'var(--surface)' }}>
               <button
                 onClick={() => setActiveTab('users')}
-                className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-                  activeTab === 'users'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'all 0.2s',
+                  background: activeTab === 'users' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'users' ? 'white' : 'var(--text-secondary)',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'users') {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'users') {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                  }
+                }}
               >
                 Users
               </button>
               <button
                 onClick={() => setActiveTab('alerts')}
-                className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-                  activeTab === 'alerts'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'all 0.2s',
+                  background: activeTab === 'alerts' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'alerts' ? 'white' : 'var(--text-secondary)',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'alerts') {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'alerts') {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                  }
+                }}
               >
                 Alerts
               </button>
             </div>
-            <div className="text-sm text-gray-600">
+            <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
               {format(new Date(), 'HH:mm dd-MMM-yyyy')}
             </div>
           </div>
@@ -116,23 +148,57 @@ export default function InvestigationPage() {
       </div>
 
       {/* Main Content - Three Column Layout */}
-      <div className="grid grid-cols-[300px_1fr_400px] h-[calc(100vh-73px)]">
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 400px', height: 'calc(100vh - 73px)' }}>
         {/* Left Panel - Users List */}
-        <div className="bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Investigation</h2>
+        <div style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '12px' }}>Investigation</h2>
             <input
               type="text"
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                background: 'var(--background)',
+                color: 'var(--text-primary)',
+                outline: 'none'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--primary)'
+                e.target.style.boxShadow = '0 0 0 2px rgba(0, 168, 232, 0.2)'
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--border)'
+                e.target.style.boxShadow = 'none'
+              }}
             />
-            <div className="mt-3">
+            <div style={{ marginTop: '12px' }}>
               <select
                 value={filterRisk}
                 onChange={(e) => setFilterRisk(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  background: 'var(--background)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--primary)'
+                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(0, 168, 232, 0.2)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
               >
                 <option value="all">All Risk Levels</option>
                 <option value="critical">Critical (80+)</option>
@@ -155,29 +221,75 @@ export default function InvestigationPage() {
         </div>
 
         {/* Center Panel - Timeline */}
-        <div className="bg-white flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-gray-900">Timeline</h2>
+        <div style={{ background: 'var(--surface)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>Timeline</h2>
               {selectedUser && (
                 <button
                   onClick={() => setSelectedUser(undefined)}
-                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '20px',
+                    lineHeight: '1',
+                    cursor: 'pointer',
+                    padding: '4px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-muted)'
+                  }}
                 >
                   ×
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
-                className="p-2 rounded hover:bg-gray-100 transition-colors"
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
                 title="Filter"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-hover)'
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                }}
               >
                 ⚡
               </button>
               <button
-                className="p-2 rounded hover:bg-gray-100 transition-colors"
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
                 title="Sort"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-hover)'
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                }}
               >
                 ⇅
               </button>
@@ -193,23 +305,51 @@ export default function InvestigationPage() {
         </div>
 
         {/* Right Panel - Alert Details */}
-        <div className="bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold text-gray-900">Alert details</h2>
-              <div className="flex items-center gap-2">
+        <div style={{ background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>Alert details</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {selectedEvent && (
                   <>
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      selectedEvent.severity === 'High'
-                        ? 'bg-red-100 text-red-700'
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      background: selectedEvent.severity === 'High' 
+                        ? 'rgba(217, 83, 79, 0.2)' 
                         : selectedEvent.severity === 'Medium'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}>
+                        ? 'rgba(240, 173, 78, 0.2)'
+                        : 'rgba(92, 184, 92, 0.2)',
+                      color: selectedEvent.severity === 'High'
+                        ? '#d9534f'
+                        : selectedEvent.severity === 'Medium'
+                        ? '#f0ad4e'
+                        : '#5cb85c'
+                    }}>
                       ⚡ {selectedEvent.severity}
                     </span>
-                    <button className="p-1 rounded hover:bg-gray-100">▶</button>
+                    <button 
+                      style={{
+                        padding: '4px',
+                        borderRadius: '6px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--surface-hover)'
+                        e.currentTarget.style.color = 'var(--text-primary)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.color = 'var(--text-secondary)'
+                      }}
+                    >
+                      ▶
+                    </button>
                   </>
                 )}
               </div>

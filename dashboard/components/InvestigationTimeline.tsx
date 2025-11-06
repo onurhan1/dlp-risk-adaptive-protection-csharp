@@ -207,22 +207,22 @@ export default function InvestigationTimeline({
 
   if (!userEmail) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
         <p>Select a user from the list to view timeline</p>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* User Profile Header */}
       {userInfo && (
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12">
-                <svg className="w-12 h-12 transform -rotate-90">
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#e5e7eb" strokeWidth="4" />
+        <div style={{ padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ position: 'relative', width: '48px', height: '48px' }}>
+                <svg style={{ width: '48px', height: '48px', transform: 'rotate(-90deg)' }}>
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="var(--border)" strokeWidth="4" />
                   <circle
                     cx="24"
                     cy="24"
@@ -234,18 +234,38 @@ export default function InvestigationTimeline({
                     strokeLinecap="round"
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold" style={{ color: getRiskColorForScore(userInfo.risk) }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: getRiskColorForScore(userInfo.risk) }}>
                     {userInfo.risk}
                   </span>
                 </div>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">{userInfo.name}</h3>
-                <p className="text-xs text-gray-600">{userInfo.title}</p>
+                <h3 style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{userInfo.name}</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{userInfo.title}</p>
               </div>
             </div>
-            <button className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-md text-sm font-medium hover:bg-teal-100 transition-colors flex items-center gap-2">
+            <button style={{
+              padding: '6px 12px',
+              background: 'rgba(0, 168, 232, 0.1)',
+              color: 'var(--primary)',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+            }}
+            >
               <span>📊</span>
               User Insights
             </button>
@@ -254,19 +274,19 @@ export default function InvestigationTimeline({
       )}
 
       {/* Timeline Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {loading ? (
-          <div className="flex items-center justify-center py-8 text-gray-500">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             Loading timeline...
           </div>
         ) : Object.keys(groupedEvents).length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-gray-500">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             No events found
           </div>
         ) : (
           Object.entries(groupedEvents).map(([date, dateEvents]) => (
-            <div key={date} className="mb-6">
-              <div className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-200">
+            <div key={date} style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
                 {date} ({dateEvents.length} {dateEvents.length === 1 ? 'alert' : 'alerts'})
               </div>
 
@@ -274,35 +294,49 @@ export default function InvestigationTimeline({
                 <div
                   key={event.id}
                   onClick={() => onEventSelect(event)}
-                  className={`flex gap-4 p-3 rounded-lg cursor-pointer transition-colors mb-2 ${
-                    selectedEventId === event.id
-                      ? 'bg-teal-50 border-l-4 border-l-teal-500'
-                      : 'hover:bg-gray-50'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    gap: '16px',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    marginBottom: '8px',
+                    background: selectedEventId === event.id ? 'rgba(0, 168, 232, 0.1)' : 'transparent',
+                    borderLeft: selectedEventId === event.id ? '4px solid var(--primary)' : 'none'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedEventId !== event.id) {
+                      e.currentTarget.style.background = 'var(--surface-hover)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedEventId !== event.id) {
+                      e.currentTarget.style.background = 'transparent'
+                    }
+                  }}
                 >
-                  <div className="flex flex-col items-center pt-1">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4px' }}>
                     <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: getSeverityColor(event.severity) }}
+                      style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getSeverityColor(event.severity) }}
                     />
-                    <div className="w-0.5 h-full bg-gray-200 mt-1" />
+                    <div style={{ width: '2px', height: '100%', background: 'var(--border)', marginTop: '4px' }} />
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-gray-500 font-mono">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                         {format(new Date(event.timestamp), 'HH:mm')} UTC
                       </span>
                     </div>
-                    <div className="text-sm text-gray-900 font-medium mb-2">
+                    <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', marginBottom: '8px' }}>
                       {event.description}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {event.tags.map((tag, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 rounded text-xs font-medium text-white"
-                          style={{ backgroundColor: getTagColor(tag) }}
+                          style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', color: 'white', backgroundColor: getTagColor(tag) }}
                         >
                           {tag}
                         </span>
