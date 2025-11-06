@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { useAuth } from '@/components/AuthProvider'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
+  const { login } = useAuth()
 
   useEffect(() => {
     // Check if already logged in
@@ -36,9 +38,10 @@ export default function LoginPage() {
       console.log('Login response:', response.data)
 
       if (response.data && response.data.token) {
-        // Save token
-        localStorage.setItem('authToken', response.data.token)
-        localStorage.setItem('username', response.data.username || username.trim())
+        const role = response.data.role || 'standard'
+        
+        // Use AuthProvider login function
+        login(response.data.token, response.data.username || username.trim(), role)
         
         if (rememberMe) {
           localStorage.setItem('rememberMe', 'true')

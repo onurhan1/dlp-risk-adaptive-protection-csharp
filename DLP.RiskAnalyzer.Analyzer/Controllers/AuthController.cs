@@ -28,26 +28,49 @@ public class AuthController : ControllerBase
                 return BadRequest(new { detail = "Username and password are required" });
             }
 
-            // Simple authentication - in production, use proper user database and password hashing
-            var validUsername = _configuration["Authentication:Username"] ?? "admin";
-            var validPassword = _configuration["Authentication:Password"] ?? "admin123";
+            // Check if user exists in UsersController
+            var user = UsersController.GetUserByUsername(request.Username);
+            
+            // If user not found, check default admin credentials
+            string role = "standard";
+            bool isValid = false;
 
-            if (request.Username != validUsername || request.Password != validPassword)
+            if (user != null)
+            {
+                // User exists in system - for now, accept any password (in production, use proper password hashing)
+                isValid = true;
+                role = user.Role;
+            }
+            else
+            {
+                // Fallback to default admin
+                var validUsername = _configuration["Authentication:Username"] ?? "admin";
+                var validPassword = _configuration["Authentication:Password"] ?? "admin123";
+
+                if (request.Username == validUsername && request.Password == validPassword)
+                {
+                    isValid = true;
+                    role = "admin";
+                }
+            }
+
+            if (!isValid)
             {
                 _logger.LogWarning("Failed login attempt for username: {Username}", request.Username);
                 return Unauthorized(new { detail = "Invalid username or password" });
             }
 
             // Generate JWT token (simplified - use proper JWT library in production)
-            var token = GenerateToken(request.Username);
+            var token = GenerateToken(request.Username, role);
             var expiresAt = DateTime.UtcNow.AddHours(8); // Token expires in 8 hours
 
-            _logger.LogInformation("Successful login for username: {Username}", request.Username);
+            _logger.LogInformation("Successful login for username: {Username} with role {Role}", request.Username, role);
 
             return Ok(new LoginResponse
             {
                 Token = token,
                 Username = request.Username,
+                Role = role,
                 ExpiresAt = expiresAt
             });
         }
@@ -79,10 +102,10 @@ public class AuthController : ControllerBase
         }
     }
 
-    private string GenerateToken(string username)
+    private string GenerateToken(string username, string role)
     {
         // Simple token generation - in production, use proper JWT library like System.IdentityModel.Tokens.Jwt
-        var tokenData = $"{username}:{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
+        var tokenData = $"{username}:{role}:{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
         var bytes = Encoding.UTF8.GetBytes(tokenData);
         var hash = SHA256.HashData(bytes);
         return Convert.ToBase64String(hash);
@@ -99,6 +122,7 @@ public class LoginResponse
 {
     public string Token { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
+    public string Role { get; set; } = "standard";
     public DateTime ExpiresAt { get; set; }
 }
 

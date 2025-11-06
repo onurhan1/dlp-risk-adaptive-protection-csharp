@@ -7,7 +7,9 @@ interface AuthContextType {
   isAuthenticated: boolean
   token: string | null
   username: string | null
-  login: (token: string, username: string) => void
+  role: string | null
+  isAdmin: boolean
+  login: (token: string, username: string, role: string) => void
   logout: () => void
 }
 
@@ -17,18 +19,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [username, setUsername] = useState<string | null>(null)
+  const [role, setRole] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
     // Check for stored token on mount
-    const storedToken = localStorage.getItem('authToken')
-    const storedUsername = localStorage.getItem('username')
+    if (typeof window !== 'undefined') {
+      const storedToken = localStorage.getItem('authToken')
+      const storedUsername = localStorage.getItem('username')
+      const storedRole = localStorage.getItem('userRole')
 
-    if (storedToken) {
-      setToken(storedToken)
-      setUsername(storedUsername)
-      setIsAuthenticated(true)
+      if (storedToken) {
+        setToken(storedToken)
+        setUsername(storedUsername)
+        setRole(storedRole)
+        setIsAuthenticated(true)
+      }
     }
   }, [])
 
@@ -37,8 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       if (pathname !== '/login') {
         const storedToken = localStorage.getItem('authToken')
+        const storedRole = localStorage.getItem('userRole')
+        
         if (!storedToken) {
           router.push('/login')
+          return
+        }
+
+        // Standard users can only access dashboard
+        if (storedRole === 'standard' && pathname !== '/') {
+          router.push('/')
+          return
         }
       } else if (pathname === '/login' && isAuthenticated) {
         // Small delay to prevent flicker
@@ -49,26 +65,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [pathname, isAuthenticated, router])
 
-  const login = (newToken: string, newUsername: string) => {
-    localStorage.setItem('authToken', newToken)
-    localStorage.setItem('username', newUsername)
+  const login = (newToken: string, newUsername: string, newRole: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('authToken', newToken)
+      localStorage.setItem('username', newUsername)
+      localStorage.setItem('userRole', newRole)
+    }
     setToken(newToken)
     setUsername(newUsername)
+    setRole(newRole)
     setIsAuthenticated(true)
   }
 
   const logout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('username')
-    localStorage.removeItem('rememberMe')
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('username')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('rememberMe')
+    }
     setToken(null)
     setUsername(null)
+    setRole(null)
     setIsAuthenticated(false)
     router.push('/login')
   }
 
+  const isAdmin = role === 'admin'
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, token, username, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, username, role, isAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
