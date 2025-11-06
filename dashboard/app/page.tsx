@@ -317,25 +317,26 @@ export default function Home() {
 
       <style jsx>{`
         .dashboard-page {
-          background: #f5f5f5;
+          background: transparent;
           min-height: calc(100vh - 64px);
-          padding: 32px;
+          padding: 0;
         }
 
         .dashboard-header {
-          margin-bottom: 32px;
+          margin-bottom: 24px;
         }
 
         .dashboard-header h1 {
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 700;
-          color: #1a237e;
+          color: var(--text-primary);
           margin: 0 0 8px 0;
+          letter-spacing: -0.02em;
         }
 
         .dashboard-subtitle {
-          font-size: 16px;
-          color: #666;
+          font-size: 14px;
+          color: var(--text-secondary);
           margin: 0;
         }
 
@@ -354,57 +355,74 @@ export default function Home() {
         }
 
         .filter-group label {
-          font-size: 14px;
-          color: #333;
-          font-weight: 500;
+          font-size: 12px;
+          color: var(--text-secondary);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .filter-input,
         .filter-select {
-          padding: 8px 12px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
+          padding: 10px 14px;
+          border: 1px solid var(--border);
+          border-radius: 6px;
           font-size: 14px;
-          background: white;
+          background: var(--surface);
+          color: var(--text-primary);
           min-width: 180px;
+          transition: all 0.2s;
         }
 
         .filter-input:focus,
         .filter-select:focus {
           outline: none;
-          border-color: #283593;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px rgba(0, 168, 232, 0.1);
         }
 
         .download-btn {
-          background-color: #283593;
+          background-color: var(--primary);
           color: white;
           padding: 10px 20px;
           border: none;
-          border-radius: 4px;
+          border-radius: 6px;
           font-size: 14px;
-          font-weight: 500;
+          font-weight: 600;
           cursor: pointer;
-          transition: background-color 0.3s;
+          transition: all 0.2s;
           margin-left: auto;
+          box-shadow: 0 2px 8px rgba(0, 168, 232, 0.3);
         }
 
         .download-btn:hover {
-          background-color: #3949ab;
+          background-color: var(--primary-dark);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 168, 232, 0.4);
         }
 
         .card {
-          background: white;
-          border-radius: 8px;
+          background: var(--surface);
+          border-radius: 6px;
           padding: 24px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--shadow);
+          border: 1px solid var(--border);
           margin-bottom: 24px;
+          transition: all 0.2s;
+        }
+
+        .card:hover {
+          box-shadow: var(--shadow-md);
+          border-color: var(--border-hover);
+          transform: translateY(-2px);
         }
 
         .card h2 {
           margin: 0 0 16px 0;
-          color: #1a237e;
+          color: var(--text-primary);
           font-size: 18px;
           font-weight: 600;
+          letter-spacing: -0.02em;
         }
 
         .timeline-card {
@@ -442,24 +460,26 @@ export default function Home() {
         }
 
         .data-table th {
-          background: #f5f5f5;
+          background: var(--background-secondary);
           padding: 12px;
           text-align: left;
-          font-size: 12px;
-          font-weight: 600;
-          color: #666;
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--text-secondary);
           text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid var(--border);
         }
 
         .data-table td {
           padding: 12px;
-          border-bottom: 1px solid #e0e0e0;
+          border-bottom: 1px solid var(--border);
           font-size: 14px;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .data-table tr:hover {
-          background: #f9f9f9;
+          background: var(--surface-hover);
         }
 
         .user-cell {
