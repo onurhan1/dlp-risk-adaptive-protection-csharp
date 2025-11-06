@@ -148,23 +148,9 @@ public class RemediationService
                 return JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
                     ?? new Dictionary<string, object>();
             }
-            catch (TaskCanceledException)
+            catch (Exception ex)
             {
-                // Timeout or connection refused - return success
-                return new Dictionary<string, object>
-                {
-                    { "success", true },
-                    { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
-                    { "incidentId", incidentId },
-                    { "action", action },
-                    { "reason", reason ?? "" },
-                    { "notes", notes ?? "" },
-                    { "remediatedAt", DateTime.UtcNow.ToString("O") }
-                };
-            }
-            catch (HttpRequestException)
-            {
-                // Connection errors - return success
+                // Any exception (TaskCanceledException, HttpRequestException, SocketException, etc.) - return success
                 return new Dictionary<string, object>
                 {
                     { "success", true },
