@@ -125,21 +125,31 @@ export default function Home() {
 
   const downloadReport = async () => {
     try {
+      const token = localStorage.getItem('authToken')
       const url = `${API_URL}/api/reports/summary?start_date=${dateRange.start}&end_date=${dateRange.end}`
-      const response = await axios.get(url, { responseType: 'blob' })
+      
+      const response = await axios.get(url, { 
+        responseType: 'blob',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
 
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = `dlp_report_${dateRange.start}_to_${dateRange.end}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(downloadUrl)
-    } catch (error) {
+      if (response.data && response.data.size > 0) {
+        const blob = new Blob([response.data], { type: 'application/pdf' })
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = `dlp_report_${dateRange.start}_to_${dateRange.end}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.URL.revokeObjectURL(downloadUrl)
+      } else {
+        throw new Error('Empty response from server')
+      }
+    } catch (error: any) {
       console.error('Error downloading report:', error)
-      alert('Failed to download report')
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to download report'
+      alert(`Failed to download report: ${errorMessage}`)
     }
   }
 

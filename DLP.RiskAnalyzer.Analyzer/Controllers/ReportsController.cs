@@ -98,6 +98,30 @@ public class ReportsController : ControllerBase
         }
     }
 
+    [HttpGet("summary")]
+    public IActionResult GetSummaryReport([FromQuery] string? start_date, [FromQuery] string? end_date)
+    {
+        try
+        {
+            var startDate = !string.IsNullOrEmpty(start_date)
+                ? DateTime.Parse(start_date)
+                : DateTime.UtcNow.AddDays(-7);
+            var endDate = !string.IsNullOrEmpty(end_date)
+                ? DateTime.Parse(end_date)
+                : DateTime.UtcNow;
+
+            // Generate PDF report directly
+            var pdfBytes = _reportGenerator.GenerateDailyReport(startDate, null);
+            var filename = $"dlp_report_{startDate:yyyyMMdd}_to_{endDate:yyyyMMdd}.pdf";
+
+            return File(pdfBytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = $"Error generating summary report: {ex.Message}" });
+        }
+    }
+
     [HttpGet("{reportId}/download")]
     public IActionResult DownloadReport(int reportId)
     {
