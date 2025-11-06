@@ -67,11 +67,15 @@ public class RemediationService
             _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
             return _accessToken!;
         }
-        catch (HttpRequestException ex) when (ex.Message.Contains("Connection refused") || ex.Message.Contains("No connection"))
+        catch (HttpRequestException ex)
         {
-            // DLP Manager API not available - return a dummy token
-            // This will be caught in RemediateIncidentAsync
-            throw new HttpRequestException("DLP Manager API unavailable", ex);
+            // DLP Manager API not available - throw to be caught in RemediateIncidentAsync
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Wrap other exceptions
+            throw new HttpRequestException($"DLP Manager API error: {ex.Message}", ex);
         }
     }
 
