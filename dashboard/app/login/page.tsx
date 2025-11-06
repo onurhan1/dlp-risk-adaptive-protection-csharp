@@ -150,10 +150,18 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 50%, #1a1f2e 100%);
           padding: 20px;
           position: relative;
           overflow: hidden;
+          transition: background 0.3s ease;
+        }
+
+        :global(.dark-theme) .login-container {
+          background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 50%, #1a1f2e 100%);
+        }
+
+        :global(.light-theme) .login-container {
+          background: linear-gradient(135deg, #f5f7fa 0%, #e2e8f0 50%, #f5f7fa 100%);
         }
 
         .login-container::before {
@@ -163,9 +171,18 @@ export default function LoginPage() {
           left: 0;
           right: 0;
           bottom: 0;
+          pointer-events: none;
+          transition: background 0.3s ease;
+        }
+
+        :global(.dark-theme) .login-container::before {
           background: radial-gradient(circle at 20% 50%, rgba(0, 168, 232, 0.1) 0%, transparent 50%),
                       radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
-          pointer-events: none;
+        }
+
+        :global(.light-theme) .login-container::before {
+          background: radial-gradient(circle at 20% 50%, rgba(0, 168, 232, 0.05) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%);
         }
 
         .login-card {

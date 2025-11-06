@@ -29,13 +29,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const applyTheme = (newTheme: Theme) => {
-    const root = document.documentElement
-    if (newTheme === 'dark') {
-      root.classList.add('dark-theme')
-      root.classList.remove('light-theme')
-    } else {
-      root.classList.add('light-theme')
-      root.classList.remove('dark-theme')
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement
+      if (newTheme === 'dark') {
+        root.classList.add('dark-theme')
+        root.classList.remove('light-theme')
+      } else {
+        root.classList.add('light-theme')
+        root.classList.remove('dark-theme')
+      }
     }
   }
 
