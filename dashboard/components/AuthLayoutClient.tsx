@@ -15,9 +15,11 @@ export default function AuthLayoutClient({ children }: { children: React.ReactNo
   return (
     <>
       <Sidebar />
-      <div style={{ marginLeft: '64px' }}>
+      <div style={{ marginLeft: '240px', minHeight: '100vh', background: 'var(--background)' }}>
         <Navigation />
-        {children}
+        <div style={{ padding: '24px' }}>
+          {children}
+        </div>
       </div>
     </>
   )

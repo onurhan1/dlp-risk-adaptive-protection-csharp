@@ -47,51 +47,56 @@ export default function Navigation() {
       </div>
       <style jsx>{`
         .main-header {
-          background: #1a237e;
-          color: white;
+          background: var(--surface);
+          color: var(--text-primary);
           padding: 0;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--shadow);
+          border-bottom: 1px solid var(--border);
         }
         
         .header-content {
-          max-width: 1400px;
-          margin: 0 auto;
+          max-width: 100%;
+          margin: 0;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px 24px;
+          padding: 12px 24px;
         }
         
         .header-brand {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
+          letter-spacing: -0.02em;
         }
         
         .header-nav {
           display: flex;
-          gap: 24px;
+          gap: 8px;
+          align-items: center;
         }
         
         .nav-item {
           display: flex;
           align-items: center;
           gap: 8px;
-          color: white;
+          color: var(--text-secondary);
           text-decoration: none;
           font-size: 14px;
           font-weight: 500;
-          padding: 6px 12px;
-          border-radius: 4px;
-          transition: background 0.2s;
+          padding: 8px 16px;
+          border-radius: 6px;
+          transition: all 0.2s;
         }
         
         .nav-item:hover {
-          background: rgba(255, 255, 255, 0.1);
+          background: var(--surface-hover);
+          color: var(--text-primary);
         }
         
         .nav-item.active {
-          background: rgba(255, 255, 255, 0.2);
+          background: var(--surface-active);
+          color: var(--primary);
         }
         
         .nav-item svg {
@@ -105,30 +110,33 @@ export default function Navigation() {
           gap: 12px;
           margin-left: 24px;
           padding-left: 24px;
-          border-left: 1px solid rgba(255, 255, 255, 0.2);
+          border-left: 1px solid var(--border);
         }
 
         .username {
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.9);
+          color: var(--text-secondary);
+          font-weight: 500;
         }
 
         .logout-btn {
           display: flex;
           align-items: center;
           gap: 6px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: white;
+          background: var(--surface-hover);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
           padding: 6px 12px;
-          border-radius: 4px;
+          border-radius: 6px;
           cursor: pointer;
           font-size: 14px;
-          transition: background 0.2s;
+          transition: all 0.2s;
         }
 
         .logout-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: var(--surface-active);
+          border-color: var(--primary);
+          color: var(--primary);
         }
 
         .logout-btn svg {
