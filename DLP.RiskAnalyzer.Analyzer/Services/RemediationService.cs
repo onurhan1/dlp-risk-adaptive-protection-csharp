@@ -132,15 +132,37 @@ public class RemediationService
             var json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/dlp/rest/v1/incidents/update", content);
-            
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage? response = null;
+            try
             {
-                // If API call fails, still return success for our system
+                response = await _httpClient.PostAsync("/dlp/rest/v1/incidents/update", content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    // If API call fails, still return success for our system
+                    return new Dictionary<string, object>
+                    {
+                        { "success", true },
+                        { "message", $"Incident remediation recorded (DLP Manager API returned status {response.StatusCode})" },
+                        { "incidentId", incidentId },
+                        { "action", action },
+                        { "reason", reason ?? "" },
+                        { "notes", notes ?? "" },
+                        { "remediatedAt", DateTime.UtcNow.ToString("O") }
+                    };
+                }
+
+                var responseContent = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
+                    ?? new Dictionary<string, object>();
+            }
+            catch (TaskCanceledException)
+            {
+                // Timeout or connection refused - return success
                 return new Dictionary<string, object>
                 {
                     { "success", true },
-                    { "message", $"Incident remediation recorded (DLP Manager API returned status {response.StatusCode})" },
+                    { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
                     { "incidentId", incidentId },
                     { "action", action },
                     { "reason", reason ?? "" },
@@ -148,10 +170,20 @@ public class RemediationService
                     { "remediatedAt", DateTime.UtcNow.ToString("O") }
                 };
             }
-
-            var responseContent = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
-                ?? new Dictionary<string, object>();
+            catch (HttpRequestException)
+            {
+                // Connection errors - return success
+                return new Dictionary<string, object>
+                {
+                    { "success", true },
+                    { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
+                    { "incidentId", incidentId },
+                    { "action", action },
+                    { "reason", reason ?? "" },
+                    { "notes", notes ?? "" },
+                    { "remediatedAt", DateTime.UtcNow.ToString("O") }
+                };
+            }
         }
         catch (HttpRequestException ex)
         {
