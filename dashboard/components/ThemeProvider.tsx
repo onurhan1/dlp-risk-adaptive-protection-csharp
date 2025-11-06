@@ -15,19 +15,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
   const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-    // Check localStorage for saved theme preference
-    const savedTheme = localStorage.getItem('theme') as Theme
-    if (savedTheme) {
-      setTheme(savedTheme)
-      applyTheme(savedTheme)
-    } else {
-      // Default to dark theme
-      applyTheme('dark')
-    }
-  }, [])
-
   const applyTheme = (newTheme: Theme) => {
     if (typeof document !== 'undefined') {
       const root = document.documentElement
@@ -41,18 +28,30 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  useEffect(() => {
+    setMounted(true)
+    // Check localStorage for saved theme preference
+    const savedTheme = localStorage.getItem('theme') as Theme
+    if (savedTheme) {
+      setTheme(savedTheme)
+      applyTheme(savedTheme)
+    } else {
+      // Default to dark theme
+      setTheme('dark')
+      applyTheme('dark')
+    }
+  }, [])
+
   const toggleTheme = () => {
     const newTheme: Theme = theme === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', newTheme)
+    }
     applyTheme(newTheme)
   }
 
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return <>{children}</>
-  }
-
+  // Always provide context, even before mount
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
