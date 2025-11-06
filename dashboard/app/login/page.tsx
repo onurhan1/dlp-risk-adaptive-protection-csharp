@@ -150,17 +150,34 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 50%, #1a1f2e 100%);
           padding: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .login-container::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: radial-gradient(circle at 20% 50%, rgba(0, 168, 232, 0.1) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
+          pointer-events: none;
         }
 
         .login-card {
-          background: white;
+          background: var(--surface);
           border-radius: 12px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+          border: 1px solid var(--border);
           padding: 48px;
           width: 100%;
           max-width: 420px;
+          position: relative;
+          z-index: 1;
         }
 
         .login-header {
@@ -177,13 +194,14 @@ export default function LoginPage() {
         .login-header h1 {
           font-size: 28px;
           font-weight: 700;
-          color: #1a237e;
+          color: var(--text-primary);
           margin: 0 0 8px 0;
+          letter-spacing: -0.02em;
         }
 
         .login-subtitle {
           font-size: 14px;
-          color: #666;
+          color: var(--text-secondary);
           margin: 0;
         }
 
@@ -200,22 +218,31 @@ export default function LoginPage() {
         }
 
         .form-group label {
-          font-size: 14px;
-          font-weight: 500;
-          color: #333;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .form-group input {
           padding: 12px 16px;
-          border: 2px solid #e0e0e0;
+          border: 1px solid var(--border);
           border-radius: 8px;
           font-size: 16px;
-          transition: border-color 0.3s;
+          background: var(--background-secondary);
+          color: var(--text-primary);
+          transition: all 0.3s;
         }
 
         .form-group input:focus {
           outline: none;
-          border-color: #283593;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px rgba(0, 168, 232, 0.1);
+        }
+
+        .form-group input::placeholder {
+          color: var(--text-muted);
         }
 
         .form-group input:disabled {
@@ -224,12 +251,13 @@ export default function LoginPage() {
         }
 
         .error-message {
-          background-color: #ffebee;
-          color: #c62828;
+          background-color: rgba(217, 83, 79, 0.1);
+          color: #d9534f;
           padding: 12px;
           border-radius: 8px;
           font-size: 14px;
           text-align: center;
+          border: 1px solid rgba(217, 83, 79, 0.3);
         }
 
         .form-options {
@@ -266,7 +294,7 @@ export default function LoginPage() {
         }
 
         .login-button {
-          background-color: #283593;
+          background-color: var(--primary);
           color: white;
           padding: 14px;
           border: none;
@@ -274,12 +302,15 @@ export default function LoginPage() {
           font-size: 16px;
           font-weight: 600;
           cursor: pointer;
-          transition: background-color 0.3s;
+          transition: all 0.3s;
           margin-top: 8px;
+          box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
         }
 
         .login-button:hover:not(:disabled) {
-          background-color: #3949ab;
+          background-color: var(--primary-dark);
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(0, 168, 232, 0.4);
         }
 
         .login-button:disabled {
@@ -291,7 +322,7 @@ export default function LoginPage() {
           margin-top: 24px;
           text-align: center;
           font-size: 12px;
-          color: #999;
+          color: var(--text-muted);
         }
 
         @media (max-width: 480px) {
