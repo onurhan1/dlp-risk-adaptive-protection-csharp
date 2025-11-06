@@ -13,8 +13,10 @@
   --warning: #f0ad4e;
   --danger: #d9534f;
   --info: #5bc0de;
-  
-  /* Dark Theme Backgrounds */
+}
+
+/* Dark Theme (Default) */
+.dark-theme {
   --background: #1a1f2e; /* Dark Blue-Gray */
   --background-secondary: #252b3d; /* Slightly Lighter */
   --surface: #2d3447; /* Card Background */
@@ -38,6 +40,46 @@
   --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.7);
+}
+
+/* Light Theme */
+.light-theme {
+  --background: #f5f7fa; /* Light Gray-Blue */
+  --background-secondary: #ffffff;
+  --surface: #ffffff; /* White */
+  --surface-hover: #f8fafc;
+  --surface-active: #f1f5f9;
+  
+  /* Text Colors */
+  --text-primary: #1e293b; /* Dark Gray */
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+  
+  /* Borders */
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --border-light: #f1f5f9;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Default to dark theme */
+html {
+  color-scheme: dark;
+}
+
+html.dark-theme {
+  color-scheme: dark;
+}
+
+html.light-theme {
+  color-scheme: light;
 }
 
 * {
@@ -247,13 +289,22 @@ a {
   top: 0;
   height: 100vh;
   width: 240px;
-  background: linear-gradient(180deg, #1a1f2e 0%, #252b3d 100%);
+  background: var(--background-secondary);
   display: flex;
   flex-direction: column;
   padding: 0;
   z-index: 1000;
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   border-right: 1px solid var(--border);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-theme .sidebar {
+  background: linear-gradient(180deg, #1a1f2e 0%, #252b3d 100%);
+}
+
+.light-theme .sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .sidebar-logo {
