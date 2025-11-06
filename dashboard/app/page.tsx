@@ -1,0 +1,519 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
+import axios from 'axios'
+import { format, subDays } from 'date-fns'
+import RiskTimelineChart from '../components/RiskTimelineChart'
+import ChannelActivity from '../components/ChannelActivity'
+import RiskLevelBadge from '../components/RiskLevelBadge'
+
+const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+interface DailySummary {
+  date: string
+  total_incidents: number
+  high_risk_count: number
+  avg_risk_score: number
+  unique_users: number
+  departments_affected: number
+}
+
+interface DepartmentSummary {
+  department: string
+  total_incidents: number
+  high_risk_count: number
+  avg_risk_score: number
+  unique_users: number
+}
+
+interface TopRule {
+  rule_name: string
+  total_alerts: number
+}
+
+interface TopUser {
+  user_email: string
+  total_alerts: number
+  risk_score: number
+}
+
+export default function Home() {
+  const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
+  const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
+  const [topRules, setTopRules] = useState<TopRule[]>([])
+  const [topUsers, setTopUsers] = useState<TopUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedDimension, setSelectedDimension] = useState('department')
+  const [dateRange, setDateRange] = useState({
+    start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  })
+
+  useEffect(() => {
+    fetchData()
+  }, [selectedDimension, dateRange.start, dateRange.end])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const currentStart = dateRange.start
+      const currentEnd = dateRange.end
+      const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
+      
+      const [dailyRes, deptRes, incidentsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/risk/department-summary`, {
+          params: {
+            start_date: currentStart,
+            end_date: currentEnd
+          }
+        }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/incidents`, {
+          params: {
+            start_date: currentStart,
+            end_date: currentEnd,
+            limit: 1000,
+            order_by: 'risk_score_desc'
+          }
+        }).catch(() => ({ data: [] }))
+      ])
+
+      setDailySummary(dailyRes.data)
+      setDeptSummary(deptRes.data)
+      
+      // Calculate top rules
+      const rulesMap = new Map<string, number>()
+      incidentsRes.data.forEach((incident: any) => {
+        const ruleName = incident.policy || 'Unknown Rule'
+        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
+      })
+      const topRulesData = Array.from(rulesMap.entries())
+        .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
+        .sort((a, b) => b.total_alerts - a.total_alerts)
+        .slice(0, 10)
+      setTopRules(topRulesData)
+      
+      // Calculate top users
+      const usersMap = new Map<string, { alerts: number, risk: number }>()
+      incidentsRes.data.forEach((incident: any) => {
+        const user = incident.user_email
+        const existing = usersMap.get(user) || { alerts: 0, risk: 0 }
+        usersMap.set(user, {
+          alerts: existing.alerts + 1,
+          risk: Math.max(existing.risk, incident.risk_score || 0)
+        })
+      })
+      const topUsersData = Array.from(usersMap.entries())
+        .map(([user_email, data]) => ({
+          user_email,
+          total_alerts: data.alerts,
+          risk_score: data.risk
+        }))
+        .sort((a, b) => b.total_alerts - a.total_alerts)
+        .slice(0, 10)
+      setTopUsers(topUsersData)
+      
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const downloadReport = async () => {
+    try {
+      const url = `${API_URL}/api/reports/summary?start_date=${dateRange.start}&end_date=${dateRange.end}`
+      const response = await axios.get(url, { responseType: 'blob' })
+
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = `dlp_report_${dateRange.start}_to_${dateRange.end}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (error) {
+      console.error('Error downloading report:', error)
+      alert('Failed to download report')
+    }
+  }
+
+  const dailyTrendData = {
+    x: dailySummary.map(s => s.date),
+    y: dailySummary.map(s => s.total_incidents),
+    type: 'scatter',
+    mode: 'lines+markers',
+    name: 'Incidents',
+    line: { color: '#283593', width: 2 },
+    marker: { size: 4 }
+  }
+
+  const totalAlerts = topRules.reduce((sum, r) => sum + r.total_alerts, 0)
+
+  return (
+    <div className="dashboard-page">
+      <div className="dashboard-header">
+        <h1>Forcepoint DLP Risk Analyzer Dashboard</h1>
+        <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
+      </div>
+
+      <div className="dashboard-filters">
+        <div className="filter-group">
+          <label>Start Date:</label>
+          <input
+            type="date"
+            value={dateRange.start}
+            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+            className="filter-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>End Date:</label>
+          <input
+            type="date"
+            value={dateRange.end}
+            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+            className="filter-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Heatmap Dimension:</label>
+          <select
+            value={selectedDimension}
+            onChange={(e) => setSelectedDimension(e.target.value)}
+            className="filter-select"
+          >
+            <option value="department">Department</option>
+            <option value="user">User</option>
+            <option value="channel">Channel</option>
+          </select>
+        </div>
+        <button className="download-btn" onClick={downloadReport}>
+          Download PDF Report
+        </button>
+      </div>
+
+      {/* Investigation Timeline - Full Width */}
+      <div className="card timeline-card">
+        <RiskTimelineChart days={30} />
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="dashboard-grid">
+        <div className="card">
+          <h2>Top users</h2>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th className="text-right">Total alerts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={2} className="loading-cell">Loading...</td>
+                </tr>
+              ) : topUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="empty-cell">No data available</td>
+                </tr>
+              ) : (
+                topUsers.map((user, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div className="user-cell">
+                        <RiskLevelBadge riskScore={user.risk_score} showScore={false} />
+                        <span>{user.user_email}</span>
+                      </div>
+                    </td>
+                    <td className="text-right">{user.total_alerts}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
+          <h2>Data Movement 30 days</h2>
+          <div style={{ position: 'relative', zIndex: 9999, pointerEvents: 'auto' }}>
+            <ChannelActivity days={30} />
+          </div>
+        </div>
+      </div>
+
+      {/* Top Matched Rules */}
+      <div className="dashboard-grid">
+        <div className="card">
+          <div className="card-header-row">
+            <h2>Top matched rules</h2>
+            <div className="total-alerts">
+              <span className="total-label">Total alerts last 30 days: {totalAlerts}</span>
+            </div>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th className="text-right">Total alerts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={2} className="loading-cell">Loading...</td>
+                </tr>
+              ) : topRules.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="empty-cell">No data available</td>
+                </tr>
+              ) : (
+                topRules.map((rule, idx) => (
+                  <tr key={idx}>
+                    <td>{rule.rule_name}</td>
+                    <td className="text-right">{rule.total_alerts}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Daily Incident Trends - Full Width */}
+      <div className="card">
+        <div className="chart-header">
+          <h2>📈 Daily Incident Trends</h2>
+          <p className="chart-subtitle">Daily Incident Count</p>
+        </div>
+        <Plot
+          data={[dailyTrendData]}
+          layout={{
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#666', size: 12 },
+            xaxis: { 
+              gridcolor: '#e0e0e0',
+              title: { text: 'Date', font: { size: 14 } }
+            },
+            yaxis: { 
+              gridcolor: '#e0e0e0',
+              title: { text: 'Number of Incidents', font: { size: 14 } }
+            },
+            height: 400,
+            margin: { l: 60, r: 20, t: 40, b: 60 },
+            showlegend: true
+          }}
+          style={{ width: '100%', height: '400px' }}
+          config={{ displayModeBar: false, responsive: true }}
+        />
+      </div>
+
+      <style jsx>{`
+        .dashboard-page {
+          background: #f5f5f5;
+          min-height: calc(100vh - 64px);
+          padding: 32px;
+        }
+
+        .dashboard-header {
+          margin-bottom: 32px;
+        }
+
+        .dashboard-header h1 {
+          font-size: 32px;
+          font-weight: 700;
+          color: #1a237e;
+          margin: 0 0 8px 0;
+        }
+
+        .dashboard-subtitle {
+          font-size: 16px;
+          color: #666;
+          margin: 0;
+        }
+
+        .dashboard-filters {
+          display: flex;
+          gap: 16px;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+          align-items: flex-end;
+        }
+
+        .filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .filter-group label {
+          font-size: 14px;
+          color: #333;
+          font-weight: 500;
+        }
+
+        .filter-input,
+        .filter-select {
+          padding: 8px 12px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          font-size: 14px;
+          background: white;
+          min-width: 180px;
+        }
+
+        .filter-input:focus,
+        .filter-select:focus {
+          outline: none;
+          border-color: #283593;
+        }
+
+        .download-btn {
+          background-color: #283593;
+          color: white;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.3s;
+          margin-left: auto;
+        }
+
+        .download-btn:hover {
+          background-color: #3949ab;
+        }
+
+        .card {
+          background: white;
+          border-radius: 8px;
+          padding: 24px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          margin-bottom: 24px;
+        }
+
+        .card h2 {
+          margin: 0 0 16px 0;
+          color: #1a237e;
+          font-size: 18px;
+          font-weight: 600;
+        }
+
+        .timeline-card {
+          margin-bottom: 24px;
+        }
+
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        .card-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+
+        .total-alerts {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+        }
+
+        .total-label {
+          font-size: 14px;
+          color: #666;
+        }
+
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        .data-table th {
+          background: #f5f5f5;
+          padding: 12px;
+          text-align: left;
+          font-size: 12px;
+          font-weight: 600;
+          color: #666;
+          text-transform: uppercase;
+        }
+
+        .data-table td {
+          padding: 12px;
+          border-bottom: 1px solid #e0e0e0;
+          font-size: 14px;
+          color: #333;
+        }
+
+        .data-table tr:hover {
+          background: #f9f9f9;
+        }
+
+        .user-cell {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .text-right {
+          text-align: right;
+        }
+
+        .loading-cell,
+        .empty-cell {
+          text-align: center;
+          color: #999;
+          padding: 40px !important;
+        }
+
+        .chart-header {
+          margin-bottom: 20px;
+        }
+
+        .chart-subtitle {
+          font-size: 14px;
+          color: #666;
+          margin: 4px 0 0 0;
+        }
+
+        @media (max-width: 1024px) {
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .dashboard-page {
+            padding: 16px;
+          }
+
+          .dashboard-header h1 {
+            font-size: 24px;
+          }
+
+          .dashboard-filters {
+            flex-direction: column;
+          }
+
+          .download-btn {
+            margin-left: 0;
+            width: 100%;
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
