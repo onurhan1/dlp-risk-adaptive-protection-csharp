@@ -21,20 +21,31 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
   const handleRemediate = async () => {
     setLoading(true)
     try {
-      await axios.post(`${API_URL}/api/incidents/${incidentId}/remediate`, {
-        action,
-        reason,
-        notes
-      })
+      const token = localStorage.getItem('authToken')
+      const response = await axios.post(
+        `${API_URL}/api/incidents/${incidentId}/remediate`,
+        {
+          action,
+          reason,
+          notes
+        },
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      )
       
       setShowModal(false)
       if (onRemediated) {
         onRemediated()
       }
-      alert('Incident remediated successfully')
+      
+      // Show success message from API response if available
+      const message = response.data?.message || 'Incident remediated successfully'
+      alert(message)
     } catch (error: any) {
       console.error('Error remediating incident:', error)
-      alert(`Failed to remediate: ${error.response?.data?.detail || error.message}`)
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to remediate incident'
+      alert(`Failed to remediate: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -139,18 +150,20 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
         }
 
         .modal-content {
-          background: white;
+          background: var(--surface);
           padding: 24px;
           border-radius: 8px;
           max-width: 500px;
           width: 90%;
           max-height: 90vh;
           overflow-y: auto;
+          border: 1px solid var(--border);
+          box-shadow: var(--shadow-lg);
         }
 
         .modal-content h3 {
           margin: 0 0 20px 0;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .form-group {
@@ -161,7 +174,7 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
           display: block;
           margin-bottom: 6px;
           font-weight: 500;
-          color: #666;
+          color: var(--text-secondary);
           font-size: 14px;
         }
 
@@ -170,10 +183,12 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
         .form-group textarea {
           width: 100%;
           padding: 8px;
-          border: 1px solid #ddd;
+          border: 1px solid var(--border);
           border-radius: 4px;
           font-size: 14px;
           box-sizing: border-box;
+          background: var(--background);
+          color: var(--text-primary);
         }
 
         .form-group textarea {
@@ -189,34 +204,40 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
 
         .btn-primary {
           padding: 10px 20px;
-          background: #2196f3;
+          background: var(--primary);
           color: white;
           border: none;
           border-radius: 4px;
           cursor: pointer;
           font-weight: 500;
+          transition: all 0.2s;
         }
 
         .btn-primary:hover {
-          background: #1976d2;
+          background: var(--primary-dark);
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(0, 168, 232, 0.3);
         }
 
         .btn-primary:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+          transform: none;
         }
 
         .btn-secondary {
           padding: 10px 20px;
-          background: #757575;
-          color: white;
-          border: none;
+          background: var(--surface-hover);
+          color: var(--text-primary);
+          border: 1px solid var(--border);
           border-radius: 4px;
           cursor: pointer;
+          transition: all 0.2s;
         }
 
         .btn-secondary:hover {
-          background: #616161;
+          background: var(--surface-active);
+          border-color: var(--border-hover);
         }
       `}</style>
     </>
