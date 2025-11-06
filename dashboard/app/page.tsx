@@ -130,25 +130,60 @@ export default function Home() {
       
       const response = await axios.get(url, { 
         responseType: 'blob',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 30000 // 30 second timeout
       })
 
-      if (response.data && response.data.size > 0) {
-        const blob = new Blob([response.data], { type: 'application/pdf' })
+      // Check if response is actually a blob
+      if (response.data instanceof Blob) {
+        if (response.data.size === 0) {
+          throw new Error('Empty PDF file received from server')
+        }
+        
+        const blob = response.data
         const downloadUrl = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = downloadUrl
         link.download = `dlp_report_${dateRange.start}_to_${dateRange.end}.pdf`
         document.body.appendChild(link)
         link.click()
-        link.remove()
-        window.URL.revokeObjectURL(downloadUrl)
+        
+        // Cleanup
+        setTimeout(() => {
+          link.remove()
+          window.URL.revokeObjectURL(downloadUrl)
+        }, 100)
       } else {
-        throw new Error('Empty response from server')
+        // If not a blob, might be JSON error
+        const text = await response.data.text()
+        try {
+          const errorData = JSON.parse(text)
+          throw new Error(errorData.detail || 'Failed to generate report')
+        } catch {
+          throw new Error('Invalid response format from server')
+        }
       }
     } catch (error: any) {
       console.error('Error downloading report:', error)
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to download report'
+      let errorMessage = 'Failed to download report'
+      
+      if (error.response) {
+        // Try to parse error response
+        if (error.response.data instanceof Blob) {
+          const text = await error.response.data.text()
+          try {
+            const errorData = JSON.parse(text)
+            errorMessage = errorData.detail || errorMessage
+          } catch {
+            errorMessage = `Server error: ${error.response.status}`
+          }
+        } else {
+          errorMessage = error.response.data?.detail || error.response.statusText || errorMessage
+        }
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       alert(`Failed to download report: ${errorMessage}`)
     }
   }
