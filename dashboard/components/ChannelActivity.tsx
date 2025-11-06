@@ -138,7 +138,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
         display: 'flex', 
         gap: '0',
         marginBottom: '16px', 
-        borderBottom: '1px solid #e2e8f0'
+        borderBottom: '1px solid var(--border)'
       }}>
         <button
           type="button"
@@ -147,14 +147,24 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
             padding: '8px 16px',
             fontSize: '14px',
             fontWeight: '500',
-            color: activeTab === 'channel' ? '#2563eb' : '#64748b',
+            color: activeTab === 'channel' ? 'var(--primary)' : 'var(--text-secondary)',
             cursor: 'pointer',
             backgroundColor: 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'channel' ? '2px solid #2563eb' : '2px solid transparent',
+            borderBottom: activeTab === 'channel' ? '2px solid var(--primary)' : '2px solid transparent',
             marginBottom: activeTab === 'channel' ? '-1px' : '0',
             userSelect: 'none',
             transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'channel') {
+              e.currentTarget.style.color = 'var(--text-primary)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'channel') {
+              e.currentTarget.style.color = 'var(--text-secondary)'
+            }
           }}
         >
           Channel
@@ -166,14 +176,24 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
             padding: '8px 16px',
             fontSize: '14px',
             fontWeight: '500',
-            color: activeTab === 'destination' ? '#2563eb' : '#64748b',
+            color: activeTab === 'destination' ? 'var(--primary)' : 'var(--text-secondary)',
             cursor: 'pointer',
             backgroundColor: 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'destination' ? '2px solid #2563eb' : '2px solid transparent',
+            borderBottom: activeTab === 'destination' ? '2px solid var(--primary)' : '2px solid transparent',
             marginBottom: activeTab === 'destination' ? '-1px' : '0',
             userSelect: 'none',
             transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'destination') {
+              e.currentTarget.style.color = 'var(--text-primary)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'destination') {
+              e.currentTarget.style.color = 'var(--text-secondary)'
+            }
           }}
         >
           Destination
@@ -183,11 +203,11 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
       {/* Content Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
         {loading ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
             Loading {activeTab} data...
           </div>
         ) : currentData.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
             No {activeTab} data available
           </div>
         ) : (
@@ -206,16 +226,18 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                   alignItems: 'center',
                   gap: '12px',
                   padding: '12px',
-                  background: '#f9fafb',
+                  background: 'var(--background-secondary)',
                   borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  transition: 'background 0.2s'
+                  border: '1px solid var(--border)',
+                  transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#f3f4f6'
+                  e.currentTarget.style.background = 'var(--surface-hover)'
+                  e.currentTarget.style.borderColor = 'var(--border-hover)'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#f9fafb'
+                  e.currentTarget.style.background = 'var(--background-secondary)'
+                  e.currentTarget.style.borderColor = 'var(--border)'
                 }}
               >
                 <div style={{ fontSize: '24px', flexShrink: 0 }}>{icon}</div>
@@ -223,7 +245,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                   <div style={{ 
                     fontSize: '14px', 
                     fontWeight: '500', 
-                    color: '#1e293b',
+                    color: 'var(--text-primary)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
@@ -233,7 +255,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                   <div style={{ fontSize: '18px', fontWeight: '700', color, margin: '2px 0' }}>
                     {percentage}%
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                     {count} alerts
                   </div>
                 </div>
@@ -244,7 +266,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                       cy="25"
                       r="20"
                       fill="none"
-                      stroke="#e5e7eb"
+                      stroke="var(--border)"
                       strokeWidth="4"
                     />
                     <circle
