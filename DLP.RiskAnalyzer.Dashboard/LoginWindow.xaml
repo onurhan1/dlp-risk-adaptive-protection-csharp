@@ -34,28 +34,22 @@
                 <TextBox x:Name="UsernameTextBox"
                          materialDesign:HintAssist.Hint="Username"
                          materialDesign:HintAssist.IsFloating="True"
+                         materialDesign:HintAssist.Icon="Account"
                          Style="{StaticResource MaterialDesignOutlinedTextBox}"
                          Margin="0,0,0,16"
                          FontSize="16"
-                         Padding="12,16">
-                    <TextBox.Icon>
-                        <materialDesign:PackIcon Kind="Account" VerticalAlignment="Center"/>
-                    </TextBox.Icon>
-                </TextBox>
+                         Padding="12,16"/>
 
                 <!-- Password Field -->
                 <PasswordBox x:Name="PasswordBox"
                              materialDesign:HintAssist.Hint="Password"
                              materialDesign:HintAssist.IsFloating="True"
+                             materialDesign:HintAssist.Icon="Lock"
                              Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
                              Margin="0,0,0,24"
                              FontSize="16"
                              Padding="12,16"
-                             KeyDown="PasswordBox_KeyDown">
-                    <PasswordBox.Icon>
-                        <materialDesign:PackIcon Kind="Lock" VerticalAlignment="Center"/>
-                    </PasswordBox.Icon>
-                </PasswordBox>
+                             KeyDown="PasswordBox_KeyDown"/>
 
                 <!-- Error Message -->
                 <TextBlock x:Name="ErrorMessageText"
