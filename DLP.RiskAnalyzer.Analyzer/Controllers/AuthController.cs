@@ -19,13 +19,13 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
+    public Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             {
-                return BadRequest(new { detail = "Username and password are required" });
+                return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = "Username and password are required" }));
             }
 
             // Check if user exists in UsersController
@@ -57,7 +57,7 @@ public class AuthController : ControllerBase
             if (!isValid)
             {
                 _logger.LogWarning("Failed login attempt for username: {Username}", request.Username);
-                return Unauthorized(new { detail = "Invalid username or password" });
+                return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
             }
 
             // Generate JWT token (simplified - use proper JWT library in production)
@@ -66,18 +66,18 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("Successful login for username: {Username} with role {Role}", request.Username, role);
 
-            return Ok(new LoginResponse
+            return Task.FromResult<ActionResult<LoginResponse>>(Ok(new LoginResponse
             {
                 Token = token,
                 Username = request.Username,
                 Role = role,
                 ExpiresAt = expiresAt
-            });
+            }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during login");
-            return StatusCode(500, new { detail = "An error occurred during login" });
+            return Task.FromResult<ActionResult<LoginResponse>>(StatusCode(500, new { detail = "An error occurred during login" }));
         }
     }
 
