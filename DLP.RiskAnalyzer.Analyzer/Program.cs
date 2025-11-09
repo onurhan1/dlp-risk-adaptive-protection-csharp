@@ -176,11 +176,18 @@ app.MapGet("/", () => Results.Content(@"
             padding: 20px;
             transition: all 0.3s ease;
             cursor: pointer;
+            text-decoration: none;
+            display: block;
+            color: inherit;
         }
         .endpoint-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 8px 20px rgba(0,0,0,0.1);
             border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .endpoint-card:active {
+            transform: translateY(-2px);
         }
         .endpoint-method {
             display: inline-block;
@@ -257,46 +264,46 @@ app.MapGet("/", () => Results.Content(@"
         <div class=""section"">
             <div class=""section-title"">API Endpoints</div>
             <div class=""endpoints"">
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger'"">
+                <a href=""/swagger"" class=""endpoint-card"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/swagger</div>
                     <div class=""endpoint-desc"">Interactive API Documentation</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/health'"">
+                </a>
+                <a href=""/health"" class=""endpoint-card"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/health</div>
                     <div class=""endpoint-desc"">System Health Check</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/api'"">
+                </a>
+                <a href=""/api"" class=""endpoint-card"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api</div>
                     <div class=""endpoint-desc"">API Information</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Auth/Login'"">
+                </a>
+                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
                     <span class=""endpoint-method method-post"">POST</span>
                     <div class=""endpoint-path"">/api/auth/login</div>
                     <div class=""endpoint-desc"">User Authentication</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Incidents'"">
+                </a>
+                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/incidents</div>
                     <div class=""endpoint-desc"">Get Security Incidents</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Reports'"">
+                </a>
+                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/reports</div>
                     <div class=""endpoint-desc"">Generate Reports</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Settings'"">
+                </a>
+                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/settings</div>
                     <div class=""endpoint-desc"">System Settings</div>
-                </div>
-                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Users'"">
+                </a>
+                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/users</div>
                     <div class=""endpoint-desc"">User Management</div>
-                </div>
+                </a>
             </div>
         </div>
 
