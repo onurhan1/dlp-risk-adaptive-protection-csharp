@@ -169,17 +169,17 @@ public class RiskController : ControllerBase
                 });
             }
 
-            return Ok(new Dictionary<string, object>
+            return Task.FromResult<ActionResult<Dictionary<string, object>>>(Ok(new Dictionary<string, object>
             {
                 { "user_email", userEmail },
                 { "initial_score", currentScore },
                 { "decay_rate", decayRate },
                 { "simulation", simulation }
-            });
+            }));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            return Task.FromResult<ActionResult<Dictionary<string, object>>>(StatusCode(500, new { detail = ex.Message }));
         }
     }
 }
