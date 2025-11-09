@@ -348,8 +348,11 @@ export default function SettingsPage() {
               type="number"
               min="0"
               max="100"
-              value={settings.risk_threshold_high}
-              onChange={(e) => updateSetting('risk_threshold_high', parseInt(e.target.value))}
+              value={settings.risk_threshold_high || 50}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 50
+                updateSetting('risk_threshold_high', val)
+              }}
               style={{
                 width: '100%',
                 padding: '8px 12px',
