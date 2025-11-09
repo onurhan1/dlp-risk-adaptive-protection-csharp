@@ -131,9 +131,8 @@ public class SettingsController : ControllerBase
             
             foreach (var setting in settingsToSave)
             {
-                // Check if setting exists
+                // Check if setting exists (with tracking to allow update)
                 var existing = await _context.SystemSettings
-                    .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Key == setting.Key);
                 
                 if (existing != null)
@@ -141,7 +140,6 @@ public class SettingsController : ControllerBase
                     // Update existing setting
                     existing.Value = setting.Value;
                     existing.UpdatedAt = DateTime.UtcNow;
-                    _context.SystemSettings.Update(existing);
                     _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
