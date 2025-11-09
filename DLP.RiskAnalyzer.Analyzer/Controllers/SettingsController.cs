@@ -131,14 +131,12 @@ public class SettingsController : ControllerBase
             foreach (var setting in settingsToSave)
             {
                 // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
-                var sql = $@"
-                    INSERT INTO system_settings (key, value, updated_at) 
-                    VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
-                    ON CONFLICT (key) 
-                    DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}";
-                
+                // ExecuteSqlInterpolatedAsync requires FormattableString (string interpolation)
                 var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-                    FormattableStringFactory.Create(sql, setting.Key, setting.Value, DateTime.UtcNow));
+                    $@"INSERT INTO system_settings (key, value, updated_at) 
+                       VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
+                       ON CONFLICT (key) 
+                       DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}");
                 
                 _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
                     setting.Key, setting.Value, rowsAffected);
