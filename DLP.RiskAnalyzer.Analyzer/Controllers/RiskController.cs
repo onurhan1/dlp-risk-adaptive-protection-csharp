@@ -89,22 +89,6 @@ public class RiskController : ControllerBase
         }
     }
 
-    [HttpGet("user-list")]
-    public async Task<ActionResult<Dictionary<string, object>>> GetUserList(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 15)
-    {
-        try
-        {
-            var users = await _riskAnalyzerService.GetUserListAsync(page, pageSize);
-            return Ok(users);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { detail = ex.Message });
-        }
-    }
-
     [HttpGet("channel-activity")]
     public async Task<ActionResult<Dictionary<string, object>>> GetChannelActivity(
         [FromQuery] DateTime? startDate = null,
