@@ -162,16 +162,25 @@ public class SettingsController : ControllerBase
             // Use UPSERT pattern with ExecuteSqlInterpolatedAsync for reliable saving
             foreach (var setting in settingsToSave)
             {
-                // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
-                // ExecuteSqlInterpolatedAsync requires FormattableString (string interpolation)
-                var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-                    $@"INSERT INTO system_settings (key, value, updated_at) 
-                       VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
-                       ON CONFLICT (key) 
-                       DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}");
-                
-                _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
-                    setting.Key, setting.Value, rowsAffected);
+                try
+                {
+                    // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
+                    // ExecuteSqlInterpolatedAsync requires FormattableString (string interpolation)
+                    var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+                        $@"INSERT INTO system_settings (key, value, updated_at) 
+                           VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
+                           ON CONFLICT (key) 
+                           DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}");
+                    
+                    _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
+                        setting.Key, setting.Value, rowsAffected);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error saving setting {Key} = {Value}: {Message}", 
+                        setting.Key, setting.Value, ex.Message);
+                    // Continue with other settings even if one fails
+                }
             }
 
             _logger.LogInformation("All settings saved successfully");
