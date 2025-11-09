@@ -94,38 +94,36 @@ public class SettingsController : ControllerBase
     {
         try
         {
-            // Save settings to database
+            // Save settings to database - always save all values from request
+            _logger.LogInformation("Saving settings. Request keys: {Keys}", string.Join(", ", request.Keys));
+            
             var settingsToSave = new Dictionary<string, string>();
             
-            if (request.TryGetValue("risk_threshold_low", out var low))
-                settingsToSave["risk_threshold_low"] = low?.ToString() ?? "10";
-            else
-                settingsToSave["risk_threshold_low"] = "10";
-                
-            if (request.TryGetValue("risk_threshold_medium", out var medium))
-                settingsToSave["risk_threshold_medium"] = medium?.ToString() ?? "30";
-            else
-                settingsToSave["risk_threshold_medium"] = "30";
-                
-            if (request.TryGetValue("risk_threshold_high", out var high))
-                settingsToSave["risk_threshold_high"] = high?.ToString() ?? "50";
-            else
-                settingsToSave["risk_threshold_high"] = "50";
-                
-            if (request.TryGetValue("email_notifications", out var emailNotif))
-                settingsToSave["email_notifications"] = emailNotif?.ToString() ?? "true";
-            else
-                settingsToSave["email_notifications"] = "true";
-                
-            if (request.TryGetValue("daily_report_time", out var reportTime))
-                settingsToSave["daily_report_time"] = reportTime?.ToString() ?? "06:00";
-            else
-                settingsToSave["daily_report_time"] = "06:00";
-                
-            if (request.TryGetValue("admin_email", out var adminEmail))
-                settingsToSave["admin_email"] = adminEmail?.ToString() ?? "";
-            else
-                settingsToSave["admin_email"] = "";
+            // Always save all settings from request
+            settingsToSave["risk_threshold_low"] = request.ContainsKey("risk_threshold_low") 
+                ? request["risk_threshold_low"]?.ToString() ?? "10" 
+                : "10";
+            settingsToSave["risk_threshold_medium"] = request.ContainsKey("risk_threshold_medium") 
+                ? request["risk_threshold_medium"]?.ToString() ?? "30" 
+                : "30";
+            settingsToSave["risk_threshold_high"] = request.ContainsKey("risk_threshold_high") 
+                ? request["risk_threshold_high"]?.ToString() ?? "50" 
+                : "50";
+            settingsToSave["email_notifications"] = request.ContainsKey("email_notifications") 
+                ? request["email_notifications"]?.ToString() ?? "true" 
+                : "true";
+            settingsToSave["daily_report_time"] = request.ContainsKey("daily_report_time") 
+                ? request["daily_report_time"]?.ToString() ?? "06:00" 
+                : "06:00";
+            settingsToSave["admin_email"] = request.ContainsKey("admin_email") 
+                ? request["admin_email"]?.ToString() ?? "" 
+                : "";
+            
+            _logger.LogInformation("Settings to save: Low={Low}, Medium={Medium}, High={High}, Email={Email}", 
+                settingsToSave["risk_threshold_low"], 
+                settingsToSave["risk_threshold_medium"], 
+                settingsToSave["risk_threshold_high"], 
+                settingsToSave["admin_email"]);
 
             foreach (var setting in settingsToSave)
             {
