@@ -67,14 +67,6 @@ var app = builder.Build();
 app.UseCors();
 app.UseAuthorization();
 
-// Swagger must be configured after UseAuthorization but before MapControllers
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
-    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
-});
-
 // Root endpoint - return professional HTML landing page
 app.MapGet("/", () => Results.Content(@"
 <!DOCTYPE html>
@@ -331,6 +323,14 @@ app.MapGet("/", () => Results.Content(@"
 ", "text/html"));
 
 app.MapControllers();
+
+// Swagger must be configured after MapControllers
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
+    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
+});
 
 // Health check endpoint
 app.MapGet("/health", () =>
