@@ -272,27 +272,27 @@ app.MapGet("/", () => Results.Content(@"
                     <div class=""endpoint-path"">/api</div>
                     <div class=""endpoint-desc"">API Information</div>
                 </div>
-                <div class=""endpoint-card"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Auth/Login'"">
                     <span class=""endpoint-method method-post"">POST</span>
                     <div class=""endpoint-path"">/api/auth/login</div>
                     <div class=""endpoint-desc"">User Authentication</div>
                 </div>
-                <div class=""endpoint-card"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Incidents'"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/incidents</div>
                     <div class=""endpoint-desc"">Get Security Incidents</div>
                 </div>
-                <div class=""endpoint-card"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Reports'"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/reports</div>
                     <div class=""endpoint-desc"">Generate Reports</div>
                 </div>
-                <div class=""endpoint-card"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Settings'"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/settings</div>
                     <div class=""endpoint-desc"">System Settings</div>
                 </div>
-                <div class=""endpoint-card"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger#/Users'"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/users</div>
                     <div class=""endpoint-desc"">User Management</div>
