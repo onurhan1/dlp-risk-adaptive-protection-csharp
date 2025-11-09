@@ -127,33 +127,48 @@ public class SettingsController : ControllerBase
                 settingsToSave["risk_threshold_high"], 
                 settingsToSave["admin_email"]);
 
-            // Clear change tracker and save settings
-            _context.ChangeTracker.Clear();
-            
-            foreach (var setting in settingsToSave)
+            // Use a transaction to ensure all settings are saved together
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                // Use raw SQL to ensure update works - PostgreSQL uses $1, $2, etc.
-                var existing = await _context.SystemSettings
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Key == setting.Key);
-                
-                if (existing != null)
+                foreach (var setting in settingsToSave)
                 {
-                    // Update using FormattableString for proper parameterization
-                    await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $"UPDATE system_settings SET value = {setting.Value}, updated_at = {DateTime.UtcNow} WHERE key = {setting.Key}");
-                    _logger.LogInformation("Updated setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
+                    // Check if setting exists
+                    var existing = await _context.SystemSettings
+                        .FirstOrDefaultAsync(s => s.Key == setting.Key);
+                    
+                    if (existing != null)
+                    {
+                        // Update existing setting
+                        existing.Value = setting.Value;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        _context.Entry(existing).State = EntityState.Modified;
+                        _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
+                    else
+                    {
+                        // Add new setting
+                        var newSetting = new Data.SystemSetting
+                        {
+                            Key = setting.Key,
+                            Value = setting.Value,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _context.SystemSettings.Add(newSetting);
+                        _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
                 }
-                else
-                {
-                    // Insert using FormattableString for proper parameterization
-                    await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $"INSERT INTO system_settings (key, value, updated_at) VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})");
-                    _logger.LogInformation("Inserted setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
-                }
-            }
 
-            // No need for SaveChangesAsync - ExecuteSqlRawAsync already commits
+                var savedCount = await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error saving settings, transaction rolled back");
+                throw;
+            }
 
             // Force refresh from database to verify - use a new query
             _context.ChangeTracker.Clear();
