@@ -66,6 +66,9 @@ app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
+// Root endpoint - redirect to Swagger
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
 // Health check endpoint
 app.MapGet("/health", () =>
 {
@@ -73,6 +76,23 @@ app.MapGet("/health", () =>
     var istTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
     return Results.Ok(new { status = "healthy", timestamp = istTime.ToString("O") });
 });
+
+// API info endpoint
+app.MapGet("/api", () => Results.Ok(new 
+{ 
+    name = "DLP Risk Analyzer API",
+    version = "1.0.0",
+    endpoints = new
+    {
+        swagger = "/swagger",
+        health = "/health",
+        auth = "/api/auth",
+        incidents = "/api/incidents",
+        reports = "/api/reports",
+        settings = "/api/settings",
+        users = "/api/users"
+    }
+}));
 
 var port = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(";").FirstOrDefault()?.Split(":").LastOrDefault() ?? "8000";
 app.Urls.Add($"http://localhost:{port}");
