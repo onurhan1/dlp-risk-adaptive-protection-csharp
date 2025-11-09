@@ -63,10 +63,12 @@ export default function SettingsPage() {
       const response = await axios.post(`${API_URL}/api/settings`, settings, {
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 10000 // 10 second timeout
       })
       console.log('Save response:', response.data)
-      if (response.data.success) {
+      // Check if response has success field or if status is 200
+      if (response.data.success || response.status === 200) {
         // If response includes settings, use them directly
         if (response.data.settings) {
           // Ensure all values are properly typed
