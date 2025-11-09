@@ -1,7 +1,9 @@
+using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 

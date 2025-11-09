@@ -25,27 +25,51 @@ public class SettingsController : ControllerBase
     {
         try
         {
-            // Get settings from database
+            // Get settings from database - force refresh from database
+            _context.ChangeTracker.Clear();
             var settings = await _context.SystemSettings.ToListAsync();
-            var settingsDict = settings.ToDictionary(s => s.Key, s => s.Value);
+            var settingsDict = new Dictionary<string, string>();
+            foreach (var s in settings)
+            {
+                settingsDict[s.Key] = s.Value;
+            }
+
+            _logger.LogInformation("Found {Count} settings in database", settings.Count);
 
             // Return settings with defaults if not found
             int low = 10, medium = 30, high = 50;
             bool emailNotif = true;
             string reportTime = "06:00", adminEmail = "";
 
-            if (settingsDict.TryGetValue("risk_threshold_low", out var lowStr))
-                int.TryParse(lowStr, out low);
-            if (settingsDict.TryGetValue("risk_threshold_medium", out var mediumStr))
-                int.TryParse(mediumStr, out medium);
-            if (settingsDict.TryGetValue("risk_threshold_high", out var highStr))
-                int.TryParse(highStr, out high);
-            if (settingsDict.TryGetValue("email_notifications", out var emailNotifStr))
+            if (settingsDict.TryGetValue("risk_threshold_low", out var lowStr) && !string.IsNullOrEmpty(lowStr))
+            {
+                if (int.TryParse(lowStr, out var parsedLow))
+                    low = parsedLow;
+            }
+            if (settingsDict.TryGetValue("risk_threshold_medium", out var mediumStr) && !string.IsNullOrEmpty(mediumStr))
+            {
+                if (int.TryParse(mediumStr, out var parsedMedium))
+                    medium = parsedMedium;
+            }
+            if (settingsDict.TryGetValue("risk_threshold_high", out var highStr) && !string.IsNullOrEmpty(highStr))
+            {
+                if (int.TryParse(highStr, out var parsedHigh))
+                    high = parsedHigh;
+            }
+            if (settingsDict.TryGetValue("email_notifications", out var emailNotifStr) && !string.IsNullOrEmpty(emailNotifStr))
+            {
                 bool.TryParse(emailNotifStr, out emailNotif);
-            if (settingsDict.TryGetValue("daily_report_time", out var reportTimeStr))
-                reportTime = reportTimeStr ?? "06:00";
+            }
+            if (settingsDict.TryGetValue("daily_report_time", out var reportTimeStr) && !string.IsNullOrEmpty(reportTimeStr))
+            {
+                reportTime = reportTimeStr;
+            }
             if (settingsDict.TryGetValue("admin_email", out var adminEmailStr))
+            {
                 adminEmail = adminEmailStr ?? "";
+            }
+
+            _logger.LogInformation("Returning settings: Low={Low}, Medium={Medium}, High={High}, Email={Email}", low, medium, high, adminEmail);
 
             return Ok(new
             {
@@ -123,8 +147,12 @@ public class SettingsController : ControllerBase
                 }
             }
 
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Settings saved successfully");
+            var savedCount = await _context.SaveChangesAsync();
+            _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+
+            // Verify the save by reading back
+            var savedSettings = await _context.SystemSettings.ToListAsync();
+            _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
 
             return Ok(new { success = true, message = "Settings saved successfully" });
         }
