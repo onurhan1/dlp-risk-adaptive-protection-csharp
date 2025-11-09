@@ -98,8 +98,6 @@ public class AnalyzerDbContext : DbContext
 }
 
 // SystemSetting entity
-namespace DLP.RiskAnalyzer.Analyzer.Data;
-
 public class SystemSetting
 {
     public string Key { get; set; } = string.Empty;
