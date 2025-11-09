@@ -30,11 +30,12 @@ public class IncidentsController : ControllerBase
     {
         try
         {
-            // Check if incidents already exist
+            // Clear existing incidents to allow re-seeding
             var existingCount = await _context.Incidents.CountAsync();
             if (existingCount > 0)
             {
-                return Ok(new { success = true, message = $"Database already contains {existingCount} incidents. Skipping seed." });
+                _context.Incidents.RemoveRange(_context.Incidents);
+                await _context.SaveChangesAsync();
             }
 
             var random = new Random();
