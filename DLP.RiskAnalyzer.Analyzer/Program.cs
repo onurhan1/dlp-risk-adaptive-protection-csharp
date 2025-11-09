@@ -64,9 +64,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-app.UseRouting();
-
-// Swagger is always enabled for API documentation
+// Swagger must be configured before routing
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
