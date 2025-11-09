@@ -138,17 +138,17 @@ public class SettingsController : ControllerBase
                 
                 if (existing != null)
                 {
-                    // Update using ExecuteSqlRaw to ensure it works
+                    // Update using parameterized SQL
                     await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE system_settings SET value = {0}, updated_at = {1} WHERE key = {2}",
+                        $"UPDATE system_settings SET value = {{0}}, updated_at = {{1}} WHERE key = {{2}}",
                         setting.Value, DateTime.UtcNow, setting.Key);
                     _logger.LogInformation("Updated setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
                 {
-                    // Insert using ExecuteSqlRaw
+                    // Insert using parameterized SQL
                     await _context.Database.ExecuteSqlRawAsync(
-                        "INSERT INTO system_settings (key, value, updated_at) VALUES ({0}, {1}, {2})",
+                        $"INSERT INTO system_settings (key, value, updated_at) VALUES ({{0}}, {{1}}, {{2}})",
                         setting.Key, setting.Value, DateTime.UtcNow);
                     _logger.LogInformation("Inserted setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
