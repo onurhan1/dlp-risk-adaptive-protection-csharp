@@ -61,9 +61,15 @@ export default function SettingsPage() {
       })
       console.log('Save response:', response.data)
       if (response.data.success) {
+        // If response includes settings, use them directly
+        if (response.data.settings) {
+          setSettings(response.data.settings)
+          console.log('Settings updated from response:', response.data.settings)
+        } else {
+          // Otherwise refresh from server
+          await fetchSettings()
+        }
         setMessage({ type: 'success', text: 'Settings saved successfully!' })
-        // Refresh settings from server after save
-        await fetchSettings()
         setTimeout(() => setMessage(null), 3000)
       } else {
         throw new Error(response.data.message || 'Failed to save settings')

@@ -168,21 +168,53 @@ public class SettingsController : ControllerBase
             }
             catch (Exception saveEx)
             {
-                _logger.LogError(saveEx, "Error during SaveChangesAsync");
+                _logger.LogError(saveEx, "Error during SaveChangesAsync: {Message}", saveEx.Message);
                 throw;
             }
 
             // Force refresh from database to verify - use a new query
             _context.ChangeTracker.Clear();
-            await Task.Delay(100); // Small delay to ensure database commit
             var savedSettings = await _context.SystemSettings.AsNoTracking().ToListAsync();
             _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
+            
+            // Build response with actual saved values
+            var savedDict = savedSettings.ToDictionary(s => s.Key, s => s.Value);
+            int savedLow = 10, savedMedium = 30, savedHigh = 50;
+            bool savedEmailNotif = true;
+            string savedReportTime = "06:00", savedAdminEmail = "";
+
+            if (savedDict.TryGetValue("risk_threshold_low", out var savedLowStr) && !string.IsNullOrEmpty(savedLowStr))
+                int.TryParse(savedLowStr, out savedLow);
+            if (savedDict.TryGetValue("risk_threshold_medium", out var savedMediumStr) && !string.IsNullOrEmpty(savedMediumStr))
+                int.TryParse(savedMediumStr, out savedMedium);
+            if (savedDict.TryGetValue("risk_threshold_high", out var savedHighStr) && !string.IsNullOrEmpty(savedHighStr))
+                int.TryParse(savedHighStr, out savedHigh);
+            if (savedDict.TryGetValue("email_notifications", out var savedEmailNotifStr) && !string.IsNullOrEmpty(savedEmailNotifStr))
+                bool.TryParse(savedEmailNotifStr, out savedEmailNotif);
+            if (savedDict.TryGetValue("daily_report_time", out var savedReportTimeStr) && !string.IsNullOrEmpty(savedReportTimeStr))
+                savedReportTime = savedReportTimeStr;
+            if (savedDict.TryGetValue("admin_email", out var savedAdminEmailStr))
+                savedAdminEmail = savedAdminEmailStr ?? "";
+
             foreach (var s in savedSettings)
             {
                 _logger.LogInformation("  Verified: {Key} = {Value}", s.Key, s.Value);
             }
 
-            return Ok(new { success = true, message = "Settings saved successfully" });
+            return Ok(new 
+            { 
+                success = true, 
+                message = "Settings saved successfully",
+                settings = new
+                {
+                    risk_threshold_low = savedLow,
+                    risk_threshold_medium = savedMedium,
+                    risk_threshold_high = savedHigh,
+                    email_notifications = savedEmailNotif,
+                    daily_report_time = savedReportTime,
+                    admin_email = savedAdminEmail
+                }
+            });
         }
         catch (Exception ex)
         {
