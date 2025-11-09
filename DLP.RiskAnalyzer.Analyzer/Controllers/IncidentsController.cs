@@ -25,54 +25,6 @@ public class IncidentsController : ControllerBase
         _context = context;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<List<IncidentResponse>>> GetIncidents(
-        [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate,
-        [FromQuery] string? user,
-        [FromQuery] string? department,
-        [FromQuery] int limit = 100,
-        [FromQuery] string orderBy = "timestamp_desc")
-    {
-        try
-        {
-            var incidents = await _dbService.GetIncidentsAsync(
-                startDate, endDate, user, department, limit, orderBy);
-
-            // Enrich with risk level and IOBs
-            var enrichedIncidents = incidents.Select(incident =>
-            {
-                var riskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
-                var policyAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? "");
-                var iobs = _riskAnalyzer.DetectIOB(incident);
-
-                return new IncidentResponse
-                {
-                    Id = incident.Id,
-                    UserEmail = incident.UserEmail,
-                    Department = incident.Department,
-                    Severity = incident.Severity,
-                    DataType = incident.DataType,
-                    Timestamp = incident.Timestamp,
-                    Policy = incident.Policy,
-                    Channel = incident.Channel,
-                    RiskScore = incident.RiskScore,
-                    RepeatCount = incident.RepeatCount,
-                    DataSensitivity = incident.DataSensitivity,
-                    RiskLevel = riskLevel,
-                    RecommendedAction = policyAction,
-                    IOBs = iobs
-                };
-            }).ToList();
-
-            return Ok(enrichedIncidents);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { detail = ex.Message });
-        }
-    }
-
     [HttpPost("seed-sample-data")]
     public async Task<ActionResult> SeedSampleData()
     {
@@ -128,6 +80,54 @@ public class IncidentsController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { detail = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<List<IncidentResponse>>> GetIncidents(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? user,
+        [FromQuery] string? department,
+        [FromQuery] int limit = 100,
+        [FromQuery] string orderBy = "timestamp_desc")
+    {
+        try
+        {
+            var incidents = await _dbService.GetIncidentsAsync(
+                startDate, endDate, user, department, limit, orderBy);
+
+            // Enrich with risk level and IOBs
+            var enrichedIncidents = incidents.Select(incident =>
+            {
+                var riskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
+                var policyAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? "");
+                var iobs = _riskAnalyzer.DetectIOB(incident);
+
+                return new IncidentResponse
+                {
+                    Id = incident.Id,
+                    UserEmail = incident.UserEmail,
+                    Department = incident.Department,
+                    Severity = incident.Severity,
+                    DataType = incident.DataType,
+                    Timestamp = incident.Timestamp,
+                    Policy = incident.Policy,
+                    Channel = incident.Channel,
+                    RiskScore = incident.RiskScore,
+                    RepeatCount = incident.RepeatCount,
+                    DataSensitivity = incident.DataSensitivity,
+                    RiskLevel = riskLevel,
+                    RecommendedAction = policyAction,
+                    IOBs = iobs
+                };
+            }).ToList();
+
+            return Ok(enrichedIncidents);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
         }
     }
 
