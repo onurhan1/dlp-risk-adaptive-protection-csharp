@@ -25,7 +25,9 @@ export default function SettingsPage() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
     fetchSettings()
@@ -69,6 +71,43 @@ export default function SettingsPage() {
 
   const updateSetting = (key: keyof Settings, value: any) => {
     setSettings({ ...settings, [key]: value })
+  }
+
+  const sendTestEmail = async () => {
+    if (!settings.admin_email) {
+      setMessage({ type: 'error', text: 'Please enter an email address first' })
+      setTimeout(() => setMessage(null), 3000)
+      return
+    }
+
+    setSendingEmail(true)
+    setMessage(null)
+    
+    try {
+      const token = localStorage.getItem('authToken')
+      const response = await axios.post(
+        `${API_URL}/api/settings/send-test-email`,
+        { email: settings.admin_email },
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      )
+
+      if (response.data.success) {
+        setMessage({ type: 'success', text: response.data.message || 'Test email sent successfully!' })
+        setEmailConfigured(response.data.configured ?? true)
+        setTimeout(() => setMessage(null), 5000)
+      } else {
+        throw new Error(response.data.detail || 'Failed to send test email')
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to send test email'
+      setMessage({ type: 'error', text: errorMessage })
+      setEmailConfigured(error.response?.data?.configured ?? null)
+      setTimeout(() => setMessage(null), 5000)
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   if (loading) {
@@ -175,20 +214,52 @@ export default function SettingsPage() {
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
               Administrator Email
             </label>
-            <input
-              type="email"
-              value={settings.admin_email}
-              onChange={(e) => updateSetting('admin_email', e.target.value)}
-              placeholder="admin@company.com"
-              style={{
-                width: '100%',
-                maxWidth: '400px',
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: '14px'
-              }}
-            />
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <input
+                type="email"
+                value={settings.admin_email}
+                onChange={(e) => updateSetting('admin_email', e.target.value)}
+                placeholder="admin@company.com"
+                style={{
+                  flex: 1,
+                  maxWidth: '400px',
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  background: 'var(--background)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+              <button
+                onClick={sendTestEmail}
+                disabled={sendingEmail || !settings.admin_email}
+                style={{
+                  padding: '8px 20px',
+                  background: sendingEmail || !settings.admin_email ? '#ccc' : 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: sendingEmail || !settings.admin_email ? 'not-allowed' : 'pointer',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  whiteSpace: 'nowrap',
+                  opacity: sendingEmail || !settings.admin_email ? 0.6 : 1
+                }}
+              >
+                {sendingEmail ? 'Sending...' : 'Send Test Email'}
+              </button>
+            </div>
+            {emailConfigured === false && (
+              <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
+                ⚠️ Email service is not configured. Please configure SMTP settings in appsettings.json
+              </p>
+            )}
+            {emailConfigured === true && (
+              <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', marginBottom: 0 }}>
+                ✓ Email service is configured and ready
+              </p>
+            )}
           </div>
         </div>
       </div>

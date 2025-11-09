@@ -29,6 +29,7 @@ builder.Services.AddScoped<ReportGeneratorService>();
 builder.Services.AddScoped<AnomalyDetector>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
+builder.Services.AddScoped<EmailService>();
 
 // HTTP Clients for external APIs
 builder.Services.AddHttpClient<PolicyService>(client =>
