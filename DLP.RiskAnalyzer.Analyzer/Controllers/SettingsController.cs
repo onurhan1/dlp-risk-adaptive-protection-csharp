@@ -159,27 +159,44 @@ public class SettingsController : ControllerBase
                 _logger.LogWarning(ex, "Could not create system_settings table (may already exist)");
             }
 
-            // Use UPSERT pattern with ExecuteSqlRawAsync for reliable saving
-            // Using parameterized queries to avoid SQL injection
+            // Use Entity Framework's Update/Add pattern for reliable saving
             foreach (var setting in settingsToSave)
             {
                 try
                 {
-                    // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
-                    // Using ExecuteSqlRawAsync with parameters for better compatibility
-                    var sql = @"
-                        INSERT INTO system_settings (key, value, updated_at) 
-                        VALUES (@p0, @p1, @p2)
-                        ON CONFLICT (key) 
-                        DO UPDATE SET value = @p1, updated_at = @p2";
+                    // Clear change tracker to avoid conflicts
+                    _context.ChangeTracker.Clear();
                     
-                    var rowsAffected = await _context.Database.ExecuteSqlRawAsync(sql,
-                        new Npgsql.NpgsqlParameter("@p0", setting.Key),
-                        new Npgsql.NpgsqlParameter("@p1", setting.Value),
-                        new Npgsql.NpgsqlParameter("@p2", DateTime.UtcNow));
+                    // Check if setting exists
+                    var existing = await _context.SystemSettings
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.Key == setting.Key);
                     
+                    if (existing != null)
+                    {
+                        // Update existing setting
+                        existing.Value = setting.Value;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        _context.SystemSettings.Update(existing);
+                        _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
+                    else
+                    {
+                        // Add new setting
+                        var newSetting = new Data.SystemSetting
+                        {
+                            Key = setting.Key,
+                            Value = setting.Value,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _context.SystemSettings.Add(newSetting);
+                        _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
+                    
+                    // Save changes immediately for each setting
+                    var savedCount = await _context.SaveChangesAsync();
                     _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
-                        setting.Key, setting.Value, rowsAffected);
+                        setting.Key, setting.Value, savedCount);
                 }
                 catch (Exception ex)
                 {
