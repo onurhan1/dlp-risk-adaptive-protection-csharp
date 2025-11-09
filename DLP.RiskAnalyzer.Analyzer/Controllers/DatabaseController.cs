@@ -37,13 +37,6 @@ public class DatabaseController : ControllerBase
             var systemSettingsCount = await _context.SystemSettings.CountAsync();
             var incidentsCount = await _context.Incidents.CountAsync();
             
-            // Get table structure info
-            var systemSettingsColumns = await _context.Database
-                .ExecuteSqlRawAsync("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'system_settings' ORDER BY ordinal_position");
-            
-            var incidentsColumns = await _context.Database
-                .ExecuteSqlRawAsync("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'incidents' ORDER BY ordinal_position");
-
             return Ok(new
             {
                 connected = true,
