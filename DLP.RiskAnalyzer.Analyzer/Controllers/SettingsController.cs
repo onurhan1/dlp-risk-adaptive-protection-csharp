@@ -30,14 +30,31 @@ public class SettingsController : ControllerBase
             var settingsDict = settings.ToDictionary(s => s.Key, s => s.Value);
 
             // Return settings with defaults if not found
+            int low = 10, medium = 30, high = 50;
+            bool emailNotif = true;
+            string reportTime = "06:00", adminEmail = "";
+
+            if (settingsDict.TryGetValue("risk_threshold_low", out var lowStr))
+                int.TryParse(lowStr, out low);
+            if (settingsDict.TryGetValue("risk_threshold_medium", out var mediumStr))
+                int.TryParse(mediumStr, out medium);
+            if (settingsDict.TryGetValue("risk_threshold_high", out var highStr))
+                int.TryParse(highStr, out high);
+            if (settingsDict.TryGetValue("email_notifications", out var emailNotifStr))
+                bool.TryParse(emailNotifStr, out emailNotif);
+            if (settingsDict.TryGetValue("daily_report_time", out var reportTimeStr))
+                reportTime = reportTimeStr ?? "06:00";
+            if (settingsDict.TryGetValue("admin_email", out var adminEmailStr))
+                adminEmail = adminEmailStr ?? "";
+
             return Ok(new
             {
-                risk_threshold_low = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_low"), out var low) ? low : 10,
-                risk_threshold_medium = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_medium"), out var medium) ? medium : 30,
-                risk_threshold_high = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_high"), out var high) ? high : 50,
-                email_notifications = bool.TryParse(settingsDict.GetValueOrDefault("email_notifications"), out var emailNotif) ? emailNotif : true,
-                daily_report_time = settingsDict.GetValueOrDefault("daily_report_time") ?? "06:00",
-                admin_email = settingsDict.GetValueOrDefault("admin_email") ?? ""
+                risk_threshold_low = low,
+                risk_threshold_medium = medium,
+                risk_threshold_high = high,
+                email_notifications = emailNotif,
+                daily_report_time = reportTime,
+                admin_email = adminEmail
             });
         }
         catch (Exception ex)
