@@ -154,21 +154,7 @@ public class SettingsController : ControllerBase
                 }
             }
 
-            try
-            {
-                var savedCount = await _context.SaveChangesAsync();
-                _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
-                
-                if (savedCount == 0)
-                {
-                    _logger.LogWarning("No records were saved! This might indicate a problem.");
-                }
-            }
-            catch (Exception saveEx)
-            {
-                _logger.LogError(saveEx, "Error during SaveChangesAsync: {Message}", saveEx.Message);
-                throw;
-            }
+            // No need for SaveChangesAsync - ExecuteSqlRawAsync already commits
 
             // Force refresh from database to verify - use a new query
             _context.ChangeTracker.Clear();
