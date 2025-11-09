@@ -25,20 +25,24 @@ public class SettingsController : ControllerBase
     {
         try
         {
-            // Get settings from database (system_settings table)
-            // Placeholder - implement based on your schema
+            // Get settings from database
+            var settings = await _context.SystemSettings.ToListAsync();
+            var settingsDict = settings.ToDictionary(s => s.Key, s => s.Value);
+
+            // Return settings with defaults if not found
             return Ok(new
             {
-                risk_threshold_low = 10,
-                risk_threshold_medium = 30,
-                risk_threshold_high = 50,
-                email_notifications = true,
-                daily_report_time = "06:00",
-                admin_email = ""
+                risk_threshold_low = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_low"), out var low) ? low : 10,
+                risk_threshold_medium = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_medium"), out var medium) ? medium : 30,
+                risk_threshold_high = int.TryParse(settingsDict.GetValueOrDefault("risk_threshold_high"), out var high) ? high : 50,
+                email_notifications = bool.TryParse(settingsDict.GetValueOrDefault("email_notifications"), out var emailNotif) ? emailNotif : true,
+                daily_report_time = settingsDict.GetValueOrDefault("daily_report_time") ?? "06:00",
+                admin_email = settingsDict.GetValueOrDefault("admin_email") ?? ""
             });
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error getting settings");
             return StatusCode(500, new { detail = ex.Message });
         }
     }
@@ -50,12 +54,44 @@ public class SettingsController : ControllerBase
         try
         {
             // Save settings to database
-            // Placeholder - implement based on your schema
-            
+            var settingsToSave = new Dictionary<string, string>
+            {
+                { "risk_threshold_low", request.GetValueOrDefault("risk_threshold_low")?.ToString() ?? "10") },
+                { "risk_threshold_medium", request.GetValueOrDefault("risk_threshold_medium")?.ToString() ?? "30") },
+                { "risk_threshold_high", request.GetValueOrDefault("risk_threshold_high")?.ToString() ?? "50") },
+                { "email_notifications", request.GetValueOrDefault("email_notifications")?.ToString() ?? "true") },
+                { "daily_report_time", request.GetValueOrDefault("daily_report_time")?.ToString() ?? "06:00") },
+                { "admin_email", request.GetValueOrDefault("admin_email")?.ToString() ?? "") }
+            };
+
+            foreach (var setting in settingsToSave)
+            {
+                var existing = await _context.SystemSettings.FindAsync(setting.Key);
+                if (existing != null)
+                {
+                    existing.Value = setting.Value;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    _context.SystemSettings.Update(existing);
+                }
+                else
+                {
+                    _context.SystemSettings.Add(new Data.SystemSetting
+                    {
+                        Key = setting.Key,
+                        Value = setting.Value,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Settings saved successfully");
+
             return Ok(new { success = true, message = "Settings saved successfully" });
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error saving settings");
             return StatusCode(500, new { detail = ex.Message });
         }
     }

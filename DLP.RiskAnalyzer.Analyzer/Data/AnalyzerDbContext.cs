@@ -13,6 +13,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<DailySummary> DailySummaries { get; set; }
     public DbSet<UserRiskTrend> UserRiskTrends { get; set; }
     public DbSet<DepartmentSummary> DepartmentSummaries { get; set; }
+    public DbSet<SystemSetting> SystemSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +83,27 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.UniqueUsers).HasColumnName("unique_users");
             entity.Property(e => e.Date).HasColumnName("date");
         });
+
+        // Configure SystemSetting
+        modelBuilder.Entity<SystemSetting>(entity =>
+        {
+            entity.ToTable("system_settings");
+            entity.HasKey(e => e.Key);
+            
+            entity.Property(e => e.Key).HasColumnName("key").IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).HasColumnName("value").IsRequired();
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
     }
+}
+
+// SystemSetting entity
+namespace DLP.RiskAnalyzer.Analyzer.Data;
+
+public class SystemSetting
+{
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; }
 }
 
