@@ -64,10 +64,29 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseAuthorization();
-app.MapControllers();
 
-// Root endpoint - redirect to Swagger
-app.MapGet("/", () => Results.Redirect("/swagger"));
+// Root endpoint - return API info with link to Swagger
+app.MapGet("/", () => Results.Ok(new 
+{ 
+    message = "DLP Risk Analyzer API",
+    version = "1.0.0",
+    documentation = "/swagger",
+    health = "/health",
+    api_info = "/api",
+    endpoints = new
+    {
+        swagger = "/swagger",
+        health = "/health",
+        api_info = "/api",
+        auth = "/api/auth",
+        incidents = "/api/incidents",
+        reports = "/api/reports",
+        settings = "/api/settings",
+        users = "/api/users"
+    }
+}));
+
+app.MapControllers();
 
 // Health check endpoint
 app.MapGet("/health", () =>
