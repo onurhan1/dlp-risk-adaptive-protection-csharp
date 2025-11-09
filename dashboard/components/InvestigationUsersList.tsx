@@ -40,7 +40,13 @@ export default function InvestigationUsersList({
       const response = await axios.get(`${API_URL}/api/risk/user-list`, {
         params: { page, page_size: pageSize }
       })
-      setUsers(response.data.users || [])
+      // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)
+      const usersData = (response.data.users || []).map((user: any) => ({
+        user_email: user.user_email || user.userEmail || '',
+        risk_score: user.risk_score || user.maxRiskScore || 0,
+        total_incidents: user.total_incidents || user.totalIncidents || 0
+      }))
+      setUsers(usersData)
       setTotal(response.data.total || 0)
     } catch (error) {
       console.error('Error fetching users:', error)
