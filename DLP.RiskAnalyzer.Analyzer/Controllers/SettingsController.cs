@@ -26,6 +26,22 @@ public class SettingsController : ControllerBase
     {
         try
         {
+            // Ensure table exists
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync(@"
+                    CREATE TABLE IF NOT EXISTS system_settings (
+                        key VARCHAR(100) PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )");
+                _logger.LogInformation("Ensured system_settings table exists");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not create system_settings table (may already exist)");
+            }
+
             // Get settings from database - force refresh from database with AsNoTracking
             _context.ChangeTracker.Clear();
             var settings = await _context.SystemSettings.AsNoTracking().ToListAsync();

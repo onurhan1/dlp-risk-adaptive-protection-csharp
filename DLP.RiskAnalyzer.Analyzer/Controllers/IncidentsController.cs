@@ -51,9 +51,20 @@ public class IncidentsController : ControllerBase
             // Get the next ID from database sequence or max ID
             var maxId = await _context.Incidents.MaxAsync(i => (int?)i.Id) ?? 0;
             
+            // Ensure each incident has a unique (Id, Timestamp) combination
+            var usedTimestamps = new HashSet<DateTime>();
+            
             for (int i = 0; i < 50; i++)
             {
                 var timestamp = baseDate.AddDays(random.Next(0, 30)).AddHours(random.Next(0, 24)).AddMinutes(random.Next(0, 60));
+                
+                // Ensure unique timestamp for this ID
+                while (usedTimestamps.Contains(timestamp))
+                {
+                    timestamp = timestamp.AddMinutes(1);
+                }
+                usedTimestamps.Add(timestamp);
+                
                 var riskScore = random.Next(20, 95);
                 
                 incidents.Add(new Incident
