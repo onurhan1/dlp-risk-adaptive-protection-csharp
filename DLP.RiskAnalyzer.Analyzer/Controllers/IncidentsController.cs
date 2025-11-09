@@ -112,7 +112,8 @@ public class IncidentsController : ControllerBase
         }
     }
 
-    [HttpPost("seed-sample-data")]
+    [HttpPost]
+    [Route("seed-sample-data")]
     public async Task<ActionResult> SeedSampleData()
     {
         try
