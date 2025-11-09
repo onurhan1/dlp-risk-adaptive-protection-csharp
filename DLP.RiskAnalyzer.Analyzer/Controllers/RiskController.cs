@@ -142,7 +142,7 @@ public class RiskController : ControllerBase
     }
 
     [HttpGet("decay/simulation")]
-    public async Task<ActionResult<Dictionary<string, object>>> GetRiskDecaySimulation(
+    public Task<ActionResult<Dictionary<string, object>>> GetRiskDecaySimulation(
         [FromQuery] string userEmail,
         [FromQuery] int days = 30)
     {

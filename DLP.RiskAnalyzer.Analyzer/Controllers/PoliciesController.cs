@@ -45,11 +45,13 @@ public class PoliciesController : ControllerBase
     }
 
     [HttpPost("recommendations")]
-    public async Task<ActionResult<Dictionary<string, object>>> GetPolicyRecommendations(
+    public Task<ActionResult<Dictionary<string, object>>> GetPolicyRecommendations(
         [FromBody] Dictionary<string, object> request)
     {
-        try
+        return Task.FromResult<ActionResult<Dictionary<string, object>>>(new Func<ActionResult<Dictionary<string, object>>>(() =>
         {
+            try
+            {
             var riskScore = Convert.ToInt32(request.GetValueOrDefault("risk_score", 0));
             var riskLevel = request.GetValueOrDefault("risk_level", "Medium").ToString() ?? "Medium";
             var channel = request.GetValueOrDefault("channel", "Email").ToString() ?? "Email";

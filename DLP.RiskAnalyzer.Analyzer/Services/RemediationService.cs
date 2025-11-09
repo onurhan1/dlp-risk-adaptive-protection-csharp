@@ -157,7 +157,7 @@ public class RemediationService
                 return JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
                     ?? new Dictionary<string, object>();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Any exception (TaskCanceledException, HttpRequestException, SocketException, etc.) - return success
                 return new Dictionary<string, object>
@@ -172,7 +172,7 @@ public class RemediationService
                 };
             }
         }
-        catch (HttpRequestException ex)
+        catch (HttpRequestException)
         {
             // Connection errors - DLP Manager API not available
             return new Dictionary<string, object>

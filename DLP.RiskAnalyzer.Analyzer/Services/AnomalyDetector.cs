@@ -162,7 +162,7 @@ public class AnomalyDetector
     /// <summary>
     /// Save anomaly detection to database
     /// </summary>
-    public async Task<int> SaveAnomalyDetectionAsync(
+    public Task<int> SaveAnomalyDetectionAsync(
         string userEmail,
         string metricType,
         double currentValue,
@@ -172,13 +172,13 @@ public class AnomalyDetector
     {
         // Note: Requires anomaly_detections table in database
         // This is a placeholder - implement based on your database schema
-        return 0;
+        return Task.FromResult(0);
     }
 
     /// <summary>
     /// Get anomaly detections
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetAnomalyDetectionsAsync(
+    public Task<List<Dictionary<string, object>>> GetAnomalyDetectionsAsync(
         DateOnly? startDate,
         DateOnly? endDate,
         string? severity)
