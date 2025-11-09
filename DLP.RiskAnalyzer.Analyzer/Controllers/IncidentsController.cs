@@ -117,6 +117,13 @@ public class IncidentsController : ControllerBase
     {
         try
         {
+            // Check if incidents already exist
+            var existingCount = await _context.Incidents.CountAsync();
+            if (existingCount > 0)
+            {
+                return Ok(new { success = true, message = $"Database already contains {existingCount} incidents. Skipping seed." });
+            }
+
             var random = new Random();
             var users = new[] { "john.doe@company.com", "jane.smith@company.com", "bob.wilson@company.com", "alice.brown@company.com", "charlie.davis@company.com" };
             var departments = new[] { "IT", "Finance", "HR", "Sales", "Marketing", "Operations" };
@@ -149,13 +156,13 @@ public class IncidentsController : ControllerBase
             }
 
             await _context.Incidents.AddRangeAsync(incidents);
-            await _context.SaveChangesAsync();
+            var savedCount = await _context.SaveChangesAsync();
 
-            return Ok(new { success = true, message = $"Successfully created {incidents.Count} sample incidents" });
+            return Ok(new { success = true, message = $"Successfully created {savedCount} sample incidents", count = savedCount });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            return StatusCode(500, new { detail = ex.Message, stackTrace = ex.StackTrace });
         }
     }
 }

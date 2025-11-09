@@ -131,28 +131,26 @@ public class SettingsController : ControllerBase
             
             foreach (var setting in settingsToSave)
             {
-                // Check if setting exists (with tracking to allow update)
+                // Use raw SQL to ensure update works
                 var existing = await _context.SystemSettings
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Key == setting.Key);
                 
                 if (existing != null)
                 {
-                    // Update existing setting
-                    existing.Value = setting.Value;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
+                    // Update using ExecuteSqlRaw to ensure it works
+                    await _context.Database.ExecuteSqlRawAsync(
+                        "UPDATE system_settings SET value = {0}, updated_at = {1} WHERE key = {2}",
+                        setting.Value, DateTime.UtcNow, setting.Key);
+                    _logger.LogInformation("Updated setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
                 {
-                    // Add new setting
-                    var newSetting = new Data.SystemSetting
-                    {
-                        Key = setting.Key,
-                        Value = setting.Value,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    _context.SystemSettings.Add(newSetting);
-                    _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                    // Insert using ExecuteSqlRaw
+                    await _context.Database.ExecuteSqlRawAsync(
+                        "INSERT INTO system_settings (key, value, updated_at) VALUES ({0}, {1}, {2})",
+                        setting.Key, setting.Value, DateTime.UtcNow);
+                    _logger.LogInformation("Inserted setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
             }
 
