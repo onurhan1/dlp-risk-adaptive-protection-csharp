@@ -2,6 +2,7 @@ using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -138,22 +139,16 @@ public class SettingsController : ControllerBase
                 
                 if (existing != null)
                 {
-                    // Update using FromSqlRaw with proper PostgreSQL syntax
-                    var updateSql = "UPDATE system_settings SET value = $1, updated_at = $2 WHERE key = $3";
-                    await _context.Database.ExecuteSqlRawAsync(updateSql, 
-                        new Npgsql.NpgsqlParameter("p1", setting.Value),
-                        new Npgsql.NpgsqlParameter("p2", DateTime.UtcNow),
-                        new Npgsql.NpgsqlParameter("p3", setting.Key));
+                    // Update using FormattableString for proper parameterization
+                    await _context.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE system_settings SET value = {setting.Value}, updated_at = {DateTime.UtcNow} WHERE key = {setting.Key}");
                     _logger.LogInformation("Updated setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
                 {
-                    // Insert using FromSqlRaw with proper PostgreSQL syntax
-                    var insertSql = "INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, $3)";
-                    await _context.Database.ExecuteSqlRawAsync(insertSql,
-                        new Npgsql.NpgsqlParameter("p1", setting.Key),
-                        new Npgsql.NpgsqlParameter("p2", setting.Value),
-                        new Npgsql.NpgsqlParameter("p3", DateTime.UtcNow));
+                    // Insert using FormattableString for proper parameterization
+                    await _context.Database.ExecuteSqlInterpolatedAsync(
+                        $"INSERT INTO system_settings (key, value, updated_at) VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})");
                     _logger.LogInformation("Inserted setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
             }
