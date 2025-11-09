@@ -36,11 +36,17 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      // Fetch settings from API
-      // For now, we'll use default values
       const response = await axios.get(`${API_URL}/api/settings`).catch(() => ({ data: null }))
       if (response.data) {
-        setSettings(response.data)
+        // Ensure all values are properly typed
+        setSettings({
+          email_notifications: response.data.email_notifications ?? true,
+          daily_report_time: response.data.daily_report_time ?? '06:00',
+          risk_threshold_low: Number(response.data.risk_threshold_low) || 10,
+          risk_threshold_medium: Number(response.data.risk_threshold_medium) || 30,
+          risk_threshold_high: Number(response.data.risk_threshold_high) || 50,
+          admin_email: response.data.admin_email ?? ''
+        })
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -63,7 +69,15 @@ export default function SettingsPage() {
       if (response.data.success) {
         // If response includes settings, use them directly
         if (response.data.settings) {
-          setSettings(response.data.settings)
+          // Ensure all values are properly typed
+          setSettings({
+            email_notifications: response.data.settings.email_notifications ?? true,
+            daily_report_time: response.data.settings.daily_report_time ?? '06:00',
+            risk_threshold_low: Number(response.data.settings.risk_threshold_low) || 10,
+            risk_threshold_medium: Number(response.data.settings.risk_threshold_medium) || 30,
+            risk_threshold_high: Number(response.data.settings.risk_threshold_high) || 50,
+            admin_email: response.data.settings.admin_email ?? ''
+          })
           console.log('Settings updated from response:', response.data.settings)
         } else {
           // Otherwise refresh from server
@@ -290,8 +304,11 @@ export default function SettingsPage() {
               type="number"
               min="0"
               max="100"
-              value={settings.risk_threshold_low}
-              onChange={(e) => updateSetting('risk_threshold_low', parseInt(e.target.value))}
+              value={settings.risk_threshold_low || 10}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 10
+                updateSetting('risk_threshold_low', val)
+              }}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -309,8 +326,11 @@ export default function SettingsPage() {
               type="number"
               min="0"
               max="100"
-              value={settings.risk_threshold_medium}
-              onChange={(e) => updateSetting('risk_threshold_medium', parseInt(e.target.value))}
+              value={settings.risk_threshold_medium || 30}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 30
+                updateSetting('risk_threshold_medium', val)
+              }}
               style={{
                 width: '100%',
                 padding: '8px 12px',
