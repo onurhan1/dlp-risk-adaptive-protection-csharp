@@ -35,7 +35,10 @@ public class RemediationService
     }
 
     /// <summary>
-    /// Get JWT access token - returns null if DLP Manager API is unavailable
+    /// Get JWT access token from Forcepoint DLP API
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// POST https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/auth/access-token
+    /// Returns null if DLP Manager API is unavailable
     /// </summary>
     private async Task<string?> GetAccessTokenAsync()
     {
@@ -46,9 +49,11 @@ public class RemediationService
 
         try
         {
+            // Forcepoint DLP REST API v1 Authentication endpoint
             var username = _configuration["DLP:Username"] ?? "";
             var password = _configuration["DLP:Password"] ?? "";
 
+            // Request body: { "username": "...", "password": "..." }
             var requestBody = new { username, password };
             var json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -72,6 +77,7 @@ public class RemediationService
             var responseContent = await response.Content.ReadAsStringAsync();
             var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
 
+            // Response may contain "accessToken" or "token" field
             _accessToken = tokenResponse?.ContainsKey("accessToken") == true
                 ? tokenResponse["accessToken"].ToString()
                 : tokenResponse?.ContainsKey("token") == true
@@ -80,7 +86,8 @@ public class RemediationService
 
             if (_accessToken != null)
             {
-                _tokenExpiry = DateTime.UtcNow.AddMinutes(55);
+                // Forcepoint DLP tokens typically expire in 1 hour
+                _tokenExpiry = DateTime.UtcNow.AddMinutes(55); // Refresh 5 minutes before expiry
             }
             
             return _accessToken;
@@ -93,7 +100,9 @@ public class RemediationService
     }
 
     /// <summary>
-    /// Remediate incident - POST /dlp/rest/v1/incidents/update
+    /// Remediate incident via Forcepoint DLP API
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// POST https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/incidents/update
     /// </summary>
     public async Task<Dictionary<string, object>> RemediateIncidentAsync(
         string incidentId,
@@ -103,7 +112,7 @@ public class RemediationService
     {
         try
         {
-            // Try to get access token - if this fails, DLP Manager API is not available
+            // Step 1: Authenticate and get access token
             var token = await GetAccessTokenAsync();
             if (token == null)
             {
@@ -120,8 +129,10 @@ public class RemediationService
                 };
             }
             
+            // Step 2: Set Bearer token in Authorization header
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+            // Step 3: Build request body for incident update
             var requestBody = new
             {
                 incidentId,
@@ -136,6 +147,7 @@ public class RemediationService
             HttpResponseMessage? response = null;
             try
             {
+                // Step 4: Send POST request to Forcepoint DLP REST API v1 incidents/update endpoint
                 response = await _httpClient.PostAsync("/dlp/rest/v1/incidents/update", content);
                 
                 if (!response.IsSuccessStatusCode)

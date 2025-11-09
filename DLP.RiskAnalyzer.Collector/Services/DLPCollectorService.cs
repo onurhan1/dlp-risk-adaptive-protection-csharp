@@ -45,6 +45,8 @@ public class DLPCollectorService
 
     /// <summary>
     /// Get JWT access token from Forcepoint DLP API
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// POST https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/auth/access-token
     /// </summary>
     public async Task<string> GetAccessTokenAsync()
     {
@@ -56,7 +58,10 @@ public class DLPCollectorService
 
         try
         {
+            // Forcepoint DLP REST API v1 Authentication endpoint
             var url = "/dlp/rest/v1/auth/access-token";
+            
+            // Request body: { "username": "...", "password": "..." }
             var requestBody = new
             {
                 username = _dlpConfig.Username,
@@ -66,25 +71,35 @@ public class DLPCollectorService
             var json = JsonConvert.SerializeObject(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
+            _logger.LogDebug("Requesting access token from {BaseAddress}{Url}", _httpClient.BaseAddress, url);
+            
             var response = await _httpClient.PostAsync(url, content);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Failed to get access token. Status: {Status}, Response: {Response}", 
+                    response.StatusCode, errorContent);
+                response.EnsureSuccessStatusCode();
+            }
 
             var responseContent = await response.Content.ReadAsStringAsync();
             var tokenResponse = JsonConvert.DeserializeObject<AccessTokenResponse>(responseContent);
 
             _accessToken = tokenResponse?.AccessToken ?? 
                           tokenResponse?.Token ?? 
-                          throw new Exception("No token received from DLP API");
+                          throw new Exception("No token received from DLP API. Response: " + responseContent);
 
             // Set expiry (subtract 60 seconds for safety)
+            // Forcepoint DLP tokens typically expire in 1 hour (3600 seconds)
             _tokenExpiry = DateTime.UtcNow.AddSeconds((tokenResponse?.ExpiresIn ?? 3600) - 60);
 
-            _logger.LogInformation("Access token obtained, expires at {Expiry}", _tokenExpiry);
+            _logger.LogInformation("Access token obtained successfully, expires at {Expiry}", _tokenExpiry);
             return _accessToken;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get access token");
+            _logger.LogError(ex, "Failed to get access token from Forcepoint DLP API");
             throw;
         }
     }
