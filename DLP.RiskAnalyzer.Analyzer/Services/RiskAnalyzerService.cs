@@ -255,6 +255,14 @@ public class RiskAnalyzerService
     /// </summary>
     public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15)
     {
+        // This method is deprecated - use the endpoint in RiskController instead
+        // Keeping for backward compatibility but should not be used
+        throw new NotImplementedException("Use RiskController.GetUserList endpoint instead");
+    }
+
+    [Obsolete("Use RiskController.GetUserList endpoint instead")]
+    private async Task<Dictionary<string, object>> GetUserListAsyncOld(int page = 1, int pageSize = 15)
+    {
         var offset = (page - 1) * pageSize;
 
         var users = await _context.Incidents
