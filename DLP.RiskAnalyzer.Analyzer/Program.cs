@@ -65,26 +65,253 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseAuthorization();
 
-// Root endpoint - return API info with link to Swagger
-app.MapGet("/", () => Results.Ok(new 
-{ 
-    message = "DLP Risk Analyzer API",
-    version = "1.0.0",
-    documentation = "/swagger",
-    health = "/health",
-    api_info = "/api",
-    endpoints = new
-    {
-        swagger = "/swagger",
-        health = "/health",
-        api_info = "/api",
-        auth = "/api/auth",
-        incidents = "/api/incidents",
-        reports = "/api/reports",
-        settings = "/api/settings",
-        users = "/api/users"
-    }
-}));
+// Root endpoint - return professional HTML landing page
+app.MapGet("/", () => Results.Content(@"
+<!DOCTYPE html>
+<html lang=""en"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>DLP Risk Analyzer API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 48px;
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+        .subtitle {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .version {
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 16px;
+        }
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .section {
+            margin-top: 32px;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .endpoints {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        .endpoint-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .endpoint-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            border-color: #667eea;
+        }
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .method-get { background: #10b981; color: white; }
+        .method-post { background: #3b82f6; color: white; }
+        .endpoint-path {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .endpoint-desc {
+            font-size: 13px;
+            color: #666;
+        }
+        .actions {
+            margin-top: 32px;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e9ecef;
+        }
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class=""container"">
+        <div class=""header"">
+            <div class=""logo"">🛡️ DLP Risk Analyzer</div>
+            <div class=""subtitle"">Data Loss Prevention & Risk Analysis API</div>
+            <div class=""version"">Version 1.0.0</div>
+            <div class=""status"">● System Operational</div>
+        </div>
+
+        <div class=""section"">
+            <div class=""section-title"">API Endpoints</div>
+            <div class=""endpoints"">
+                <div class=""endpoint-card"" onclick=""window.location.href='/swagger'"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/swagger</div>
+                    <div class=""endpoint-desc"">Interactive API Documentation</div>
+                </div>
+                <div class=""endpoint-card"" onclick=""window.location.href='/health'"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/health</div>
+                    <div class=""endpoint-desc"">System Health Check</div>
+                </div>
+                <div class=""endpoint-card"" onclick=""window.location.href='/api'"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/api</div>
+                    <div class=""endpoint-desc"">API Information</div>
+                </div>
+                <div class=""endpoint-card"">
+                    <span class=""endpoint-method method-post"">POST</span>
+                    <div class=""endpoint-path"">/api/auth/login</div>
+                    <div class=""endpoint-desc"">User Authentication</div>
+                </div>
+                <div class=""endpoint-card"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/api/incidents</div>
+                    <div class=""endpoint-desc"">Get Security Incidents</div>
+                </div>
+                <div class=""endpoint-card"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/api/reports</div>
+                    <div class=""endpoint-desc"">Generate Reports</div>
+                </div>
+                <div class=""endpoint-card"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/api/settings</div>
+                    <div class=""endpoint-desc"">System Settings</div>
+                </div>
+                <div class=""endpoint-card"">
+                    <span class=""endpoint-method method-get"">GET</span>
+                    <div class=""endpoint-path"">/api/users</div>
+                    <div class=""endpoint-desc"">User Management</div>
+                </div>
+            </div>
+        </div>
+
+        <div class=""actions"">
+            <a href=""/swagger"" class=""btn btn-primary"">📚 View API Documentation</a>
+            <a href=""/health"" class=""btn btn-secondary"">💚 Health Check</a>
+        </div>
+
+        <div class=""footer"">
+            <p>DLP Risk Analyzer API - Protecting your data, analyzing risks</p>
+        </div>
+    </div>
+</body>
+</html>
+", "text/html"));
 
 app.MapControllers();
 
