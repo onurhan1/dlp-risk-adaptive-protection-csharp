@@ -156,11 +156,25 @@ public class SettingsController : ControllerBase
                 }
             }
 
-            var savedCount = await _context.SaveChangesAsync();
-            _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+            try
+            {
+                var savedCount = await _context.SaveChangesAsync();
+                _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+                
+                if (savedCount == 0)
+                {
+                    _logger.LogWarning("No records were saved! This might indicate a problem.");
+                }
+            }
+            catch (Exception saveEx)
+            {
+                _logger.LogError(saveEx, "Error during SaveChangesAsync");
+                throw;
+            }
 
-            // Force refresh from database to verify
+            // Force refresh from database to verify - use a new query
             _context.ChangeTracker.Clear();
+            await Task.Delay(100); // Small delay to ensure database commit
             var savedSettings = await _context.SystemSettings.AsNoTracking().ToListAsync();
             _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
             foreach (var s in savedSettings)
