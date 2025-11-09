@@ -31,25 +31,35 @@
                 </StackPanel>
 
                 <!-- Username Field -->
-                <TextBox x:Name="UsernameTextBox"
-                         materialDesign:HintAssist.Hint="Username"
-                         materialDesign:HintAssist.IsFloating="True"
-                         materialDesign:HintAssist.Icon="Account"
-                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                         Margin="0,0,0,16"
-                         FontSize="16"
-                         Padding="12,16"/>
+                <Grid Margin="0,0,0,16">
+                    <TextBox x:Name="UsernameTextBox"
+                             materialDesign:HintAssist.Hint="Username"
+                             materialDesign:HintAssist.IsFloating="True"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             FontSize="16"
+                             Padding="12,16,40,16"/>
+                    <materialDesign:PackIcon Kind="Account" 
+                                           VerticalAlignment="Center" 
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,12,0"
+                                           Foreground="Gray"/>
+                </Grid>
 
                 <!-- Password Field -->
-                <PasswordBox x:Name="PasswordBox"
-                             materialDesign:HintAssist.Hint="Password"
-                             materialDesign:HintAssist.IsFloating="True"
-                             materialDesign:HintAssist.Icon="Lock"
-                             Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
-                             Margin="0,0,0,24"
-                             FontSize="16"
-                             Padding="12,16"
-                             KeyDown="PasswordBox_KeyDown"/>
+                <Grid Margin="0,0,0,24">
+                    <PasswordBox x:Name="PasswordBox"
+                                 materialDesign:HintAssist.Hint="Password"
+                                 materialDesign:HintAssist.IsFloating="True"
+                                 Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
+                                 FontSize="16"
+                                 Padding="12,16,40,16"
+                                 KeyDown="PasswordBox_KeyDown"/>
+                    <materialDesign:PackIcon Kind="Lock" 
+                                           VerticalAlignment="Center" 
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,12,0"
+                                           Foreground="Gray"/>
+                </Grid>
 
                 <!-- Error Message -->
                 <TextBlock x:Name="ErrorMessageText"
