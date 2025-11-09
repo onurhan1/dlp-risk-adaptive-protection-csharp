@@ -256,40 +256,33 @@ public class RiskAnalyzerService
     public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15)
     {
         // This method is deprecated - use the endpoint in RiskController instead
-        // Keeping for backward compatibility but should not be used
-        throw new NotImplementedException("Use RiskController.GetUserList endpoint instead");
-    }
-
-    [Obsolete("Use RiskController.GetUserList endpoint instead")]
-    private async Task<Dictionary<string, object>> GetUserListAsyncOld(int page = 1, int pageSize = 15)
-    {
+        // Return format compatible with frontend expectations
         var offset = (page - 1) * pageSize;
 
-        var users = await _context.Incidents
-            .Where(i => i.RiskScore != null)
+        var incidents = await _context.Incidents.ToListAsync();
+        
+        var userGroups = incidents
             .GroupBy(i => i.UserEmail)
             .Select(g => new
             {
-                UserEmail = g.Key,
-                MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
-                AvgRiskScore = (int)g.Average(i => i.RiskScore ?? 0),
-                TotalIncidents = g.Count()
+                user_email = g.Key,
+                risk_score = g.Max(i => i.RiskScore ?? 0),
+                total_incidents = g.Count()
             })
-            .OrderByDescending(u => u.MaxRiskScore)
-            .ThenByDescending(u => u.TotalIncidents)
-            .Skip(offset)
-            .Take(pageSize)
-            .ToListAsync();
+            .OrderByDescending(u => u.risk_score)
+            .ToList();
 
-        var total = await _context.Incidents
-            .Where(i => i.RiskScore != null)
-            .Select(i => i.UserEmail)
-            .Distinct()
-            .CountAsync();
+        var total = userGroups.Count;
+        var pagedUsers = userGroups.Skip(offset).Take(pageSize).ToList();
 
         return new Dictionary<string, object>
         {
-            { "users", users },
+            { "users", pagedUsers.Select(u => new Dictionary<string, object>
+            {
+                { "user_email", u.user_email },
+                { "risk_score", u.risk_score },
+                { "total_incidents", u.total_incidents }
+            }) },
             { "total", total },
             { "page", page },
             { "page_size", pageSize }
