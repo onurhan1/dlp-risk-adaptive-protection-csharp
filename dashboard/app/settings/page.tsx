@@ -90,7 +90,18 @@ export default function SettingsPage() {
       }
     } catch (error: any) {
       console.error('Error saving settings:', error)
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to save settings'
+      let errorMessage = 'Failed to save settings'
+      
+      if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
+        errorMessage = 'Network Error: Cannot connect to API. Please ensure the API is running on http://localhost:8000'
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       setMessage({ type: 'error', text: errorMessage })
       setTimeout(() => setMessage(null), 5000)
     } finally {
