@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
 
 namespace DLP.RiskAnalyzer.Dashboard;
 
@@ -77,11 +78,11 @@ public partial class LoginWindow : Window
                     // Save credentials if Remember Me is checked
                     if (RememberMeCheckBox.IsChecked == true)
                     {
-                        SaveCredentials(username);
+                        await SaveCredentialsAsync(username);
                     }
                     else
                     {
-                        ClearSavedCredentials();
+                        await ClearSavedCredentialsAsync();
                     }
 
                     // Open main window
@@ -139,7 +140,7 @@ public partial class LoginWindow : Window
         ErrorMessageText.Visibility = Visibility.Visible;
     }
 
-    private void SaveCredentials(string username)
+    private async Task SaveCredentialsAsync(string username)
     {
         try
         {
@@ -160,7 +161,7 @@ public partial class LoginWindow : Window
                 RememberMe = true
             };
 
-            File.WriteAllText(configPath, System.Text.Json.JsonSerializer.Serialize(config));
+            await File.WriteAllTextAsync(configPath, System.Text.Json.JsonSerializer.Serialize(config));
         }
         catch
         {
@@ -168,7 +169,7 @@ public partial class LoginWindow : Window
         }
     }
 
-    private void ClearSavedCredentials()
+    private Task ClearSavedCredentialsAsync()
     {
         try
         {
@@ -186,6 +187,8 @@ public partial class LoginWindow : Window
         {
             // Silently fail if we can't clear credentials
         }
+        
+        return Task.CompletedTask;
     }
 
     private class LoginResponse
