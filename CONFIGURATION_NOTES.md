@@ -19,11 +19,26 @@ Sistemi çalıştırmadan önce aşağıdaki dosyaları düzenlemeniz **zorunlud
     "ManagerIP": "YOUR_DLP_MANAGER_IP",      // ← Forcepoint DLP Manager IP adresini yazın
     "ManagerPort": 8443,                     // Port genellikle 8443 (HTTPS)
     "Username": "YOUR_DLP_USERNAME",         // ← Forcepoint DLP API kullanıcı adını yazın
-    "Password": "YOUR_DLP_PASSWORD"          // ← Forcepoint DLP API şifresini yazın
+    "Password": "YOUR_DLP_PASSWORD",         // ← Forcepoint DLP API şifresini yazın
+    "UseHttps": true,                        // HTTPS kullan (varsayılan: true)
+    "Timeout": 30                            // API timeout süresi (saniye)
   },
   "Redis": {
     "Host": "localhost",                     // Redis host (genellikle localhost)
-    "Port": 6379                             // Redis port (varsayılan 6379)
+    "Port": 6379,                            // Redis port (varsayılan 6379)
+    "StreamName": "dlp:incidents"            // Redis stream adı
+  },
+  "Collector": {
+    "IntervalMinutes": 60,                   // Veri toplama aralığı (dakika)
+    "LookbackHours": 24,                     // Geriye dönük bakış süresi (saat)
+    "BatchSize": 100                         // Toplu işlem boyutu
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
   }
 }
 ```
@@ -47,7 +62,7 @@ Sistemi çalıştırmadan önce aşağıdaki dosyaları düzenlemeniz **zorunlud
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=dlp_analytics;Username=postgres;Password=postgres"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=dlp_analyzer;Username=postgres;Password=postgres"
     // ↑ PostgreSQL şifresini kendi şifrenizle değiştirin (Docker kullanıyorsanız genellikle 'postgres')
   },
   "Redis": {
@@ -56,10 +71,37 @@ Sistemi çalıştırmadan önce aşağıdaki dosyaları düzenlemeniz **zorunlud
   },
   "DLP": {
     "ManagerIP": "YOUR_DLP_MANAGER_IP",      // ← Forcepoint DLP Manager IP adresini yazın
-    "ManagerPort": 8443,
+    "ManagerPort": 8443,                     // Port genellikle 8443 (HTTPS)
     "Username": "YOUR_DLP_USERNAME",         // ← Forcepoint DLP API kullanıcı adını yazın
-    "Password": "YOUR_DLP_PASSWORD"          // ← Forcepoint DLP API şifresini yazın
-  }
+    "Password": "YOUR_DLP_PASSWORD",         // ← Forcepoint DLP API şifresini yazın
+    "UseHttps": true,                        // HTTPS kullan (varsayılan: true)
+    "Timeout": 30                            // API timeout süresi (saniye)
+  },
+  "Reports": {
+    "Directory": "reports"                   // Raporların kaydedileceği dizin
+  },
+  "Authentication": {
+    "Username": "admin",                      // Dashboard giriş kullanıcı adı
+    "Password": "admin123"                   // Dashboard giriş şifresi
+  },
+  "Email": {
+    "SmtpHost": "smtp.gmail.com",            // SMTP sunucu adresi
+    "SmtpPort": 587,                         // SMTP port
+    "SmtpUsername": "",                      // ← SMTP kullanıcı adını yazın
+    "SmtpPassword": "",                     // ← SMTP şifresini yazın
+    "SmtpEnableSsl": true,                   // SSL kullan
+    "FromEmail": "",                        // ← Gönderen e-posta adresini yazın
+    "FromName": "DLP Risk Analyzer"         // Gönderen adı
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore": "Information",
+      "Microsoft.EntityFrameworkCore.Database.Command": "Information"
+    }
+  },
+  "AllowedHosts": "*"                        // İzin verilen hostlar (tümü için *)
 }
 ```
 
