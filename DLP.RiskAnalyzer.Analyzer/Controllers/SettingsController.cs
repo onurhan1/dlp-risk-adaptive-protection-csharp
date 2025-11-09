@@ -131,25 +131,29 @@ public class SettingsController : ControllerBase
             
             foreach (var setting in settingsToSave)
             {
-                // Use raw SQL to ensure update works
+                // Use raw SQL to ensure update works - PostgreSQL uses $1, $2, etc.
                 var existing = await _context.SystemSettings
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Key == setting.Key);
                 
                 if (existing != null)
                 {
-                    // Update using parameterized SQL
-                    await _context.Database.ExecuteSqlRawAsync(
-                        $"UPDATE system_settings SET value = {{0}}, updated_at = {{1}} WHERE key = {{2}}",
-                        setting.Value, DateTime.UtcNow, setting.Key);
+                    // Update using FromSqlRaw with proper PostgreSQL syntax
+                    var updateSql = "UPDATE system_settings SET value = $1, updated_at = $2 WHERE key = $3";
+                    await _context.Database.ExecuteSqlRawAsync(updateSql, 
+                        new Npgsql.NpgsqlParameter("p1", setting.Value),
+                        new Npgsql.NpgsqlParameter("p2", DateTime.UtcNow),
+                        new Npgsql.NpgsqlParameter("p3", setting.Key));
                     _logger.LogInformation("Updated setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
                 {
-                    // Insert using parameterized SQL
-                    await _context.Database.ExecuteSqlRawAsync(
-                        $"INSERT INTO system_settings (key, value, updated_at) VALUES ({{0}}, {{1}}, {{2}})",
-                        setting.Key, setting.Value, DateTime.UtcNow);
+                    // Insert using FromSqlRaw with proper PostgreSQL syntax
+                    var insertSql = "INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, $3)";
+                    await _context.Database.ExecuteSqlRawAsync(insertSql,
+                        new Npgsql.NpgsqlParameter("p1", setting.Key),
+                        new Npgsql.NpgsqlParameter("p2", setting.Value),
+                        new Npgsql.NpgsqlParameter("p3", DateTime.UtcNow));
                     _logger.LogInformation("Inserted setting via SQL: {Key} = {Value}", setting.Key, setting.Value);
                 }
             }
