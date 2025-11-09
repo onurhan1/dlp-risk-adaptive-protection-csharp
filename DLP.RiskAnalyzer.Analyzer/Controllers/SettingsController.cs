@@ -127,47 +127,42 @@ public class SettingsController : ControllerBase
                 settingsToSave["risk_threshold_high"], 
                 settingsToSave["admin_email"]);
 
-            // Use a transaction to ensure all settings are saved together
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            // Save settings without explicit transaction - let EF handle it
+            foreach (var setting in settingsToSave)
             {
-                foreach (var setting in settingsToSave)
+                // Check if setting exists - use AsNoTracking first to avoid tracking issues
+                var existing = await _context.SystemSettings
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Key == setting.Key);
+                
+                if (existing != null)
                 {
-                    // Check if setting exists
-                    var existing = await _context.SystemSettings
-                        .FirstOrDefaultAsync(s => s.Key == setting.Key);
-                    
-                    if (existing != null)
-                    {
-                        // Update existing setting
-                        existing.Value = setting.Value;
-                        existing.UpdatedAt = DateTime.UtcNow;
-                        _context.Entry(existing).State = EntityState.Modified;
-                        _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
-                    }
-                    else
-                    {
-                        // Add new setting
-                        var newSetting = new Data.SystemSetting
-                        {
-                            Key = setting.Key,
-                            Value = setting.Value,
-                            UpdatedAt = DateTime.UtcNow
-                        };
-                        _context.SystemSettings.Add(newSetting);
-                        _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
-                    }
+                    // Update existing setting - attach and mark as modified
+                    existing.Value = setting.Value;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    _context.SystemSettings.Update(existing);
+                    _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
                 }
-
-                var savedCount = await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+                else
+                {
+                    // Add new setting
+                    var newSetting = new Data.SystemSetting
+                    {
+                        Key = setting.Key,
+                        Value = setting.Value,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.SystemSettings.Add(newSetting);
+                    _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                }
             }
-            catch (Exception ex)
+
+            var savedCount = await _context.SaveChangesAsync();
+            _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+            
+            if (savedCount == 0)
             {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error saving settings, transaction rolled back");
-                throw;
+                _logger.LogWarning("No records were saved! This might indicate a problem.");
             }
 
             // Force refresh from database to verify - use a new query
