@@ -185,7 +185,7 @@ public class AnomalyDetector
     {
         // Note: Requires anomaly_detections table
         // Placeholder implementation
-        return new List<Dictionary<string, object>>();
+        return Task.FromResult(new List<Dictionary<string, object>>());
     }
 }
 

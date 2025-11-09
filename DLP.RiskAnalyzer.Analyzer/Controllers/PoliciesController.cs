@@ -48,20 +48,18 @@ public class PoliciesController : ControllerBase
     public Task<ActionResult<Dictionary<string, object>>> GetPolicyRecommendations(
         [FromBody] Dictionary<string, object> request)
     {
-        return Task.FromResult<ActionResult<Dictionary<string, object>>>(new Func<ActionResult<Dictionary<string, object>>>(() =>
+        try
         {
-            try
-            {
             var riskScore = Convert.ToInt32(request.GetValueOrDefault("risk_score", 0));
             var riskLevel = request.GetValueOrDefault("risk_level", "Medium").ToString() ?? "Medium";
             var channel = request.GetValueOrDefault("channel", "Email").ToString() ?? "Email";
 
             var recommendation = _policyService.GetPolicyRecommendation(riskScore, riskLevel, channel);
-            return Ok(recommendation);
+            return Task.FromResult<ActionResult<Dictionary<string, object>>>(Ok(recommendation));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            return Task.FromResult<ActionResult<Dictionary<string, object>>>(StatusCode(500, new { detail = ex.Message }));
         }
     }
 }
