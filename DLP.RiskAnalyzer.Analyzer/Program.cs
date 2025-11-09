@@ -8,7 +8,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "DLP Risk Analyzer API",
+        Version = "v1",
+        Description = "Data Loss Prevention & Risk Analysis API"
+    });
+});
 
 // Database
 builder.Services.AddDbContext<AnalyzerDbContext>(options =>
@@ -56,6 +64,8 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
+app.UseRouting();
+
 // Swagger is always enabled for API documentation
 app.UseSwagger();
 app.UseSwaggerUI(c =>
