@@ -125,41 +125,64 @@ public class SettingsController : ControllerBase
                 settingsToSave["risk_threshold_high"], 
                 settingsToSave["admin_email"]);
 
-            _context.ChangeTracker.Clear(); // Clear any tracked entities
-            
-            foreach (var setting in settingsToSave)
+            // Use a transaction to ensure data consistency
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var existing = await _context.SystemSettings.FindAsync(setting.Key);
-                if (existing != null)
+                _context.ChangeTracker.Clear(); // Clear any tracked entities
+                
+                foreach (var setting in settingsToSave)
                 {
-                    existing.Value = setting.Value;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    _context.Entry(existing).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
-                    _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
-                }
-                else
-                {
-                    var newSetting = new Data.SystemSetting
+                    // Use AsNoTracking to avoid tracking issues
+                    var existing = await _context.SystemSettings
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.Key == setting.Key);
+                    
+                    if (existing != null)
                     {
-                        Key = setting.Key,
-                        Value = setting.Value,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    _context.SystemSettings.Add(newSetting);
-                    _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                        // Attach and update
+                        var entity = new Data.SystemSetting
+                        {
+                            Key = setting.Key,
+                            Value = setting.Value,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _context.SystemSettings.Attach(entity);
+                        _context.Entry(entity).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+                        _context.Entry(entity).Property(e => e.UpdatedAt).IsModified = true;
+                        _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
+                    else
+                    {
+                        var newSetting = new Data.SystemSetting
+                        {
+                            Key = setting.Key,
+                            Value = setting.Value,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _context.SystemSettings.Add(newSetting);
+                        _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                    }
+                }
+
+                var savedCount = await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
+
+                // Force refresh from database to verify
+                _context.ChangeTracker.Clear();
+                var savedSettings = await _context.SystemSettings.AsNoTracking().ToListAsync();
+                _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
+                foreach (var s in savedSettings)
+                {
+                    _logger.LogInformation("  {Key} = {Value}", s.Key, s.Value);
                 }
             }
-
-            var savedCount = await _context.SaveChangesAsync();
-            _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
-
-            // Force refresh from database
-            _context.ChangeTracker.Clear();
-            var savedSettings = await _context.SystemSettings.ToListAsync();
-            _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
-            foreach (var s in savedSettings)
+            catch (Exception ex)
             {
-                _logger.LogInformation("  {Key} = {Value}", s.Key, s.Value);
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error saving settings, transaction rolled back");
+                throw;
             }
 
             return Ok(new { success = true, message = "Settings saved successfully" });
