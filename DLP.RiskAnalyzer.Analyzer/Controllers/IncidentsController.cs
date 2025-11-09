@@ -135,6 +135,9 @@ public class IncidentsController : ControllerBase
             var incidents = new List<Incident>();
             var baseDate = DateTime.UtcNow.AddDays(-30);
 
+            // Get the next ID from database sequence or max ID
+            var maxId = await _context.Incidents.MaxAsync(i => (int?)i.Id) ?? 0;
+            
             for (int i = 0; i < 50; i++)
             {
                 var timestamp = baseDate.AddDays(random.Next(0, 30)).AddHours(random.Next(0, 24)).AddMinutes(random.Next(0, 60));
@@ -142,6 +145,7 @@ public class IncidentsController : ControllerBase
                 
                 incidents.Add(new Incident
                 {
+                    Id = maxId + i + 1, // Set unique ID
                     UserEmail = users[random.Next(users.Length)],
                     Department = departments[random.Next(departments.Length)],
                     Severity = severities[random.Next(severities.Length)],
