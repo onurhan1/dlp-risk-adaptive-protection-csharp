@@ -125,6 +125,8 @@ public class SettingsController : ControllerBase
                 settingsToSave["risk_threshold_high"], 
                 settingsToSave["admin_email"]);
 
+            _context.ChangeTracker.Clear(); // Clear any tracked entities
+            
             foreach (var setting in settingsToSave)
             {
                 var existing = await _context.SystemSettings.FindAsync(setting.Key);
@@ -132,25 +134,33 @@ public class SettingsController : ControllerBase
                 {
                     existing.Value = setting.Value;
                     existing.UpdatedAt = DateTime.UtcNow;
-                    _context.SystemSettings.Update(existing);
+                    _context.Entry(existing).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+                    _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
                 }
                 else
                 {
-                    _context.SystemSettings.Add(new Data.SystemSetting
+                    var newSetting = new Data.SystemSetting
                     {
                         Key = setting.Key,
                         Value = setting.Value,
                         UpdatedAt = DateTime.UtcNow
-                    });
+                    };
+                    _context.SystemSettings.Add(newSetting);
+                    _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
                 }
             }
 
             var savedCount = await _context.SaveChangesAsync();
             _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
 
-            // Verify the save by reading back
+            // Force refresh from database
+            _context.ChangeTracker.Clear();
             var savedSettings = await _context.SystemSettings.ToListAsync();
             _logger.LogInformation("Verification: {Count} settings in database after save", savedSettings.Count);
+            foreach (var s in savedSettings)
+            {
+                _logger.LogInformation("  {Key} = {Value}", s.Key, s.Value);
+            }
 
             return Ok(new { success = true, message = "Settings saved successfully" });
         }

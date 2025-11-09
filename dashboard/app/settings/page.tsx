@@ -53,14 +53,23 @@ export default function SettingsPage() {
     setSaving(true)
     setMessage(null)
     try {
-      const response = await axios.post(`${API_URL}/api/settings`, settings)
+      console.log('Saving settings:', settings)
+      const response = await axios.post(`${API_URL}/api/settings`, settings, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      console.log('Save response:', response.data)
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Settings saved successfully!' })
+        // Refresh settings from server after save
+        await fetchSettings()
         setTimeout(() => setMessage(null), 3000)
       } else {
         throw new Error(response.data.message || 'Failed to save settings')
       }
     } catch (error: any) {
+      console.error('Error saving settings:', error)
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to save settings'
       setMessage({ type: 'error', text: errorMessage })
       setTimeout(() => setMessage(null), 5000)
