@@ -73,45 +73,6 @@ public class IncidentsController : ControllerBase
         }
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult<IncidentResponse>> GetIncident(int id)
-    {
-        try
-        {
-            var incident = await _dbService.GetIncidentByIdAsync(id);
-            if (incident == null)
-                return NotFound();
-
-            var riskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
-            var policyAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? "");
-            var iobs = _riskAnalyzer.DetectIOB(incident);
-
-            var response = new IncidentResponse
-            {
-                Id = incident.Id,
-                UserEmail = incident.UserEmail,
-                Department = incident.Department,
-                Severity = incident.Severity,
-                DataType = incident.DataType,
-                Timestamp = incident.Timestamp,
-                Policy = incident.Policy,
-                Channel = incident.Channel,
-                RiskScore = incident.RiskScore,
-                RepeatCount = incident.RepeatCount,
-                DataSensitivity = incident.DataSensitivity,
-                RiskLevel = riskLevel,
-                RecommendedAction = policyAction,
-                IOBs = iobs
-            };
-
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { detail = ex.Message });
-        }
-    }
-
     [HttpPost("seed-sample-data")]
     public async Task<ActionResult> SeedSampleData()
     {
