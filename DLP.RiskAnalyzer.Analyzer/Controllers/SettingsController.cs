@@ -25,13 +25,14 @@ public class SettingsController : ControllerBase
     {
         try
         {
-            // Get settings from database - force refresh from database
+            // Get settings from database - force refresh from database with AsNoTracking
             _context.ChangeTracker.Clear();
-            var settings = await _context.SystemSettings.ToListAsync();
+            var settings = await _context.SystemSettings.AsNoTracking().ToListAsync();
             var settingsDict = new Dictionary<string, string>();
             foreach (var s in settings)
             {
                 settingsDict[s.Key] = s.Value;
+                _logger.LogInformation("Loaded setting from DB: {Key} = {Value}", s.Key, s.Value);
             }
 
             _logger.LogInformation("Found {Count} settings in database", settings.Count);
