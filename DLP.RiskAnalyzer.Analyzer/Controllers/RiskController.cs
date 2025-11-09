@@ -130,44 +130,16 @@ public class RiskController : ControllerBase
     }
 
     [HttpGet("user-list")]
+    [HttpGet("user-list/{page}/{page_size}")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserList(
         [FromQuery] int page = 1,
         [FromQuery] int page_size = 15)
     {
         try
         {
-            // Get all incidents and group by user
-            var incidents = await _context.Incidents.ToListAsync();
-            
-            // Group by user email and calculate risk scores
-            var userGroups = incidents
-                .GroupBy(i => i.UserEmail)
-                .Select(g => new
-                {
-                    user_email = g.Key,
-                    risk_score = g.Max(i => i.RiskScore ?? 0),
-                    total_incidents = g.Count()
-                })
-                .OrderByDescending(u => u.risk_score)
-                .ToList();
-
-            // Apply pagination
-            var total = userGroups.Count;
-            var skip = (page - 1) * page_size;
-            var pagedUsers = userGroups.Skip(skip).Take(page_size).ToList();
-
-            return Ok(new
-            {
-                users = pagedUsers.Select(u => new
-                {
-                    user_email = u.user_email,
-                    risk_score = u.risk_score,
-                    total_incidents = u.total_incidents
-                }),
-                total = total,
-                page = page,
-                page_size = page_size
-            });
+            // Use RiskAnalyzerService which now returns correct format
+            var result = await _riskAnalyzerService.GetUserListAsync(page, page_size);
+            return Ok(result);
         }
         catch (Exception ex)
         {
