@@ -159,26 +159,32 @@ public class SettingsController : ControllerBase
                 _logger.LogWarning(ex, "Could not create system_settings table (may already exist)");
             }
 
-            // Use UPSERT pattern with ExecuteSqlInterpolatedAsync for reliable saving
+            // Use UPSERT pattern with ExecuteSqlRawAsync for reliable saving
+            // Using parameterized queries to avoid SQL injection
             foreach (var setting in settingsToSave)
             {
                 try
                 {
                     // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
-                    // ExecuteSqlInterpolatedAsync requires FormattableString (string interpolation)
-                    var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $@"INSERT INTO system_settings (key, value, updated_at) 
-                           VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
-                           ON CONFLICT (key) 
-                           DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}");
+                    // Using ExecuteSqlRawAsync with parameters for better compatibility
+                    var sql = @"
+                        INSERT INTO system_settings (key, value, updated_at) 
+                        VALUES (@p0, @p1, @p2)
+                        ON CONFLICT (key) 
+                        DO UPDATE SET value = @p1, updated_at = @p2";
+                    
+                    var rowsAffected = await _context.Database.ExecuteSqlRawAsync(sql,
+                        new Npgsql.NpgsqlParameter("@p0", setting.Key),
+                        new Npgsql.NpgsqlParameter("@p1", setting.Value),
+                        new Npgsql.NpgsqlParameter("@p2", DateTime.UtcNow));
                     
                     _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
                         setting.Key, setting.Value, rowsAffected);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error saving setting {Key} = {Value}: {Message}", 
-                        setting.Key, setting.Value, ex.Message);
+                    _logger.LogError(ex, "Error saving setting {Key} = {Value}: {Message}\n{StackTrace}", 
+                        setting.Key, setting.Value, ex.Message, ex.StackTrace);
                     // Continue with other settings even if one fails
                 }
             }
