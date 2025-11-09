@@ -105,33 +105,55 @@ public class DLPCollectorService
     }
 
     /// <summary>
-    /// Fetch incidents from DLP API
+    /// Fetch incidents from Forcepoint DLP API
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// GET https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/incidents
+    /// Query parameters: startTime, endTime, page, pageSize
     /// </summary>
     public async Task<List<DLPIncident>> FetchIncidentsAsync(DateTime startTime, DateTime endTime, int page = 1, int pageSize = 100)
     {
         try
         {
+            // Step 1: Authenticate and get access token
             var token = await GetAccessTokenAsync();
 
+            // Step 2: Build incident API URL with query parameters
+            // Format: ISO 8601 (yyyy-MM-ddTHH:mm:ssZ)
             var url = $"/dlp/rest/v1/incidents?" +
-                     $"startTime={startTime:yyyy-MM-ddTHH:mm:ssZ}&" +
-                     $"endTime={endTime:yyyy-MM-ddTHH:mm:ssZ}&" +
+                     $"startTime={Uri.EscapeDataString(startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))}&" +
+                     $"endTime={Uri.EscapeDataString(endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))}&" +
                      $"page={page}&pageSize={pageSize}";
 
+            _logger.LogDebug("Fetching incidents from {BaseAddress}{Url}", _httpClient.BaseAddress, url);
+
+            // Step 3: Create request with Bearer token authentication
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
+            // Step 4: Send request
             var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Failed to fetch incidents. Status: {Status}, Response: {Response}", 
+                    response.StatusCode, errorContent);
+                response.EnsureSuccessStatusCode();
+            }
 
             var content = await response.Content.ReadAsStringAsync();
             var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
 
-            return incidentResponse?.Incidents ?? new List<DLPIncident>();
+            var incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
+            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (page {Page}, total: {Total})", 
+                incidents.Count, page, incidentResponse?.Total ?? 0);
+
+            return incidents;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to fetch incidents");
+            _logger.LogError(ex, "Failed to fetch incidents from Forcepoint DLP API");
             throw;
         }
     }
