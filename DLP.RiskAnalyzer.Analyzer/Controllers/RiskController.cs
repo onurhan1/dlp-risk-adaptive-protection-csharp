@@ -1,6 +1,8 @@
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using DLP.RiskAnalyzer.Analyzer.Data;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -9,10 +11,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class RiskController : ControllerBase
 {
     private readonly RiskAnalyzerService _riskAnalyzerService;
+    private readonly AnalyzerDbContext _context;
 
-    public RiskController(RiskAnalyzerService riskAnalyzerService)
+    public RiskController(RiskAnalyzerService riskAnalyzerService, AnalyzerDbContext context)
     {
         _riskAnalyzerService = riskAnalyzerService;
+        _context = context;
     }
 
     [HttpGet("trends")]
@@ -144,12 +148,12 @@ public class RiskController : ControllerBase
     [HttpGet("user-list")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserList(
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 15)
+        [FromQuery] int page_size = 15)
     {
         try
         {
             // Get all incidents and group by user
-            var incidents = await _dbService.GetIncidentsAsync(null, null, null, null, 10000, "timestamp_desc");
+            var incidents = await _context.Incidents.ToListAsync();
             
             // Group by user email and calculate risk scores
             var userGroups = incidents
@@ -158,16 +162,15 @@ public class RiskController : ControllerBase
                 {
                     user_email = g.Key,
                     risk_score = g.Max(i => i.RiskScore ?? 0),
-                    total_incidents = g.Count(),
-                    latest_incident = g.OrderByDescending(i => i.Timestamp).First()
+                    total_incidents = g.Count()
                 })
                 .OrderByDescending(u => u.risk_score)
                 .ToList();
 
             // Apply pagination
             var total = userGroups.Count;
-            var skip = (page - 1) * pageSize;
-            var pagedUsers = userGroups.Skip(skip).Take(pageSize).ToList();
+            var skip = (page - 1) * page_size;
+            var pagedUsers = userGroups.Skip(skip).Take(page_size).ToList();
 
             return Ok(new
             {
@@ -179,7 +182,7 @@ public class RiskController : ControllerBase
                 }),
                 total = total,
                 page = page,
-                page_size = pageSize
+                page_size = page_size
             });
         }
         catch (Exception ex)
