@@ -44,17 +44,23 @@ public class CollectorBackgroundService : BackgroundService
 
     private async Task CollectIncidentsAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting incident collection...");
+        _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1...");
 
+        // Step 1: Calculate time range (last 24 hours by default, configurable via appsettings.json)
         var endTime = DateTime.UtcNow;
         var startTime = endTime.AddHours(-24); // Last 24 hours
 
         try
         {
+            // Step 2: Fetch incidents from Forcepoint DLP API
+            // Authentication is handled automatically in FetchIncidentsAsync
+            // According to Forcepoint DLP REST API v1:
+            // 1. First authenticate: POST /dlp/rest/v1/auth/access-token
+            // 2. Then fetch incidents: GET /dlp/rest/v1/incidents?startTime=...&endTime=...
             var incidents = await _collectorService.FetchIncidentsAsync(startTime, endTime);
-            _logger.LogInformation("Fetched {Count} incidents from DLP API", incidents.Count);
+            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API", incidents.Count);
 
-            // Convert and push to Redis
+            // Step 3: Convert DLP API incidents to internal model and push to Redis
             foreach (var dlpIncident in incidents)
             {
                 var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
@@ -71,11 +77,11 @@ public class CollectorBackgroundService : BackgroundService
                 await _collectorService.PushToRedisStreamAsync(incident);
             }
 
-            _logger.LogInformation("Successfully collected and pushed {Count} incidents", incidents.Count);
+            _logger.LogInformation("Successfully collected and pushed {Count} incidents to Redis", incidents.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to collect incidents");
+            _logger.LogError(ex, "Failed to collect incidents from Forcepoint DLP API");
             throw;
         }
     }
