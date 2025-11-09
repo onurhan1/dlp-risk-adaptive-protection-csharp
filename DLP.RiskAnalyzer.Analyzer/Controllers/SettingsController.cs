@@ -127,43 +127,24 @@ public class SettingsController : ControllerBase
                 settingsToSave["risk_threshold_high"], 
                 settingsToSave["admin_email"]);
 
-            // Save settings without explicit transaction - let EF handle it
+            // Use UPSERT pattern with ExecuteSqlInterpolatedAsync for reliable saving
             foreach (var setting in settingsToSave)
             {
-                // Check if setting exists - use AsNoTracking first to avoid tracking issues
-                var existing = await _context.SystemSettings
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.Key == setting.Key);
+                // Use PostgreSQL UPSERT (ON CONFLICT) to ensure settings are saved
+                var sql = $@"
+                    INSERT INTO system_settings (key, value, updated_at) 
+                    VALUES ({setting.Key}, {setting.Value}, {DateTime.UtcNow})
+                    ON CONFLICT (key) 
+                    DO UPDATE SET value = {setting.Value}, updated_at = {DateTime.UtcNow}";
                 
-                if (existing != null)
-                {
-                    // Update existing setting - attach and mark as modified
-                    existing.Value = setting.Value;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                    _context.SystemSettings.Update(existing);
-                    _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
-                }
-                else
-                {
-                    // Add new setting
-                    var newSetting = new Data.SystemSetting
-                    {
-                        Key = setting.Key,
-                        Value = setting.Value,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    _context.SystemSettings.Add(newSetting);
-                    _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
-                }
+                var rowsAffected = await _context.Database.ExecuteSqlInterpolatedAsync(
+                    FormattableStringFactory.Create(sql, setting.Key, setting.Value, DateTime.UtcNow));
+                
+                _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
+                    setting.Key, setting.Value, rowsAffected);
             }
 
-            var savedCount = await _context.SaveChangesAsync();
-            _logger.LogInformation("Settings saved successfully. {Count} records affected", savedCount);
-            
-            if (savedCount == 0)
-            {
-                _logger.LogWarning("No records were saved! This might indicate a problem.");
-            }
+            _logger.LogInformation("All settings saved successfully");
 
             // Force refresh from database to verify - use a new query
             _context.ChangeTracker.Clear();
