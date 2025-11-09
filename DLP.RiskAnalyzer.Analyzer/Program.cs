@@ -64,6 +64,14 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
+// Swagger must be configured BEFORE routing
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
+    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
+});
+
 app.UseCors();
 app.UseAuthorization();
 
@@ -281,27 +289,27 @@ app.MapGet("/", () => Results.Content(@"
                     <div class=""endpoint-path"">/api</div>
                     <div class=""endpoint-desc"">API Information</div>
                 </a>
-                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
+                <a href=""/api"" class=""endpoint-card"" title=""Click to view API information"">
                     <span class=""endpoint-method method-post"">POST</span>
                     <div class=""endpoint-path"">/api/auth/login</div>
                     <div class=""endpoint-desc"">User Authentication</div>
                 </a>
-                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
+                <a href=""/api/incidents"" class=""endpoint-card"" title=""Click to view API endpoint"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/incidents</div>
                     <div class=""endpoint-desc"">Get Security Incidents</div>
                 </a>
-                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
+                <a href=""/api/reports"" class=""endpoint-card"" title=""Click to view API endpoint"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/reports</div>
                     <div class=""endpoint-desc"">Generate Reports</div>
                 </a>
-                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
+                <a href=""/api/settings"" class=""endpoint-card"" title=""Click to view API endpoint"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/settings</div>
                     <div class=""endpoint-desc"">System Settings</div>
                 </a>
-                <a href=""/swagger"" class=""endpoint-card"" title=""Click to view in Swagger UI"">
+                <a href=""/api/users"" class=""endpoint-card"" title=""Click to view API endpoint"">
                     <span class=""endpoint-method method-get"">GET</span>
                     <div class=""endpoint-path"">/api/users</div>
                     <div class=""endpoint-desc"">User Management</div>
@@ -310,7 +318,7 @@ app.MapGet("/", () => Results.Content(@"
         </div>
 
         <div class=""actions"">
-            <a href=""/swagger"" class=""btn btn-primary"">📚 View API Documentation</a>
+            <a href=""/api"" class=""btn btn-primary"">📚 View API Information</a>
             <a href=""/health"" class=""btn btn-secondary"">💚 Health Check</a>
         </div>
 
@@ -323,14 +331,6 @@ app.MapGet("/", () => Results.Content(@"
 ", "text/html"));
 
 app.MapControllers();
-
-// Swagger must be configured after MapControllers
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
-    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
-});
 
 // Health check endpoint
 app.MapGet("/health", () =>
