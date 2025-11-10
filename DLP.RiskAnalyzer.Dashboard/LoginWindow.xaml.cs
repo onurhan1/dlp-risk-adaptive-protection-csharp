@@ -22,12 +22,22 @@ public partial class LoginWindow : Window
         InitializeComponent();
 
         // Load configuration
+        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var configPath = Path.Combine(appDirectory, "appsettings.json");
+        
         var configuration = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json", optional: true)
+            .SetBasePath(appDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
         _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:8000";
+        
+        // Debug: Log the API URL being used
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] API Base URL: {_apiBaseUrl}");
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file path: {configPath}");
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file exists: {File.Exists(configPath)}");
+        
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(_apiBaseUrl)

@@ -16,12 +16,18 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         // Load configuration
+        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        
         var configuration = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json", optional: true)
+            .SetBasePath(appDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
         _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:8000";
+        
+        // Debug: Log the API URL being used
+        System.Diagnostics.Debug.WriteLine($"[MainWindow] API Base URL: {_apiBaseUrl}");
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(_apiBaseUrl)
