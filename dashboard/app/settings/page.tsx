@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
 interface Settings {
   email_notifications: boolean
@@ -95,7 +95,7 @@ export default function SettingsPage() {
       let errorMessage = 'Failed to save settings'
       
       if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
-        errorMessage = 'Network Error: Cannot connect to API. Please ensure the API is running on http://localhost:8000'
+        errorMessage = `Network Error: Cannot connect to API. Please ensure the API is running on ${API_URL}`
       } else if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail
       } else if (error.response?.data?.message) {

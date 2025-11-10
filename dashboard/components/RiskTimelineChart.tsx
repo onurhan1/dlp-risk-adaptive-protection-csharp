@@ -7,7 +7,7 @@ import { format, subDays } from 'date-fns'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
 export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   const [data, setData] = useState<any>(null)

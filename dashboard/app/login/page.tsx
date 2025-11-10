@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -72,7 +72,7 @@ export default function LoginPage() {
       } else if (err.response?.status === 404) {
         setError('API endpoint not found. Please check if the API is running.')
       } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        setError('Cannot connect to API. Please check if the API is running on http://localhost:8000')
+        setError(`Cannot connect to API. Please check if the API is running on ${API_URL}`)
       } else {
         setError(err.response?.data?.detail || err.message || 'An error occurred during login')
       }
