@@ -25,18 +25,30 @@ public partial class LoginWindow : Window
         var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
         var configPath = Path.Combine(appDirectory, "appsettings.json");
         
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] App directory: {appDirectory}");
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file path: {configPath}");
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file exists: {File.Exists(configPath)}");
+        
         var configuration = new ConfigurationBuilder()
             .SetBasePath(appDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
-        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:8000";
+        // Try to get API URL from config
+        var apiUrlFromConfig = configuration["ApiBaseUrl"];
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] ApiBaseUrl from config: {apiUrlFromConfig ?? "NULL"}");
+        
+        _apiBaseUrl = apiUrlFromConfig ?? "http://localhost:5001"; // Default to 5001 instead of 8000
         
         // Debug: Log the API URL being used
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] API Base URL: {_apiBaseUrl}");
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file path: {configPath}");
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file exists: {File.Exists(configPath)}");
+        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Final API Base URL: {_apiBaseUrl}");
+        
+        // If config file doesn't exist, show a warning
+        if (!File.Exists(configPath))
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoginWindow] WARNING: appsettings.json not found! Using default: {_apiBaseUrl}");
+        }
         
         _httpClient = new HttpClient
         {
@@ -115,11 +127,14 @@ public partial class LoginWindow : Window
         }
         catch (HttpRequestException ex)
         {
-            ShowError($"Connection error: {ex.Message}");
+            ShowError($"Cannot connect to API. Please check if the API is running on {_apiBaseUrl}");
+            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Connection error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Attempted URL: {_apiBaseUrl}/api/auth/login");
         }
         catch (Exception ex)
         {
             ShowError($"An error occurred: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Exception: {ex}");
         }
         finally
         {

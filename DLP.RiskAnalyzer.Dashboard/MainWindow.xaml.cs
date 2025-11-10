@@ -24,7 +24,7 @@ public partial class MainWindow : Window
             .AddEnvironmentVariables()
             .Build();
 
-        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:8000";
+        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:5001"; // Default to 5001 instead of 8000
         
         // Debug: Log the API URL being used
         System.Diagnostics.Debug.WriteLine($"[MainWindow] API Base URL: {_apiBaseUrl}");
