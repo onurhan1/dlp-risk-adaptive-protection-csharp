@@ -1,11 +1,29 @@
 /**
  * API Configuration
- * Automatically detects if running on same machine or remote device
- * - Same machine: uses localhost:5001
- * - Remote device: uses the hostname/IP from window.location
  * 
- * This function is called at runtime to ensure it works correctly
- * in both same-machine and remote-device scenarios.
+ * IMPORTANT: This uses window.location.hostname which is the HOST where the dashboard
+ * is being served from, NOT the client's computer hostname.
+ * 
+ * Scenario Examples:
+ * 
+ * 1. Dashboard hosted on 192.168.1.100:3002
+ *    - Client A accesses: http://192.168.1.100:3002
+ *      → window.location.hostname = "192.168.1.100"
+ *      → API URL = http://192.168.1.100:5001 ✅ (Correct - API is on same server)
+ * 
+ *    - Client B accesses: http://192.168.1.100:3002
+ *      → window.location.hostname = "192.168.1.100"
+ *      → API URL = http://192.168.1.100:5001 ✅ (Correct - API is on same server)
+ * 
+ * 2. Dashboard hosted on localhost:3002 (same machine as API)
+ *    - Client accesses: http://localhost:3002
+ *      → window.location.hostname = "localhost"
+ *      → API URL = http://localhost:5001 ✅ (Correct - API is on same machine)
+ * 
+ * This works correctly because:
+ * - window.location.hostname = the server where dashboard is hosted
+ * - NOT the client's computer hostname
+ * - All clients connecting to the same dashboard server will use the same API server
  */
 
 function getApiUrl(): string {
@@ -14,14 +32,15 @@ function getApiUrl(): string {
     const hostname = window.location.hostname;
     
     // If accessing via localhost or 127.0.0.1, use localhost for API
+    // This means dashboard and API are on the same machine
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:5001';
     }
     
     // If accessing via network IP, use the same hostname for API
-    // This allows remote devices to connect to the API on the same machine
-    // Example: If dashboard is accessed via 192.168.1.100:3002,
-    // API will be accessed via 192.168.1.100:5001
+    // This means: if dashboard is on 192.168.1.100:3002, API is on 192.168.1.100:5001
+    // ALL clients connecting to 192.168.1.100:3002 will use 192.168.1.100:5001 for API
+    // This is correct because API and Dashboard are on the same server
     return `http://${hostname}:5001`;
   }
 
@@ -44,4 +63,3 @@ export function getApiUrlDynamic(): string {
 // For backward compatibility, also export as constant (but it will be evaluated at module load time)
 // Note: This may not work correctly in all scenarios, prefer using getApiUrlDynamic()
 export const API_URL = getApiUrl();
-
