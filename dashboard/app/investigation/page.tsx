@@ -7,7 +7,7 @@ import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+import { API_URL } from '@/lib/api-config'
 
 interface TimelineEvent {
   id: number

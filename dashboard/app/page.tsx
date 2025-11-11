@@ -10,7 +10,7 @@ import RiskLevelBadge from '../components/RiskLevelBadge'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+import { API_URL } from '@/lib/api-config'
 
 interface DailySummary {
   date: string

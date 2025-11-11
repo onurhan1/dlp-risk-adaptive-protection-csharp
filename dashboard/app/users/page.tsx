@@ -5,7 +5,7 @@ import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+import { API_URL } from '@/lib/api-config'
 
 interface User {
   id: number

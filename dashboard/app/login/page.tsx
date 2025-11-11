@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+import { API_URL } from '@/lib/api-config'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
