@@ -367,7 +367,37 @@ app.MapGet("/api", () => Results.Ok(new
     }
 }));
 
-var port = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(";").FirstOrDefault()?.Split(":").LastOrDefault() ?? "8000";
-app.Urls.Add($"http://localhost:{port}");
+// Configure URL binding - similar to Next.js, works with both localhost and network IP
+var urlsEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+string defaultUrl = "http://0.0.0.0:5001"; // 0.0.0.0 allows both localhost and network IP access
+
+if (!string.IsNullOrEmpty(urlsEnv))
+{
+    // If ASPNETCORE_URLS is set, use it (may contain multiple URLs separated by ;)
+    var urls = urlsEnv.Split(';', StringSplitOptions.RemoveEmptyEntries);
+    foreach (var url in urls)
+    {
+        var trimmedUrl = url.Trim();
+        if (!string.IsNullOrEmpty(trimmedUrl))
+        {
+            app.Urls.Add(trimmedUrl);
+        }
+    }
+}
+else
+{
+    // If not set, use default 0.0.0.0:5001 (works like Next.js - accessible via both localhost and network IP)
+    app.Urls.Add(defaultUrl);
+}
+
+// Log listening addresses
+Console.WriteLine("API is listening on:");
+foreach (var url in app.Urls)
+{
+    Console.WriteLine($"  - {url}");
+    Console.WriteLine($"    Swagger UI: {url}/swagger");
+    Console.WriteLine($"    Health Check: {url}/health");
+}
+
 app.Run();
 
