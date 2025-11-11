@@ -1,16 +1,23 @@
 import axios from 'axios'
-import { API_URL } from './api-config'
+import { getApiUrlDynamic } from './api-config'
 
+// Create axios instance
+// Note: baseURL will be set dynamically per request in the interceptor
 const apiClient = axios.create({
-  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// Request interceptor to add auth token
+// Request interceptor to:
+// 1. Set dynamic baseURL based on current hostname (works for both localhost and network IP)
+// 2. Add auth token
 apiClient.interceptors.request.use(
   (config) => {
+    // Dynamically set baseURL for each request to ensure correct hostname detection
+    // This is crucial for remote device access
+    config.baseURL = getApiUrlDynamic()
+    
     const token = localStorage.getItem('authToken')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface AnomalyIndicatorProps {
   userEmail: string
@@ -22,7 +22,8 @@ export default function AnomalyIndicator({ userEmail }: AnomalyIndicatorProps) {
   const fetchAnomalies = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/risk/anomaly/detections`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/risk/anomaly/detections`, {
         params: {
           user_email: userEmail,
           severity: 'High'

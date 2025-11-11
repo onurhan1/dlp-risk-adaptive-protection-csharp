@@ -5,7 +5,7 @@ import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface User {
   id: number
@@ -46,7 +46,8 @@ export default function UsersPage() {
     setLoading(true)
     try {
       const token = localStorage.getItem('authToken')
-      const response = await axios.get(`${API_URL}/api/users`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/users`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       })
       setUsers(response.data.users || [])
@@ -88,8 +89,9 @@ export default function UsersPage() {
       
       if (editingUser) {
         // Update user
+        const apiUrl = getApiUrlDynamic()
         await axios.put(
-          `${API_URL}/api/users/${editingUser.id}`,
+          `${apiUrl}/api/users/${editingUser.id}`,
           {
             username: formData.username,
             email: formData.email,
@@ -102,8 +104,9 @@ export default function UsersPage() {
         setMessage({ type: 'success', text: 'User updated successfully' })
       } else {
         // Create user
+        const apiUrl = getApiUrlDynamic()
         await axios.post(
-          `${API_URL}/api/users`,
+          `${apiUrl}/api/users`,
           formData,
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -129,7 +132,8 @@ export default function UsersPage() {
 
     try {
       const token = localStorage.getItem('authToken')
-      await axios.delete(`${API_URL}/api/users/${id}`, {
+      const apiUrl = getApiUrlDynamic()
+      await axios.delete(`${apiUrl}/api/users/${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       })
       setMessage({ type: 'success', text: 'User deleted successfully' })

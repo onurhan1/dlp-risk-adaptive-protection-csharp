@@ -10,7 +10,7 @@ import RiskLevelBadge from '../components/RiskLevelBadge'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface DailySummary {
   date: string
@@ -63,15 +63,18 @@ export default function Home() {
       const currentEnd = dateRange.end
       const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
       
+      // Get API URL dynamically for each request
+      const apiUrl = getApiUrlDynamic()
+      
       const [dailyRes, deptRes, incidentsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
-        axios.get(`${API_URL}/api/risk/department-summary`, {
+        axios.get(`${apiUrl}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
+        axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             start_date: currentStart,
             end_date: currentEnd
           }
         }).catch(() => ({ data: [] })),
-        axios.get(`${API_URL}/api/incidents`, {
+        axios.get(`${apiUrl}/api/incidents`, {
           params: {
             start_date: currentStart,
             end_date: currentEnd,
@@ -126,7 +129,8 @@ export default function Home() {
   const downloadReport = async () => {
     try {
       const token = localStorage.getItem('authToken')
-      const url = `${API_URL}/api/reports/summary?start_date=${dateRange.start}&end_date=${dateRange.end}`
+      const apiUrl = getApiUrlDynamic()
+      const url = `${apiUrl}/api/reports/summary?start_date=${dateRange.start}&end_date=${dateRange.end}`
       
       const response = await axios.get(url, { 
         responseType: 'blob',

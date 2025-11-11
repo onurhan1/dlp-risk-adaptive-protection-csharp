@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface UserRisk {
   user_email: string
@@ -37,7 +37,8 @@ export default function InvestigationUsersList({
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/risk/user-list`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/risk/user-list`, {
         params: { page, page_size: pageSize }
       })
       // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)

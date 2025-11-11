@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface RemediateButtonProps {
   incidentId: number
@@ -23,7 +23,7 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
     try {
       const token = localStorage.getItem('authToken')
       const response = await axios.post(
-        `${API_URL}/api/incidents/${incidentId}/remediate`,
+        `${getApiUrlDynamic()}/api/incidents/${incidentId}/remediate`,
         {
           action,
           reason,

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface TimelineEvent {
   id: number
@@ -60,8 +60,9 @@ export default function InvestigationTimeline({
     if (!userEmail) return
     
     try {
+      const apiUrl = getApiUrlDynamic()
       // Fetch user's risk score from user-list endpoint
-      const response = await axios.get(`${API_URL}/api/risk/user-list`, {
+      const response = await axios.get(`${apiUrl}/api/risk/user-list`, {
         params: { page: 1, page_size: 100 }
       })
       
@@ -76,7 +77,8 @@ export default function InvestigationTimeline({
     } catch (error) {
       console.error('Error fetching user risk score:', error)
       // Fallback: calculate from incidents
-      const response = await axios.get(`${API_URL}/api/incidents`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/incidents`, {
         params: { user: userEmail, limit: 100 }
       })
       
@@ -97,7 +99,8 @@ export default function InvestigationTimeline({
 
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/incidents`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/incidents`, {
         params: {
           user: userEmail,
           limit: 50,

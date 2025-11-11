@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface TimelineEvent {
   id: number
@@ -40,7 +40,8 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
     
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/incidents`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/incidents`, {
         params: {
           user: userEmail,
           limit: 50,

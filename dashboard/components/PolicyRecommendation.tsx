@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface PolicyRecommendationProps {
   riskScore: number
@@ -23,7 +23,8 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
   const fetchRecommendation = async () => {
     setLoading(true)
     try {
-      const response = await axios.post(`${API_URL}/api/policies/recommendations`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.post(`${apiUrl}/api/policies/recommendations`, {
         risk_score: riskScore,
         channel: channel,
         user_email: userEmail

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface Report {
   id: number
@@ -32,7 +32,8 @@ export default function ReportsPage() {
     setLoading(true)
     try {
       const token = localStorage.getItem('authToken')
-      const response = await axios.get(`${API_URL}/api/reports`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/reports`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       })
       setReports(response.data.reports || [])
@@ -53,8 +54,9 @@ export default function ReportsPage() {
     setMessage(null)
     try {
       const token = localStorage.getItem('authToken')
+      const apiUrl = getApiUrlDynamic()
       const response = await axios.post(
-        `${API_URL}/api/reports/generate`,
+        `${apiUrl}/api/reports/generate`,
         {
           report_type: reportType,
           start_date: startDate,
@@ -88,8 +90,9 @@ export default function ReportsPage() {
   const downloadReport = async (reportId: number, filename: string) => {
     try {
       const token = localStorage.getItem('authToken')
+      const apiUrl = getApiUrlDynamic()
       const response = await axios.get(
-        `${API_URL}/api/reports/${reportId}/download`,
+        `${apiUrl}/api/reports/${reportId}/download`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           responseType: 'blob'

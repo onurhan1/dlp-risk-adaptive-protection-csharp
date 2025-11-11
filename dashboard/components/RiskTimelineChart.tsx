@@ -7,7 +7,7 @@ import { format, subDays } from 'date-fns'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   const [data, setData] = useState<any>(null)
@@ -27,7 +27,8 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/risk/daily-summary`, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/risk/daily-summary`, {
         params: { days }
       })
       

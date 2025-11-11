@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface ChannelActivity {
   channel: string
@@ -46,12 +46,13 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
     const fetchData = async () => {
       setLoading(true)
       try {
+        const apiUrl = getApiUrlDynamic()
         const [channelRes, incidentsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/risk/channel-activity`, {
+          axios.get(`${apiUrl}/api/risk/channel-activity`, {
             params: { days },
             timeout: 5000
           }).catch(() => ({ data: null })),
-          axios.get(`${API_URL}/api/incidents`, {
+          axios.get(`${apiUrl}/api/incidents`, {
             params: { limit: 1000 },
             timeout: 5000
           }).catch(() => ({ data: [] }))

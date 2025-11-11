@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface RemediationHistory {
   id: number
@@ -32,9 +32,10 @@ export default function AutoRemediationStatus() {
 
   const fetchStatus = async () => {
     try {
+      const apiUrl = getApiUrlDynamic()
       const [settingsRes, historyRes] = await Promise.all([
-        axios.get(`${API_URL}/api/settings`).catch(() => ({ data: { auto_remediation: false } })),
-        axios.get(`${API_URL}/remediation/history?auto_remediated=true&limit=10`).catch(() => ({ data: { history: [] } }))
+        axios.get(`${apiUrl}/api/settings`).catch(() => ({ data: { auto_remediation: false } })),
+        axios.get(`${apiUrl}/remediation/history?auto_remediated=true&limit=10`).catch(() => ({ data: { history: [] } }))
       ])
       
       setEnabled(settingsRes.data?.auto_remediation || false)

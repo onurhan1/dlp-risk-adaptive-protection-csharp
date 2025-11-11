@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface Settings {
   email_notifications: boolean
@@ -36,7 +36,8 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/api/settings`).catch(() => ({ data: null }))
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/settings`).catch(() => ({ data: null }))
       if (response.data) {
         // Ensure all values are properly typed
         setSettings({
@@ -60,7 +61,8 @@ export default function SettingsPage() {
     setMessage(null)
     try {
       console.log('Saving settings:', settings)
-      const response = await axios.post(`${API_URL}/api/settings`, settings, {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.post(`${apiUrl}/api/settings`, settings, {
         headers: {
           'Content-Type': 'application/json'
         },
@@ -95,7 +97,8 @@ export default function SettingsPage() {
       let errorMessage = 'Failed to save settings'
       
       if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
-        errorMessage = `Network Error: Cannot connect to API. Please ensure the API is running on ${API_URL}`
+        const apiUrl = getApiUrlDynamic()
+        errorMessage = `Network Error: Cannot connect to API. Please ensure the API is running on ${apiUrl}`
       } else if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail
       } else if (error.response?.data?.message) {
@@ -127,8 +130,9 @@ export default function SettingsPage() {
     
     try {
       const token = localStorage.getItem('authToken')
+      const apiUrl = getApiUrlDynamic()
       const response = await axios.post(
-        `${API_URL}/api/settings/send-test-email`,
+        `${apiUrl}/api/settings/send-test-email`,
         { email: settings.admin_email },
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {}

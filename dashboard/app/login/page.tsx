@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -30,7 +30,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await axios.post(`${API_URL}/api/auth/login`, {
+      // Get API URL dynamically at runtime to ensure correct hostname detection
+      const apiUrl = getApiUrlDynamic()
+      console.log('Login - Using API URL:', apiUrl)
+      
+      const response = await axios.post(`${apiUrl}/api/auth/login`, {
         username: username.trim(),
         password: password
       })
@@ -72,7 +76,8 @@ export default function LoginPage() {
       } else if (err.response?.status === 404) {
         setError('API endpoint not found. Please check if the API is running.')
       } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        setError(`Cannot connect to API. Please check if the API is running on ${API_URL}`)
+        const apiUrl = getApiUrlDynamic()
+        setError(`Cannot connect to API. Please check if the API is running on ${apiUrl}`)
       } else {
         setError(err.response?.data?.detail || err.message || 'An error occurred during login')
       }
