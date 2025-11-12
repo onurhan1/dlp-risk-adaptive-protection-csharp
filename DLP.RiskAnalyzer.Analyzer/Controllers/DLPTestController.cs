@@ -408,27 +408,30 @@ public class DLPTestController : ControllerBase
             }
 
             // Step 2: Fetch incidents using POST method with body
+            // According to Forcepoint DLP API documentation:
+            // POST /dlp/rest/v1/incidents/
+            // Body: { "type": "INCIDENTS", "from_date": "dd/MM/yyyy HH:mm:ss", "to_date": "dd/MM/yyyy HH:mm:ss" }
             var endTime = DateTime.UtcNow;
             var startTime = endTime.AddHours(-hours);
-            var startTimeIso = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-            var endTimeIso = endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+            
+            // Format dates as "dd/MM/yyyy HH:mm:ss" (Forcepoint DLP API format)
+            var fromDate = startTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
+            var toDate = endTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
 
-            var incidentsUrl = "/dlp/rest/v1/incidents";
+            // Note: Some DLP versions require trailing slash, others don't
+            var incidentsUrl = "/dlp/rest/v1/incidents/";
             var requestBody = new
             {
-                filters = new
-                {
-                    since = startTimeIso,
-                    until = endTimeIso
-                },
-                limit = 10,
-                page = 1
+                type = "INCIDENTS",
+                from_date = fromDate,
+                to_date = toDate
             };
 
             var jsonBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
+            // Authorization: Bearer token (required)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             request.Content = content;
@@ -479,11 +482,14 @@ public class DLPTestController : ControllerBase
                 message = "Incidents fetched successfully",
                 timeRange = new
                 {
+                    fromDate = fromDate,
+                    toDate = toDate,
                     startTime = startTime.ToString("O"),
                     endTime = endTime.ToString("O"),
                     hours = hours
                 },
                 incidents = incidentsData,
+                requestBody = requestBody,
                 config = new
                 {
                     baseUrl = _httpClient.BaseAddress?.ToString()
