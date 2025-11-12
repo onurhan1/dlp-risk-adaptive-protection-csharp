@@ -407,67 +407,38 @@ public class DLPTestController : ControllerBase
                 });
             }
 
-            // Step 2: Fetch incidents
-            // Note: Some Forcepoint DLP versions use POST with body, others use GET with query parameters
+            // Step 2: Fetch incidents using POST method with body
             var endTime = DateTime.UtcNow;
             var startTime = endTime.AddHours(-hours);
             var startTimeIso = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
             var endTimeIso = endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
 
-            HttpResponseMessage incidentsResponse;
-            string requestMethod;
-            string requestUrl;
+            var incidentsUrl = "/dlp/rest/v1/incidents";
+            var requestBody = new
+            {
+                filters = new
+                {
+                    since = startTimeIso,
+                    until = endTimeIso
+                },
+                limit = 10,
+                page = 1
+            };
 
-            // Try POST method first (some DLP versions require POST with body)
+            var jsonBody = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+            var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Content = content;
+
+            _logger.LogDebug("Fetching incidents using POST method with body: {Body}", jsonBody);
+            
+            HttpResponseMessage incidentsResponse;
             try
             {
-                var incidentsUrl = "/dlp/rest/v1/incidents";
-                var requestBody = new
-                {
-                    filters = new
-                    {
-                        since = startTimeIso,
-                        until = endTimeIso
-                    },
-                    limit = 10,
-                    page = 1
-                };
-
-                var jsonBody = JsonSerializer.Serialize(requestBody);
-                var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-
-                var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                request.Content = content;
-
-                requestMethod = "POST";
-                requestUrl = incidentsUrl;
-
-                _logger.LogDebug("Trying POST method for incidents endpoint with body: {Body}", jsonBody);
                 incidentsResponse = await _httpClient.SendAsync(request);
-
-                // If POST returns 405, try GET method
-                if (incidentsResponse.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed)
-                {
-                    _logger.LogWarning("POST method returned 405, trying GET method with query parameters");
-                    
-                    // Try GET method with query parameters
-                    incidentsUrl = $"/dlp/rest/v1/incidents?" +
-                                 $"startTime={Uri.EscapeDataString(startTimeIso)}&" +
-                                 $"endTime={Uri.EscapeDataString(endTimeIso)}&" +
-                                 $"page=1&pageSize=10";
-
-                    request = new HttpRequestMessage(HttpMethod.Get, incidentsUrl);
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                    requestMethod = "GET";
-                    requestUrl = incidentsUrl;
-
-                    _logger.LogDebug("Trying GET method for incidents endpoint: {Url}", incidentsUrl);
-                    incidentsResponse = await _httpClient.SendAsync(request);
-                }
             }
             catch (Exception ex)
             {
@@ -483,8 +454,8 @@ public class DLPTestController : ControllerBase
             if (!incidentsResponse.IsSuccessStatusCode)
             {
                 var errorContent = await incidentsResponse.Content.ReadAsStringAsync();
-                _logger.LogError("Failed to fetch incidents. Method: {Method}, URL: {Url}, Status: {Status}, Response: {Response}",
-                    requestMethod, requestUrl, incidentsResponse.StatusCode, errorContent);
+                _logger.LogError("Failed to fetch incidents. Method: POST, URL: {Url}, Status: {Status}, Response: {Response}",
+                    incidentsUrl, incidentsResponse.StatusCode, errorContent);
                 
                 return StatusCode((int)incidentsResponse.StatusCode, new
                 {
@@ -492,15 +463,10 @@ public class DLPTestController : ControllerBase
                     message = "Failed to fetch incidents",
                     statusCode = (int)incidentsResponse.StatusCode,
                     statusText = incidentsResponse.StatusCode.ToString(),
-                    method = requestMethod,
-                    url = requestUrl,
-                    error = errorContent,
-                    troubleshooting = new
-                    {
-                        note = "Some Forcepoint DLP versions use POST with body, others use GET with query parameters",
-                        triedPost = requestMethod == "POST",
-                        triedGet = requestMethod == "GET" || incidentsResponse.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed
-                    }
+                    method = "POST",
+                    url = incidentsUrl,
+                    requestBody = requestBody,
+                    error = errorContent
                 });
             }
 
