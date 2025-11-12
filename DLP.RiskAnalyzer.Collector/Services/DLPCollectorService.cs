@@ -65,20 +65,18 @@ public class DLPCollectorService
             // Forcepoint DLP REST API v1 Authentication endpoint
             // According to Forcepoint DLP REST API documentation:
             // POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/auth/access-token
-            // Request format: application/x-www-form-urlencoded (not JSON)
+            // Note: Some DLP versions (8.9-9.0) expect username/password in headers, not body
+            // Postman works with headers, so we'll use header-based authentication (same as DLPTestController)
             var url = "/dlp/rest/v1/auth/access-token";
             
-            // Request body: username=xxx&password=yyy (form-urlencoded format)
-            var formData = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("username", _dlpConfig.Username),
-                new KeyValuePair<string, string>("password", _dlpConfig.Password)
-            };
-            var content = new FormUrlEncodedContent(formData);
+            // Use header-based authentication (matching Postman format and DLPTestController)
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("username", _dlpConfig.Username);
+            request.Headers.Add("password", _dlpConfig.Password);
 
-            _logger.LogDebug("Requesting access token from {BaseAddress}{Url}", _httpClient.BaseAddress, url);
+            _logger.LogDebug("Requesting access token from {BaseAddress}{Url} using header-based authentication", _httpClient.BaseAddress, url);
             
-            var response = await _httpClient.PostAsync(url, content);
+            var response = await _httpClient.SendAsync(request);
             
             if (!response.IsSuccessStatusCode)
             {
