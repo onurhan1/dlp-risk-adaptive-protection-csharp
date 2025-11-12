@@ -37,6 +37,10 @@ public class DLPTestController : ControllerBase
         var baseUrl = useHttps 
             ? $"https://{dlpIp}:{dlpPort}"
             : $"http://{dlpIp}:{dlpPort}";
+        
+        // Log configuration for debugging
+        _logger.LogInformation("DLP API Configuration - IP: {IP}, Port: {Port}, UseHttps: {UseHttps}, BaseUrl: {BaseUrl}", 
+            dlpIp, dlpPort, useHttps, baseUrl);
             
         _httpClient = new HttpClient(handler)
         {
@@ -86,7 +90,11 @@ public class DLPTestController : ControllerBase
 
             // Debug: Log the exact request being sent (before sending)
             var requestBody = $"username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}";
+            var actualBaseUrl = _httpClient.BaseAddress?.ToString();
+            var actualUseHttps = actualBaseUrl?.StartsWith("https://") == true;
+            
             _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", _httpClient.BaseAddress);
+            _logger.LogInformation("Actual Base URL: {BaseUrl}, Is HTTPS: {IsHttps}", actualBaseUrl, actualUseHttps);
             _logger.LogDebug("Request URL: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
             _logger.LogDebug("Request Body (form-urlencoded): {RequestBody}", requestBody);
             _logger.LogDebug("Content-Type: {ContentType}", content.Headers.ContentType?.ToString());
@@ -102,26 +110,54 @@ public class DLPTestController : ControllerBase
                 _logger.LogError("Request URL was: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
                 _logger.LogError("Request Body was: {RequestBody}", requestBody);
 
+                // Extract error message from HTML if possible
+                var errorMessage = errorContent;
+                if (errorContent.Contains("<html>") || errorContent.Contains("<!DOCTYPE"))
+                {
+                    // Try to extract meaningful error from HTML
+                    var titleMatch = System.Text.RegularExpressions.Regex.Match(errorContent, @"<title>(.*?)</title>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (titleMatch.Success)
+                    {
+                        errorMessage = titleMatch.Groups[1].Value;
+                    }
+                    else
+                    {
+                        errorMessage = "DLP Manager returned HTML error page (check credentials and permissions)";
+                    }
+                }
+
                 return StatusCode((int)response.StatusCode, new
                 {
                     success = false,
                     message = "DLP API authentication failed",
                     statusCode = (int)response.StatusCode,
                     statusText = response.StatusCode.ToString(),
-                    error = errorContent,
+                    error = errorMessage,
+                    errorRaw = errorContent.Length > 500 ? errorContent.Substring(0, 500) + "..." : errorContent,
                     debug = new
                     {
                         requestUrl = $"{_httpClient.BaseAddress}/dlp/rest/v1/auth/access-token",
                         requestBody = requestBody,
                         contentType = content.Headers.ContentType?.ToString(),
-                        responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value))
+                        responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
+                        actualBaseUrl = _httpClient.BaseAddress?.ToString(),
+                        useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true)
                     },
                     config = new
                     {
                         baseUrl = _httpClient.BaseAddress?.ToString(),
                         managerIP = dlpIp,
                         managerPort = dlpPort,
-                        username = username
+                        useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true),
+                        username = username,
+                        troubleshooting = new
+                        {
+                            check1 = "Verify username and password are correct",
+                            check2 = "Verify user is Application Administrator type in Forcepoint DLP Manager",
+                            check3 = "Verify user has API access permissions enabled",
+                            check4 = "Verify UseHttps is set to true in appsettings.json (port 9443 requires HTTPS)",
+                            check5 = "Check if IP whitelist restrictions exist in DLP Manager"
+                        }
                     }
                 });
             }
