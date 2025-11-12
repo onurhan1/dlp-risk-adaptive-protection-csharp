@@ -1,5 +1,7 @@
 using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -74,9 +76,13 @@ public class DLPTestController : ControllerBase
             }
 
             // Forcepoint DLP REST API v1 Authentication endpoint
-            var requestBody = new { username, password };
-            var json = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            // Note: Forcepoint DLP API expects application/x-www-form-urlencoded format, not JSON
+            var formData = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("password", password)
+            };
+            var content = new FormUrlEncodedContent(formData);
 
             _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", _httpClient.BaseAddress);
 
@@ -285,11 +291,15 @@ public class DLPTestController : ControllerBase
                 });
             }
 
-            var requestBody = new { username, password };
-            var json = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            // Forcepoint DLP API expects application/x-www-form-urlencoded format
+            var formData = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("password", password)
+            };
+            var authContent = new FormUrlEncodedContent(formData);
 
-            var authResponse = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
+            var authResponse = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", authContent);
             
             if (!authResponse.IsSuccessStatusCode)
             {
