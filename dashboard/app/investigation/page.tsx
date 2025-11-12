@@ -7,7 +7,7 @@ import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 
-import { API_URL } from '@/lib/api-config'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface TimelineEvent {
   id: number
