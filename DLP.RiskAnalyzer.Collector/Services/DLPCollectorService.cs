@@ -2,7 +2,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using StackExchange.Redis;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using DLP.RiskAnalyzer.Shared.Models;
 
@@ -59,17 +61,18 @@ public class DLPCollectorService
         try
         {
             // Forcepoint DLP REST API v1 Authentication endpoint
+            // According to Forcepoint DLP REST API documentation:
+            // POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/auth/access-token
+            // Request format: application/x-www-form-urlencoded (not JSON)
             var url = "/dlp/rest/v1/auth/access-token";
             
-            // Request body: { "username": "...", "password": "..." }
-            var requestBody = new
+            // Request body: username=xxx&password=yyy (form-urlencoded format)
+            var formData = new List<KeyValuePair<string, string>>
             {
-                username = _dlpConfig.Username,
-                password = _dlpConfig.Password
+                new KeyValuePair<string, string>("username", _dlpConfig.Username),
+                new KeyValuePair<string, string>("password", _dlpConfig.Password)
             };
-
-            var json = JsonConvert.SerializeObject(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var content = new FormUrlEncodedContent(formData);
 
             _logger.LogDebug("Requesting access token from {BaseAddress}{Url}", _httpClient.BaseAddress, url);
             

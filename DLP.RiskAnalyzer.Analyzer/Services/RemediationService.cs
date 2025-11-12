@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -50,13 +52,19 @@ public class RemediationService
         try
         {
             // Forcepoint DLP REST API v1 Authentication endpoint
+            // According to Forcepoint DLP REST API documentation:
+            // POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/auth/access-token
+            // Request format: application/x-www-form-urlencoded (not JSON)
             var username = _configuration["DLP:Username"] ?? "";
             var password = _configuration["DLP:Password"] ?? "";
 
-            // Request body: { "username": "...", "password": "..." }
-            var requestBody = new { username, password };
-            var json = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            // Request body: username=xxx&password=yyy (form-urlencoded format)
+            var formData = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("password", password)
+            };
+            var content = new FormUrlEncodedContent(formData);
 
             HttpResponseMessage? response = null;
             try
