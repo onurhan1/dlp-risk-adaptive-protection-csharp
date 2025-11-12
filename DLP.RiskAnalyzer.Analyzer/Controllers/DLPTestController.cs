@@ -188,11 +188,14 @@ public class DLPTestController : ControllerBase
             var responseContent = await response.Content.ReadAsStringAsync();
             var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
 
-            var accessToken = tokenResponse?.ContainsKey("accessToken") == true
-                ? tokenResponse["accessToken"].ToString()
-                : tokenResponse?.ContainsKey("token") == true
-                    ? tokenResponse["token"].ToString()
-                    : null;
+            // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+            var accessToken = tokenResponse?.ContainsKey("access_token") == true
+                ? tokenResponse["access_token"].ToString()
+                : tokenResponse?.ContainsKey("accessToken") == true
+                    ? tokenResponse["accessToken"].ToString()
+                    : tokenResponse?.ContainsKey("token") == true
+                        ? tokenResponse["token"].ToString()
+                        : null;
 
             if (string.IsNullOrEmpty(accessToken))
             {
@@ -386,11 +389,14 @@ public class DLPTestController : ControllerBase
             var authResponseContent = await authResponse.Content.ReadAsStringAsync();
             var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(authResponseContent);
 
-            var accessToken = tokenResponse?.ContainsKey("accessToken") == true
-                ? tokenResponse["accessToken"].ToString()
-                : tokenResponse?.ContainsKey("token") == true
-                    ? tokenResponse["token"].ToString()
-                    : null;
+            // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+            var accessToken = tokenResponse?.ContainsKey("access_token") == true
+                ? tokenResponse["access_token"].ToString()
+                : tokenResponse?.ContainsKey("accessToken") == true
+                    ? tokenResponse["accessToken"].ToString()
+                    : tokenResponse?.ContainsKey("token") == true
+                        ? tokenResponse["token"].ToString()
+                        : null;
 
             if (string.IsNullOrEmpty(accessToken))
             {

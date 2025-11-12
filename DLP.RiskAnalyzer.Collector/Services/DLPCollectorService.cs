@@ -89,13 +89,15 @@ public class DLPCollectorService
             var responseContent = await response.Content.ReadAsStringAsync();
             var tokenResponse = JsonConvert.DeserializeObject<AccessTokenResponse>(responseContent);
 
+            // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
             _accessToken = tokenResponse?.AccessToken ?? 
                           tokenResponse?.Token ?? 
                           throw new Exception("No token received from DLP API. Response: " + responseContent);
 
             // Set expiry (subtract 60 seconds for safety)
-            // Forcepoint DLP tokens typically expire in 1 hour (3600 seconds)
-            _tokenExpiry = DateTime.UtcNow.AddSeconds((tokenResponse?.ExpiresIn ?? 3600) - 60);
+            // Forcepoint DLP tokens typically expire in 1 hour (3600 seconds) or access_token_expires_in field
+            var expiresIn = tokenResponse?.ExpiresIn ?? tokenResponse?.AccessTokenExpiresIn ?? 3600;
+            _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60);
 
             _logger.LogInformation("Access token obtained successfully, expires at {Expiry}", _tokenExpiry);
             return _accessToken;
@@ -199,14 +201,31 @@ public class DLPCollectorService
 /// </summary>
 public class AccessTokenResponse
 {
+    // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+    // Support both formats by checking both property names during deserialization
+    [JsonProperty("access_token")]
+    public string? AccessTokenSnakeCase { get; set; }
+    
     [JsonProperty("accessToken")]
-    public string? AccessToken { get; set; }
+    public string? AccessTokenCamelCase { get; set; }
+    
+    // Property that returns the token from either format
+    public string? AccessToken => AccessTokenSnakeCase ?? AccessTokenCamelCase;
     
     [JsonProperty("token")]
     public string? Token { get; set; }
     
+    [JsonProperty("access_token_expires_in")]
+    public int? ExpiresInSnakeCase { get; set; }
+    
     [JsonProperty("expiresIn")]
-    public int ExpiresIn { get; set; }
+    public int? ExpiresInCamelCase { get; set; }
+    
+    // Property that returns expires_in from either format
+    public int? ExpiresIn => ExpiresInSnakeCase ?? ExpiresInCamelCase;
+    
+    // Alias for ExpiresIn
+    public int? AccessTokenExpiresIn => ExpiresIn;
 }
 
 /// <summary>

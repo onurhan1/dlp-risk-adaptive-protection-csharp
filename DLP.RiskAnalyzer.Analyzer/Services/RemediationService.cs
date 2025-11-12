@@ -85,17 +85,24 @@ public class RemediationService
             var responseContent = await response.Content.ReadAsStringAsync();
             var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
 
-            // Response may contain "accessToken" or "token" field
-            _accessToken = tokenResponse?.ContainsKey("accessToken") == true
-                ? tokenResponse["accessToken"].ToString()
-                : tokenResponse?.ContainsKey("token") == true
-                    ? tokenResponse["token"].ToString()
-                    : null;
+            // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+            _accessToken = tokenResponse?.ContainsKey("access_token") == true
+                ? tokenResponse["access_token"].ToString()
+                : tokenResponse?.ContainsKey("accessToken") == true
+                    ? tokenResponse["accessToken"].ToString()
+                    : tokenResponse?.ContainsKey("token") == true
+                        ? tokenResponse["token"].ToString()
+                        : null;
 
             if (_accessToken != null)
             {
-                // Forcepoint DLP tokens typically expire in 1 hour
-                _tokenExpiry = DateTime.UtcNow.AddMinutes(55); // Refresh 5 minutes before expiry
+                // Forcepoint DLP tokens typically expire in 1 hour (3600 seconds) or access_token_expires_in field
+                var expiresIn = tokenResponse?.ContainsKey("access_token_expires_in") == true
+                    ? Convert.ToInt32(tokenResponse["access_token_expires_in"])
+                    : tokenResponse?.ContainsKey("expiresIn") == true
+                        ? Convert.ToInt32(tokenResponse["expiresIn"])
+                        : 3600;
+                _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 300); // Refresh 5 minutes before expiry
             }
             
             return _accessToken;
