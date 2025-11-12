@@ -80,39 +80,42 @@ public class DLPTestController : ControllerBase
             }
 
             // Forcepoint DLP REST API v1 Authentication endpoint
-            // Note: Forcepoint DLP API expects application/x-www-form-urlencoded format, not JSON
-            var formData = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("username", username),
-                new KeyValuePair<string, string>("password", password)
-            };
-            var content = new FormUrlEncodedContent(formData);
-
-            // Debug: Log the exact request being sent (before sending)
-            var requestBody = $"username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}";
+            // Note: Some DLP versions (8.9-9.0) expect username/password in headers, not body
+            // Postman works with headers, so we'll use header-based authentication
+            
             var actualBaseUrl = _httpClient.BaseAddress?.ToString();
             var actualUseHttps = actualBaseUrl?.StartsWith("https://") == true;
             
             _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", _httpClient.BaseAddress);
             _logger.LogInformation("Actual Base URL: {BaseUrl}, Is HTTPS: {IsHttps}", actualBaseUrl, actualUseHttps);
+            _logger.LogInformation("Using header-based authentication (username/password in headers)");
+            
+            // Create request with username/password in headers (matching Postman format)
+            var request = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/auth/access-token");
+            request.Headers.Add("username", username);
+            request.Headers.Add("password", password);
+            
+            // Log request details
             _logger.LogDebug("Request URL: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
-            _logger.LogDebug("Request Body (form-urlencoded): {RequestBody}", requestBody);
-            _logger.LogDebug("Content-Type: {ContentType}", content.Headers.ContentType?.ToString());
-            _logger.LogDebug("Username: {Username}", username);
-
-            // Log all request headers for comparison with Postman
+            _logger.LogDebug("Request Method: POST");
+            _logger.LogDebug("Username header: {Username}", username);
+            _logger.LogDebug("Password header: [REDACTED]");
+            
+            // Log all request headers
             _logger.LogDebug("Request Headers:");
-            foreach (var header in _httpClient.DefaultRequestHeaders)
+            foreach (var header in request.Headers)
             {
-                _logger.LogDebug("  {Key}: {Value}", header.Key, string.Join(", ", header.Value));
-            }
-            _logger.LogDebug("Content Headers:");
-            foreach (var header in content.Headers)
-            {
-                _logger.LogDebug("  {Key}: {Value}", header.Key, string.Join(", ", header.Value));
+                if (header.Key.Equals("password", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogDebug("  {Key}: [REDACTED]", header.Key);
+                }
+                else
+                {
+                    _logger.LogDebug("  {Key}: {Value}", header.Key, string.Join(", ", header.Value));
+                }
             }
             
-            var response = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -120,7 +123,7 @@ public class DLPTestController : ControllerBase
                 _logger.LogError("DLP API authentication failed. Status: {Status}, Response: {Response}",
                     response.StatusCode, errorContent);
                 _logger.LogError("Request URL was: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
-                _logger.LogError("Request Body was: {RequestBody}", requestBody);
+                _logger.LogError("Authentication method: Header-based (username/password in headers)");
 
                 // Extract error message from HTML if possible
                 var errorMessage = errorContent;
@@ -149,8 +152,11 @@ public class DLPTestController : ControllerBase
                     debug = new
                     {
                         requestUrl = $"{actualBaseUrl}/dlp/rest/v1/auth/access-token",
-                        requestBody = requestBody,
-                        contentType = content.Headers.ContentType?.ToString(),
+                        authenticationMethod = "Header-based (username/password in headers)",
+                        requestHeaders = request.Headers.ToDictionary(h => h.Key, h => 
+                            h.Key.Equals("password", StringComparison.OrdinalIgnoreCase) 
+                                ? "[REDACTED]" 
+                                : string.Join(", ", h.Value)),
                         responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
                         actualBaseUrl = actualBaseUrl,
                         httpClientBaseAddress = _httpClient.BaseAddress?.ToString(),
@@ -359,15 +365,12 @@ public class DLPTestController : ControllerBase
                 });
             }
 
-            // Forcepoint DLP API expects application/x-www-form-urlencoded format
-            var formData = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("username", username),
-                new KeyValuePair<string, string>("password", password)
-            };
-            var authContent = new FormUrlEncodedContent(formData);
+            // Use header-based authentication (matching Postman format)
+            var authRequest = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/auth/access-token");
+            authRequest.Headers.Add("username", username);
+            authRequest.Headers.Add("password", password);
 
-            var authResponse = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", authContent);
+            var authResponse = await _httpClient.SendAsync(authRequest);
             
             if (!authResponse.IsSuccessStatusCode)
             {
