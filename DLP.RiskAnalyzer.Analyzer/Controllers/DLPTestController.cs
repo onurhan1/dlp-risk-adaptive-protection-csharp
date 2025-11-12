@@ -47,9 +47,9 @@ public class DLPTestController : ControllerBase
 
     /// <summary>
     /// Test DLP API Authentication - Swagger'dan test edebilirsiniz
-    /// GET /api/dlptest/auth
+    /// POST /api/dlptest/auth
     /// </summary>
-    [HttpGet("auth")]
+    [HttpPost("auth")]
     public async Task<ActionResult<Dictionary<string, object>>> TestAuthentication()
     {
         try
@@ -84,7 +84,13 @@ public class DLPTestController : ControllerBase
             };
             var content = new FormUrlEncodedContent(formData);
 
+            // Debug: Log the exact request being sent (before sending)
+            var requestBody = $"username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}";
             _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", _httpClient.BaseAddress);
+            _logger.LogDebug("Request URL: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
+            _logger.LogDebug("Request Body (form-urlencoded): {RequestBody}", requestBody);
+            _logger.LogDebug("Content-Type: {ContentType}", content.Headers.ContentType?.ToString());
+            _logger.LogDebug("Username: {Username}", username);
 
             var response = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
 
@@ -93,6 +99,8 @@ public class DLPTestController : ControllerBase
                 var errorContent = await response.Content.ReadAsStringAsync();
                 _logger.LogError("DLP API authentication failed. Status: {Status}, Response: {Response}",
                     response.StatusCode, errorContent);
+                _logger.LogError("Request URL was: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
+                _logger.LogError("Request Body was: {RequestBody}", requestBody);
 
                 return StatusCode((int)response.StatusCode, new
                 {
@@ -101,6 +109,13 @@ public class DLPTestController : ControllerBase
                     statusCode = (int)response.StatusCode,
                     statusText = response.StatusCode.ToString(),
                     error = errorContent,
+                    debug = new
+                    {
+                        requestUrl = $"{_httpClient.BaseAddress}/dlp/rest/v1/auth/access-token",
+                        requestBody = requestBody,
+                        contentType = content.Headers.ContentType?.ToString(),
+                        responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value))
+                    },
                     config = new
                     {
                         baseUrl = _httpClient.BaseAddress?.ToString(),
