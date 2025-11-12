@@ -24,33 +24,30 @@ class Program
                 var dlpManagerIP = configuration["DLP:ManagerIP"] ?? "localhost";
                 var dlpManagerPort = configuration.GetValue<int>("DLP:ManagerPort", 8443);
                 var useHttps = configuration.GetValue<bool>("DLP:UseHttps", true);
+                var timeout = configuration.GetValue<int>("DLP:Timeout", 30);
                 var baseUrl = useHttps 
                     ? $"https://{dlpManagerIP}:{dlpManagerPort}"
                     : $"http://{dlpManagerIP}:{dlpManagerPort}";
                 
                 // HttpClient with SSL certificate bypass (for self-signed DLP certs)
-                // Create handler as singleton to ensure SSL bypass works correctly
-                // IMPORTANT: Handler must be created outside lambda to ensure it's reused
+                // Create handler with SSL bypass - same approach as DLPTestController
                 var handler = new HttpClientHandler
                 {
-                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => 
-                    {
-                        // Always return true to bypass SSL certificate validation
-                        // This is necessary for self-signed certificates from DLP Manager
-                        return true;
-                    }
+                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
                 };
                 
-                // Register handler as singleton to ensure it's reused
-                services.AddSingleton(handler);
+                // Create HttpClient directly (same approach as DLPTestController which works)
+                var httpClient = new HttpClient(handler)
+                {
+                    BaseAddress = new Uri(baseUrl),
+                    Timeout = TimeSpan.FromSeconds(timeout)
+                };
                 
-                services.AddHttpClient<DLPCollectorService>()
-                    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<HttpClientHandler>())
-                    .ConfigureHttpClient(client =>
-                    {
-                        client.BaseAddress = new Uri(baseUrl);
-                        client.Timeout = TimeSpan.FromSeconds(configuration.GetValue<int>("DLP:Timeout", 30));
-                    });
+                // Register HttpClient as singleton
+                services.AddSingleton(httpClient);
+                
+                // Register DLPCollectorService with the pre-configured HttpClient
+                services.AddSingleton<DLPCollectorService>();
                 
                 // Redis
                 var redisHost = configuration["Redis:Host"] ?? "localhost";

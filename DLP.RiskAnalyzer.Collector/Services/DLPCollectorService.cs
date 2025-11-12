@@ -37,20 +37,14 @@ public class DLPCollectorService
         _redisConfig = redisConfig.Value;
         _logger = logger;
 
-        // Base address and SSL certificate validation bypass are configured in Program.cs
-        // via HttpClient factory configuration
-        // Do NOT override BaseAddress here as it's already set by ConfigureHttpClient
+        // HttpClient is pre-configured in Program.cs with SSL bypass and BaseAddress
+        // Same approach as DLPTestController which works correctly
+        _logger.LogInformation("DLPCollectorService initialized with BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
+        
         if (_httpClient.BaseAddress == null)
         {
-            var useHttps = true; // Default to HTTPS
-            var baseUrl = useHttps 
-                ? $"https://{_dlpConfig.ManagerIP}:{_dlpConfig.ManagerPort}"
-                : $"http://{_dlpConfig.ManagerIP}:{_dlpConfig.ManagerPort}";
-            _httpClient.BaseAddress = new Uri(baseUrl);
-            _logger.LogWarning("HttpClient BaseAddress was null, setting to {BaseUrl}. This should be configured in Program.cs", baseUrl);
+            _logger.LogError("HttpClient BaseAddress is null! This should be configured in Program.cs");
         }
-        
-        _logger.LogInformation("DLPCollectorService initialized with BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
     }
 
     /// <summary>
