@@ -100,6 +100,18 @@ public class DLPTestController : ControllerBase
             _logger.LogDebug("Content-Type: {ContentType}", content.Headers.ContentType?.ToString());
             _logger.LogDebug("Username: {Username}", username);
 
+            // Log all request headers for comparison with Postman
+            _logger.LogDebug("Request Headers:");
+            foreach (var header in _httpClient.DefaultRequestHeaders)
+            {
+                _logger.LogDebug("  {Key}: {Value}", header.Key, string.Join(", ", header.Value));
+            }
+            _logger.LogDebug("Content Headers:");
+            foreach (var header in content.Headers)
+            {
+                _logger.LogDebug("  {Key}: {Value}", header.Key, string.Join(", ", header.Value));
+            }
+            
             var response = await _httpClient.PostAsync("/dlp/rest/v1/auth/access-token", content);
 
             if (!response.IsSuccessStatusCode)
@@ -136,12 +148,14 @@ public class DLPTestController : ControllerBase
                     errorRaw = errorContent.Length > 500 ? errorContent.Substring(0, 500) + "..." : errorContent,
                     debug = new
                     {
-                        requestUrl = $"{_httpClient.BaseAddress}/dlp/rest/v1/auth/access-token",
+                        requestUrl = $"{actualBaseUrl}/dlp/rest/v1/auth/access-token",
                         requestBody = requestBody,
                         contentType = content.Headers.ContentType?.ToString(),
                         responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
-                        actualBaseUrl = _httpClient.BaseAddress?.ToString(),
-                        useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true)
+                        actualBaseUrl = actualBaseUrl,
+                        httpClientBaseAddress = _httpClient.BaseAddress?.ToString(),
+                        useHttps = actualUseHttps,
+                        configUseHttps = _configuration.GetValue<bool>("DLP:UseHttps", true)
                     },
                     config = new
                     {
@@ -152,11 +166,14 @@ public class DLPTestController : ControllerBase
                         username = username,
                         troubleshooting = new
                         {
-                            check1 = "Verify username and password are correct",
-                            check2 = "Verify user is Application Administrator type in Forcepoint DLP Manager",
-                            check3 = "Verify user has API access permissions enabled",
+                            check1 = "Verify username and password are correct (test in Postman first)",
+                            check2 = "Verify user is Application Administrator type in Forcepoint DLP Manager (not regular Administrator)",
+                            check3 = "Verify user has API access permissions enabled in Forcepoint DLP Manager",
                             check4 = "Verify UseHttps is set to true in appsettings.json (port 9443 requires HTTPS)",
-                            check5 = "Check if IP whitelist restrictions exist in DLP Manager"
+                            check5 = "Check if IP whitelist restrictions exist in DLP Manager (your IP: check network settings)",
+                            check6 = "Compare request format with Postman - ensure form-urlencoded format matches exactly",
+                            check7 = "Check Forcepoint DLP Manager logs for detailed authentication failure reason",
+                            note = "If Postman works but code doesn't, compare exact request headers and body format"
                         }
                     }
                 });
