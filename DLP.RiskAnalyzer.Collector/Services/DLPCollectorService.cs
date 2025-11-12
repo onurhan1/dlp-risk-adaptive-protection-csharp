@@ -160,6 +160,10 @@ public class DLPCollectorService
 
             var responseContent = await response.Content.ReadAsStringAsync();
             
+            // Log raw response for debugging (first 500 chars to avoid huge logs)
+            _logger.LogDebug("DLP API Response (first 500 chars): {Response}", 
+                responseContent.Length > 500 ? responseContent.Substring(0, 500) + "..." : responseContent);
+            
             // Forcepoint DLP API may return incidents as array or object with incidents property
             List<DLPIncident> incidents;
             try
@@ -167,22 +171,29 @@ public class DLPCollectorService
                 // Try to deserialize as DLPIncidentResponse first
                 var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(responseContent);
                 incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
+                _logger.LogDebug("Deserialized as DLPIncidentResponse: {Count} incidents", incidents.Count);
             }
-            catch
+            catch (Exception ex1)
             {
+                _logger.LogDebug("Failed to deserialize as DLPIncidentResponse: {Error}", ex1.Message);
                 // If that fails, try to deserialize as array directly
                 try
                 {
                     incidents = JsonConvert.DeserializeObject<List<DLPIncident>>(responseContent) ?? new List<DLPIncident>();
+                    _logger.LogDebug("Deserialized as List<DLPIncident>: {Count} incidents", incidents.Count);
                 }
-                catch
+                catch (Exception ex2)
                 {
-                    _logger.LogWarning("Unexpected response format from DLP API: {Response}", responseContent);
+                    _logger.LogWarning("Failed to deserialize response. DLPIncidentResponse error: {Error1}, List error: {Error2}", 
+                        ex1.Message, ex2.Message);
+                    _logger.LogWarning("Raw response (first 1000 chars): {Response}", 
+                        responseContent.Length > 1000 ? responseContent.Substring(0, 1000) + "..." : responseContent);
                     incidents = new List<DLPIncident>();
                 }
             }
 
-            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API", incidents.Count);
+            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (Date range: {FromDate} to {ToDate})", 
+                incidents.Count, fromDate, toDate);
 
             return incidents;
         }
@@ -214,9 +225,9 @@ public class DLPCollectorService
                 new("channel", incident.Channel ?? "")
             };
 
-            await db.StreamAddAsync(streamName, fields);
-            _logger.LogDebug("Incident pushed to Redis stream: {UserEmail} at {Timestamp}", 
-                incident.UserEmail, incident.Timestamp);
+            var messageId = await db.StreamAddAsync(streamName, fields);
+            _logger.LogInformation("Incident pushed to Redis stream: MessageId={MessageId}, UserEmail={UserEmail}, Timestamp={Timestamp}", 
+                messageId, incident.UserEmail, incident.Timestamp);
         }
         catch (Exception ex)
         {

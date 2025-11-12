@@ -61,23 +61,40 @@ public class CollectorBackgroundService : BackgroundService
             _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API", incidents.Count);
 
             // Step 3: Convert DLP API incidents to internal model and push to Redis
+            var pushedCount = 0;
+            var errorCount = 0;
+            
             foreach (var dlpIncident in incidents)
             {
-                var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
+                try
                 {
-                    UserEmail = dlpIncident.User,
-                    Department = dlpIncident.Department,
-                    Severity = dlpIncident.Severity,
-                    DataType = dlpIncident.DataType,
-                    Timestamp = dlpIncident.Timestamp,
-                    Policy = dlpIncident.Policy,
-                    Channel = dlpIncident.Channel
-                };
+                    _logger.LogDebug("Processing incident: User={User}, Timestamp={Timestamp}, Severity={Severity}", 
+                        dlpIncident.User, dlpIncident.Timestamp, dlpIncident.Severity);
+                    
+                    var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
+                    {
+                        UserEmail = dlpIncident.User ?? "unknown",
+                        Department = dlpIncident.Department,
+                        Severity = dlpIncident.Severity,
+                        DataType = dlpIncident.DataType,
+                        Timestamp = dlpIncident.Timestamp,
+                        Policy = dlpIncident.Policy,
+                        Channel = dlpIncident.Channel
+                    };
 
-                await _collectorService.PushToRedisStreamAsync(incident);
+                    await _collectorService.PushToRedisStreamAsync(incident);
+                    pushedCount++;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    _logger.LogError(ex, "Failed to process and push incident: User={User}, Timestamp={Timestamp}", 
+                        dlpIncident.User, dlpIncident.Timestamp);
+                }
             }
 
-            _logger.LogInformation("Successfully collected and pushed {Count} incidents to Redis", incidents.Count);
+            _logger.LogInformation("Successfully collected and pushed {PushedCount} incidents to Redis (Errors: {ErrorCount}, Total: {TotalCount})", 
+                pushedCount, errorCount, incidents.Count);
         }
         catch (Exception ex)
         {
