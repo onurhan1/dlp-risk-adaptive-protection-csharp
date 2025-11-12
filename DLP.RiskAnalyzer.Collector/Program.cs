@@ -30,13 +30,22 @@ class Program
                 
                 // HttpClient with SSL certificate bypass (for self-signed DLP certs)
                 // Create handler as singleton to ensure SSL bypass works correctly
+                // IMPORTANT: Handler must be created outside lambda to ensure it's reused
                 var handler = new HttpClientHandler
                 {
-                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => 
+                    {
+                        // Always return true to bypass SSL certificate validation
+                        // This is necessary for self-signed certificates from DLP Manager
+                        return true;
+                    }
                 };
                 
+                // Register handler as singleton to ensure it's reused
+                services.AddSingleton(handler);
+                
                 services.AddHttpClient<DLPCollectorService>()
-                    .ConfigurePrimaryHttpMessageHandler(() => handler)
+                    .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<HttpClientHandler>())
                     .ConfigureHttpClient(client =>
                     {
                         client.BaseAddress = new Uri(baseUrl);
