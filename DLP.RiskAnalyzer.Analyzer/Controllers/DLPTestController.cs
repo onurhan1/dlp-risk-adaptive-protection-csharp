@@ -348,9 +348,9 @@ public class DLPTestController : ControllerBase
 
     /// <summary>
     /// Test DLP API - Fetch Incidents (requires authentication) - Swagger'dan test edebilirsiniz
-    /// GET /api/dlptest/incidents?hours=24
+    /// POST /api/dlptest/incidents?hours=24
     /// </summary>
-    [HttpGet("incidents")]
+    [HttpPost("incidents")]
     public async Task<ActionResult<Dictionary<string, object>>> TestFetchIncidents([FromQuery] int hours = 24)
     {
         try
