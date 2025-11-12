@@ -20,14 +20,28 @@ class Program
             {
                 var configuration = context.Configuration;
                 
+                // Get DLP configuration for base address
+                var dlpManagerIP = configuration["DLP:ManagerIP"] ?? "localhost";
+                var dlpManagerPort = configuration.GetValue<int>("DLP:ManagerPort", 8443);
+                var useHttps = configuration.GetValue<bool>("DLP:UseHttps", true);
+                var baseUrl = useHttps 
+                    ? $"https://{dlpManagerIP}:{dlpManagerPort}"
+                    : $"http://{dlpManagerIP}:{dlpManagerPort}";
+                
                 // HttpClient with SSL certificate bypass (for self-signed DLP certs)
+                // Create handler as singleton to ensure SSL bypass works correctly
                 var handler = new HttpClientHandler
                 {
                     ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
                 };
                 
                 services.AddHttpClient<DLPCollectorService>()
-                    .ConfigurePrimaryHttpMessageHandler(() => handler);
+                    .ConfigurePrimaryHttpMessageHandler(() => handler)
+                    .ConfigureHttpClient(client =>
+                    {
+                        client.BaseAddress = new Uri(baseUrl);
+                        client.Timeout = TimeSpan.FromSeconds(configuration.GetValue<int>("DLP:Timeout", 30));
+                    });
                 
                 // Redis
                 var redisHost = configuration["Redis:Host"] ?? "localhost";
