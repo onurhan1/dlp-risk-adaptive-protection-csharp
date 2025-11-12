@@ -112,8 +112,8 @@ public class DLPCollectorService
     /// <summary>
     /// Fetch incidents from Forcepoint DLP API
     /// According to Forcepoint DLP REST API v1 documentation:
-    /// GET https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/incidents
-    /// Query parameters: startTime, endTime, page, pageSize
+    /// POST https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/incidents
+    /// Body: { "type": "INCIDENTS", "from_date": "dd/MM/yyyy HH:mm:ss", "to_date": "dd/MM/yyyy HH:mm:ss" }
     /// </summary>
     public async Task<List<DLPIncident>> FetchIncidentsAsync(DateTime startTime, DateTime endTime, int page = 1, int pageSize = 100)
     {
@@ -122,19 +122,30 @@ public class DLPCollectorService
             // Step 1: Authenticate and get access token
             var token = await GetAccessTokenAsync();
 
-            // Step 2: Build incident API URL with query parameters
-            // Format: ISO 8601 (yyyy-MM-ddTHH:mm:ssZ)
-            var url = $"/dlp/rest/v1/incidents?" +
-                     $"startTime={Uri.EscapeDataString(startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))}&" +
-                     $"endTime={Uri.EscapeDataString(endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"))}&" +
-                     $"page={page}&pageSize={pageSize}";
+            // Step 2: Build request body according to Forcepoint DLP API format
+            // Format dates as "dd/MM/yyyy HH:mm:ss" (Forcepoint DLP API format)
+            var fromDate = startTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
+            var toDate = endTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
 
-            _logger.LogDebug("Fetching incidents from {BaseAddress}{Url}", _httpClient.BaseAddress, url);
+            var incidentsUrl = "/dlp/rest/v1/incidents/";
+            var requestBody = new
+            {
+                type = "INCIDENTS",
+                from_date = fromDate,
+                to_date = toDate
+            };
 
-            // Step 3: Create request with Bearer token authentication
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var jsonBody = JsonConvert.SerializeObject(requestBody);
+            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+            _logger.LogDebug("Fetching incidents from {BaseAddress}{Url} with body: {Body}", 
+                _httpClient.BaseAddress, incidentsUrl, jsonBody);
+
+            // Step 3: Create POST request with Bearer token authentication
+            var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            request.Content = content;
 
             // Step 4: Send request
             var response = await _httpClient.SendAsync(request);
@@ -147,12 +158,31 @@ public class DLPCollectorService
                 response.EnsureSuccessStatusCode();
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            
+            // Forcepoint DLP API may return incidents as array or object with incidents property
+            List<DLPIncident> incidents;
+            try
+            {
+                // Try to deserialize as DLPIncidentResponse first
+                var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(responseContent);
+                incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
+            }
+            catch
+            {
+                // If that fails, try to deserialize as array directly
+                try
+                {
+                    incidents = JsonConvert.DeserializeObject<List<DLPIncident>>(responseContent) ?? new List<DLPIncident>();
+                }
+                catch
+                {
+                    _logger.LogWarning("Unexpected response format from DLP API: {Response}", responseContent);
+                    incidents = new List<DLPIncident>();
+                }
+            }
 
-            var incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
-            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (page {Page}, total: {Total})", 
-                incidents.Count, page, incidentResponse?.Total ?? 0);
+            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API", incidents.Count);
 
             return incidents;
         }
