@@ -62,7 +62,7 @@ class Program
                     redisHost = "host.docker.internal";
                 }
                 else if (!isDocker && redisHost == "localhost" && 
-                         System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                         RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     // If running on Windows host, use 127.0.0.1 for better reliability with Docker Desktop
                     redisHost = "127.0.0.1";
