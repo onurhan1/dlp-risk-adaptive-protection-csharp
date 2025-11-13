@@ -64,6 +64,7 @@ artifacts/
 .DS_Store
 
 # App configuration (contains sensitive data)
-appsettings.Development.json
-**/appsettings.Development.json
+# Note: appsettings.Development.json is now tracked as it contains only non-sensitive defaults
+# appsettings.Development.json
+# **/appsettings.Development.json
 
