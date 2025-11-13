@@ -50,16 +50,29 @@ public class AnalyzerBackgroundService : BackgroundService
                     }
                 }
             }
-            catch (Npgsql.NpgsqlException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+            catch (Npgsql.NpgsqlException ex) when (
+                ex.InnerException is System.Net.Sockets.SocketException ||
+                ex.Message.Contains("Failed to connect") ||
+                ex.Message.Contains("No connection could be made"))
             {
                 // Database connection error - wait longer before retry
+                // Windows may need more time for services to start
                 _logger.LogWarning("Database connection failed. Will retry in 30 seconds. Error: {Error}", ex.Message);
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.NpgsqlException)
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (
+                ex.InnerException is Npgsql.NpgsqlException ||
+                ex.InnerException is System.Net.Sockets.SocketException)
             {
                 // Database connection error - wait longer before retry
-                _logger.LogWarning("Database connection failed. Will retry in 30 seconds. Error: {Error}", ex.InnerException?.Message ?? ex.Message);
+                _logger.LogWarning("Database connection failed. Will retry in 30 seconds. Error: {Error}", 
+                    ex.InnerException?.Message ?? ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                // Direct socket exception (Windows specific sometimes)
+                _logger.LogWarning("Socket connection failed. Will retry in 30 seconds. Error: {Error}", ex.Message);
                 await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
             catch (Exception ex)

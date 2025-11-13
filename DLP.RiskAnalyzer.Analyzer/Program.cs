@@ -22,13 +22,31 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddDbContext<AnalyzerDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    
+    // Windows compatibility: Try to resolve localhost to 127.0.0.1 if needed
+    // Also support host.docker.internal for Docker Desktop on Windows
+    if (!string.IsNullOrEmpty(connectionString))
+    {
+        // Replace localhost with 127.0.0.1 for better Windows compatibility
+        // Or use host.docker.internal if running in Docker on Windows
+        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        if (isDocker && connectionString.Contains("Host=localhost"))
+        {
+            // In Docker on Windows, use host.docker.internal to access host PostgreSQL
+            connectionString = connectionString.Replace("Host=localhost", "Host=host.docker.internal");
+        }
+    }
+    
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        // Enable retry on failure
+        // Enable retry on failure (important for Windows where services may start before DB)
         npgsqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
             errorCodesToAdd: null);
+        
+        // Increase command timeout for Windows (sometimes slower)
+        npgsqlOptions.CommandTimeout(60);
     });
     
     // Don't fail on startup if database is not available
@@ -362,9 +380,35 @@ app.UseSwaggerUI(c =>
 // Health check endpoint
 app.MapGet("/health", () =>
 {
-    var timezone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
-    var istTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
-    return Results.Ok(new { status = "healthy", timestamp = istTime.ToString("O") });
+    try
+    {
+        // Try to get Istanbul timezone (works on both Windows and Linux)
+        TimeZoneInfo timezone;
+        try
+        {
+            timezone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+        }
+        catch
+        {
+            // Fallback for Windows or if timezone not found
+            try
+            {
+                timezone = TimeZoneInfo.FindSystemTimeZoneById("Turkey Standard Time");
+            }
+            catch
+            {
+                // Final fallback to UTC
+                timezone = TimeZoneInfo.Utc;
+            }
+        }
+        var istTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
+        return Results.Ok(new { status = "healthy", timestamp = istTime.ToString("O"), timezone = timezone.Id });
+    }
+    catch
+    {
+        // Fallback to UTC if all else fails
+        return Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow.ToString("O"), timezone = "UTC" });
+    }
 });
 
 // API info endpoint
