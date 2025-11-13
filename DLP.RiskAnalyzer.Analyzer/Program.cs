@@ -20,7 +20,21 @@ builder.Services.AddSwaggerGen(c =>
 
 // Database
 builder.Services.AddDbContext<AnalyzerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        // Enable retry on failure
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null);
+    });
+    
+    // Don't fail on startup if database is not available
+    options.EnableServiceProviderCaching();
+    options.EnableSensitiveDataLogging(false);
+});
 
 // Redis
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>

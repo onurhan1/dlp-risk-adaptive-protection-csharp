@@ -2,6 +2,7 @@ using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -27,6 +28,9 @@ public class AnalyzerBackgroundService : BackgroundService
         _logger.LogInformation("Analyzer Background Service started. Processing Redis stream every {Interval} seconds", 
             _processingInterval.TotalSeconds);
 
+        // Wait a bit for database to be ready
+        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -46,13 +50,30 @@ public class AnalyzerBackgroundService : BackgroundService
                     }
                 }
             }
+            catch (Npgsql.NpgsqlException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+            {
+                // Database connection error - wait longer before retry
+                _logger.LogWarning("Database connection failed. Will retry in 30 seconds. Error: {Error}", ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.NpgsqlException)
+            {
+                // Database connection error - wait longer before retry
+                _logger.LogWarning("Database connection failed. Will retry in 30 seconds. Error: {Error}", ex.InnerException?.Message ?? ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing Redis stream in background service");
+                // Wait a bit before retry on other errors
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
 
-            // Wait before next processing cycle
-            await Task.Delay(_processingInterval, stoppingToken);
+            // Wait before next processing cycle (only if no error delay was applied)
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(_processingInterval, stoppingToken);
+            }
         }
 
         _logger.LogInformation("Analyzer Background Service stopped");
