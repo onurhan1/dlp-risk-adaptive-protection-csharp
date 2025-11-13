@@ -49,11 +49,39 @@ class Program
                 // Register DLPCollectorService with the pre-configured HttpClient
                 services.AddSingleton<DLPCollectorService>();
                 
-                // Redis
+                // Redis - Docker Desktop on Windows compatibility
                 var redisHost = configuration["Redis:Host"] ?? "localhost";
                 var redisPort = configuration.GetValue<int>("Redis:Port", 6379);
+                
+                var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+                
+                if (isDocker && redisHost == "localhost")
+                {
+                    // If running inside Docker container, use host.docker.internal
+                    redisHost = "host.docker.internal";
+                }
+                else if (!isDocker && redisHost == "localhost" && 
+                         System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                {
+                    // If running on Windows host, use 127.0.0.1 for better reliability with Docker Desktop
+                    redisHost = "127.0.0.1";
+                }
+                
+                var redisConnectionString = $"{redisHost}:{redisPort}";
+                
+                // Configure Redis connection with retry for Docker Desktop
+                var redisConfig = new StackExchange.Redis.ConfigurationOptions
+                {
+                    EndPoints = { redisConnectionString },
+                    ConnectTimeout = 10000, // 10 seconds
+                    SyncTimeout = 5000,     // 5 seconds
+                    AbortOnConnectFail = false, // Don't fail on first connection attempt
+                    ReconnectRetryPolicy = new StackExchange.Redis.ExponentialRetry(1000), // Retry with exponential backoff
+                    ConnectRetry = 3 // Retry connection 3 times
+                };
+                
                 services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
-                    StackExchange.Redis.ConnectionMultiplexer.Connect($"{redisHost}:{redisPort}"));
+                    StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig));
                 
                 // Register services
                 services.AddSingleton<DLPCollectorService>();

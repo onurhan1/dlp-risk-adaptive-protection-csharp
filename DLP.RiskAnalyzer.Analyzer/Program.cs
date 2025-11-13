@@ -2,6 +2,7 @@ using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,29 +24,43 @@ builder.Services.AddDbContext<AnalyzerDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    // Windows compatibility: Try to resolve localhost to 127.0.0.1 if needed
-    // Also support host.docker.internal for Docker Desktop on Windows
+    // Docker Desktop on Windows compatibility
     if (!string.IsNullOrEmpty(connectionString))
     {
-        // Replace localhost with 127.0.0.1 for better Windows compatibility
-        // Or use host.docker.internal if running in Docker on Windows
         var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        if (isDocker && connectionString.Contains("Host=localhost"))
+        
+        if (isDocker)
         {
-            // In Docker on Windows, use host.docker.internal to access host PostgreSQL
-            connectionString = connectionString.Replace("Host=localhost", "Host=host.docker.internal");
+            // If running inside Docker container, use host.docker.internal to access Docker Desktop services
+            if (connectionString.Contains("Host=localhost"))
+            {
+                connectionString = connectionString.Replace("Host=localhost", "Host=host.docker.internal");
+            }
+        }
+        else
+        {
+            // If running on Windows host (outside Docker), use 127.0.0.1 for better reliability
+            // Docker Desktop port mappings work with both localhost and 127.0.0.1, but 127.0.0.1 is more reliable on Windows
+            if (connectionString.Contains("Host=localhost") && !connectionString.Contains("Host=127.0.0.1"))
+            {
+                // Keep localhost but add 127.0.0.1 as fallback - actually, just use 127.0.0.1 for Windows
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                {
+                    connectionString = connectionString.Replace("Host=localhost", "Host=127.0.0.1");
+                }
+            }
         }
     }
     
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
-        // Enable retry on failure (important for Windows where services may start before DB)
+        // Enable retry on failure (important for Docker Desktop where services may start before DB)
         npgsqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorCodesToAdd: null);
         
-        // Increase command timeout for Windows (sometimes slower)
+        // Increase command timeout for Docker Desktop (sometimes slower)
         npgsqlOptions.CommandTimeout(60);
     });
     
@@ -54,12 +69,41 @@ builder.Services.AddDbContext<AnalyzerDbContext>(options =>
     options.EnableSensitiveDataLogging(false);
 });
 
-// Redis
+// Redis - Docker Desktop on Windows compatibility
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
 {
     var redisHost = builder.Configuration["Redis:Host"] ?? "localhost";
     var redisPort = builder.Configuration.GetValue<int>("Redis:Port", 6379);
-    return StackExchange.Redis.ConnectionMultiplexer.Connect($"{redisHost}:{redisPort}");
+    
+    // Docker Desktop on Windows compatibility
+    var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+    
+    if (isDocker && redisHost == "localhost")
+    {
+        // If running inside Docker container, use host.docker.internal to access Docker Desktop Redis
+        redisHost = "host.docker.internal";
+    }
+    else if (!isDocker && redisHost == "localhost" && 
+             RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        // If running on Windows host, use 127.0.0.1 for better reliability with Docker Desktop
+        redisHost = "127.0.0.1";
+    }
+    
+    var connectionString = $"{redisHost}:{redisPort}";
+    
+    // Configure Redis connection with retry for Docker Desktop
+    var config = new StackExchange.Redis.ConfigurationOptions
+    {
+        EndPoints = { connectionString },
+        ConnectTimeout = 10000, // 10 seconds
+        SyncTimeout = 5000,     // 5 seconds
+        AbortOnConnectFail = false, // Don't fail on first connection attempt
+        ReconnectRetryPolicy = new StackExchange.Redis.ExponentialRetry(1000), // Retry with exponential backoff
+        ConnectRetry = 3 // Retry connection 3 times
+    };
+    
+    return StackExchange.Redis.ConnectionMultiplexer.Connect(config);
 });
 
 // Services
