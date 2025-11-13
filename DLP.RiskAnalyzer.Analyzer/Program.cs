@@ -39,6 +39,9 @@ builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
 builder.Services.AddScoped<EmailService>();
 
+// Background Services
+builder.Services.AddHostedService<AnalyzerBackgroundService>();
+
 // HTTP Clients for external APIs
 builder.Services.AddHttpClient<PolicyService>(client =>
 {

@@ -194,8 +194,12 @@ public class RiskAnalyzerService
     /// </summary>
     public async Task<int> ProcessRedisStreamAsync(DatabaseService dbService)
     {
-        await dbService.ProcessRedisStreamAsync();
-        return await CalculateRiskScoresAsync();
+        var processedCount = await dbService.ProcessRedisStreamAsync();
+        if (processedCount > 0)
+        {
+            await CalculateRiskScoresAsync();
+        }
+        return processedCount;
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -8,11 +9,16 @@ public class DatabaseService
 {
     private readonly AnalyzerDbContext _context;
     private readonly StackExchange.Redis.IConnectionMultiplexer _redis;
+    private readonly ILogger<DatabaseService>? _logger;
 
-    public DatabaseService(AnalyzerDbContext context, StackExchange.Redis.IConnectionMultiplexer redis)
+    public DatabaseService(
+        AnalyzerDbContext context, 
+        StackExchange.Redis.IConnectionMultiplexer redis,
+        ILogger<DatabaseService>? logger = null)
     {
         _context = context;
         _redis = redis;
+        _logger = logger;
     }
 
     public async Task<List<Incident>> GetIncidentsAsync(
@@ -62,7 +68,7 @@ public class DatabaseService
         return incident.Id;
     }
 
-    public async Task ProcessRedisStreamAsync()
+    public async Task<int> ProcessRedisStreamAsync()
     {
         var db = _redis.GetDatabase();
         var streamName = "dlp:incidents";
@@ -73,16 +79,27 @@ public class DatabaseService
         try
         {
             await db.StreamCreateConsumerGroupAsync(streamName, consumerGroup, "0", createStream: true);
+            _logger?.LogDebug("Created Redis consumer group: {Group}", consumerGroup);
         }
-        catch
+        catch (Exception ex)
         {
             // Group may already exist, which is fine
+            _logger?.LogDebug("Consumer group may already exist: {Error}", ex.Message);
         }
 
         // Read from stream using consumer group to track position
         var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, ">", count: 100);
+        
+        if (messages.Length == 0)
+        {
+            return 0; // No new messages
+        }
+
+        _logger?.LogDebug("Read {Count} messages from Redis stream", messages.Length);
 
         var processedCount = 0;
+        var errorCount = 0;
+        
         foreach (var message in messages)
         {
             try
@@ -97,7 +114,10 @@ public class DatabaseService
 
                 if (userEmailValue.Value.IsNull || severityValue.Value.IsNull || timestampValue.Value.IsNull)
                 {
-                    continue; // Skip invalid messages
+                    _logger?.LogWarning("Skipping invalid message {MessageId}: missing required fields", message.Id);
+                    // Still acknowledge to remove from pending
+                    await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
+                    continue;
                 }
 
                 var userEmail = userEmailValue.Value.ToString();
@@ -129,6 +149,14 @@ public class DatabaseService
 
                     _context.Incidents.Add(incident);
                     processedCount++;
+                    
+                    _logger?.LogDebug("Added incident to database: User={User}, Timestamp={Timestamp}, Severity={Severity}", 
+                        userEmail, timestamp, severity);
+                }
+                else
+                {
+                    _logger?.LogDebug("Skipping duplicate incident: User={User}, Timestamp={Timestamp}, Policy={Policy}", 
+                        userEmail, timestamp, policy);
                 }
 
                 // Acknowledge message to remove it from pending list
@@ -136,15 +164,24 @@ public class DatabaseService
             }
             catch (Exception ex)
             {
-                // Log error but continue processing
-                Console.WriteLine($"Error processing message {message.Id}: {ex.Message}");
+                errorCount++;
+                _logger?.LogError(ex, "Error processing message {MessageId}: {Error}", message.Id, ex.Message);
+                // Don't acknowledge on error - message will remain in pending for retry
             }
         }
 
         if (processedCount > 0)
         {
             await _context.SaveChangesAsync();
+            _logger?.LogInformation("Saved {Count} new incidents to database (Errors: {ErrorCount})", 
+                processedCount, errorCount);
         }
+        else if (errorCount > 0)
+        {
+            _logger?.LogWarning("No new incidents saved, but {ErrorCount} errors occurred", errorCount);
+        }
+
+        return processedCount;
     }
 }
 
