@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Globalization;
 using DLP.RiskAnalyzer.Shared.Models;
 
 namespace DLP.RiskAnalyzer.Collector.Services;
@@ -171,21 +172,33 @@ public class DLPCollectorService
                 // Try to deserialize as DLPIncidentResponse first
                 var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(responseContent);
                 incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
-                _logger.LogDebug("Deserialized as DLPIncidentResponse: {Count} incidents", incidents.Count);
+                _logger.LogInformation("Deserialized as DLPIncidentResponse: {Count} incidents", incidents.Count);
+                
+                // Log first incident details for debugging
+                if (incidents.Count > 0)
+                {
+                    var first = incidents[0];
+                    _logger.LogDebug("First incident: Id={Id}, User={User}, Severity={Severity}, Timestamp={Timestamp}, Channel={Channel}", 
+                        first.Id, first.User, first.Severity, first.Timestamp, first.Channel);
+                }
             }
             catch (Exception ex1)
             {
-                _logger.LogDebug("Failed to deserialize as DLPIncidentResponse: {Error}", ex1.Message);
+                _logger.LogWarning("Failed to deserialize as DLPIncidentResponse: {Error}", ex1.Message);
+                _logger.LogWarning("Deserialization error details: {StackTrace}", ex1.StackTrace);
+                
                 // If that fails, try to deserialize as array directly
                 try
                 {
                     incidents = JsonConvert.DeserializeObject<List<DLPIncident>>(responseContent) ?? new List<DLPIncident>();
-                    _logger.LogDebug("Deserialized as List<DLPIncident>: {Count} incidents", incidents.Count);
+                    _logger.LogInformation("Deserialized as List<DLPIncident>: {Count} incidents", incidents.Count);
                 }
                 catch (Exception ex2)
                 {
-                    _logger.LogWarning("Failed to deserialize response. DLPIncidentResponse error: {Error1}, List error: {Error2}", 
+                    _logger.LogError("Failed to deserialize response. DLPIncidentResponse error: {Error1}, List error: {Error2}", 
                         ex1.Message, ex2.Message);
+                    _logger.LogError("Deserialization error details - Response: {Error1Details}, List: {Error2Details}", 
+                        ex1.StackTrace, ex2.StackTrace);
                     _logger.LogWarning("Raw response (first 1000 chars): {Response}", 
                         responseContent.Length > 1000 ? responseContent.Substring(0, 1000) + "..." : responseContent);
                     incidents = new List<DLPIncident>();
@@ -270,18 +283,143 @@ public class AccessTokenResponse
 }
 
 /// <summary>
+/// DLP Incident Source model (from API)
+/// </summary>
+public class DLPIncidentSource
+{
+    [JsonProperty("manager")]
+    public string? Manager { get; set; }
+    
+    [JsonProperty("department")]
+    public string? Department { get; set; }
+    
+    [JsonProperty("login_name")]
+    public string? LoginName { get; set; }
+    
+    [JsonProperty("host_name")]
+    public string? HostName { get; set; }
+    
+    [JsonProperty("business_unit")]
+    public string? BusinessUnit { get; set; }
+}
+
+/// <summary>
 /// DLP Incident model (from API)
 /// </summary>
 public class DLPIncident
 {
+    [JsonProperty("id")]
     public int Id { get; set; }
-    public string User { get; set; } = string.Empty;
-    public string? Department { get; set; }
-    public int Severity { get; set; }
-    public string? DataType { get; set; }
-    public DateTime Timestamp { get; set; }
+    
+    [JsonProperty("severity")]
+    public string? SeverityString { get; set; }
+    
+    [JsonIgnore]
+    public int Severity
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SeverityString))
+                return 0;
+            
+            return SeverityString.ToUpper() switch
+            {
+                "LOW" => 1,
+                "MEDIUM" => 2,
+                "HIGH" => 3,
+                "CRITICAL" => 4,
+                _ => 0
+            };
+        }
+    }
+    
+    [JsonProperty("source")]
+    public DLPIncidentSource? Source { get; set; }
+    
+    [JsonIgnore]
+    public string User => Source?.LoginName ?? string.Empty;
+    
+    [JsonIgnore]
+    public string? Department => Source?.Department;
+    
+    [JsonProperty("event_time")]
+    public string? EventTimeString { get; set; }
+    
+    [JsonProperty("incident_time")]
+    public string? IncidentTimeString { get; set; }
+    
+    [JsonIgnore]
+    public DateTime Timestamp
+    {
+        get
+        {
+            // Try to parse incident_time first
+            if (!string.IsNullOrEmpty(IncidentTimeString))
+            {
+                // Try multiple date formats
+                var formats = new[] { 
+                    "dd/MM/yyyy HH:mm:ss",
+                    "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "dd-MM-yyyy HH:mm:ss"
+                };
+                
+                foreach (var format in formats)
+                {
+                    if (DateTime.TryParseExact(IncidentTimeString, format, CultureInfo.InvariantCulture, 
+                        DateTimeStyles.None, out var incidentTime))
+                    {
+                        return incidentTime;
+                    }
+                }
+                
+                // Fallback to standard parse
+                if (DateTime.TryParse(IncidentTimeString, CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, out var parsedTime))
+                {
+                    return parsedTime;
+                }
+            }
+            
+            // Try to parse event_time
+            if (!string.IsNullOrEmpty(EventTimeString))
+            {
+                var formats = new[] { 
+                    "dd/MM/yyyy HH:mm:ss",
+                    "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "dd-MM-yyyy HH:mm:ss"
+                };
+                
+                foreach (var format in formats)
+                {
+                    if (DateTime.TryParseExact(EventTimeString, format, CultureInfo.InvariantCulture, 
+                        DateTimeStyles.None, out var eventTime))
+                    {
+                        return eventTime;
+                    }
+                }
+                
+                // Fallback to standard parse
+                if (DateTime.TryParse(EventTimeString, CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, out var parsedTime))
+                {
+                    return parsedTime;
+                }
+            }
+            
+            return DateTime.UtcNow;
+        }
+    }
+    
+    [JsonProperty("policies")]
     public string? Policy { get; set; }
+    
+    [JsonProperty("channel")]
     public string? Channel { get; set; }
+    
+    [JsonProperty("data_type")]
+    public string? DataType { get; set; }
 }
 
 /// <summary>
