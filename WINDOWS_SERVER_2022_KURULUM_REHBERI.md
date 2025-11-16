@@ -7,19 +7,20 @@
 
 1. [Sistem Gereksinimleri](#sistem-gereksinimleri)
 2. [Önkoşullar ve Yazılım Kurulumları](#önkoşullar-ve-yazılım-kurulumları)
-3. [Veritabanı Kurulumu](#veritabanı-kurulumu)
-4. [Redis Kurulumu](#redis-kurulumu)
-5. [Proje Kurulumu](#proje-kurulumu)
-6. [Yapılandırma](#yapılandırma)
-7. [Windows Service Kurulumu](#windows-service-kurulumu)
-8. [Firewall Yapılandırması](#firewall-yapılandırması)
-9. [IIS Kurulumu (Opsiyonel)](#iis-kurulumu-opsiyonel)
-10. [Domain Ortamı Yapılandırması](#domain-ortamı-yapılandırması)
-11. [Güvenlik Ayarları](#güvenlik-ayarları)
-12. [Monitoring ve Logging](#monitoring-ve-logging)
-13. [Backup Stratejileri](#backup-stratejileri)
-14. [Troubleshooting](#troubleshooting)
-15. [Kurulum Doğrulama Checklist](#kurulum-doğrulama-checklist)
+3. [Docker ile Kurulum (Alternatif)](#docker-ile-kurulum-alternatif)
+4. [Veritabanı Kurulumu](#veritabanı-kurulumu)
+5. [Redis Kurulumu](#redis-kurulumu)
+6. [Proje Kurulumu](#proje-kurulumu)
+7. [Yapılandırma](#yapılandırma)
+8. [Windows Service Kurulumu](#windows-service-kurulumu)
+9. [Firewall Yapılandırması](#firewall-yapılandırması)
+10. [IIS Kurulumu (Opsiyonel)](#iis-kurulumu-opsiyonel)
+11. [Domain Ortamı Yapılandırması](#domain-ortamı-yapılandırması)
+12. [Güvenlik Ayarları](#güvenlik-ayarları)
+13. [Monitoring ve Logging](#monitoring-ve-logging)
+14. [Backup Stratejileri](#backup-stratejileri)
+15. [Troubleshooting](#troubleshooting)
+16. [Kurulum Doğrulama Checklist](#kurulum-doğrulama-checklist)
 
 ---
 
@@ -38,6 +39,29 @@
 - **CPU**: 8+ çekirdek (Intel Xeon veya AMD EPYC)
 - **Network**: 10 Gbps bağlantı (büyük veri akışı için)
 - **Backup**: Otomatik yedekleme çözümü
+
+### ⚠️ Sanal Sunucu (VM) İçin Özel Notlar
+
+Eğer Windows Server 2022 bir sanal makine (VM) üzerinde çalışacaksa:
+
+#### Hyper-V / VMware / VirtualBox için:
+- **RAM**: En az 16 GB (32 GB önerilir) - Docker kullanıyorsanız ekstra 4-8 GB daha
+- **Disk**: 
+  - En az 100 GB (200 GB önerilir)
+  - **Thin provisioning** kullanıyorsanız, gerçek kullanımı izleyin
+  - **Docker volumes** için ekstra alan ayırın (en az 50 GB)
+- **CPU**: 
+  - En az 4 vCPU (8+ vCPU önerilir)
+  - **CPU affinity** ayarlayın (performans için)
+  - **Hyperthreading** etkin olmalı
+- **Network**: 
+  - **VMXNET3** (VMware) veya **Synthetic** (Hyper-V) adapter kullanın
+  - **NAT** yerine **Bridged** veya **Internal** network kullanın (production için)
+- **Docker için**: 
+  - **Nested virtualization** etkin olmalı (Hyper-V içinde Docker için)
+  - **VT-x/AMD-V** etkin olmalı
+- **Snapshot**: Production'da snapshot kullanmayın (performans düşüşü)
+- **Time Sync**: VM time sync'i etkin tutun (Windows Time Service)
 
 ### Network Port Gereksinimleri
 - **5001**: Analyzer API (HTTP)
@@ -84,9 +108,67 @@ dotnet --version
 # Beklenen çıktı: 8.0.xxx
 ```
 
-### 3. PostgreSQL 18 Kurulumu
+### 3. Docker Desktop Kurulumu (PostgreSQL ve Redis için)
 
-#### Yöntem A: PostgreSQL Windows Installer (Önerilen)
+Docker kullanarak PostgreSQL ve Redis'i container olarak çalıştırmak istiyorsanız:
+
+#### Docker Desktop for Windows Server Kurulumu
+
+1. **Docker Desktop for Windows** indirin: https://www.docker.com/products/docker-desktop/
+   - **Not**: Windows Server 2022 için "Docker Desktop for Windows" kullanın
+   - Alternatif: **Docker Engine** (CLI-only, daha hafif)
+
+2. **Kurulum Seçenekleri**:
+   - **Docker Desktop** (GUI + CLI) - Önerilen
+   - **Docker Engine** (sadece CLI) - Production için daha uygun
+
+3. **Docker Desktop Kurulumu**:
+   ```powershell
+   # Chocolatey ile
+   choco install docker-desktop -y
+   
+   # VEYA manuel indirme ve kurulum
+   # https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe
+   ```
+
+4. **Kurulum Sonrası**:
+   ```powershell
+   # Docker'ın çalıştığını kontrol edin
+   docker --version
+   # Beklenen: Docker version 24.x.x veya üzeri
+   
+   # Docker servisini başlatın
+   Start-Service docker
+   
+   # Test edin
+   docker run hello-world
+   ```
+
+5. **Sanal Sunucu için Docker Ayarları**:
+   ```powershell
+   # Docker Desktop Settings → Resources
+   # - Memory: En az 4 GB (8 GB önerilir)
+   # - CPUs: En az 2 (4+ önerilir)
+   # - Disk image size: En az 60 GB
+   ```
+
+#### Docker Compose Kurulumu
+
+Docker Compose genellikle Docker Desktop ile birlikte gelir:
+
+```powershell
+# Docker Compose'un kurulu olduğunu kontrol edin
+docker compose version
+# Beklenen: Docker Compose version v2.x.x
+```
+
+**Not**: Projede `docker-compose.yml` dosyası mevcuttur. Bu dosya ile PostgreSQL ve Redis'i tek komutla başlatabilirsiniz.
+
+### 4. PostgreSQL 18 Kurulumu
+
+**Kurulum Seçeneği**: Docker kullanmak istiyorsanız [Docker ile Kurulum](#docker-ile-kurulum-alternatif) bölümüne bakın.
+
+#### Yöntem A: PostgreSQL Windows Installer (Native - Önerilen)
 
 1. PostgreSQL 18 indirin: https://www.postgresql.org/download/windows/
 2. **EnterpriseDB PostgreSQL Installer**'ı indirin
@@ -171,18 +253,24 @@ wsl sudo service redis-server start
 # Windows'tan erişim için WSL2 IP'sini kullanın
 ```
 
-#### Yöntem C: Docker ile Redis (Production için önerilmez)
+#### Yöntem C: Docker ile Redis (Docker Compose Önerilir)
 
+Docker Compose kullanarak Redis kurulumu için [Docker ile Kurulum](#docker-ile-kurulum-alternatif) bölümüne bakın.
+
+**Manuel Docker kurulumu**:
 ```powershell
 # Docker Desktop kurulumu (eğer yoksa)
 # https://www.docker.com/products/docker-desktop/
 
 docker run -d `
-  --name redis `
+  --name dlp-redis `
   --restart unless-stopped `
   -p 6379:6379 `
+  -v redis_data:/data `
   redis:7-alpine redis-server --appendonly yes
 ```
+
+**Not**: Production için Docker Compose kullanmanız önerilir (projede `docker-compose.yml` mevcut).
 
 ### 5. Node.js 18+ Kurulumu (Dashboard için)
 
@@ -321,6 +409,321 @@ Yapılandırmayı değiştirdikten sonra:
 
 ```powershell
 Restart-Service Memurai
+```
+
+---
+
+## 🐳 Docker ile Kurulum (Alternatif)
+
+Docker kullanarak PostgreSQL ve Redis'i container olarak çalıştırmak, kurulumu kolaylaştırır ve yönetimi basitleştirir. Bu yöntem özellikle **sanal sunucular** için önerilir.
+
+### Avantajları
+- ✅ Kolay kurulum ve yönetim
+- ✅ İzole ortam (diğer servislerden bağımsız)
+- ✅ Kolay yedekleme ve geri yükleme
+- ✅ Versiyon yönetimi (farklı PostgreSQL/Redis versiyonları)
+- ✅ Hızlı başlatma/durdurma
+
+### Dezavantajları
+- ⚠️ Ekstra RAM kullanımı (container overhead)
+- ⚠️ Docker Desktop lisansı gerekebilir (production için)
+- ⚠️ Nested virtualization gerekebilir (VM içinde)
+
+### 1. Docker Compose ile Kurulum
+
+Projede `docker-compose.yml` dosyası mevcuttur. Bu dosya ile PostgreSQL ve Redis'i tek komutla başlatabilirsiniz.
+
+#### docker-compose.yml Yapılandırması
+
+Proje kök dizinindeki `docker-compose.yml` dosyasını kontrol edin:
+
+```yaml
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: dlp-timescaledb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dlp_analytics
+      TZ: Europe/Istanbul
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: dlp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  timescaledb_data:
+  redis_data:
+```
+
+**Önemli**: Production için şifreleri değiştirin!
+
+#### docker-compose.yml'i Güncelleme (Production)
+
+```powershell
+# docker-compose.yml dosyasını düzenleyin
+notepad docker-compose.yml
+
+# Şu satırları güncelleyin:
+# POSTGRES_PASSWORD: YourStrongPassword123!
+# POSTGRES_DB: dlp_analyzer (dlp_analytics yerine)
+```
+
+#### Container'ları Başlatma
+
+```powershell
+# Proje kök dizinine gidin
+cd "C:\DLP_RiskAnalyzer"
+
+# Container'ları başlatın
+docker compose up -d
+
+# Beklenen çıktı:
+# Creating network "dlp-network" ... done
+# Creating volume "dlp-risk-analyzer_timescaledb_data" ... done
+# Creating volume "dlp-risk-analyzer_redis_data" ... done
+# Creating dlp-timescaledb ... done
+# Creating dlp-redis ... done
+```
+
+#### Container Durumunu Kontrol Etme
+
+```powershell
+# Tüm container'ları listele
+docker compose ps
+
+# Beklenen çıktı:
+# NAME                STATUS          PORTS
+# dlp-redis          Up X minutes     0.0.0.0:6379->6379/tcp
+# dlp-timescaledb    Up X minutes     0.0.0.0:5432->5432/tcp
+
+# Log'ları görüntüleme
+docker compose logs -f
+
+# Belirli bir servisin log'ları
+docker compose logs timescaledb
+docker compose logs redis
+```
+
+#### Container'ları Durdurma
+
+```powershell
+# Container'ları durdurun (veriler korunur)
+docker compose stop
+
+# Container'ları durdur ve sil (veriler korunur - volumes)
+docker compose down
+
+# Container'ları durdur, sil ve volumes'ları da sil (DİKKAT: Tüm veriler silinir!)
+docker compose down -v
+```
+
+### 2. PostgreSQL Database Oluşturma (Docker)
+
+```powershell
+# PostgreSQL container'ına bağlanın
+docker exec -it dlp-timescaledb psql -U postgres
+
+# PostgreSQL komut satırında:
+```
+
+```sql
+-- Database oluştur
+CREATE DATABASE dlp_analyzer
+    WITH 
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'Turkish_Turkey.1254'
+    LC_CTYPE = 'Turkish_Turkey.1254'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1;
+
+-- Database'e bağlan
+\c dlp_analyzer
+
+-- TimescaleDB extension'ı etkinleştir (opsiyonel)
+-- CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- Bağlantıyı kapat
+\q
+```
+
+**VEYA tek komutla**:
+
+```powershell
+docker exec -it dlp-timescaledb psql -U postgres -c "CREATE DATABASE dlp_analyzer;"
+```
+
+### 3. Entity Framework Migrations (Docker ile)
+
+```powershell
+# Proje klasörüne gidin
+cd "C:\DLP_RiskAnalyzer\DLP.RiskAnalyzer.Analyzer"
+
+# appsettings.json'da connection string'i Docker için güncelleyin
+# Host=127.0.0.1 (localhost yerine, Docker port mapping için)
+
+# Migration'ları uygulayın
+dotnet ef database update
+
+# Beklenen çıktı:
+# Applying migration '20241109184015_AddSystemSettingsTable'.
+# Done.
+```
+
+### 4. Redis Bağlantı Testi (Docker)
+
+```powershell
+# Redis container'ına bağlanın
+docker exec -it dlp-redis redis-cli ping
+
+# Beklenen çıktı: PONG
+
+# Redis CLI'ye bağlanın
+docker exec -it dlp-redis redis-cli
+
+# Redis komutları:
+# PING
+# INFO
+# EXIT
+```
+
+### 5. Docker Volume Yönetimi
+
+#### Volume'ları Listeleme
+
+```powershell
+# Tüm volume'ları listele
+docker volume ls
+
+# DLP volume'larını listele
+docker volume ls | Select-String "dlp"
+```
+
+#### Volume Yedekleme
+
+```powershell
+# PostgreSQL volume'unu yedekleme
+$backupDir = "C:\Backups\Docker"
+New-Item -ItemType Directory -Path $backupDir -Force
+
+# PostgreSQL volume'unu yedekle
+docker run --rm `
+  -v dlp-risk-analyzer_timescaledb_data:/data `
+  -v ${backupDir}:/backup `
+  alpine tar czf /backup/postgres_backup_$(Get-Date -Format 'yyyyMMdd_HHmmss').tar.gz /data
+
+# Redis volume'unu yedekle
+docker run --rm `
+  -v dlp-risk-analyzer_redis_data:/data `
+  -v ${backupDir}:/backup `
+  alpine tar czf /backup/redis_backup_$(Get-Date -Format 'yyyyMMdd_HHmmss').tar.gz /data
+```
+
+#### Volume Geri Yükleme
+
+```powershell
+# PostgreSQL volume'unu geri yükle
+docker run --rm `
+  -v dlp-risk-analyzer_timescaledb_data:/data `
+  -v ${backupDir}:/backup `
+  alpine sh -c "cd /data && tar xzf /backup/postgres_backup_YYYYMMDD_HHMMSS.tar.gz"
+```
+
+### 6. Docker Compose ile Otomatik Başlatma
+
+Windows Server'da Docker container'larının otomatik başlaması için:
+
+#### Yöntem A: Docker Desktop Auto-start
+
+Docker Desktop Settings → General → "Start Docker Desktop when you log in" seçeneğini işaretleyin.
+
+#### Yöntem B: Task Scheduler ile
+
+```powershell
+# Task Scheduler ile otomatik başlatma
+$action = New-ScheduledTaskAction -Execute "docker" `
+    -Argument "compose -f C:\DLP_RiskAnalyzer\docker-compose.yml up -d" `
+    -WorkingDirectory "C:\DLP_RiskAnalyzer"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+Register-ScheduledTask -TaskName "Start DLP Docker Containers" `
+    -Action $action -Trigger $trigger -Principal $principal -Description "Start PostgreSQL and Redis containers"
+```
+
+### 7. Docker vs Native Kurulum Karşılaştırması
+
+| Özellik | Docker | Native (PostgreSQL/Redis) |
+|---------|--------|---------------------------|
+| **Kurulum Kolaylığı** | ⭐⭐⭐⭐⭐ Çok kolay | ⭐⭐⭐ Orta |
+| **RAM Kullanımı** | ⚠️ Daha fazla (overhead) | ✅ Daha az |
+| **Performans** | ⚠️ Biraz daha düşük | ✅ Daha yüksek |
+| **Yönetim** | ✅ Kolay (docker compose) | ⚠️ Manuel |
+| **Yedekleme** | ✅ Volume yedekleme | ⚠️ Dosya yedekleme |
+| **Versiyon Yönetimi** | ✅ Kolay (image değiştirme) | ⚠️ Zor (yeniden kurulum) |
+| **Sanal Sunucu** | ✅ Önerilir | ⚠️ Daha karmaşık |
+
+**Öneri**: 
+- **Sanal sunucu** kullanıyorsanız → **Docker** önerilir
+- **Fiziksel sunucu** ve **maksimum performans** istiyorsanız → **Native** önerilir
+
+### 8. Docker Troubleshooting
+
+#### Problem: Container başlamıyor
+
+```powershell
+# Container log'larını kontrol edin
+docker compose logs timescaledb
+docker compose logs redis
+
+# Container'ı yeniden başlatın
+docker compose restart timescaledb
+```
+
+#### Problem: Port zaten kullanımda
+
+```powershell
+# Port'u kullanan process'i bulun
+netstat -ano | findstr ":5432"
+netstat -ano | findstr ":6379"
+
+# Process'i sonlandırın veya docker-compose.yml'de farklı port kullanın
+```
+
+#### Problem: Volume mount hatası
+
+```powershell
+# Volume'ları kontrol edin
+docker volume ls
+
+# Volume'u yeniden oluşturun
+docker compose down -v
+docker compose up -d
+```
+
+#### Problem: Nested virtualization hatası (VM içinde)
+
+Hyper-V içinde Docker kullanıyorsanız:
+
+```powershell
+# Nested virtualization'i etkinleştirin
+# Hyper-V Manager → VM Settings → Processor → Enable nested virtualization
 ```
 
 ---
@@ -1067,11 +1470,12 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 ### Önkoşullar
 - [ ] Windows Server 2022 kurulu ve güncel
 - [ ] .NET 8.0 SDK kurulu (`dotnet --version`)
-- [ ] PostgreSQL 18 kurulu ve çalışıyor
-- [ ] Redis (Memurai) kurulu ve çalışıyor
+- [ ] PostgreSQL 18 kurulu ve çalışıyor **VEYA** Docker Desktop kurulu
+- [ ] Redis (Memurai) kurulu ve çalışıyor **VEYA** Docker ile Redis çalışıyor
 - [ ] Node.js 18+ kurulu (`node --version`)
 - [ ] Git kurulu (`git --version`)
 - [ ] NSSM kurulu (service kurulumu için)
+- [ ] Docker Desktop kurulu (Docker kullanıyorsanız)
 
 ### Veritabanı
 - [ ] PostgreSQL servisi çalışıyor
