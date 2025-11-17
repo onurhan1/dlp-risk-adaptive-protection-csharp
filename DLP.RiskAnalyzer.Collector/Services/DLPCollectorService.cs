@@ -1,51 +1,44 @@
-using Microsoft.Extensions.Options;
+using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using StackExchange.Redis;
-using System.Collections.Generic;
-using System.Net;
+using System.Globalization;
 using System.Net.Http;
 using System.Text;
-using System.Globalization;
-using DLP.RiskAnalyzer.Shared.Models;
 
 namespace DLP.RiskAnalyzer.Collector.Services;
 
 /// <summary>
 /// Forcepoint DLP API Collector Service
 /// </summary>
-public class DLPCollectorService
+public class DLPCollectorService : IDisposable
 {
-    private readonly HttpClient _httpClient;
+    private readonly DlpRuntimeConfigProvider _configProvider;
     private readonly IConnectionMultiplexer _redis;
-    private readonly DLPConfig _dlpConfig;
     private readonly RedisConfig _redisConfig;
     private readonly ILogger<DLPCollectorService> _logger;
+    private readonly object _clientLock = new();
+    private HttpClient _httpClient;
+    private DLPConfig _currentConfig;
     
     private string? _accessToken;
     private DateTime _tokenExpiry = DateTime.MinValue;
 
     public DLPCollectorService(
-        HttpClient httpClient,
+        DlpRuntimeConfigProvider configProvider,
         IConnectionMultiplexer redis,
-        IOptions<DLPConfig> dlpConfig,
-        IOptions<RedisConfig> redisConfig,
+        Microsoft.Extensions.Options.IOptions<RedisConfig> redisConfig,
         ILogger<DLPCollectorService> logger)
     {
-        _httpClient = httpClient;
+        _configProvider = configProvider;
         _redis = redis;
-        _dlpConfig = dlpConfig.Value;
         _redisConfig = redisConfig.Value;
         _logger = logger;
 
-        // HttpClient is pre-configured in Program.cs with SSL bypass and BaseAddress
-        // Same approach as DLPTestController which works correctly
-        _logger.LogInformation("DLPCollectorService initialized with BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
-        
-        if (_httpClient.BaseAddress == null)
-        {
-            _logger.LogError("HttpClient BaseAddress is null! This should be configured in Program.cs");
-        }
+        _currentConfig = _configProvider.GetCurrent();
+        _httpClient = CreateHttpClient(_currentConfig);
+        _configProvider.ConfigChanged += OnConfigChanged;
+        _logger.LogInformation("DLPCollectorService initialized for {Manager}:{Port}", _currentConfig.ManagerIP, _currentConfig.ManagerPort);
     }
 
     /// <summary>
@@ -72,8 +65,8 @@ public class DLPCollectorService
             
             // Use header-based authentication (matching Postman format and DLPTestController)
             var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("username", _dlpConfig.Username);
-            request.Headers.Add("password", _dlpConfig.Password);
+            request.Headers.Add("username", _currentConfig.Username);
+            request.Headers.Add("password", _currentConfig.Password);
 
             _logger.LogDebug("Requesting access token from {BaseAddress}{Url} using header-based authentication", _httpClient.BaseAddress, url);
             
@@ -247,6 +240,43 @@ public class DLPCollectorService
             _logger.LogError(ex, "Failed to push incident to Redis stream");
             throw;
         }
+    }
+
+    private HttpClient CreateHttpClient(DLPConfig config)
+    {
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+        };
+
+        var scheme = config.UseHttps ? "https" : "http";
+        var baseUrl = $"{scheme}://{config.ManagerIP}:{config.ManagerPort}";
+
+        return new HttpClient(handler)
+        {
+            BaseAddress = new Uri(baseUrl),
+            Timeout = TimeSpan.FromSeconds(config.Timeout <= 0 ? 30 : config.Timeout)
+        };
+    }
+
+    private void OnConfigChanged(DLPConfig newConfig)
+    {
+        lock (_clientLock)
+        {
+            var oldClient = _httpClient;
+            _currentConfig = newConfig;
+            _httpClient = CreateHttpClient(newConfig);
+            _accessToken = null;
+            _tokenExpiry = DateTime.MinValue;
+            oldClient?.Dispose();
+            _logger.LogInformation("DLP Collector HTTP client reconfigured for {Manager}:{Port}", newConfig.ManagerIP, newConfig.ManagerPort);
+        }
+    }
+
+    public void Dispose()
+    {
+        _configProvider.ConfigChanged -= OnConfigChanged;
+        _httpClient?.Dispose();
     }
 }
 

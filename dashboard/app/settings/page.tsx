@@ -14,6 +14,17 @@ interface Settings {
   admin_email: string
 }
 
+interface DlpSettings {
+  manager_ip: string
+  manager_port: number
+  use_https: boolean
+  timeout_seconds: number
+  username: string
+  password: string
+  password_set: boolean
+  last_updated?: string | null
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     email_notifications: true,
@@ -23,14 +34,30 @@ export default function SettingsPage() {
     risk_threshold_high: 50,
     admin_email: ''
   })
+  const [dlpSettings, setDlpSettings] = useState<DlpSettings>({
+    manager_ip: '',
+    manager_port: 8443,
+    use_https: true,
+    timeout_seconds: 30,
+    username: '',
+    password: '',
+    password_set: false,
+    last_updated: null
+  })
   const [loading, setLoading] = useState(true)
+  const [dlpLoading, setDlpLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [dlpSaving, setDlpSaving] = useState(false)
+  const [dlpTesting, setDlpTesting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [dlpMessage, setDlpMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     fetchSettings()
+    fetchDlpSettings()
   }, [])
 
   const fetchSettings = async () => {
@@ -53,6 +80,29 @@ export default function SettingsPage() {
       console.error('Error fetching settings:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDlpSettings = async () => {
+    setDlpLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/settings/dlp`)
+      const data = response.data
+      setDlpSettings({
+        manager_ip: data.managerIp ?? '',
+        manager_port: Number(data.managerPort) || 8443,
+        use_https: data.useHttps ?? true,
+        timeout_seconds: Number(data.timeoutSeconds) || 30,
+        username: data.username ?? '',
+        password: '',
+        password_set: data.passwordSet ?? false,
+        last_updated: data.updatedAt ?? null
+      })
+    } catch (error) {
+      console.error('Error fetching DLP settings:', error)
+    } finally {
+      setDlpLoading(false)
     }
   }
 
@@ -118,6 +168,78 @@ export default function SettingsPage() {
     setSettings({ ...settings, [key]: value })
   }
 
+  const updateDlpSetting = (key: keyof DlpSettings, value: any) => {
+    setDlpSettings({ ...dlpSettings, [key]: value })
+  }
+
+  const buildDlpPayload = () => {
+    const trimmedPassword = dlpSettings.password?.trim()
+    return {
+      managerIp: dlpSettings.manager_ip,
+      managerPort: dlpSettings.manager_port,
+      useHttps: dlpSettings.use_https,
+      timeoutSeconds: dlpSettings.timeout_seconds,
+      username: dlpSettings.username,
+      password: trimmedPassword ? trimmedPassword : undefined
+    }
+  }
+
+  const saveDlpApiSettings = async () => {
+    setDlpSaving(true)
+    setDlpMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = buildDlpPayload()
+      const response = await axios.post(`${apiUrl}/api/settings/dlp`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000
+      })
+
+      if (response.data?.success) {
+        setDlpSettings((prev) => ({
+          ...prev,
+          manager_ip: response.data.settings.managerIp ?? prev.manager_ip,
+          manager_port: Number(response.data.settings.managerPort) || prev.manager_port,
+          use_https: response.data.settings.useHttps ?? prev.use_https,
+          timeout_seconds: Number(response.data.settings.timeoutSeconds) || prev.timeout_seconds,
+          username: response.data.settings.username ?? prev.username,
+          password: '',
+          password_set: true,
+          last_updated: response.data.settings.updatedAt ?? new Date().toISOString()
+        }))
+        setDlpMessage({ type: 'success', text: 'DLP API ayarları kaydedildi' })
+      } else {
+        throw new Error(response.data?.detail || 'Ayarlar kaydedilemedi')
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarları kaydedilemedi'
+      setDlpMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setDlpSaving(false)
+      setTimeout(() => setDlpMessage(null), 5000)
+    }
+  }
+
+  const testDlpApiSettings = async () => {
+    setDlpTesting(true)
+    setDlpMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = buildDlpPayload()
+      const response = await axios.post(`${apiUrl}/api/settings/dlp/test`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 20000
+      })
+      setDlpMessage({ type: 'success', text: response.data?.message || 'Bağlantı başarılı' })
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Bağlantı testi başarısız'
+      setDlpMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setDlpTesting(false)
+      setTimeout(() => setDlpMessage(null), 7000)
+    }
+  }
+
   const sendTestEmail = async () => {
     if (!settings.admin_email) {
       setMessage({ type: 'error', text: 'Please enter an email address first' })
@@ -156,7 +278,9 @@ export default function SettingsPage() {
     }
   }
 
-  if (loading) {
+  const isLoading = loading || dlpLoading
+
+  if (isLoading) {
     return (
       <div className="dashboard-page">
         <div className="loading">Loading settings...</div>
@@ -379,6 +503,145 @@ export default function SettingsPage() {
               }}
             />
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>DLP API Configuration</h2>
+        {dlpMessage && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              background: dlpMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+              color: dlpMessage.type === 'success' ? '#166534' : '#991b1b',
+              border: `1px solid ${dlpMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
+            }}
+          >
+            {dlpMessage.text}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Manager IP / Host</label>
+            <input
+              type="text"
+              value={dlpSettings.manager_ip}
+              onChange={(e) => updateDlpSetting('manager_ip', e.target.value)}
+              placeholder="172.16.245.126"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={dlpSettings.manager_port}
+              onChange={(e) => updateDlpSetting('manager_port', parseInt(e.target.value) || 8443)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Timeout (sn)</label>
+            <input
+              type="number"
+              min={5}
+              max={300}
+              value={dlpSettings.timeout_seconds}
+              onChange={(e) => updateDlpSetting('timeout_seconds', parseInt(e.target.value) || 30)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+            <input
+              type="text"
+              value={dlpSettings.username}
+              onChange={(e) => updateDlpSetting('username', e.target.value)}
+              placeholder="dlp_api_user"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={dlpSettings.password}
+                onChange={(e) => updateDlpSetting('password', e.target.value)}
+                placeholder={dlpSettings.password_set ? '********' : 'Enter password'}
+                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+              />
+              {dlpSettings.password_set && (
+                <button
+                  type="button"
+                  onClick={() => updateDlpSetting('password', '')}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+              <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
+              Şifreyi göster
+            </label>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use HTTPS</label>
+            <select
+              value={dlpSettings.use_https ? 'true' : 'false'}
+              onChange={(e) => updateDlpSetting('use_https', e.target.value === 'true')}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            >
+              <option value="true">HTTPS</option>
+              <option value="false">HTTP</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
+          {dlpSettings.last_updated ? `Son güncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
+        </div>
+        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={testDlpApiSettings}
+            disabled={dlpTesting}
+            style={{
+              padding: '10px 24px',
+              background: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: dlpTesting ? 'not-allowed' : 'pointer',
+              opacity: dlpTesting ? 0.6 : 1
+            }}
+          >
+            {dlpTesting ? 'Testing...' : 'Test Connection'}
+          </button>
+          <button
+            onClick={saveDlpApiSettings}
+            disabled={dlpSaving}
+            style={{
+              padding: '10px 24px',
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: dlpSaving ? 'not-allowed' : 'pointer',
+              opacity: dlpSaving ? 0.6 : 1
+            }}
+          >
+            {dlpSaving ? 'Saving...' : 'Save DLP Settings'}
+          </button>
         </div>
       </div>
 

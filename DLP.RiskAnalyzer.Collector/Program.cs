@@ -21,35 +21,6 @@ class Program
             {
                 var configuration = context.Configuration;
                 
-                // Get DLP configuration for base address
-                var dlpManagerIP = configuration["DLP:ManagerIP"] ?? "localhost";
-                var dlpManagerPort = configuration.GetValue<int>("DLP:ManagerPort", 8443);
-                var useHttps = configuration.GetValue<bool>("DLP:UseHttps", true);
-                var timeout = configuration.GetValue<int>("DLP:Timeout", 30);
-                var baseUrl = useHttps 
-                    ? $"https://{dlpManagerIP}:{dlpManagerPort}"
-                    : $"http://{dlpManagerIP}:{dlpManagerPort}";
-                
-                // HttpClient with SSL certificate bypass (for self-signed DLP certs)
-                // Create handler with SSL bypass - same approach as DLPTestController
-                var handler = new HttpClientHandler
-                {
-                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-                };
-                
-                // Create HttpClient directly (same approach as DLPTestController which works)
-                var httpClient = new HttpClient(handler)
-                {
-                    BaseAddress = new Uri(baseUrl),
-                    Timeout = TimeSpan.FromSeconds(timeout)
-                };
-                
-                // Register HttpClient as singleton
-                services.AddSingleton(httpClient);
-                
-                // Register DLPCollectorService with the pre-configured HttpClient
-                services.AddSingleton<DLPCollectorService>();
-                
                 // Redis - Docker Desktop on Windows compatibility
                 var redisHost = configuration["Redis:Host"] ?? "localhost";
                 var redisPort = configuration.GetValue<int>("Redis:Port", 6379);
@@ -85,12 +56,16 @@ class Program
                     StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig));
                 
                 // Register services
+                services.Configure<DLPConfig>(configuration.GetSection("DLP"));
+                services.Configure<RedisConfig>(configuration.GetSection("Redis"));
+                services.Configure<AnalyzerBridgeOptions>(configuration.GetSection("Analyzer"));
+                
+                services.AddSingleton<DlpRuntimeConfigProvider>();
+                services.AddSingleton<AnalyzerConfigClient>();
+                services.AddHostedService<DlpConfigurationSyncService>();
                 services.AddSingleton<DLPCollectorService>();
                 services.AddHostedService<CollectorBackgroundService>();
                 
-                // Configuration
-                services.Configure<DLPConfig>(configuration.GetSection("DLP"));
-                services.Configure<RedisConfig>(configuration.GetSection("Redis"));
             })
             .ConfigureLogging(logging =>
             {
@@ -112,6 +87,8 @@ public class DLPConfig
     public int ManagerPort { get; set; } = 8443;
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public bool UseHttps { get; set; } = true;
+    public int Timeout { get; set; } = 30;
 }
 
 /// <summary>

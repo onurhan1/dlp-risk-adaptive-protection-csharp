@@ -1,6 +1,8 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Options;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using System.Runtime.InteropServices;
 
@@ -8,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
+builder.Services.AddDataProtection();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -114,6 +117,9 @@ builder.Services.AddScoped<AnomalyDetector>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<DlpConfigurationService>();
+
+builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection("InternalApi"));
 
 // Background Services
 builder.Services.AddHostedService<AnalyzerBackgroundService>();

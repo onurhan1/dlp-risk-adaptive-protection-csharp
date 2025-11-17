@@ -808,6 +808,11 @@ npm install
     "LookbackHours": 24,
     "BatchSize": 100
   },
+  "Analyzer": {
+    "BaseUrl": "http://localhost:5001",
+    "InternalSecret": "ChangeThisSecret",
+    "ConfigPollIntervalSeconds": 300
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -819,9 +824,11 @@ npm install
 ```
 
 **Önemli Notlar**:
-- `ManagerIP`: Forcepoint DLP Manager IP adresi
-- `Username` ve `Password`: DLP API kullanıcı bilgileri
+- `ManagerIP`: Forcepoint DLP Manager IP adresi (ilk kurulumda placeholder olabilir)
+- `Username` ve `Password`: UI üzerinden DLP ayarlarını kaydedene kadar geçici olarak bırakabilirsiniz
 - `Redis:Host`: Windows Server'da `127.0.0.1` kullanın (localhost yerine)
+- `Analyzer.BaseUrl`: Analyzer API’nin URL’i (`http://localhost:5001`)
+- `Analyzer.InternalSecret`: Analyzer `appsettings.json` içindeki `InternalApi.SharedSecret` ile birebir aynı olmalı; Collector bu secret olmadan yeni DLP ayarlarını alamaz.
 
 ### 2. Analyzer API Yapılandırması
 
@@ -851,6 +858,9 @@ npm install
     "Username": "admin",
     "Password": "ChangeThisStrongPassword123!"
   },
+  "InternalApi": {
+    "SharedSecret": "ChangeThisSecret"
+  },
   "Email": {
     "SmtpHost": "smtp.company.com",
     "SmtpPort": 587,
@@ -877,6 +887,7 @@ npm install
 - `Authentication:Password`: Production için güçlü bir şifre belirleyin
 - `Reports:Directory`: Mutlak yol kullanın
 - `Redis:Host`: `127.0.0.1` kullanın
+- `InternalApi:SharedSecret`: Collector servisindeki `Analyzer.InternalSecret` ile birebir aynı güçlü metin olmalı; dashboard/collector bu secret olmadan şifreli DLP bilgilerini çekemez.
 
 ### 3. Dashboard Yapılandırması
 
@@ -889,6 +900,22 @@ NEXT_PUBLIC_API_URL=http://localhost:5001
 ```
 
 **Not**: Dashboard dinamik olarak API URL'ini algılar, ancak production için sabit bir değer belirleyebilirsiniz.
+
+### 4. DLP API Ayarlarını Dashboard Üzerinden Yapılandırma
+
+Son güncellemeyle Forcepoint DLP API kimlik bilgileri UI üzerinden yönetiliyor:
+
+1. Analyzer ve Collector servislerini başlatın (Collector artık Analyzer’dan ayar alacak).
+2. Tarayıcıdan `http://localhost:3002/settings` → “DLP API Configuration” kartını açın.
+3. Manager IP/Port, HTTPS tercihi, Timeout, Username ve Password alanlarını doldurun.
+4. `Test Connection` ile IP/port/credentials doğrulaması yapın (başarılı olursa latency ve HTTP kodu gösterilir).
+5. `Save DLP Settings`:
+   - Analyzer tarafında bilgiler `system_settings` tablosuna kaydedilir, şifre Data Protection ile şifrelenir.
+   - Analyzer Redis üzerinden yeni ayarları yayınlar.
+   - Collector otomatik olarak yeni HttpClient oluşturur; servis restart gerekmez.
+6. Şifre maskelenir; gerektiğinde `Reset` diyerek yeniden girebilirsiniz.
+
+> Artık DLP ayarlarını `appsettings.json` içinde saklamanız gerekmiyor. İlk kurulumda placeholder bırakın, gerçek değerleri dashboard’dan kaydedin.
 
 ---
 
