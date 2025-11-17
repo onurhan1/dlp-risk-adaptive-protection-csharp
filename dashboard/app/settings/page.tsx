@@ -25,6 +25,19 @@ interface DlpSettings {
   last_updated?: string | null
 }
 
+interface EmailSettings {
+  smtp_host: string
+  smtp_port: number
+  enable_ssl: boolean
+  username: string
+  password: string
+  password_set: boolean
+  from_email: string
+  from_name: string
+  is_configured: boolean
+  last_updated?: string | null
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     email_notifications: true,
@@ -54,10 +67,28 @@ export default function SettingsPage() {
   const [dlpMessage, setDlpMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>({
+    smtp_host: '',
+    smtp_port: 587,
+    enable_ssl: true,
+    username: '',
+    password: '',
+    password_set: false,
+    from_email: '',
+    from_name: 'DLP Risk Analyzer',
+    is_configured: false,
+    last_updated: null
+  })
+  const [emailLoading, setEmailLoading] = useState(true)
+  const [emailSaving, setEmailSaving] = useState(false)
+  const [emailTesting, setEmailTesting] = useState(false)
+  const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [showEmailPassword, setShowEmailPassword] = useState(false)
 
   useEffect(() => {
     fetchSettings()
     fetchDlpSettings()
+  fetchEmailSettings()
   }, [])
 
   const fetchSettings = async () => {
@@ -105,6 +136,32 @@ export default function SettingsPage() {
       setDlpLoading(false)
     }
   }
+
+const fetchEmailSettings = async () => {
+  setEmailLoading(true)
+  try {
+    const apiUrl = getApiUrlDynamic()
+    const response = await axios.get(`${apiUrl}/api/settings/email`)
+    const data = response.data
+    setEmailSettings({
+      smtp_host: data.smtpHost ?? '',
+      smtp_port: Number(data.smtpPort) || 587,
+      enable_ssl: data.enableSsl ?? true,
+      username: data.username ?? '',
+      password: '',
+      password_set: data.passwordSet ?? false,
+      from_email: data.fromEmail ?? '',
+      from_name: data.fromName ?? 'DLP Risk Analyzer',
+      is_configured: data.isConfigured ?? false,
+      last_updated: data.updatedAt ?? null
+    })
+    setEmailConfigured(data.isConfigured ?? false)
+  } catch (error) {
+    console.error('Error fetching SMTP settings:', error)
+  } finally {
+    setEmailLoading(false)
+  }
+}
 
   const saveSettings = async () => {
     setSaving(true)
@@ -170,6 +227,10 @@ export default function SettingsPage() {
 
   const updateDlpSetting = (key: keyof DlpSettings, value: any) => {
     setDlpSettings({ ...dlpSettings, [key]: value })
+  }
+
+  const updateEmailSetting = (key: keyof EmailSettings, value: any) => {
+    setEmailSettings({ ...emailSettings, [key]: value })
   }
 
   const buildDlpPayload = () => {
@@ -240,6 +301,81 @@ export default function SettingsPage() {
     }
   }
 
+  const buildEmailPayload = () => {
+    const trimmedPassword = emailSettings.password?.trim()
+    return {
+      smtpHost: emailSettings.smtp_host,
+      smtpPort: emailSettings.smtp_port,
+      enableSsl: emailSettings.enable_ssl,
+      username: emailSettings.username,
+      password: trimmedPassword ? trimmedPassword : undefined,
+      fromEmail: emailSettings.from_email,
+      fromName: emailSettings.from_name
+    }
+  }
+
+  const saveEmailSettings = async () => {
+    setEmailSaving(true)
+    setEmailMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = buildEmailPayload()
+      const response = await axios.post(`${apiUrl}/api/settings/email`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000
+      })
+
+      if (response.data?.success) {
+        const saved = response.data.settings
+        setEmailSettings({
+          smtp_host: saved.smtpHost ?? '',
+          smtp_port: Number(saved.smtpPort) || 587,
+          enable_ssl: saved.enableSsl ?? true,
+          username: saved.username ?? '',
+          password: '',
+          password_set: saved.passwordSet ?? false,
+          from_email: saved.fromEmail ?? '',
+          from_name: saved.fromName ?? 'DLP Risk Analyzer',
+          is_configured: saved.isConfigured ?? false,
+          last_updated: saved.updatedAt ?? new Date().toISOString()
+        })
+        setEmailConfigured(saved.isConfigured ?? false)
+        setEmailMessage({ type: 'success', text: 'SMTP ayarları kaydedildi' })
+      } else {
+        throw new Error(response.data?.detail || 'SMTP ayarları kaydedilemedi')
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarları kaydedilemedi'
+      setEmailMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setEmailSaving(false)
+      setTimeout(() => setEmailMessage(null), 5000)
+    }
+  }
+
+  const testEmailSettings = async () => {
+    setEmailTesting(true)
+    setEmailMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = {
+        ...buildEmailPayload(),
+        password: emailSettings.password || undefined
+      }
+      const response = await axios.post(`${apiUrl}/api/settings/email/test`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 20000
+      })
+      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP bağlantısı başarılı' })
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi başarısız'
+      setEmailMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setEmailTesting(false)
+      setTimeout(() => setEmailMessage(null), 7000)
+    }
+  }
+
   const sendTestEmail = async () => {
     if (!settings.admin_email) {
       setMessage({ type: 'error', text: 'Please enter an email address first' })
@@ -294,6 +430,154 @@ export default function SettingsPage() {
         <div>
           <h1>Settings</h1>
           <p className="text-muted">Configure system preferences and notifications</p>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>SMTP Configuration</h2>
+        {emailMessage && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              background: emailMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+              color: emailMessage.type === 'success' ? '#166534' : '#991b1b',
+              border: `1px solid ${emailMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
+            }}
+          >
+            {emailMessage.text}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>SMTP Host</label>
+            <input
+              type="text"
+              value={emailSettings.smtp_host}
+              onChange={(e) => updateEmailSetting('smtp_host', e.target.value)}
+              placeholder="smtp.company.com"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={emailSettings.smtp_port}
+              onChange={(e) => updateEmailSetting('smtp_port', parseInt(e.target.value) || 587)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+            <input
+              type="text"
+              value={emailSettings.username}
+              onChange={(e) => updateEmailSetting('username', e.target.value)}
+              placeholder="smtp_user"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type={showEmailPassword ? 'text' : 'password'}
+                value={emailSettings.password}
+                onChange={(e) => updateEmailSetting('password', e.target.value)}
+                placeholder={emailSettings.password_set ? '********' : 'Enter password'}
+                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+              />
+              {emailSettings.password_set && (
+                <button
+                  type="button"
+                  onClick={() => updateEmailSetting('password', '')}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+              <input type="checkbox" checked={showEmailPassword} onChange={(e) => setShowEmailPassword(e.target.checked)} />
+              Şifreyi göster
+            </label>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Email</label>
+            <input
+              type="email"
+              value={emailSettings.from_email}
+              onChange={(e) => updateEmailSetting('from_email', e.target.value)}
+              placeholder="dlp@company.com"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Name</label>
+            <input
+              type="text"
+              value={emailSettings.from_name}
+              onChange={(e) => updateEmailSetting('from_name', e.target.value)}
+              placeholder="DLP Risk Analyzer"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use SSL/TLS</label>
+            <select
+              value={emailSettings.enable_ssl ? 'true' : 'false'}
+              onChange={(e) => updateEmailSetting('enable_ssl', e.target.value === 'true')}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
+          {emailSettings.last_updated ? `Son güncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
+        </div>
+        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={testEmailSettings}
+            disabled={emailTesting}
+            style={{
+              padding: '10px 24px',
+              background: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: emailTesting ? 'not-allowed' : 'pointer',
+              opacity: emailTesting ? 0.6 : 1
+            }}
+          >
+            {emailTesting ? 'Testing...' : 'Test SMTP'}
+          </button>
+          <button
+            onClick={saveEmailSettings}
+            disabled={emailSaving}
+            style={{
+              padding: '10px 24px',
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: emailSaving ? 'not-allowed' : 'pointer',
+              opacity: emailSaving ? 0.6 : 1
+            }}
+          >
+            {emailSaving ? 'Saving...' : 'Save SMTP Settings'}
+          </button>
         </div>
       </div>
 
@@ -422,7 +706,7 @@ export default function SettingsPage() {
             </div>
             {emailConfigured === false && (
               <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
-                ⚠️ Email service is not configured. Please configure SMTP settings in appsettings.json
+                ⚠️ Email service is not configured. Please configure SMTP settings below.
               </p>
             )}
             {emailConfigured === true && (

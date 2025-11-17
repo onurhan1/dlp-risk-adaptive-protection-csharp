@@ -118,6 +118,7 @@ builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DlpConfigurationService>();
+builder.Services.AddScoped<EmailConfigurationService>();
 
 builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection("InternalApi"));
 

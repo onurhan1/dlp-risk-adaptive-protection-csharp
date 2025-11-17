@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Mail;
-using Microsoft.Extensions.Configuration;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -10,39 +10,27 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// </summary>
 public class EmailService
 {
-    private readonly IConfiguration _configuration;
+    private readonly EmailConfigurationService _configurationService;
     private readonly ILogger<EmailService> _logger;
-    private readonly string? _smtpHost;
-    private readonly int _smtpPort;
-    private readonly string? _smtpUsername;
-    private readonly string? _smtpPassword;
-    private readonly bool _smtpEnableSsl;
-    private readonly string? _fromEmail;
-    private readonly string? _fromName;
 
-    public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+    public EmailService(EmailConfigurationService configurationService, ILogger<EmailService> logger)
     {
-        _configuration = configuration;
+        _configurationService = configurationService;
         _logger = logger;
-        
-        _smtpHost = _configuration["Email:SmtpHost"];
-        _smtpPort = _configuration.GetValue<int>("Email:SmtpPort", 587);
-        _smtpUsername = _configuration["Email:SmtpUsername"];
-        _smtpPassword = _configuration["Email:SmtpPassword"];
-        _smtpEnableSsl = _configuration.GetValue<bool>("Email:SmtpEnableSsl", true);
-        _fromEmail = _configuration["Email:FromEmail"];
-        _fromName = _configuration["Email:FromName"] ?? "DLP Risk Analyzer";
+    }
+
+    private async Task<EmailSettingsSensitiveResponse> GetConfigAsync()
+    {
+        return (EmailSettingsSensitiveResponse)await _configurationService.GetAsync(includeSensitive: true);
     }
 
     /// <summary>
     /// Check if email service is configured
     /// </summary>
-    public bool IsConfigured()
+    public async Task<bool> IsConfiguredAsync()
     {
-        return !string.IsNullOrEmpty(_smtpHost) &&
-               !string.IsNullOrEmpty(_smtpUsername) &&
-               !string.IsNullOrEmpty(_smtpPassword) &&
-               !string.IsNullOrEmpty(_fromEmail);
+        var config = await _configurationService.GetAsync();
+        return config.IsConfigured;
     }
 
     /// <summary>
@@ -55,7 +43,8 @@ public class EmailService
         bool isHtml = true,
         string? toName = null)
     {
-        if (!IsConfigured())
+        var config = await GetConfigAsync();
+        if (!config.IsConfigured || string.IsNullOrEmpty(config.Password))
         {
             _logger.LogWarning("Email service is not configured. SMTP settings missing.");
             return false;
@@ -63,16 +52,16 @@ public class EmailService
 
         try
         {
-            using var client = new SmtpClient(_smtpHost, _smtpPort)
+            using var client = new SmtpClient(config.SmtpHost, config.SmtpPort)
             {
-                EnableSsl = _smtpEnableSsl,
-                Credentials = new NetworkCredential(_smtpUsername, _smtpPassword),
+                EnableSsl = config.EnableSsl,
+                Credentials = new NetworkCredential(config.Username, config.Password),
                 Timeout = 30000 // 30 seconds
             };
 
             using var message = new MailMessage
             {
-                From = new MailAddress(_fromEmail!, _fromName),
+                From = new MailAddress(config.FromEmail, config.FromName),
                 Subject = subject,
                 Body = body,
                 IsBodyHtml = isHtml

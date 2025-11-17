@@ -272,7 +272,7 @@ public class SettingsController : ControllerBase
 
             var email = request["email"].ToString()!;
 
-            if (!_emailService.IsConfigured())
+            if (!await _emailService.IsConfiguredAsync())
             {
                 return BadRequest(new 
                 { 
