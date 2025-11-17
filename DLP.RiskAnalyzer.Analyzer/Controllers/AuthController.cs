@@ -28,49 +28,23 @@ public class AuthController : ControllerBase
                 return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = "Username and password are required" }));
             }
 
-            // Check if user exists in UsersController
-            var user = UsersController.GetUserByUsername(request.Username);
-            
-            // If user not found, check default admin credentials
-            string role = "standard";
-            bool isValid = false;
-
-            if (user != null)
-            {
-                // User exists in system - for now, accept any password (in production, use proper password hashing)
-                isValid = true;
-                role = user.Role;
-            }
-            else
-            {
-                // Fallback to default admin
-                var validUsername = _configuration["Authentication:Username"] ?? "admin";
-                var validPassword = _configuration["Authentication:Password"] ?? "admin123";
-
-                if (request.Username == validUsername && request.Password == validPassword)
-                {
-                    isValid = true;
-                    role = "admin";
-                }
-            }
-
-            if (!isValid)
+            if (!UsersController.TryValidateCredentials(request.Username, request.Password, out var user))
             {
                 _logger.LogWarning("Failed login attempt for username: {Username}", request.Username);
                 return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
             }
 
             // Generate JWT token (simplified - use proper JWT library in production)
-            var token = GenerateToken(request.Username, role);
+            var token = GenerateToken(request.Username, user!.Role);
             var expiresAt = DateTime.UtcNow.AddHours(8); // Token expires in 8 hours
 
-            _logger.LogInformation("Successful login for username: {Username} with role {Role}", request.Username, role);
+            _logger.LogInformation("Successful login for username: {Username} with role {Role}", request.Username, user.Role);
 
             return Task.FromResult<ActionResult<LoginResponse>>(Ok(new LoginResponse
             {
                 Token = token,
                 Username = request.Username,
-                Role = role,
+                Role = user.Role,
                 ExpiresAt = expiresAt
             }));
         }
