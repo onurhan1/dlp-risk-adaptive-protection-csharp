@@ -863,6 +863,27 @@ npm install
   "InternalApi": {
     "SharedSecret": "ChangeThisSecret"
   },
+  "Jwt": {
+    "SecretKey": "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!ChangeThisInProduction!",
+    "Issuer": "DLP-RiskAnalyzer",
+    "Audience": "DLP-RiskAnalyzer-Client",
+    "ExpirationHours": 8
+  },
+  "Cors": {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3002"
+    ]
+  },
+  "Splunk": {
+    "Enabled": false,
+    "HecUrl": "https://your-splunk-instance:8088/services/collector/event",
+    "HecToken": "your-hec-token-here",
+    "Index": "dlp_risk_analyzer",
+    "Source": "dlp-risk-analyzer",
+    "Sourcetype": "dlp:audit"
+  },
   "Email": {
     "SmtpHost": "smtp.company.com",
     "SmtpPort": 587,
@@ -886,10 +907,14 @@ npm install
 
 **Önemli Notlar**:
 - `ConnectionStrings:DefaultConnection`: PostgreSQL şifrenizi güncelleyin
-- `Authentication:Password`: Production için güçlü bir şifre belirleyin
+- `Authentication:Password`: Production için güçlü bir şifre belirleyin (en az 12 karakter, büyük/küçük harf, rakam)
 - `Reports:Directory`: Mutlak yol kullanın
 - `Redis:Host`: `127.0.0.1` kullanın
 - `InternalApi:SharedSecret`: Collector servisindeki `Analyzer.InternalSecret` ile birebir aynı güçlü metin olmalı; dashboard/collector bu secret olmadan şifreli DLP bilgilerini çekemez.
+- `Jwt:SecretKey`: **Production'da mutlaka değiştirin!** En az 32 karakter olmalı.
+- `Cors:AllowedOrigins`: Production'da sadece gerçek dashboard URL'lerini ekleyin.
+- `Splunk`: Splunk SIEM entegrasyonu için yapılandırılabilir (UI'dan da yapılabilir).
+- **DLP, Email, AI Settings**: Artık UI üzerinden yapılandırılıyor. `appsettings.json`'daki değerler sadece placeholder olarak kalabilir.
 
 ### 3. Dashboard Yapılandırması
 
