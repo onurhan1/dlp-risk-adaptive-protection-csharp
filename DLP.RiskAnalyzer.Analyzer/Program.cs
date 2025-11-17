@@ -5,6 +5,10 @@ using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -119,6 +123,18 @@ builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DlpConfigurationService>();
 builder.Services.AddScoped<EmailConfigurationService>();
+builder.Services.AddScoped<BehaviorEngineService>();
+builder.Services.AddScoped<AuditLogService>();
+builder.Services.AddHttpClient<SplunkService>();
+
+// OpenAI Service
+builder.Services.AddHttpClient<OpenAIService>();
+
+// GitHub Copilot Service
+builder.Services.AddHttpClient<CopilotService>();
+
+// Azure OpenAI Service
+builder.Services.AddHttpClient<AzureOpenAIService>();
 
 builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection("InternalApi"));
 
@@ -135,14 +151,45 @@ builder.Services.AddHttpClient<RemediationService>(client =>
     // Configure in RemediationService constructor
 });
 
-// CORS
+// JWT Authentication
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!ChangeThisInProduction!";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero,
+        NameClaimType = ClaimTypes.Name,
+        RoleClaimType = ClaimTypes.Role
+    };
+});
+
+// CORS - Security: Restrict to specific origins in production
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+    ?? new[] { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" };
+    
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
+              .AllowCredentials()
               .WithExposedHeaders("Content-Disposition"); // For file downloads
     });
 });
@@ -153,7 +200,30 @@ var app = builder.Build();
 app.UseRouting();
 
 app.UseCors();
+app.UseAuthentication();
 app.UseAuthorization();
+
+// Audit logging middleware (must be after UseAuthentication to get user info)
+app.UseMiddleware<DLP.RiskAnalyzer.Analyzer.Middleware.AuditLoggingMiddleware>();
+
+// Security headers
+app.Use(async (context, next) =>
+{
+    // Add security headers
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    
+    // Only add CSP in production
+    if (!app.Environment.IsDevelopment())
+    {
+        context.Response.Headers.Append("Content-Security-Policy", 
+            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
+    }
+    
+    await next();
+});
 
 // Swagger must be configured after UseRouting but before MapControllers
 app.UseSwagger();

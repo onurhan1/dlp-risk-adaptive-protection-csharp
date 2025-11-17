@@ -49,7 +49,7 @@ public class SettingsController : ControllerBase
             foreach (var s in settings)
             {
                 settingsDict[s.Key] = s.Value;
-                _logger.LogInformation("Loaded setting from DB: {Key} = {Value}", s.Key, s.Value);
+                _logger.LogInformation("Loaded setting from DB: {Key}", s.Key);
             }
 
             _logger.LogInformation("Found {Count} settings in database", settings.Count);
@@ -178,7 +178,7 @@ public class SettingsController : ControllerBase
                         existing.Value = setting.Value;
                         existing.UpdatedAt = DateTime.UtcNow;
                         _context.SystemSettings.Update(existing);
-                        _logger.LogInformation("Updating setting: {Key} = {Value}", setting.Key, setting.Value);
+                        _logger.LogInformation("Updating setting: {Key}", setting.Key);
                     }
                     else
                     {
@@ -190,18 +190,17 @@ public class SettingsController : ControllerBase
                             UpdatedAt = DateTime.UtcNow
                         };
                         _context.SystemSettings.Add(newSetting);
-                        _logger.LogInformation("Adding new setting: {Key} = {Value}", setting.Key, setting.Value);
+                        _logger.LogInformation("Adding new setting: {Key}", setting.Key);
                     }
                     
                     // Save changes immediately for each setting
                     var savedCount = await _context.SaveChangesAsync();
-                    _logger.LogInformation("Saved setting: {Key} = {Value} (rows affected: {Rows})", 
-                        setting.Key, setting.Value, savedCount);
+                    _logger.LogInformation("Saved setting: {Key} (rows affected: {Rows})", 
+                        setting.Key, savedCount);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error saving setting {Key} = {Value}: {Message}\n{StackTrace}", 
-                        setting.Key, setting.Value, ex.Message, ex.StackTrace);
+                    _logger.LogError(ex, "Error saving setting {Key}", setting.Key);
                     // Continue with other settings even if one fails
                 }
             }

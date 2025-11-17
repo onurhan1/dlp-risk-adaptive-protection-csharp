@@ -56,6 +56,21 @@ public class DLPCollectorService : IDisposable
 
         try
         {
+            // Get current config at runtime (may have been updated via UI)
+            var config = _configProvider.GetCurrent();
+            
+            // Update HttpClient if config changed
+            if (!ConfigEquals(_currentConfig, config))
+            {
+                lock (_clientLock)
+                {
+                    _currentConfig = config;
+                    _httpClient?.Dispose();
+                    _httpClient = CreateHttpClient(_currentConfig);
+                    _logger.LogInformation("HttpClient updated with new DLP configuration");
+                }
+            }
+            
             // Forcepoint DLP REST API v1 Authentication endpoint
             // According to Forcepoint DLP REST API documentation:
             // POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/auth/access-token
@@ -271,6 +286,17 @@ public class DLPCollectorService : IDisposable
             oldClient?.Dispose();
             _logger.LogInformation("DLP Collector HTTP client reconfigured for {Manager}:{Port}", newConfig.ManagerIP, newConfig.ManagerPort);
         }
+    }
+    
+    private static bool ConfigEquals(DLPConfig a, DLPConfig b)
+    {
+        if (a == null || b == null) return a == b;
+        return a.ManagerIP == b.ManagerIP &&
+               a.ManagerPort == b.ManagerPort &&
+               a.Username == b.Username &&
+               a.Password == b.Password &&
+               a.UseHttps == b.UseHttps &&
+               a.Timeout == b.Timeout;
     }
 
     public void Dispose()

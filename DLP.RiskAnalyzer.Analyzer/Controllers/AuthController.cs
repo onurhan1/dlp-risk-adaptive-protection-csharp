@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -23,6 +27,13 @@ public class AuthController : ControllerBase
     {
         try
         {
+            // Model validation
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = string.Join("; ", errors) }));
+            }
+            
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             {
                 return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = "Username and password are required" }));
@@ -65,9 +76,37 @@ public class AuthController : ControllerBase
                 return BadRequest(new { detail = "Token is required" });
             }
 
-            // Simple token validation - in production, use proper JWT validation
-            // For now, just check if token is not empty
-            return Ok(new { valid = !string.IsNullOrWhiteSpace(request.Token) });
+            var secretKey = _configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!";
+            var issuer = _configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
+            var audience = _configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(secretKey);
+
+            try
+            {
+                tokenHandler.ValidateToken(request.Token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = issuer,
+                    ValidateAudience = true,
+                    ValidAudience = audience,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                var username = jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
+                var role = jwtToken.Claims.First(x => x.Type == ClaimTypes.Role).Value;
+
+                return Ok(new { valid = true, username, role });
+            }
+            catch
+            {
+                return Ok(new { valid = false });
+            }
         }
         catch (Exception ex)
         {
@@ -78,17 +117,44 @@ public class AuthController : ControllerBase
 
     private string GenerateToken(string username, string role)
     {
-        // Simple token generation - in production, use proper JWT library like System.IdentityModel.Tokens.Jwt
-        var tokenData = $"{username}:{role}:{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}";
-        var bytes = Encoding.UTF8.GetBytes(tokenData);
-        var hash = SHA256.HashData(bytes);
-        return Convert.ToBase64String(hash);
+        var secretKey = _configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!";
+        var issuer = _configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
+        var audience = _configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
+        var expirationHours = _configuration.GetValue<int>("Jwt:ExpirationHours", 8);
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, username),
+            new Claim(ClaimTypes.Role, role),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(expirationHours),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
 
 public class LoginRequest
 {
+    [Required(ErrorMessage = "Username is required")]
+    [MinLength(3, ErrorMessage = "Username must be at least 3 characters")]
+    [MaxLength(50, ErrorMessage = "Username cannot exceed 50 characters")]
     public string Username { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "Password is required")]
+    // Note: No MinLength validation for login - we're validating existing password, not creating new one
+    // Password strength validation is only applied when creating/updating users
     public string Password { get; set; } = string.Empty;
 }
 

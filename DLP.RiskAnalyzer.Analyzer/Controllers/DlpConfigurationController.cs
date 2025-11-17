@@ -42,7 +42,7 @@ public class DlpConfigurationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save DLP API settings");
-            return BadRequest(new { success = false, detail = ex.Message });
+            return BadRequest(new { success = false, detail = "Failed to save DLP API settings. Please check your input and try again." });
         }
     }
 
@@ -65,7 +65,7 @@ public class DlpConfigurationController : ControllerBase
             return StatusCode(500, new DlpApiTestResult
             {
                 Success = false,
-                Message = ex.Message,
+                Message = "Connection test failed. Please verify your settings and try again.",
                 TestedAt = DateTime.UtcNow
             });
         }
@@ -90,7 +90,7 @@ public class DlpConfigurationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve sensitive DLP settings");
-            return StatusCode(500, new { detail = ex.Message });
+            return StatusCode(500, new { detail = "Failed to retrieve settings" });
         }
     }
 }

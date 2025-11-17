@@ -38,6 +38,16 @@ interface EmailSettings {
   last_updated?: string | null
 }
 
+interface SplunkSettings {
+  enabled: boolean
+  hec_url: string
+  hec_token: string
+  hec_token_set: boolean
+  index: string
+  source: string
+  sourcetype: string
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     email_notifications: true,
@@ -84,11 +94,26 @@ export default function SettingsPage() {
   const [emailTesting, setEmailTesting] = useState(false)
   const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
+  const [splunkSettings, setSplunkSettings] = useState<SplunkSettings>({
+    enabled: false,
+    hec_url: '',
+    hec_token: '',
+    hec_token_set: false,
+    index: 'dlp_risk_analyzer',
+    source: 'dlp-risk-analyzer',
+    sourcetype: 'dlp:audit'
+  })
+  const [splunkLoading, setSplunkLoading] = useState(true)
+  const [splunkSaving, setSplunkSaving] = useState(false)
+  const [splunkTesting, setSplunkTesting] = useState(false)
+  const [splunkMessage, setSplunkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [showSplunkToken, setShowSplunkToken] = useState(false)
 
   useEffect(() => {
     fetchSettings()
     fetchDlpSettings()
-  fetchEmailSettings()
+    fetchEmailSettings()
+    fetchSplunkSettings()
   }, [])
 
   const fetchSettings = async () => {
@@ -231,6 +256,103 @@ const fetchEmailSettings = async () => {
 
   const updateEmailSetting = (key: keyof EmailSettings, value: any) => {
     setEmailSettings({ ...emailSettings, [key]: value })
+  }
+
+  const updateSplunkSetting = (key: keyof SplunkSettings, value: any) => {
+    setSplunkSettings({ ...splunkSettings, [key]: value })
+  }
+
+  const fetchSplunkSettings = async () => {
+    setSplunkLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/settings/splunk`)
+      const data = response.data
+      setSplunkSettings({
+        enabled: data.enabled ?? false,
+        hec_url: data.hec_url ?? '',
+        hec_token: '',
+        hec_token_set: data.hec_token_set ?? false,
+        index: data.index ?? 'dlp_risk_analyzer',
+        source: data.source ?? 'dlp-risk-analyzer',
+        sourcetype: data.sourcetype ?? 'dlp:audit'
+      })
+    } catch (error) {
+      console.error('Error fetching Splunk settings:', error)
+    } finally {
+      setSplunkLoading(false)
+    }
+  }
+
+  const saveSplunkSettings = async () => {
+    setSplunkSaving(true)
+    setSplunkMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = {
+        enabled: splunkSettings.enabled,
+        hec_url: splunkSettings.hec_url.trim(),
+        hec_token: splunkSettings.hec_token.trim() || undefined,
+        index: splunkSettings.index.trim(),
+        source: splunkSettings.source.trim(),
+        sourcetype: splunkSettings.sourcetype.trim()
+      }
+      const response = await axios.post(`${apiUrl}/api/settings/splunk`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000
+      })
+
+      if (response.data?.success) {
+        setSplunkSettings((prev) => ({
+          ...prev,
+          hec_token: '',
+          hec_token_set: true
+        }))
+        setSplunkMessage({ type: 'success', text: 'Splunk settings saved successfully' })
+        setTimeout(() => setSplunkMessage(null), 3000)
+      } else {
+        throw new Error(response.data?.detail || 'Failed to save Splunk settings')
+      }
+    } catch (error: any) {
+      console.error('Error saving Splunk settings:', error)
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save Splunk settings'
+      setSplunkMessage({ type: 'error', text: errorMessage })
+      setTimeout(() => setSplunkMessage(null), 5000)
+    } finally {
+      setSplunkSaving(false)
+    }
+  }
+
+  const testSplunkConnection = async () => {
+    setSplunkTesting(true)
+    setSplunkMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const payload = {
+        hec_url: splunkSettings.hec_url.trim() || undefined,
+        hec_token: splunkSettings.hec_token.trim() || undefined,
+        index: splunkSettings.index.trim() || undefined,
+        source: splunkSettings.source.trim() || undefined,
+        sourcetype: splunkSettings.sourcetype.trim() || undefined
+      }
+      const response = await axios.post(`${apiUrl}/api/settings/splunk/test`, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000
+      })
+
+      if (response.data?.success) {
+        setSplunkMessage({ type: 'success', text: response.data.message || 'Splunk connection test successful' })
+      } else {
+        throw new Error(response.data?.message || 'Connection test failed')
+      }
+    } catch (error: any) {
+      console.error('Error testing Splunk connection:', error)
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Connection test failed'
+      setSplunkMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setSplunkTesting(false)
+      setTimeout(() => setSplunkMessage(null), 5000)
+    }
   }
 
   const buildDlpPayload = () => {
@@ -790,6 +912,161 @@ const fetchEmailSettings = async () => {
         </div>
       </div>
 
+      {/* Splunk Settings Card */}
+      <div className="card" style={{ marginTop: '24px' }}>
+        <h2>Splunk SIEM Configuration</h2>
+        {splunkMessage && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              background: splunkMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+              color: splunkMessage.type === 'success' ? '#166534' : '#991b1b',
+              border: `1px solid ${splunkMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
+            }}
+          >
+            {splunkMessage.text}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div>
+            <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+              Enable Splunk Integration
+            </label>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
+              Send audit and application logs to Splunk SIEM
+            </p>
+          </div>
+          <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
+            <input
+              type="checkbox"
+              checked={splunkSettings.enabled}
+              onChange={(e) => updateSplunkSetting('enabled', e.target.checked)}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span
+              style={{
+                position: 'absolute',
+                cursor: 'pointer',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: splunkSettings.enabled ? 'var(--primary)' : '#ccc',
+                borderRadius: '28px',
+                transition: '0.3s'
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  content: '""',
+                  height: '22px',
+                  width: '22px',
+                  left: '3px',
+                  bottom: '3px',
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  transition: '0.3s',
+                  transform: splunkSettings.enabled ? 'translateX(24px)' : 'translateX(0)'
+                }}
+              />
+            </span>
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC URL</label>
+            <input
+              type="text"
+              value={splunkSettings.hec_url}
+              onChange={(e) => updateSplunkSetting('hec_url', e.target.value)}
+              placeholder="https://splunk-server:8088/services/collector/event"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC Token</label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type={showSplunkToken ? 'text' : 'password'}
+                value={splunkSettings.hec_token}
+                onChange={(e) => updateSplunkSetting('hec_token', e.target.value)}
+                placeholder={splunkSettings.hec_token_set ? '********' : 'Enter HEC token'}
+                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+              />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+              <input type="checkbox" checked={showSplunkToken} onChange={(e) => setShowSplunkToken(e.target.checked)} />
+              Show token
+            </label>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Index</label>
+            <input
+              type="text"
+              value={splunkSettings.index}
+              onChange={(e) => updateSplunkSetting('index', e.target.value)}
+              placeholder="dlp_risk_analyzer"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Source</label>
+            <input
+              type="text"
+              value={splunkSettings.source}
+              onChange={(e) => updateSplunkSetting('source', e.target.value)}
+              placeholder="dlp-risk-analyzer"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Sourcetype</label>
+            <input
+              type="text"
+              value={splunkSettings.sourcetype}
+              onChange={(e) => updateSplunkSetting('sourcetype', e.target.value)}
+              placeholder="dlp:audit"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={testSplunkConnection}
+            disabled={splunkTesting}
+            style={{
+              padding: '10px 24px',
+              background: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: splunkTesting ? 'not-allowed' : 'pointer',
+              opacity: splunkTesting ? 0.6 : 1
+            }}
+          >
+            {splunkTesting ? 'Testing...' : 'Test Connection'}
+          </button>
+          <button
+            onClick={saveSplunkSettings}
+            disabled={splunkSaving}
+            style={{
+              padding: '10px 24px',
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: splunkSaving ? 'not-allowed' : 'pointer',
+              opacity: splunkSaving ? 0.6 : 1
+            }}
+          >
+            {splunkSaving ? 'Saving...' : 'Save Splunk Settings'}
+          </button>
+        </div>
+      </div>
+
       <div className="card">
         <h2>DLP API Configuration</h2>
         {dlpMessage && (
@@ -928,7 +1205,6 @@ const fetchEmailSettings = async () => {
           </button>
         </div>
       </div>
-
 
       <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
         <button

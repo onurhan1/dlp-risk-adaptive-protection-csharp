@@ -14,15 +14,18 @@ public class IncidentsController : ControllerBase
     private readonly DatabaseService _dbService;
     private readonly DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer _riskAnalyzer;
     private readonly AnalyzerDbContext _context;
+    private readonly ILogger<IncidentsController> _logger;
 
     public IncidentsController(
         DatabaseService dbService, 
         DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer,
-        AnalyzerDbContext context)
+        AnalyzerDbContext context,
+        ILogger<IncidentsController> logger)
     {
         _dbService = dbService;
         _riskAnalyzer = riskAnalyzer;
         _context = context;
+        _logger = logger;
     }
 
     [HttpPost("seed-sample-data")]
@@ -91,7 +94,8 @@ public class IncidentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message, stackTrace = ex.StackTrace });
+            _logger.LogError(ex, "Error seeding sample data");
+            return StatusCode(500, new { detail = "An error occurred while seeding sample data" });
         }
     }
 
@@ -139,7 +143,8 @@ public class IncidentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            _logger.LogError(ex, "Error fetching incidents");
+            return StatusCode(500, new { detail = "An error occurred while fetching incidents" });
         }
     }
 
@@ -178,7 +183,8 @@ public class IncidentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { detail = ex.Message });
+            _logger.LogError(ex, "Error fetching incidents");
+            return StatusCode(500, new { detail = "An error occurred while fetching incidents" });
         }
     }
 }

@@ -1203,7 +1203,16 @@ Domain ortamında merkezi yönetim için Group Policy kullanabilirsiniz:
 
 ## 🔒 Güvenlik Ayarları
 
-### 1. appsettings.json Güvenliği
+### 1. appsettings.json Güvenliği ve Yeni Özellikler
+
+**ÖNEMLİ GÜNCELLEMELER**:
+
+- **JWT Authentication**: Artık `System.IdentityModel.Tokens.Jwt` kullanılıyor. `Jwt:SecretKey` production'da mutlaka değiştirilmeli.
+- **CORS Yapılandırması**: `Cors:AllowedOrigins` listesine dashboard URL'leri eklenmeli.
+- **Splunk SIEM Entegrasyonu**: `Splunk` bölümü eklendi. UI'dan da yapılandırılabilir.
+- **Audit Logging**: Tüm API istekleri otomatik olarak audit log'a kaydediliyor. Kullanıcı bilgileri JWT token'dan otomatik çıkarılıyor.
+
+### 1.1. appsettings.json Güvenliği
 
 ```powershell
 # appsettings.json dosyalarını ACL ile koruyun
@@ -1524,8 +1533,12 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 - [ ] Dashboard NPM paketleri kuruldu (`npm install`)
 
 ### Yapılandırma
-- [ ] Collector `appsettings.json` yapılandırıldı
-- [ ] Analyzer `appsettings.json` yapılandırıldı
+- [ ] Collector `appsettings.json` yapılandırıldı (InternalApi, Analyzer.BaseUrl)
+- [ ] Analyzer `appsettings.json` yapılandırıldı (ConnectionStrings, Redis, Jwt, InternalApi, Cors, Splunk)
+- [ ] DLP API ayarları dashboard üzerinden yapılandırıldı (Settings → DLP API Configuration)
+- [ ] SMTP ayarları dashboard üzerinden yapılandırıldı (Settings → SMTP Configuration)
+- [ ] AI Settings yapılandırıldı (Settings → AI Settings) - Opsiyonel
+- [ ] Splunk SIEM ayarları yapılandırıldı (Settings → Splunk SIEM Configuration) - Opsiyonel
 - [ ] Dashboard `.env.local` yapılandırıldı
 - [ ] DLP Manager IP, kullanıcı adı ve şifre ayarlandı
 - [ ] PostgreSQL connection string güncellendi
