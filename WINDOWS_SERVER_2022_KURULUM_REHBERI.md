@@ -272,18 +272,20 @@ docker run -d `
 
 **Not**: Production için Docker Compose kullanmanız önerilir (projede `docker-compose.yml` mevcut).
 
-### 5. Node.js 18+ Kurulumu (Dashboard için)
+### 5. Node.js 20+ Kurulumu (Dashboard için)
+
+> Next.js 16 üretim için Node.js 18.18+ gerektirir. Windows Server ortamında uzun süreli destek için Node.js 20 LTS önerilir.
 
 1. Node.js LTS indirin: https://nodejs.org/
-2. **Windows Installer (.msi)** indirin (v18.x veya üzeri)
+2. **Windows Installer (.msi)** indirin (v20.x veya üzeri)
 3. Kurulumu tamamlayın
 4. Kurulumu doğrulayın:
 
 ```powershell
 node --version
-# Beklenen: v18.x.x veya üzeri
+# Beklenen: v20.x.x
 npm --version
-# Beklenen: 9.x.x veya üzeri
+# Beklenen: 10.x.x veya üzeri
 ```
 
 ### 6. Git for Windows Kurulumu
@@ -1499,7 +1501,7 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 - [ ] .NET 8.0 SDK kurulu (`dotnet --version`)
 - [ ] PostgreSQL 18 kurulu ve çalışıyor **VEYA** Docker Desktop kurulu
 - [ ] Redis (Memurai) kurulu ve çalışıyor **VEYA** Docker ile Redis çalışıyor
-- [ ] Node.js 18+ kurulu (`node --version`)
+- [ ] Node.js 20+ kurulu (`node --version`)
 - [ ] Git kurulu (`git --version`)
 - [ ] NSSM kurulu (service kurulumu için)
 - [ ] Docker Desktop kurulu (Docker kullanıyorsanız)
