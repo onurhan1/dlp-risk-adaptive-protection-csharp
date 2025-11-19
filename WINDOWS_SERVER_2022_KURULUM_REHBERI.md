@@ -1563,6 +1563,8 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 - [ ] DLP API ayarları dashboard üzerinden yapılandırıldı (Settings → DLP API Configuration)
 - [ ] SMTP ayarları dashboard üzerinden yapılandırıldı (Settings → SMTP Configuration)
 - [ ] AI Settings yapılandırıldı (Settings → AI Settings) - Opsiyonel
+- [ ] AI Behavioral Analysis sayfası test edildi (`/ai-behavioral`)
+- [ ] Investigation sayfasında AI Behavioral Analysis kartı görüntüleniyor
 - [ ] Splunk SIEM ayarları yapılandırıldı (Settings → Splunk SIEM Configuration) - Opsiyonel
 - [ ] Dashboard `.env.local` yapılandırıldı
 - [ ] DLP Manager IP, kullanıcı adı ve şifre ayarlandı
