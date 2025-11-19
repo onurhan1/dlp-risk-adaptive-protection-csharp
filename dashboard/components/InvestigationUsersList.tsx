@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
-
-import { getApiUrlDynamic } from '@/lib/api-config'
+import apiClient from '@/lib/axios'
 
 interface UserRisk {
   user_email: string
@@ -37,8 +35,7 @@ export default function InvestigationUsersList({
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.get(`${apiUrl}/api/risk/user-list`, {
+      const response = await apiClient.get('/api/risk/user-list', {
         params: { page, page_size: pageSize }
       })
       // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)
@@ -47,11 +44,26 @@ export default function InvestigationUsersList({
         risk_score: user.risk_score || user.maxRiskScore || 0,
         total_incidents: user.total_incidents || user.totalIncidents || 0
       }))
-      setUsers(usersData)
-      setTotal(response.data.total || 0)
+      
+      // If no users found, show sample data for demonstration
+      if (usersData.length === 0) {
+        console.log('No users found in database, showing sample data for demonstration')
+        setUsers([
+          { user_email: 'fabiano.cese@example.com', risk_score: 98, total_incidents: 15 },
+          { user_email: 'william.rodrigues@example.com', risk_score: 84, total_incidents: 12 },
+          { user_email: 'jenny.wilson@example.com', risk_score: 75, total_incidents: 8 },
+          { user_email: 'elizabeth.taylor@example.com', risk_score: 68, total_incidents: 6 },
+          { user_email: 'agustin.moreno@example.com', risk_score: 44, total_incidents: 4 },
+          { user_email: 'becky.goodhair@example.com', risk_score: 20, total_incidents: 2 }
+        ])
+        setTotal(6)
+      } else {
+        setUsers(usersData)
+        setTotal(response.data.total || 0)
+      }
     } catch (error) {
       console.error('Error fetching users:', error)
-      // Fallback sample data
+      // Fallback sample data on error
       setUsers([
         { user_email: 'fabiano.cese@example.com', risk_score: 98, total_incidents: 15 },
         { user_email: 'william.rodrigues@example.com', risk_score: 84, total_incidents: 12 },

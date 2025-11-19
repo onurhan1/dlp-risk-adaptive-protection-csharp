@@ -119,8 +119,12 @@ public class AIBehavioralController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting entity analysis {EntityType}:{EntityId}", entityType, entityId);
-            return StatusCode(500, new { detail = "Failed to get entity analysis" });
+            _logger.LogError(ex, "Error getting entity analysis {EntityType}:{EntityId}. Error: {Error}", entityType, entityId, ex.Message);
+            // Return more detailed error message for debugging
+            var errorMessage = ex.InnerException != null 
+                ? $"Failed to get entity analysis: {ex.InnerException.Message}" 
+                : $"Failed to get entity analysis: {ex.Message}";
+            return StatusCode(500, new { detail = errorMessage });
         }
     }
 

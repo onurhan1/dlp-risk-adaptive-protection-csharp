@@ -76,105 +76,129 @@ public class BehaviorEngineService
         string entityId,
         int lookbackDays = 7)
     {
-        var endDate = DateTime.UtcNow;
-        var startDate = endDate.AddDays(-lookbackDays);
-        var baselineStartDate = endDate.AddDays(-(lookbackDays * 2)); // Baseline: previous period
-
-        // Get current period incidents
-        var currentIncidents = await GetIncidentsForEntityAsync(entityType, entityId, startDate, endDate);
-        
-        // Get baseline period incidents (previous period)
-        var baselineIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, startDate);
-
-        if (currentIncidents.Count == 0 && baselineIncidents.Count == 0)
+        try
         {
+            _logger.LogInformation("Starting analysis for {EntityType}: {EntityId} (lookbackDays: {LookbackDays})", entityType, entityId, lookbackDays);
+            
+            var endDate = DateTime.UtcNow;
+            var startDate = endDate.AddDays(-lookbackDays);
+            var baselineStartDate = endDate.AddDays(-(lookbackDays * 2)); // Baseline: previous period
+
+            // Get current period incidents
+            _logger.LogDebug("Fetching current period incidents for {EntityType}: {EntityId} from {StartDate} to {EndDate}", 
+                entityType, entityId, startDate, endDate);
+            var currentIncidents = await GetIncidentsForEntityAsync(entityType, entityId, startDate, endDate);
+            _logger.LogInformation("Found {Count} current period incidents for {EntityType}: {EntityId}", 
+                currentIncidents.Count, entityType, entityId);
+            
+            // Get baseline period incidents (previous period)
+            _logger.LogDebug("Fetching baseline period incidents for {EntityType}: {EntityId} from {BaselineStartDate} to {StartDate}", 
+                entityType, entityId, baselineStartDate, startDate);
+            var baselineIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, startDate);
+            _logger.LogInformation("Found {Count} baseline period incidents for {EntityType}: {EntityId}", 
+                baselineIncidents.Count, entityType, entityId);
+
+            if (currentIncidents.Count == 0 && baselineIncidents.Count == 0)
+            {
+                _logger.LogInformation("No incidents found for {EntityType}: {EntityId}, returning empty analysis", entityType, entityId);
+                return new AIBehavioralAnalysisResponse
+                {
+                    EntityType = entityType,
+                    EntityId = entityId,
+                    RiskScore = 0,
+                    AnomalyLevel = "low",
+                    AIExplanation = $"No incidents found for {entityType} '{entityId}' in the analyzed period.",
+                    AIRecommendation = "No action required.",
+                    ReferenceIncidentIds = new List<int>(),
+                    AnalysisMetadata = new Dictionary<string, object>(),
+                    AnalysisDate = endDate
+                };
+            }
+
+            // Calculate metrics
+            _logger.LogDebug("Calculating metrics for {EntityType}: {EntityId}", entityType, entityId);
+            var currentMetrics = CalculateMetrics(currentIncidents);
+            var baselineMetrics = CalculateMetrics(baselineIncidents);
+
+            // Z-score anomaly detection
+            var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
+
+            // Calculate risk score (0-100)
+            var riskScore = CalculateRiskScore(anomalyResults);
+
+            // Determine anomaly level
+            var anomalyLevel = DetermineAnomalyLevel(riskScore);
+
+            // Get reference incident IDs
+            var referenceIncidentIds = currentIncidents
+                .Where(i => i.RiskScore >= 50 || i.Severity >= 7)
+                .Select(i => i.Id)
+                .Distinct()
+                .Take(10)
+                .ToList();
+
+            var metadata = new Dictionary<string, object>
+            {
+                { "current_incident_count", currentMetrics.TotalIncidents },
+                { "baseline_incident_count", baselineMetrics.TotalIncidents },
+                { "z_score_incident_count", anomalyResults.IncidentCountZScore },
+                { "z_score_severity", anomalyResults.SeverityZScore },
+                { "z_score_channel_email", anomalyResults.ChannelEmailZScore },
+                { "z_score_channel_web", anomalyResults.ChannelWebZScore },
+                { "z_score_channel_endpoint", anomalyResults.ChannelEndpointZScore },
+                { "baseline_mean_incidents", baselineMetrics.MeanIncidentsPerDay },
+                { "baseline_std_incidents", baselineMetrics.StdDevIncidentsPerDay },
+                { "current_mean_incidents", currentMetrics.MeanIncidentsPerDay },
+                { "current_avg_severity", currentMetrics.AvgSeverity },
+                { "baseline_avg_severity", baselineMetrics.AvgSeverity },
+                { "risk_score", riskScore }
+            };
+
+            // Generate AI explanation and recommendation using selected model (or fallback to static)
+            string explanation;
+            string recommendation;
+            
+            try
+            {
+                var (aiExplanation, aiRecommendation) = await GenerateAIAnalysisAsync(
+                    entityType, 
+                    entityId, 
+                    metadata, 
+                    anomalyResults);
+                
+                explanation = aiExplanation;
+                recommendation = aiRecommendation;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to generate AI analysis, falling back to static explanation");
+                // Fallback to static explanation
+                explanation = GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
+                recommendation = GenerateRecommendation(anomalyResults, entityType);
+            }
+
+            _logger.LogInformation("Analysis completed for {EntityType}: {EntityId}. RiskScore: {RiskScore}, AnomalyLevel: {AnomalyLevel}", 
+                entityType, entityId, riskScore, anomalyLevel);
+
             return new AIBehavioralAnalysisResponse
             {
                 EntityType = entityType,
                 EntityId = entityId,
-                RiskScore = 0,
-                AnomalyLevel = "low",
-                AIExplanation = $"No incidents found for {entityType} '{entityId}' in the analyzed period.",
-                AIRecommendation = "No action required.",
-                ReferenceIncidentIds = new List<int>(),
-                AnalysisMetadata = new Dictionary<string, object>(),
+                RiskScore = riskScore,
+                AnomalyLevel = anomalyLevel,
+                AIExplanation = explanation,
+                AIRecommendation = recommendation,
+                ReferenceIncidentIds = referenceIncidentIds,
+                AnalysisMetadata = metadata,
                 AnalysisDate = endDate
             };
         }
-
-        // Calculate metrics
-        var currentMetrics = CalculateMetrics(currentIncidents);
-        var baselineMetrics = CalculateMetrics(baselineIncidents);
-
-        // Z-score anomaly detection
-        var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
-
-        // Calculate risk score (0-100)
-        var riskScore = CalculateRiskScore(anomalyResults);
-
-        // Determine anomaly level
-        var anomalyLevel = DetermineAnomalyLevel(riskScore);
-
-        // Get reference incident IDs
-        var referenceIncidentIds = currentIncidents
-            .Where(i => i.RiskScore >= 50 || i.Severity >= 7)
-            .Select(i => i.Id)
-            .Distinct()
-            .Take(10)
-            .ToList();
-
-        var metadata = new Dictionary<string, object>
-        {
-            { "current_incident_count", currentMetrics.TotalIncidents },
-            { "baseline_incident_count", baselineMetrics.TotalIncidents },
-            { "z_score_incident_count", anomalyResults.IncidentCountZScore },
-            { "z_score_severity", anomalyResults.SeverityZScore },
-            { "z_score_channel_email", anomalyResults.ChannelEmailZScore },
-            { "z_score_channel_web", anomalyResults.ChannelWebZScore },
-            { "z_score_channel_endpoint", anomalyResults.ChannelEndpointZScore },
-            { "baseline_mean_incidents", baselineMetrics.MeanIncidentsPerDay },
-            { "baseline_std_incidents", baselineMetrics.StdDevIncidentsPerDay },
-            { "current_mean_incidents", currentMetrics.MeanIncidentsPerDay },
-            { "current_avg_severity", currentMetrics.AvgSeverity },
-            { "baseline_avg_severity", baselineMetrics.AvgSeverity },
-            { "risk_score", riskScore }
-        };
-
-        // Generate AI explanation and recommendation using selected model (or fallback to static)
-        string explanation;
-        string recommendation;
-        
-        try
-        {
-            var (aiExplanation, aiRecommendation) = await GenerateAIAnalysisAsync(
-                entityType, 
-                entityId, 
-                metadata, 
-                anomalyResults);
-            
-            explanation = aiExplanation;
-            recommendation = aiRecommendation;
-        }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to generate AI analysis, falling back to static explanation");
-            // Fallback to static explanation
-            explanation = GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
-            recommendation = GenerateRecommendation(anomalyResults, entityType);
+            _logger.LogError(ex, "Exception in AnalyzeEntityAsync for {EntityType}: {EntityId}. Error: {Error}", 
+                entityType, entityId, ex.Message);
+            throw; // Re-throw to be handled by controller
         }
-
-        return new AIBehavioralAnalysisResponse
-        {
-            EntityType = entityType,
-            EntityId = entityId,
-            RiskScore = riskScore,
-            AnomalyLevel = anomalyLevel,
-            AIExplanation = explanation,
-            AIRecommendation = recommendation,
-            ReferenceIncidentIds = referenceIncidentIds,
-            AnalysisMetadata = metadata,
-            AnalysisDate = endDate
-        };
     }
 
     /// <summary>
@@ -329,16 +353,30 @@ public class BehaviorEngineService
         DateTime startDate,
         DateTime endDate)
     {
-        var query = _context.Incidents
-            .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate);
-
-        return entityType.ToLower() switch
+        try
         {
-            "user" => await query.Where(i => i.UserEmail == entityId).ToListAsync(),
-            "channel" => await query.Where(i => i.Channel == entityId).ToListAsync(),
-            "department" => await query.Where(i => i.Department == entityId).ToListAsync(),
-            _ => new List<Incident>()
-        };
+            var query = _context.Incidents
+                .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate);
+
+            var result = entityType.ToLower() switch
+            {
+                "user" => await query.Where(i => i.UserEmail == entityId).ToListAsync(),
+                "channel" => await query.Where(i => i.Channel == entityId).ToListAsync(),
+                "department" => await query.Where(i => i.Department == entityId).ToListAsync(),
+                _ => new List<Incident>()
+            };
+            
+            _logger.LogDebug("Query executed for {EntityType}: {EntityId}. Found {Count} incidents between {StartDate} and {EndDate}", 
+                entityType, entityId, result.Count, startDate, endDate);
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetIncidentsForEntityAsync for {EntityType}: {EntityId}. Error: {Error}", 
+                entityType, entityId, ex.Message);
+            throw;
+        }
     }
 
     private BehaviorMetrics CalculateMetrics(List<Incident> incidents)
@@ -462,10 +500,15 @@ public class BehaviorEngineService
         Dictionary<string, object> analysisData,
         AnomalyResults anomalyResults)
     {
-        // Get AI settings from database
-        var settings = await _context.SystemSettings
-            .Where(s => s.Key.StartsWith("ai_"))
-            .ToDictionaryAsync(s => s.Key, s => s.Value);
+        try
+        {
+            // Get AI settings from database
+            _logger.LogDebug("Fetching AI settings from database");
+            var settings = await _context.SystemSettings
+                .Where(s => s.Key.StartsWith("ai_"))
+                .ToDictionaryAsync(s => s.Key, s => s.Value);
+            
+            _logger.LogDebug("Found {Count} AI settings in database", settings.Count);
 
         var provider = settings.GetValueOrDefault(ModelProviderKey, "local")?.ToLower() ?? "local";
         var modelName = settings.GetValueOrDefault(ModelNameKey, "");
@@ -551,8 +594,14 @@ public class BehaviorEngineService
             throw new InvalidOperationException("GitHub Copilot is not supported for behavioral analysis generation");
         }
 
-        // Unknown provider or service not available
-        throw new InvalidOperationException($"AI provider '{provider}' is not available or not configured");
+            // Unknown provider or service not available
+            throw new InvalidOperationException($"AI provider '{provider}' is not available or not configured");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GenerateAIAnalysisAsync: {Error}", ex.Message);
+            throw;
+        }
     }
 
     private string GenerateExplanation(

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import apiClient from '@/lib/axios'
 import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface AIBehavioralAnalysis {
@@ -33,15 +33,29 @@ export default function AIBehavioralPage() {
   const [lookbackDays, setLookbackDays] = useState(7)
   const [analyzing, setAnalyzing] = useState(false)
 
+  // Load entity from URL params if provided
   useEffect(() => {
-    fetchOverview()
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const entityType = params.get('entityType')
+      const entityId = params.get('entityId')
+      if (entityType && entityId) {
+        // Decode entityId if it's URL encoded (e.g., %40 becomes @)
+        const decodedEntityId = decodeURIComponent(entityId)
+        analyzeEntity(entityType, decodedEntityId)
+      } else {
+        fetchOverview()
+      }
+    } else {
+      fetchOverview()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookbackDays])
 
   const fetchOverview = async () => {
     setLoading(true)
     try {
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.get(`${apiUrl}/api/ai-behavioral/overview`, {
+      const response = await apiClient.get('/api/ai-behavioral/overview', {
         params: { lookbackDays }
       })
       setOverview(response.data)
@@ -57,23 +71,34 @@ export default function AIBehavioralPage() {
 
   const analyzeEntity = async (entityType: string, entityId: string) => {
     setAnalyzing(true)
+    setLoading(true)
     try {
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.post(`${apiUrl}/api/ai-behavioral/analyze`, {
-        entityType,
-        entityId,
-        lookbackDays
+      // Use GET endpoint to fetch analysis (faster, uses cached if available)
+      const response = await apiClient.get(`/api/ai-behavioral/entity/${entityType}/${encodeURIComponent(entityId)}`, {
+        params: { lookbackDays }
       })
       setSelectedEntity(response.data)
-      await fetchOverview() // Refresh overview
     } catch (error: any) {
       console.error('Error analyzing entity:', error)
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.status === 404 ? 'AI Behavioral endpoint not found. Please ensure the API is running and updated.' :
-                          'Failed to analyze entity'
-      alert(errorMessage)
+      // If GET fails, try POST to trigger new analysis
+      try {
+        const postResponse = await apiClient.post('/api/ai-behavioral/analyze', {
+          entityType,
+          entityId,
+          lookbackDays
+        })
+        setSelectedEntity(postResponse.data)
+      } catch (postError: any) {
+        const errorMessage = postError.response?.data?.detail || 
+                            error.response?.data?.detail ||
+                            postError.response?.status === 404 ? 'AI Behavioral endpoint not found. Please ensure the API is running and updated.' :
+                            error.response?.status === 500 ? `Server error: ${error.response?.data?.detail || 'Failed to analyze entity'}` :
+                            postError.message || error.message || 'Failed to analyze entity'
+        alert(errorMessage)
+      }
     } finally {
       setAnalyzing(false)
+      setLoading(false)
     }
   }
 
@@ -322,9 +347,38 @@ export default function AIBehavioralPage() {
               </div>
               <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
                   {selectedEntity.referenceIncidentIds.length}
                 </div>
+                {selectedEntity.referenceIncidentIds.length > 0 && (
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>View in Investigation:</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {selectedEntity.referenceIncidentIds.slice(0, 5).map((incidentId) => (
+                        <a
+                          key={incidentId}
+                          href={`/investigation?user=${encodeURIComponent(selectedEntity.entityId)}&incident=${incidentId}`}
+                          style={{
+                            padding: '4px 8px',
+                            background: 'var(--primary)',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            textDecoration: 'none',
+                            display: 'inline-block'
+                          }}
+                        >
+                          #{incidentId}
+                        </a>
+                      ))}
+                      {selectedEntity.referenceIncidentIds.length > 5 && (
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px' }}>
+                          +{selectedEntity.referenceIncidentIds.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

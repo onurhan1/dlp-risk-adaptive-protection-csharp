@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import apiClient from '@/lib/axios'
 import { format } from 'date-fns'
 import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
-
-import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface TimelineEvent {
   id: number
@@ -41,6 +39,33 @@ export default function InvestigationPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterRisk, setFilterRisk] = useState<string>('all')
   const [filterClassification, setFilterClassification] = useState<string>('all')
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
+  const [loadingAI, setLoadingAI] = useState(false)
+
+  // Load AI Behavioral Analysis when user is selected
+  useEffect(() => {
+    if (selectedUser) {
+      fetchAIAnalysis(selectedUser)
+    } else {
+      setAiAnalysis(null)
+    }
+  }, [selectedUser])
+
+  const fetchAIAnalysis = async (userEmail: string) => {
+    setLoadingAI(true)
+    try {
+      const response = await apiClient.get(`/api/ai-behavioral/entity/user/${encodeURIComponent(userEmail)}`, {
+        params: { lookbackDays: 7 }
+      })
+      setAiAnalysis(response.data)
+    } catch (error: any) {
+      console.error('Error fetching AI analysis:', error)
+      // Silently fail - AI analysis is optional
+      setAiAnalysis(null)
+    } finally {
+      setLoadingAI(false)
+    }
+  }
 
   const handleEventSelect = (event: TimelineEvent) => {
     // Enrich event with additional details from API or defaults
@@ -295,6 +320,85 @@ export default function InvestigationPage() {
               </button>
             </div>
           </div>
+
+          {/* AI Behavioral Analysis Card */}
+          {selectedUser && (
+            <div style={{ 
+              margin: '16px',
+              padding: '16px', 
+              background: 'white', 
+              borderRadius: '8px', 
+              border: '1px solid var(--border)' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  AI Behavioral Analysis
+                </h3>
+                <a
+                  href={`/ai-behavioral?entityType=user&entityId=${encodeURIComponent(selectedUser)}`}
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--primary)',
+                    textDecoration: 'none'
+                  }}
+                >
+                  View Details →
+                </a>
+              </div>
+              {loadingAI ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Analyzing user behavior...
+                </div>
+              ) : aiAnalysis ? (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: '700', 
+                        color: aiAnalysis.riskScore >= 80 ? '#dc2626' : aiAnalysis.riskScore >= 50 ? '#f59e0b' : '#10b981' 
+                      }}>
+                        {aiAnalysis.riskScore}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Anomaly Level</div>
+                      <div style={{ 
+                        fontSize: '16px', 
+                        fontWeight: '600', 
+                        color: aiAnalysis.anomalyLevel === 'high' ? '#dc2626' : aiAnalysis.anomalyLevel === 'medium' ? '#f59e0b' : '#10b981' 
+                      }}>
+                        {aiAnalysis.anomalyLevel.toUpperCase()}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                        {aiAnalysis.referenceIncidentIds?.length || 0}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Explanation</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                      {aiAnalysis.aiExplanation}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Recommendation</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                      {aiAnalysis.aiRecommendation}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                  No AI analysis available. Click "View Details" to analyze.
+                </div>
+              )}
+            </div>
+          )}
 
           <InvestigationTimeline
             userEmail={selectedUser}
