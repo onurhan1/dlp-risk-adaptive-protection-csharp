@@ -21,6 +21,7 @@
 14. [Backup Stratejileri](#backup-stratejileri)
 15. [Troubleshooting](#troubleshooting)
 16. [Kurulum Doğrulama Checklist](#kurulum-doğrulama-checklist)
+17. [Dashboard Özellikleri](#dashboard-özellikleri)
 
 ---
 
@@ -1513,6 +1514,23 @@ dotnet ef database drop --force
 dotnet ef database update
 ```
 
+**Not**: Eğer `relation "incidents" does not exist` gibi bir hata alırsanız, database'in tamamen yeniden oluşturulması gerekebilir. Bu durumda:
+
+```powershell
+# PostgreSQL'e bağlanın
+$env:PGPASSWORD = "YourPostgreSQLPassword"
+psql -U postgres -h localhost -d postgres
+
+# PostgreSQL komut satırında:
+DROP DATABASE IF EXISTS dlp_analyzer;
+CREATE DATABASE dlp_analyzer;
+\q
+
+# Migration'ları tekrar uygulayın
+cd "C:\DLP_RiskAnalyzer\DLP.RiskAnalyzer.Analyzer"
+dotnet ef database update
+```
+
 ### Problem 7: Dashboard API Bağlantı Hatası
 
 **Hata**: Dashboard API'ye bağlanamıyor
@@ -1591,6 +1609,17 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 - [ ] Redis stream'e veri yazılıyor
 - [ ] Analyzer servisi risk skorları hesaplıyor
 - [ ] Dashboard'da gerçek veriler görüntüleniyor
+- [ ] Investigation sayfası çalışıyor
+  - [ ] Kullanıcı listesi görüntüleniyor
+  - [ ] AI Behavioral Analysis kartı görüntüleniyor (kullanıcı seçildiğinde)
+  - [ ] Timeline görüntüleniyor
+- [ ] AI Behavioral Analysis sayfası çalışıyor (`/ai-behavioral`)
+  - [ ] Overview istatistikleri görüntüleniyor
+  - [ ] Top anomalies listesi görüntüleniyor
+  - [ ] Entity analizi çalışıyor
+- [ ] AI Settings sayfası çalışıyor (`/ai-settings`)
+- [ ] Settings sayfası çalışıyor (`/settings`)
+- [ ] Logs sayfası çalışıyor (`/logs`) - Admin only
 
 ### Güvenlik
 - [ ] appsettings.json dosyaları ACL ile korundu
@@ -1642,11 +1671,89 @@ Get-Content "C:\Services\DLPRiskAnalyzerCollector\logs\stdout.log" -Tail 50
 
 ## 🎯 Sonraki Adımlar
 
-1. **Production Hardening**: SSL/TLS sertifikaları, güvenlik duvarı kuralları
-2. **High Availability**: Load balancing, failover yapılandırması
-3. **Scaling**: Horizontal scaling için yapılandırma
-4. **Integration**: SIEM sistemleri ile entegrasyon
-5. **Customization**: Kurumsal gereksinimlere göre özelleştirme
+1. **Dashboard'u açın**: `http://localhost:3002`
+2. **DLP API ayarlarını yapılandırın**: Settings → DLP API Configuration
+3. **Email ayarlarını yapılandırın**: Settings → SMTP Configuration
+4. **AI Settings yapılandırın** (Opsiyonel): Settings → AI Settings
+   - Model provider seçin (OpenAI, Azure OpenAI, GitHub Copilot, veya Local)
+   - API key'leri girin ve test edin
+   - Temperature ve Max Tokens ayarlarını yapılandırın
+5. **Splunk SIEM entegrasyonu** (Opsiyonel): Settings → Splunk SIEM Configuration
+6. **Test edin**: 
+   - Dashboard'da veri akışını kontrol edin
+   - Investigation sayfasında kullanıcı seçip AI Behavioral Analysis kartını görüntüleyin
+   - AI Behavioral Analysis sayfasında (`/ai-behavioral`) entity analizi yapın
+7. **Monitoring kurun**: Log dosyalarını ve event log'ları izleyin
+8. **Backup stratejisini uygulayın**: PostgreSQL ve Redis yedeklemelerini planlayın
+
+## 📱 Dashboard Özellikleri
+
+### Ana Sayfalar
+
+1. **Dashboard** (`/`)
+   - Günlük özet istatistikleri
+   - Risk timeline grafiği
+   - Channel aktivite analizi
+   - Department bazlı risk analizi
+   - Top kullanıcılar ve kurallar
+
+2. **Investigation** (`/investigation`) - Admin only
+   - Kullanıcı bazlı risk skorları ve incident listesi
+   - Timeline görüntüleme
+   - Alert detayları
+   - **AI Behavioral Analysis kartı**: Seçilen kullanıcı için otomatik AI analizi
+     - Risk score (0-100)
+     - Anomaly level (low/medium/high)
+     - AI explanation ve recommendation
+     - Reference incident IDs
+     - "View Details" linki ile `/ai-behavioral` sayfasına yönlendirme
+
+3. **AI Behavioral Analysis** (`/ai-behavioral`) - Admin only
+   - Overview istatistikleri (total analyzed, high/medium/low anomaly counts)
+   - Top anomalies listesi
+   - Entity bazlı detaylı analiz (user/channel/department)
+   - Z-score tabanlı anomaly detection
+   - AI-generated explanations ve recommendations
+   - Reference incident IDs ile Investigation sayfasına link
+
+4. **AI Settings** (`/ai-settings`) - Admin only
+   - Model provider seçimi (OpenAI, Azure OpenAI, GitHub Copilot, Local)
+   - API key yönetimi (maskelenmiş, şifrelenmiş)
+   - Model seçimi (OpenAI için: gpt-4o, gpt-4o-mini, vb.)
+   - Advanced settings (Temperature, Max Tokens)
+   - Connection test butonu
+
+5. **Settings** (`/settings`) - Admin only
+   - Risk Thresholds
+   - Splunk SIEM Configuration
+   - DLP API Configuration (UI-driven)
+   - SMTP Configuration (UI-driven)
+   - Email Notifications
+
+6. **Logs** (`/logs`) - Admin only
+   - Audit Logs (API istekleri, kullanıcı işlemleri)
+   - Application Logs
+   - Filtreleme (tarih aralığı, event type, user name)
+   - Pagination
+
+7. **Reports** (`/reports`)
+   - PDF rapor indirme
+   - Tarih aralığı seçimi
+
+8. **Users** (`/users`) - Admin only
+   - Kullanıcı yönetimi
+   - Rol atama
+
+### Önemli Notlar
+
+- **JWT Authentication**: Tüm API istekleri JWT token ile korunuyor. Token `localStorage`'da saklanıyor.
+- **Dynamic API URL**: Dashboard otomatik olarak backend API URL'ini algılıyor (localhost, 127.0.0.1, veya network IP).
+- **Sample Data**: Investigation sayfasında, eğer veritabanında kullanıcı yoksa, demo amaçlı sample data gösteriliyor.
+- **AI Behavioral Analysis**: 
+  - Z-score tabanlı anomaly detection kullanıyor
+  - AI model provider seçimi yapılabilir (OpenAI, Azure OpenAI, veya Local/Static)
+  - Analysis metadata (z-scores, incident counts, vb.) saklanıyor
+  - Reference incident IDs ile Investigation sayfasına link
 
 ---
 
