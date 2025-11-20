@@ -176,5 +176,14 @@ public class AuditLogService
 
         return await query.CountAsync(cancellationToken);
     }
+
+    public async Task<List<string>> GetDistinctEventTypesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.AuditLogs
+            .Select(l => l.EventType)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToListAsync(cancellationToken);
+    }
 }
 
