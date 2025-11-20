@@ -328,13 +328,13 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           justify-content: space-between;
           align-items: center;
           margin-bottom: 16px;
-          border-bottom: 1px solid #e0e0e0;
+          border-bottom: 1px solid var(--border);
           padding-bottom: 12px;
         }
 
         .timeline-header h3 {
           margin: 0;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .close-btn {
@@ -342,7 +342,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           border: none;
           font-size: 24px;
           cursor: pointer;
-          color: #666;
+          color: var(--text-secondary);
           padding: 4px 8px;
           position: relative;
           z-index: 1000;
@@ -369,19 +369,19 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           justify-content: space-between;
           align-items: center;
           padding: 12px;
-          background: #f5f5f5;
+          background: var(--background-secondary);
           border-radius: 4px;
           margin-bottom: 16px;
         }
 
         .user-info h4 {
           margin: 0 0 4px 0;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .user-title {
           font-size: 12px;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .insights-btn {
@@ -422,8 +422,8 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .filter-btn:hover, .sort-btn:hover {
-          background: #f5f5f5;
-          border-color: #2196f3;
+          background: var(--surface-hover);
+          border-color: var(--primary);
           transform: scale(1.05);
         }
 
@@ -432,9 +432,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .filter-btn.active {
-          background: #2196f3;
+          background: var(--primary);
           color: white;
-          border-color: #2196f3;
+          border-color: var(--primary);
         }
 
         .filter-btn:focus, .sort-btn:focus {
@@ -453,10 +453,10 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
         .date-header {
           font-weight: 600;
-          color: #666;
+          color: var(--text-secondary);
           margin-bottom: 12px;
           padding-bottom: 8px;
-          border-bottom: 1px solid #e0e0e0;
+          border-bottom: 1px solid var(--border);
         }
 
         .timeline-event {
@@ -468,14 +468,14 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .timeline-event:hover {
-          background: #f5f5f5;
-          border-left-color: #2196f3;
+          background: var(--surface-hover);
+          border-left-color: var(--primary);
         }
 
         .event-time {
           min-width: 80px;
           font-size: 12px;
-          color: #666;
+          color: var(--text-secondary);
           font-weight: 500;
         }
 
@@ -497,7 +497,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .event-description {
-          color: #333;
+          color: var(--text-primary);
           font-weight: 500;
         }
 
@@ -518,7 +518,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         .loading {
           text-align: center;
           padding: 40px;
-          color: #666;
+          color: var(--text-secondary);
         }
       `}</style>
     </div>
