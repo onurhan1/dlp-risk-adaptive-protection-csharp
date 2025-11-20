@@ -210,12 +210,12 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
           align-items: center;
           margin-bottom: 20px;
           padding-bottom: 12px;
-          border-bottom: 1px solid #e0e0e0;
+          border-bottom: 1px solid var(--border);
         }
 
         .alert-header h3 {
           margin: 0;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .header-actions {
@@ -229,7 +229,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
           border: none;
           font-size: 18px;
           cursor: pointer;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .severity-badge {
@@ -255,7 +255,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         }
 
         .alert-summary {
-          background: #f5f5f5;
+          background: var(--background-secondary);
           padding: 16px;
           border-radius: 4px;
           margin-bottom: 20px;
@@ -273,11 +273,11 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         .label {
           font-weight: 600;
           min-width: 100px;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .value {
-          color: #333;
+          color: var(--text-primary);
         }
 
         .classification-tags {
@@ -305,7 +305,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         .details-section h4,
         .forensics-section h4 {
           margin: 0 0 12px 0;
-          color: #333;
+          color: var(--text-primary);
           font-size: 14px;
         }
 
@@ -316,11 +316,11 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .matched-rules li {
           margin-bottom: 4px;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .details-content {
-          background: #f9f9f9;
+          background: var(--background-secondary);
           padding: 12px;
           border-radius: 4px;
         }
@@ -335,13 +335,13 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .detail-label {
           font-weight: 600;
-          color: #666;
+          color: var(--text-secondary);
           display: block;
           margin-bottom: 4px;
         }
 
         .detail-value {
-          color: #333;
+          color: var(--text-primary);
         }
 
         .tags {
@@ -362,7 +362,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .instruction {
           font-size: 12px;
-          color: #666;
+          color: var(--text-secondary);
           margin-bottom: 12px;
         }
 
@@ -375,8 +375,10 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         .search-input {
           flex: 1;
           padding: 8px 12px;
-          border: 1px solid #ddd;
+          border: 1px solid var(--border);
           border-radius: 4px;
+          background: var(--surface);
+          color: var(--text-primary);
         }
 
         .classifiers-btn {
@@ -390,7 +392,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         }
 
         .classification-summary {
-          background: #f5f5f5;
+          background: var(--background-secondary);
           padding: 12px;
           border-radius: 4px;
           margin-bottom: 16px;
@@ -408,14 +410,14 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
           display: block;
           font-weight: 500;
           margin-bottom: 4px;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .classifier-stats {
           display: flex;
           gap: 16px;
           font-size: 12px;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .files-table {
@@ -424,22 +426,23 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         }
 
         .files-table th {
-          background: #f5f5f5;
+          background: var(--background-secondary);
           padding: 8px 12px;
           text-align: left;
           font-weight: 600;
           font-size: 12px;
-          color: #666;
+          color: var(--text-secondary);
         }
 
         .files-table td {
           padding: 8px 12px;
-          border-bottom: 1px solid #e0e0e0;
+          border-bottom: 1px solid var(--border);
           font-size: 12px;
+          color: var(--text-primary);
         }
 
         .files-table tr:hover {
-          background: #f9f9f9;
+          background: var(--surface-hover);
         }
 
         .protected-icon {
