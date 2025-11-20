@@ -17,6 +17,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<SystemSetting> SystemSettings { get; set; }
     public DbSet<AIBehavioralAnalysis> AIBehavioralAnalyses { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<AnomalyDetection> AnomalyDetections { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -146,6 +147,28 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.EventType);
             entity.HasIndex(e => e.UserName);
             entity.HasIndex(e => new { e.Timestamp, e.EventType });
+        });
+
+        // Configure AnomalyDetection
+        modelBuilder.Entity<AnomalyDetection>(entity =>
+        {
+            entity.ToTable("anomaly_detections");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserEmail).HasColumnName("user_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.MetricType).HasColumnName("metric_type").IsRequired().HasMaxLength(50);
+            entity.Property(e => e.CurrentValue).HasColumnName("current_value").IsRequired();
+            entity.Property(e => e.BaselineMean).HasColumnName("baseline_mean").IsRequired();
+            entity.Property(e => e.BaselineStdDev).HasColumnName("baseline_std_dev").IsRequired();
+            entity.Property(e => e.AnomalyScore).HasColumnName("anomaly_score").IsRequired();
+            entity.Property(e => e.Severity).HasColumnName("severity").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp").IsRequired();
+
+            entity.HasIndex(e => e.UserEmail);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.Severity);
+            entity.HasIndex(e => new { e.UserEmail, e.Timestamp });
         });
     }
 }

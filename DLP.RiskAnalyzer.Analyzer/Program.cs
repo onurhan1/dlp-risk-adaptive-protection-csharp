@@ -1,6 +1,7 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Options;
 using DLP.RiskAnalyzer.Analyzer.Services;
+using DLP.RiskAnalyzer.Shared.Helpers;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -26,38 +27,13 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Database
+// Database - Using EnvironmentHelper for consistent configuration
 builder.Services.AddDbContext<AnalyzerDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    // Docker Desktop on Windows compatibility
-    if (!string.IsNullOrEmpty(connectionString))
-    {
-        var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        
-        if (isDocker)
-        {
-            // If running inside Docker container, use host.docker.internal to access Docker Desktop services
-            if (connectionString.Contains("Host=localhost"))
-            {
-                connectionString = connectionString.Replace("Host=localhost", "Host=host.docker.internal");
-            }
-        }
-        else
-        {
-            // If running on Windows host (outside Docker), use 127.0.0.1 for better reliability
-            // Docker Desktop port mappings work with both localhost and 127.0.0.1, but 127.0.0.1 is more reliable on Windows
-            if (connectionString.Contains("Host=localhost") && !connectionString.Contains("Host=127.0.0.1"))
-            {
-                // Keep localhost but add 127.0.0.1 as fallback - actually, just use 127.0.0.1 for Windows
-                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-                {
-                    connectionString = connectionString.Replace("Host=localhost", "Host=127.0.0.1");
-                }
-            }
-        }
-    }
+    // Use EnvironmentHelper for Docker Desktop compatibility
+    connectionString = EnvironmentHelper.GetDatabaseConnectionString(connectionString ?? string.Empty);
     
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
@@ -76,28 +52,14 @@ builder.Services.AddDbContext<AnalyzerDbContext>(options =>
     options.EnableSensitiveDataLogging(false);
 });
 
-// Redis - Docker Desktop on Windows compatibility
+// Redis - Using EnvironmentHelper for consistent configuration
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
 {
     var redisHost = builder.Configuration["Redis:Host"] ?? "localhost";
     var redisPort = builder.Configuration.GetValue<int>("Redis:Port", 6379);
     
-    // Docker Desktop on Windows compatibility
-    var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-    
-    if (isDocker && redisHost == "localhost")
-    {
-        // If running inside Docker container, use host.docker.internal to access Docker Desktop Redis
-        redisHost = "host.docker.internal";
-    }
-    else if (!isDocker && redisHost == "localhost" && 
-             RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    {
-        // If running on Windows host, use 127.0.0.1 for better reliability with Docker Desktop
-        redisHost = "127.0.0.1";
-    }
-    
-    var connectionString = $"{redisHost}:{redisPort}";
+    // Use EnvironmentHelper for Docker Desktop compatibility
+    var connectionString = EnvironmentHelper.GetRedisConnectionString(redisHost, redisPort);
     
     // Configure Redis connection with retry for Docker Desktop
     var config = new StackExchange.Redis.ConfigurationOptions
@@ -112,6 +74,11 @@ builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
     
     return StackExchange.Redis.ConnectionMultiplexer.Connect(config);
 });
+
+// Services
+// Repository Pattern
+builder.Services.AddScoped<DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces.IIncidentRepository, 
+    DLP.RiskAnalyzer.Analyzer.Repositories.Implementations.IncidentRepository>();
 
 // Services
 builder.Services.AddScoped<DatabaseService>();
@@ -202,6 +169,9 @@ app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Global Exception Handling (must be early in pipeline)
+app.UseMiddleware<DLP.RiskAnalyzer.Analyzer.Middleware.ExceptionHandlingMiddleware>();
 
 // Audit logging middleware (must be after UseAuthentication to get user info)
 app.UseMiddleware<DLP.RiskAnalyzer.Analyzer.Middleware.AuditLoggingMiddleware>();

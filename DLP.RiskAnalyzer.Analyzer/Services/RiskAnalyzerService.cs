@@ -1,4 +1,6 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
+using DLP.RiskAnalyzer.Shared.Constants;
 using DLP.RiskAnalyzer.Shared.Models;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -10,11 +12,15 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// </summary>
 public class RiskAnalyzerService
 {
+    private readonly IIncidentRepository _incidentRepository;
     private readonly AnalyzerDbContext _context;
     private readonly Shared.Services.RiskAnalyzer _riskAnalyzer;
 
-    public RiskAnalyzerService(AnalyzerDbContext context)
+    public RiskAnalyzerService(
+        IIncidentRepository incidentRepository,
+        AnalyzerDbContext context)
     {
+        _incidentRepository = incidentRepository;
         _context = context;
         _riskAnalyzer = new Shared.Services.RiskAnalyzer();
     }
@@ -27,16 +33,13 @@ public class RiskAnalyzerService
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        var query = _context.Incidents
-            .Where(i => i.Timestamp >= startDate.ToDateTime(TimeOnly.MinValue) &&
-                       i.Timestamp <= endDate.ToDateTime(TimeOnly.MaxValue));
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+        
+        var filteredIncidents = !string.IsNullOrEmpty(user)
+            ? incidents.Where(i => i.UserEmail == user).ToList()
+            : incidents;
 
-        if (!string.IsNullOrEmpty(user))
-        {
-            query = query.Where(i => i.UserEmail == user);
-        }
-
-        var trends = await query
+        var trends = filteredIncidents
             .GroupBy(i => new { i.UserEmail, Date = DateOnly.FromDateTime(i.Timestamp.Date) })
             .Select(g => new UserRiskTrend
             {
@@ -48,7 +51,7 @@ public class RiskAnalyzerService
             })
             .OrderBy(t => t.UserEmail)
             .ThenBy(t => t.Date)
-            .ToListAsync();
+            .ToList();
 
         return trends;
     }
@@ -66,21 +69,21 @@ public class RiskAnalyzerService
             startDate = endDate.Value.AddDays(-30);
         }
 
-        var summaries = await _context.Incidents
-            .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                       i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue) &&
-                       !string.IsNullOrEmpty(i.Department))
+        var incidents = await _incidentRepository.GetIncidentsByDepartmentAsync(
+            startDate.Value, endDate.Value);
+        
+        var summaries = incidents
             .GroupBy(i => i.Department)
             .Select(g => new DepartmentSummary
             {
                 Department = g.Key!,
                 TotalIncidents = g.Count(),
-                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= 61),
+                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
                 Date = endDate
             })
-            .ToListAsync();
+            .ToList();
 
         return summaries;
     }
@@ -93,15 +96,15 @@ public class RiskAnalyzerService
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        var summaries = await _context.Incidents
-            .Where(i => i.Timestamp >= startDate.ToDateTime(TimeOnly.MinValue) &&
-                       i.Timestamp <= endDate.ToDateTime(TimeOnly.MaxValue))
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+        
+        var summaries = incidents
             .GroupBy(i => DateOnly.FromDateTime(i.Timestamp.Date))
             .Select(g => new DailySummary
             {
                 Date = g.Key,
                 TotalIncidents = g.Count(),
-                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= 61),
+                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
                 DepartmentsAffected = g.Where(i => !string.IsNullOrEmpty(i.Department))
@@ -110,7 +113,7 @@ public class RiskAnalyzerService
                                       .Count()
             })
             .OrderBy(s => s.Date)
-            .ToListAsync();
+            .ToList();
 
         return summaries;
     }
@@ -131,46 +134,41 @@ public class RiskAnalyzerService
 
         var labels = new List<string>();
         var values = new List<int>();
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate.Value, endDate.Value);
 
         if (dimension == "department")
         {
-            var deptData = await _context.Incidents
-                .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                           i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue) &&
-                           !string.IsNullOrEmpty(i.Department))
+            var deptData = incidents
+                .Where(i => !string.IsNullOrEmpty(i.Department))
                 .GroupBy(i => i.Department)
                 .Select(g => new { Label = g.Key!, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .Take(10)
-                .ToListAsync();
+                .ToList();
 
             labels = deptData.Select(d => d.Label).ToList();
             values = deptData.Select(d => d.Count).ToList();
         }
         else if (dimension == "user")
         {
-            var userData = await _context.Incidents
-                .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                           i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue))
+            var userData = incidents
                 .GroupBy(i => i.UserEmail)
                 .Select(g => new { Label = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .Take(10)
-                .ToListAsync();
+                .ToList();
 
             labels = userData.Select(d => d.Label).ToList();
             values = userData.Select(d => d.Count).ToList();
         }
         else // channel
         {
-            var channelData = await _context.Incidents
-                .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                           i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue) &&
-                           !string.IsNullOrEmpty(i.Channel))
+            var channelData = incidents
+                .Where(i => !string.IsNullOrEmpty(i.Channel))
                 .GroupBy(i => i.Channel)
                 .Select(g => new { Label = g.Key!, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
-                .ToListAsync();
+                .ToList();
 
             labels = channelData.Select(d => d.Label).ToList();
             values = channelData.Select(d => d.Count).ToList();
@@ -207,17 +205,14 @@ public class RiskAnalyzerService
     /// </summary>
     public async Task<int> CalculateRiskScoresAsync()
     {
-        var incidentsWithoutScores = await _context.Incidents
-            .Where(i => i.RiskScore == null)
-            .ToListAsync();
+        var incidentsWithoutScores = await _incidentRepository.GetIncidentsWithoutRiskScoreAsync();
 
         var updatedCount = 0;
         foreach (var incident in incidentsWithoutScores)
         {
             // Calculate repeat count (how many times this user had similar incidents)
-            var repeatCount = await _context.Incidents
-                .CountAsync(i => i.UserEmail == incident.UserEmail &&
-                                i.Timestamp < incident.Timestamp);
+            var repeatCount = await _incidentRepository.GetPreviousIncidentsCountAsync(
+                incident.UserEmail, incident.Timestamp);
 
             // Calculate data sensitivity (based on data type and severity)
             var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
@@ -233,7 +228,11 @@ public class RiskAnalyzerService
             updatedCount++;
         }
 
-        await _context.SaveChangesAsync();
+        if (updatedCount > 0)
+        {
+            await _incidentRepository.UpdateIncidentsAsync(incidentsWithoutScores);
+        }
+
         return updatedCount;
     }
 
@@ -244,12 +243,15 @@ public class RiskAnalyzerService
 
         var dataTypeLower = dataType.ToLower();
         
-        if (dataTypeLower.Contains("pii") || dataTypeLower.Contains("personal"))
-            return Math.Max(severity, 8);
-        if (dataTypeLower.Contains("pci") || dataTypeLower.Contains("credit"))
-            return Math.Max(severity, 9);
-        if (dataTypeLower.Contains("confidential"))
-            return Math.Max(severity, 7);
+        // Use RiskConstants for data sensitivity thresholds
+        if (dataTypeLower.Contains(RiskConstants.DataSensitivity.PII) || 
+            dataTypeLower.Contains(RiskConstants.DataSensitivity.Personal))
+            return Math.Max(severity, RiskConstants.DataSensitivity.PIIThreshold);
+        if (dataTypeLower.Contains(RiskConstants.DataSensitivity.PCI) || 
+            dataTypeLower.Contains(RiskConstants.DataSensitivity.Credit))
+            return Math.Max(severity, RiskConstants.DataSensitivity.PCIThreshold);
+        if (dataTypeLower.Contains(RiskConstants.DataSensitivity.Confidential))
+            return Math.Max(severity, RiskConstants.DataSensitivity.ConfidentialThreshold);
 
         return severity;
     }
@@ -261,9 +263,10 @@ public class RiskAnalyzerService
     {
         // This method is deprecated - use the endpoint in RiskController instead
         // Return format compatible with frontend expectations
-        var offset = (page - 1) * pageSize;
-
-        var incidents = await _context.Incidents.ToListAsync();
+        // Get all incidents (no date filter for user list)
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-365); // Last year
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
         
         var userGroups = incidents
             .GroupBy(i => i.UserEmail)
@@ -277,6 +280,7 @@ public class RiskAnalyzerService
             .ToList();
 
         var total = userGroups.Count;
+        var offset = (page - 1) * pageSize;
         var pagedUsers = userGroups.Skip(offset).Take(pageSize).ToList();
 
         return new Dictionary<string, object>
@@ -307,22 +311,24 @@ public class RiskAnalyzerService
             startDate = endDate.Value.AddDays(-days);
         }
 
-        var channels = await _context.Incidents
-            .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                       i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue) &&
-                       !string.IsNullOrEmpty(i.Channel))
+        var incidents = await _incidentRepository.GetIncidentsByChannelAsync(
+            startDate.Value, endDate.Value);
+        
+        var channels = incidents
             .GroupBy(i => i.Channel)
             .Select(g => new
             {
                 Channel = g.Key!,
                 TotalIncidents = g.Count(),
-                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= 91),
-                HighCount = g.Count(i => (i.RiskScore ?? 0) >= 61 && (i.RiskScore ?? 0) < 91),
-                MediumCount = g.Count(i => (i.RiskScore ?? 0) >= 41 && (i.RiskScore ?? 0) < 61),
-                LowCount = g.Count(i => (i.RiskScore ?? 0) < 41)
+                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.CriticalThreshold),
+                HighCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold && 
+                                         (i.RiskScore ?? 0) < RiskConstants.RiskScores.CriticalThreshold),
+                MediumCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.MediumThreshold && 
+                                          (i.RiskScore ?? 0) < RiskConstants.RiskScores.HighThreshold),
+                LowCount = g.Count(i => (i.RiskScore ?? 0) < RiskConstants.RiskScores.MediumThreshold)
             })
             .OrderByDescending(c => c.TotalIncidents)
-            .ToListAsync();
+            .ToList();
 
         var total = channels.Sum(c => c.TotalIncidents);
 
@@ -364,11 +370,11 @@ public class RiskAnalyzerService
             startDate = endDate.Value.AddDays(-30);
         }
 
-        var incidents = await _context.Incidents
-            .Where(i => i.Timestamp >= startDate.Value.ToDateTime(TimeOnly.MinValue) &&
-                       i.Timestamp <= endDate.Value.ToDateTime(TimeOnly.MaxValue))
-            .Take(1000)
-            .ToListAsync();
+        var incidents = await _incidentRepository.GetIncidentsAsync(
+            startDate.Value, endDate.Value);
+        
+        // Limit to 1000 for performance
+        incidents = incidents.Take(1000).ToList();
 
         var iobCounts = new Dictionary<string, Dictionary<string, object>>();
 
