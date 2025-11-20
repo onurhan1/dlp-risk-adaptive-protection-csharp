@@ -17,36 +17,71 @@ public class DLPTestController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<DLPTestController> _logger;
-    private readonly HttpClient _httpClient;
+    private readonly DlpConfigurationService _dlpConfigService;
 
-    public DLPTestController(IConfiguration configuration, ILogger<DLPTestController> logger)
+    public DLPTestController(
+        IConfiguration configuration, 
+        ILogger<DLPTestController> logger,
+        DlpConfigurationService dlpConfigService)
     {
         _configuration = configuration;
         _logger = logger;
-        
-        var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
-        var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
-        var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
-        var timeout = _configuration.GetValue<int>("DLP:Timeout", 30);
-        
-        var handler = new HttpClientHandler
+        _dlpConfigService = dlpConfigService;
+    }
+
+    /// <summary>
+    /// Create HttpClient dynamically from database configuration
+    /// </summary>
+    private async Task<HttpClient> CreateHttpClientAsync()
+    {
+        try
         {
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-        };
-        
-        var baseUrl = useHttps 
-            ? $"https://{dlpIp}:{dlpPort}"
-            : $"http://{dlpIp}:{dlpPort}";
-        
-        // Log configuration for debugging
-        _logger.LogInformation("DLP API Configuration - IP: {IP}, Port: {Port}, UseHttps: {UseHttps}, BaseUrl: {BaseUrl}", 
-            dlpIp, dlpPort, useHttps, baseUrl);
+            // Get DLP settings from database (with sensitive data)
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
             
-        _httpClient = new HttpClient(handler)
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
+            
+            var baseUrl = config.UseHttps 
+                ? $"https://{config.ManagerIp}:{config.ManagerPort}"
+                : $"http://{config.ManagerIp}:{config.ManagerPort}";
+            
+            _logger.LogInformation("DLP API Configuration (from DB) - IP: {IP}, Port: {Port}, UseHttps: {UseHttps}, BaseUrl: {BaseUrl}", 
+                config.ManagerIp, config.ManagerPort, config.UseHttps, baseUrl);
+                
+            return new HttpClient(handler)
+            {
+                BaseAddress = new Uri(baseUrl),
+                Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds)
+            };
+        }
+        catch (Exception ex)
         {
-            BaseAddress = new Uri(baseUrl),
-            Timeout = TimeSpan.FromSeconds(timeout)
-        };
+            _logger.LogWarning(ex, "Failed to load DLP config from database, falling back to appsettings.json");
+            
+            // Fallback to appsettings.json if database config not available
+            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
+            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
+            var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
+            var timeout = _configuration.GetValue<int>("DLP:Timeout", 30);
+            
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
+            
+            var baseUrl = useHttps 
+                ? $"https://{dlpIp}:{dlpPort}"
+                : $"http://{dlpIp}:{dlpPort}";
+            
+            return new HttpClient(handler)
+            {
+                BaseAddress = new Uri(baseUrl),
+                Timeout = TimeSpan.FromSeconds(timeout)
+            };
+        }
     }
 
     /// <summary>
@@ -56,25 +91,26 @@ public class DLPTestController : ControllerBase
     [HttpPost("auth")]
     public async Task<ActionResult<Dictionary<string, object>>> TestAuthentication()
     {
+        HttpClient? httpClient = null;
         try
         {
-            var username = _configuration["DLP:Username"] ?? "";
-            var password = _configuration["DLP:Password"] ?? "";
-            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
-            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
+            // Get DLP settings from database
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            httpClient = await CreateHttpClientAsync();
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(config.Username) || string.IsNullOrEmpty(config.Password))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "DLP Username or Password not configured in appsettings.json",
+                    message = "DLP Username or Password not configured. Please configure DLP settings via UI (Settings → DLP API Configuration) or appsettings.json",
                     config = new
                     {
-                        managerIP = dlpIp,
-                        managerPort = dlpPort,
-                        usernameConfigured = !string.IsNullOrEmpty(username),
-                        passwordConfigured = !string.IsNullOrEmpty(password)
+                        managerIP = config.ManagerIp,
+                        managerPort = config.ManagerPort,
+                        usernameConfigured = !string.IsNullOrEmpty(config.Username),
+                        passwordConfigured = !string.IsNullOrEmpty(config.Password),
+                        source = "database"
                     }
                 });
             }
@@ -83,22 +119,22 @@ public class DLPTestController : ControllerBase
             // Note: Some DLP versions (8.9-9.0) expect username/password in headers, not body
             // Postman works with headers, so we'll use header-based authentication
             
-            var actualBaseUrl = _httpClient.BaseAddress?.ToString();
+            var actualBaseUrl = httpClient.BaseAddress?.ToString();
             var actualUseHttps = actualBaseUrl?.StartsWith("https://") == true;
             
-            _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", _httpClient.BaseAddress);
+            _logger.LogInformation("Testing DLP API authentication to {BaseAddress}", httpClient.BaseAddress);
             _logger.LogInformation("Actual Base URL: {BaseUrl}, Is HTTPS: {IsHttps}", actualBaseUrl, actualUseHttps);
             _logger.LogInformation("Using header-based authentication (username/password in headers)");
             
             // Create request with username/password in headers (matching Postman format)
             var request = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/auth/access-token");
-            request.Headers.Add("username", username);
-            request.Headers.Add("password", password);
+            request.Headers.Add("username", config.Username);
+            request.Headers.Add("password", config.Password);
             
             // Log request details
-            _logger.LogDebug("Request URL: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
+            _logger.LogDebug("Request URL: {BaseAddress}/dlp/rest/v1/auth/access-token", httpClient.BaseAddress);
             _logger.LogDebug("Request Method: POST");
-            _logger.LogDebug("Username header: {Username}", username);
+            _logger.LogDebug("Username header: {Username}", config.Username);
             _logger.LogDebug("Password header: [REDACTED]");
             
             // Log all request headers
@@ -115,14 +151,14 @@ public class DLPTestController : ControllerBase
                 }
             }
             
-            var response = await _httpClient.SendAsync(request);
+            var response = await httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 _logger.LogError("DLP API authentication failed. Status: {Status}, Response: {Response}",
                     response.StatusCode, errorContent);
-                _logger.LogError("Request URL was: {BaseAddress}/dlp/rest/v1/auth/access-token", _httpClient.BaseAddress);
+                _logger.LogError("Request URL was: {BaseAddress}/dlp/rest/v1/auth/access-token", httpClient.BaseAddress);
                 _logger.LogError("Authentication method: Header-based (username/password in headers)");
 
                 // Extract error message from HTML if possible
@@ -159,18 +195,20 @@ public class DLPTestController : ControllerBase
                                 : string.Join(", ", h.Value)),
                         responseHeaders = response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
                         actualBaseUrl = actualBaseUrl,
-                        httpClientBaseAddress = _httpClient.BaseAddress?.ToString(),
+                        httpClientBaseAddress = httpClient.BaseAddress?.ToString(),
                         useHttps = actualUseHttps,
-                        configUseHttps = _configuration.GetValue<bool>("DLP:UseHttps", true)
+                        configUseHttps = config.UseHttps
                     },
                     config = new
                     {
-                        baseUrl = _httpClient.BaseAddress?.ToString(),
-                        managerIP = dlpIp,
-                        managerPort = dlpPort,
-                        useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true),
-                        username = username,
-                        troubleshooting = new
+                        baseUrl = httpClient.BaseAddress?.ToString(),
+                        managerIP = config.ManagerIp,
+                        managerPort = config.ManagerPort,
+                        useHttps = config.UseHttps,
+                        username = config.Username,
+                        source = "database"
+                    },
+                    troubleshooting = new
                         {
                             check1 = "Verify username and password are correct (test in Postman first)",
                             check2 = "Verify user is Application Administrator type in Forcepoint DLP Manager (not regular Administrator)",
@@ -181,7 +219,6 @@ public class DLPTestController : ControllerBase
                             check7 = "Check Forcepoint DLP Manager logs for detailed authentication failure reason",
                             note = "If Postman works but code doesn't, compare exact request headers and body format"
                         }
-                    }
                 });
             }
 
@@ -220,10 +257,11 @@ public class DLPTestController : ControllerBase
                 tokenLength = accessToken.Length,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString(),
-                    managerIP = dlpIp,
-                    managerPort = dlpPort,
-                    username = username
+                    baseUrl = httpClient.BaseAddress?.ToString(),
+                    managerIP = config.ManagerIp,
+                    managerPort = config.ManagerPort,
+                    username = config.Username,
+                    source = "database"
                 },
                 rawResponse = tokenResponse
             });
@@ -238,8 +276,8 @@ public class DLPTestController : ControllerBase
                 error = ex.Message,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString(),
-                    timeout = _httpClient.Timeout.TotalSeconds
+                    baseUrl = httpClient?.BaseAddress?.ToString(),
+                    timeout = httpClient?.Timeout.TotalSeconds
                 }
             });
         }
@@ -253,7 +291,7 @@ public class DLPTestController : ControllerBase
                 error = ex.Message,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString()
+                    baseUrl = httpClient?.BaseAddress?.ToString()
                 }
             });
         }
@@ -268,6 +306,10 @@ public class DLPTestController : ControllerBase
                 stackTrace = ex.StackTrace
             });
         }
+        finally
+        {
+            httpClient?.Dispose();
+        }
     }
 
     /// <summary>
@@ -277,19 +319,20 @@ public class DLPTestController : ControllerBase
     [HttpGet("connection")]
     public async Task<ActionResult<Dictionary<string, object>>> TestConnection()
     {
+        HttpClient? httpClient = null;
         try
         {
-            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
-            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
-            var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
-            var baseUrl = useHttps
-                ? $"https://{dlpIp}:{dlpPort}"
-                : $"http://{dlpIp}:{dlpPort}";
+            var config = await _dlpConfigService.GetAsync();
+            httpClient = await CreateHttpClientAsync();
+            
+            var baseUrl = config.UseHttps
+                ? $"https://{config.ManagerIp}:{config.ManagerPort}"
+                : $"http://{config.ManagerIp}:{config.ManagerPort}";
 
             _logger.LogInformation("Testing DLP API connection to {BaseUrl}", baseUrl);
 
             // Try to connect to a simple endpoint (health check if available, or just test connection)
-            var response = await _httpClient.GetAsync("/");
+            var response = await httpClient.GetAsync("/");
 
             return Ok(new
             {
@@ -300,9 +343,10 @@ public class DLPTestController : ControllerBase
                 config = new
                 {
                     baseUrl = baseUrl,
-                    managerIP = dlpIp,
-                    managerPort = dlpPort,
-                    useHttps = useHttps
+                    managerIP = config.ManagerIp,
+                    managerPort = config.ManagerPort,
+                    useHttps = config.UseHttps,
+                    source = "database"
                 }
             });
         }
@@ -316,7 +360,7 @@ public class DLPTestController : ControllerBase
                 error = ex.Message,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString()
+                    baseUrl = httpClient?.BaseAddress?.ToString()
                 }
             });
         }
@@ -330,7 +374,7 @@ public class DLPTestController : ControllerBase
                 error = ex.Message,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString()
+                    baseUrl = httpClient?.BaseAddress?.ToString()
                 }
             });
         }
@@ -344,6 +388,10 @@ public class DLPTestController : ControllerBase
                 error = ex.Message
             });
         }
+        finally
+        {
+            httpClient?.Dispose();
+        }
     }
 
     /// <summary>
@@ -353,27 +401,28 @@ public class DLPTestController : ControllerBase
     [HttpPost("incidents")]
     public async Task<ActionResult<Dictionary<string, object>>> TestFetchIncidents([FromQuery] int hours = 24)
     {
+        HttpClient? httpClient = null;
         try
         {
-            // Step 1: Authenticate
-            var username = _configuration["DLP:Username"] ?? "";
-            var password = _configuration["DLP:Password"] ?? "";
+            // Get DLP settings from database
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            httpClient = await CreateHttpClientAsync();
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(config.Username) || string.IsNullOrEmpty(config.Password))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "DLP Username or Password not configured"
+                    message = "DLP Username or Password not configured. Please configure DLP settings via UI (Settings → DLP API Configuration) or appsettings.json"
                 });
             }
 
             // Use header-based authentication (matching Postman format)
             var authRequest = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/auth/access-token");
-            authRequest.Headers.Add("username", username);
-            authRequest.Headers.Add("password", password);
+            authRequest.Headers.Add("username", config.Username);
+            authRequest.Headers.Add("password", config.Password);
 
-            var authResponse = await _httpClient.SendAsync(authRequest);
+            var authResponse = await httpClient.SendAsync(authRequest);
             
             if (!authResponse.IsSuccessStatusCode)
             {
@@ -441,7 +490,7 @@ public class DLPTestController : ControllerBase
             HttpResponseMessage incidentsResponse;
             try
             {
-                incidentsResponse = await _httpClient.SendAsync(request);
+                incidentsResponse = await httpClient.SendAsync(request);
             }
             catch (Exception ex)
             {
@@ -492,7 +541,8 @@ public class DLPTestController : ControllerBase
                 requestBody = requestBody,
                 config = new
                 {
-                    baseUrl = _httpClient.BaseAddress?.ToString()
+                    baseUrl = httpClient?.BaseAddress?.ToString(),
+                    source = "database"
                 }
             });
         }
@@ -506,6 +556,10 @@ public class DLPTestController : ControllerBase
                 error = ex.Message
             });
         }
+        finally
+        {
+            httpClient?.Dispose();
+        }
     }
 
     /// <summary>
@@ -513,35 +567,70 @@ public class DLPTestController : ControllerBase
     /// GET /api/dlptest/config
     /// </summary>
     [HttpGet("config")]
-    public ActionResult<Dictionary<string, object>> GetConfig()
+    public async Task<ActionResult<Dictionary<string, object>>> GetConfig()
     {
-        var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
-        var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
-        var username = _configuration["DLP:Username"] ?? "";
-        var password = _configuration["DLP:Password"] ?? "";
-        var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
-        var timeout = _configuration.GetValue<int>("DLP:Timeout", 30);
-
-        var baseUrl = useHttps
-            ? $"https://{dlpIp}:{dlpPort}"
-            : $"http://{dlpIp}:{dlpPort}";
-
-        return Ok(new
+        try
         {
-            config = new
+            // Try to get config from database first
+            var config = await _dlpConfigService.GetAsync();
+            var baseUrl = config.UseHttps
+                ? $"https://{config.ManagerIp}:{config.ManagerPort}"
+                : $"http://{config.ManagerIp}:{config.ManagerPort}";
+
+            return Ok(new
             {
-                managerIP = dlpIp,
-                managerPort = dlpPort,
-                useHttps = useHttps,
-                timeout = timeout,
-                baseUrl = baseUrl,
-                usernameConfigured = !string.IsNullOrEmpty(username),
-                passwordConfigured = !string.IsNullOrEmpty(password),
-                username = username.Length > 0 ? username.Substring(0, Math.Min(3, username.Length)) + "***" : "not configured",
-                password = password.Length > 0 ? "***" : "not configured"
-            },
-            note = "This endpoint shows configuration without exposing sensitive data"
-        });
+                config = new
+                {
+                    managerIP = config.ManagerIp,
+                    managerPort = config.ManagerPort,
+                    useHttps = config.UseHttps,
+                    timeout = config.TimeoutSeconds,
+                    baseUrl = baseUrl,
+                    usernameConfigured = !string.IsNullOrEmpty(config.Username),
+                    passwordConfigured = config.PasswordSet,
+                    username = config.Username.Length > 0 ? config.Username.Substring(0, Math.Min(3, config.Username.Length)) + "***" : "not configured",
+                    password = config.PasswordSet ? "***" : "not configured",
+                    updatedAt = config.UpdatedAt,
+                    source = "database"
+                },
+                note = "This endpoint shows configuration from database (UI settings). If not configured, falls back to appsettings.json."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load config from database, falling back to appsettings.json");
+            
+            // Fallback to appsettings.json
+            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
+            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
+            var username = _configuration["DLP:Username"] ?? "";
+            var password = _configuration["DLP:Password"] ?? "";
+            var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
+            var timeout = _configuration.GetValue<int>("DLP:Timeout", 30);
+
+            var baseUrl = useHttps
+                ? $"https://{dlpIp}:{dlpPort}"
+                : $"http://{dlpIp}:{dlpPort}";
+
+            return Ok(new
+            {
+                config = new
+                {
+                    managerIP = dlpIp,
+                    managerPort = dlpPort,
+                    useHttps = useHttps,
+                    timeout = timeout,
+                    baseUrl = baseUrl,
+                    usernameConfigured = !string.IsNullOrEmpty(username),
+                    passwordConfigured = !string.IsNullOrEmpty(password),
+                    username = username.Length > 0 ? username.Substring(0, Math.Min(3, username.Length)) + "***" : "not configured",
+                    password = password.Length > 0 ? "***" : "not configured",
+                    source = "appsettings.json"
+                },
+                note = "This endpoint shows configuration from appsettings.json (fallback). Configure via UI (Settings → DLP API Configuration) to use database settings.",
+                warning = "Database configuration not available. Using appsettings.json as fallback."
+            });
+        }
     }
 }
 
