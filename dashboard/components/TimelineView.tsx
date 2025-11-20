@@ -227,7 +227,14 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
             <h4>{userEmail}</h4>
             <span className="user-title">User Profile</span>
           </div>
-          <button className="insights-btn">
+          <button 
+            className="insights-btn"
+            onClick={() => {
+              if (userEmail) {
+                window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(userEmail)}`
+              }
+            }}
+          >
             <span>📊</span> User Insights
           </button>
         </div>

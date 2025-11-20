@@ -248,26 +248,32 @@ export default function InvestigationTimeline({
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{userInfo.title}</p>
               </div>
             </div>
-            <button style={{
-              padding: '6px 12px',
-              background: 'rgba(0, 168, 232, 0.1)',
-              color: 'var(--primary)',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: '500',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
-            }}
+            <button 
+              onClick={() => {
+                if (userEmail) {
+                  window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(userEmail)}`
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                background: 'rgba(0, 168, 232, 0.1)',
+                color: 'var(--primary)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+              }}
             >
               <span>📊</span>
               User Insights
