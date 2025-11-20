@@ -62,15 +62,7 @@ public class LogsController : ControllerBase
         try
         {
             // Get distinct event types from audit logs
-            var eventTypes = await _auditLogService.GetAuditLogsAsync(
-                null, null, null, null, 1, 10000, cancellationToken);
-
-            var distinctTypes = eventTypes
-                .Select(l => l.EventType)
-                .Distinct()
-                .OrderBy(t => t)
-                .ToList();
-
+            var distinctTypes = await _auditLogService.GetDistinctEventTypesAsync(cancellationToken);
             return Ok(distinctTypes);
         }
         catch (Exception ex)
@@ -81,7 +73,7 @@ public class LogsController : ControllerBase
     }
 
     [HttpGet("application")]
-    public async Task<ActionResult<ApplicationLogsResponse>> GetApplicationLogs(
+    public Task<ActionResult<ApplicationLogsResponse>> GetApplicationLogs(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] string? level,
@@ -94,7 +86,7 @@ public class LogsController : ControllerBase
         {
             // For now, return a message that application logs are read from log files
             // In production, you might want to read from a log file or database
-            return Ok(new ApplicationLogsResponse
+            var response = new ApplicationLogsResponse
             {
                 Message = "Application logs are available in log files. For Splunk integration, logs are automatically sent to Splunk when configured.",
                 Logs = new List<ApplicationLogEntry>(),
@@ -102,12 +94,14 @@ public class LogsController : ControllerBase
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = 0
-            });
+            };
+            return Task.FromResult<ActionResult<ApplicationLogsResponse>>(Ok(response));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching application logs");
-            return StatusCode(500, new { detail = "An error occurred while fetching application logs" });
+            return Task.FromResult<ActionResult<ApplicationLogsResponse>>(
+                StatusCode(500, new { detail = "An error occurred while fetching application logs" }));
         }
     }
 }
