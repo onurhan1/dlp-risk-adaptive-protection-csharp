@@ -273,21 +273,72 @@ docker run -d `
 
 **Not**: Production için Docker Compose kullanmanız önerilir (projede `docker-compose.yml` mevcut).
 
-### 5. Node.js 20+ Kurulumu (Dashboard için)
+### 5. Node.js 20.9.0+ Kurulumu (Dashboard için)
 
-> Next.js 16 üretim için Node.js 18.18+ gerektirir. Windows Server ortamında uzun süreli destek için Node.js 20 LTS önerilir.
+> ⚠️ **ÖNEMLİ**: Next.js 16 için Node.js **20.9.0 veya üzeri** gereklidir. Node.js 16.x veya 18.x versiyonları çalışmaz!
 
-1. Node.js LTS indirin: https://nodejs.org/
-2. **Windows Installer (.msi)** indirin (v20.x veya üzeri)
-3. Kurulumu tamamlayın
+#### Yöntem A: Node.js LTS İndirme ve Kurulum (Önerilen)
+
+1. **Node.js LTS** indirin: https://nodejs.org/
+   - **Windows Installer (.msi)** indirin (v20.9.0 veya üzeri LTS versiyonu)
+   - **Önerilen**: Node.js 20.x LTS (Long Term Support)
+2. İndirilen `.msi` dosyasını **Administrator olarak çalıştırın**
+3. Kurulum sihirbazını takip edin (varsayılan ayarlar yeterli)
 4. Kurulumu doğrulayın:
 
 ```powershell
+# PowerShell'i yeniden başlatın (PATH güncellemesi için)
 node --version
-# Beklenen: v20.x.x
+# Beklenen: v20.9.0 veya üzeri (örn: v20.11.0, v20.12.0)
+# ❌ v16.x.x veya v18.x.x ÇALIŞMAZ!
+
 npm --version
 # Beklenen: 10.x.x veya üzeri
 ```
+
+#### Yöntem B: Chocolatey ile Kurulum
+
+```powershell
+# Chocolatey ile Node.js LTS kurulumu
+choco install nodejs-lts -y
+
+# Kurulumu doğrulayın
+node --version
+npm --version
+```
+
+#### Yöntem C: Winget ile Kurulum
+
+```powershell
+# Winget ile Node.js LTS kurulumu
+winget install OpenJS.NodeJS.LTS
+
+# Kurulumu doğrulayın
+node --version
+npm --version
+```
+
+#### ⚠️ Hata: "Node.js 16.20.2. For Next.js, Node.js version >=20.9.0 is required"
+
+**Çözüm**:
+1. Eski Node.js versiyonunu kaldırın:
+   ```powershell
+   # Control Panel → Programs → Uninstall Node.js
+   # VEYA Chocolatey ile:
+   choco uninstall nodejs -y
+   ```
+2. Node.js 20.9.0+ kurun (yukarıdaki yöntemlerden biriyle)
+3. PowerShell'i **yeniden başlatın** (PATH güncellemesi için)
+4. Versiyonu tekrar kontrol edin:
+   ```powershell
+   node --version
+   # Beklenen: v20.9.0 veya üzeri
+   ```
+5. Dashboard'u tekrar başlatın:
+   ```powershell
+   cd "C:\DLP_RiskAnalyzer\dashboard"
+   npm run dev
+   ```
 
 ### 6. Git for Windows Kurulumu
 
@@ -1543,6 +1594,39 @@ Invoke-WebRequest -Uri "http://localhost:5001/health" -UseBasicParsing
 # CORS ayarlarını kontrol edin (Program.cs)
 # Dashboard URL'ini kontrol edin (dashboard/lib/api-config.ts)
 ```
+
+### Problem 8: Node.js Versiyon Hatası
+
+**Hata**: `You are using Node.js 16.20.2. For Next.js, Node.js version ">=20.9.0" is required.`
+
+**Çözüm**:
+```powershell
+# 1. Mevcut Node.js versiyonunu kontrol edin
+node --version
+# Eğer v16.x.x veya v18.x.x görüyorsanız, güncelleme gerekli
+
+# 2. Eski Node.js'i kaldırın
+# Control Panel → Programs → Uninstall Node.js
+# VEYA Chocolatey ile:
+choco uninstall nodejs -y
+
+# 3. Node.js 20.9.0+ kurun
+# https://nodejs.org/ adresinden LTS versiyonu indirin
+# VEYA Chocolatey ile:
+choco install nodejs-lts -y
+
+# 4. PowerShell'i YENİDEN BAŞLATIN (PATH güncellemesi için)
+
+# 5. Versiyonu tekrar kontrol edin
+node --version
+# Beklenen: v20.9.0 veya üzeri
+
+# 6. Dashboard'u tekrar başlatın
+cd "C:\DLP_RiskAnalyzer\dashboard"
+npm run dev
+```
+
+**Not**: Node.js kurulumundan sonra PowerShell'i mutlaka yeniden başlatın, aksi halde PATH güncellenmez ve eski versiyon kullanılmaya devam eder.
 
 ---
 
