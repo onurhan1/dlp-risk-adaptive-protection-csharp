@@ -196,12 +196,16 @@ app.Use(async (context, next) =>
 });
 
 // Swagger must be configured after UseRouting but before MapControllers
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// SECURITY: Only enable Swagger in Development environment
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
-    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
+        c.RoutePrefix = "swagger"; // Swagger UI at /swagger
+    });
+}
 
 // Root endpoint - return professional HTML landing page
 app.MapGet("/", () => Results.Content(@"
@@ -461,12 +465,16 @@ app.MapGet("/", () => Results.Content(@"
 app.MapControllers();
 
 // Swagger must be configured after MapControllers in minimal API
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// SECURITY: Only enable Swagger in Development environment
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
-    c.RoutePrefix = "swagger"; // Swagger UI at /swagger
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "DLP Risk Analyzer API v1");
+        c.RoutePrefix = "swagger"; // Swagger UI at /swagger
+    });
+}
 
 // Health check endpoint
 app.MapGet("/health", () =>

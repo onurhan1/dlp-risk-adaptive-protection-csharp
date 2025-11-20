@@ -10,9 +10,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
 /// <summary>
 /// DLP API Test Controller - Swagger üzerinden Forcepoint DLP API bağlantısını test etmek için
+/// SECURITY: This controller is only available in Development environment
 /// </summary>
+#if DEBUG
 [ApiController]
 [Route("api/[controller]")]
+#endif
 public class DLPTestController : ControllerBase
 {
     private readonly IConfiguration _configuration;
