@@ -132,12 +132,13 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
 
       <style jsx>{`
         .user-risk-list {
-          background: white;
+          background: var(--surface);
           border-radius: 8px;
           padding: 16px;
           height: 100%;
           display: flex;
           flex-direction: column;
+          color: var(--text-primary);
         }
 
         .header {
@@ -210,11 +211,12 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
 
         .pagination button {
           padding: 6px 12px;
-          border: 1px solid #ddd;
-          background: white;
+          border: 1px solid var(--border);
+          background: var(--surface);
           border-radius: 4px;
           cursor: pointer;
           font-size: 12px;
+          color: var(--text-primary);
         }
 
         .pagination button:disabled {

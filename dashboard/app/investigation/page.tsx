@@ -326,7 +326,7 @@ export default function InvestigationPage() {
             <div style={{ 
               margin: '16px',
               padding: '16px', 
-              background: 'white', 
+              background: 'var(--surface)', 
               borderRadius: '8px', 
               border: '1px solid var(--border)' 
             }}>

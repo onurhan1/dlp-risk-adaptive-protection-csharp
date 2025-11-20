@@ -174,13 +174,14 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         </div>
         <style jsx>{`
           .timeline-view.closed {
-            background: white;
+            background: var(--surface);
             border-radius: 8px;
             padding: 16px;
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: var(--text-primary);
           }
           .closed-message {
             text-align: center;
@@ -313,12 +314,13 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
       <style jsx>{`
         .timeline-view {
-          background: white;
+          background: var(--surface);
           border-radius: 8px;
           padding: 16px;
           height: 100%;
           display: flex;
           flex-direction: column;
+          color: var(--text-primary);
         }
 
         .timeline-header {
@@ -402,8 +404,8 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
         .filter-btn, .sort-btn {
           padding: 6px 12px;
-          background: white;
-          border: 1px solid #ddd;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 4px;
           cursor: pointer;
           transition: all 0.2s;
@@ -416,6 +418,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           -webkit-user-select: none;
           pointer-events: auto !important;
           touch-action: manipulation;
+          color: var(--text-primary);
         }
 
         .filter-btn:hover, .sort-btn:hover {

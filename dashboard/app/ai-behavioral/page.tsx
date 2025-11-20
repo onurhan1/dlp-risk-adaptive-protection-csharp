@@ -158,7 +158,8 @@ export default function AIBehavioralPage() {
                 padding: '8px 12px',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
-                background: 'white'
+                background: 'var(--surface)',
+                color: 'var(--text-primary)'
               }}
             >
               <option value={7}>7 days</option>
@@ -225,7 +226,7 @@ export default function AIBehavioralPage() {
                   key={idx}
                   style={{
                     padding: '16px',
-                    background: selectedEntity?.entityId === anomaly.entityId ? 'var(--primary)' : 'white',
+                    background: selectedEntity?.entityId === anomaly.entityId ? 'var(--primary)' : 'var(--surface)',
                     borderRadius: '8px',
                     border: `2px solid ${getAnomalyColor(anomaly.anomalyLevel)}`,
                     transition: 'all 0.2s'
@@ -329,13 +330,13 @@ export default function AIBehavioralPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
                 <div style={{ fontSize: '32px', fontWeight: '700', color: getRiskColor(selectedEntity.riskScore) }}>
                   {selectedEntity.riskScore}
                 </div>
               </div>
-              <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Anomaly Level</div>
                 <div style={{
                   fontSize: '20px',
@@ -345,7 +346,7 @@ export default function AIBehavioralPage() {
                   {selectedEntity.anomalyLevel.toUpperCase()}
                 </div>
               </div>
-              <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
                   {selectedEntity.referenceIncidentIds.length}
@@ -384,14 +385,14 @@ export default function AIBehavioralPage() {
 
             <div style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Explanation</h3>
-              <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 {selectedEntity.aiExplanation}
               </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Recommendation</h3>
-              <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 {selectedEntity.aiRecommendation}
               </div>
             </div>
@@ -399,7 +400,7 @@ export default function AIBehavioralPage() {
             {Object.keys(selectedEntity.analysisMetadata).length > 0 && (
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Analysis Metadata</h3>
-                <div style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <pre style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0, whiteSpace: 'pre-wrap' }}>
                     {JSON.stringify(selectedEntity.analysisMetadata, null, 2)}
                   </pre>

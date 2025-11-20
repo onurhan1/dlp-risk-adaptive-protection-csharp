@@ -31,11 +31,11 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         <p>Select an alert from the timeline to view details</p>
         <style jsx>{`
           .alert-details-empty {
-            background: white;
+            background: var(--surface);
             border-radius: 8px;
             padding: 40px;
             text-align: center;
-            color: #666;
+            color: var(--text-secondary);
           }
         `}</style>
       </div>
@@ -196,11 +196,12 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
       <style jsx>{`
         .alert-details {
-          background: white;
+          background: var(--surface);
           border-radius: 8px;
           padding: 16px;
           height: 100%;
           overflow-y: auto;
+          color: var(--text-primary);
         }
 
         .alert-header {

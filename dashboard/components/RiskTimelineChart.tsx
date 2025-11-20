@@ -197,9 +197,10 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
 
       <style jsx>{`
         .risk-timeline-chart {
-          background: white;
+          background: var(--surface);
           border-radius: 8px;
           padding: 20px;
+          color: var(--text-primary);
         }
 
         .chart-header {
