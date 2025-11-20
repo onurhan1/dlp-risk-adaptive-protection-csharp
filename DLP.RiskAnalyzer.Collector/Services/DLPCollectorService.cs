@@ -141,14 +141,16 @@ public class DLPCollectorService : IDisposable
             {
                 type = "INCIDENTS",
                 from_date = fromDate,
-                to_date = toDate
+                to_date = toDate,
+                start = (page - 1) * pageSize,  // Pagination: starting index (0-based)
+                limit = pageSize                // Pagination: number of records per page
             };
 
             var jsonBody = JsonConvert.SerializeObject(requestBody);
             var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
-            _logger.LogDebug("Fetching incidents from {BaseAddress}{Url} with body: {Body}", 
-                _httpClient.BaseAddress, incidentsUrl, jsonBody);
+            _logger.LogDebug("Fetching incidents from {BaseAddress}{Url} with body: {Body} (Page: {Page}, PageSize: {PageSize})", 
+                _httpClient.BaseAddress, incidentsUrl, jsonBody, page, pageSize);
 
             // Step 3: Create POST request with Bearer token authentication
             var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
@@ -213,8 +215,8 @@ public class DLPCollectorService : IDisposable
                 }
             }
 
-            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (Date range: {FromDate} to {ToDate})", 
-                incidents.Count, fromDate, toDate);
+            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (Date range: {FromDate} to {ToDate}, Page: {Page}, PageSize: {PageSize})", 
+                incidents.Count, fromDate, toDate, page, pageSize);
 
             return incidents;
         }

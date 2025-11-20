@@ -52,19 +52,47 @@ public class CollectorBackgroundService : BackgroundService
 
         try
         {
-            // Step 2: Fetch incidents from Forcepoint DLP API
+            // Step 2: Fetch incidents from Forcepoint DLP API with pagination
             // Authentication is handled automatically in FetchIncidentsAsync
             // According to Forcepoint DLP REST API v1:
             // 1. First authenticate: POST /dlp/rest/v1/auth/access-token
-            // 2. Then fetch incidents: GET /dlp/rest/v1/incidents?startTime=...&endTime=...
-            var incidents = await _collectorService.FetchIncidentsAsync(startTime, endTime);
-            _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API", incidents.Count);
+            // 2. Then fetch incidents: POST /dlp/rest/v1/incidents with pagination (start, limit)
+            
+            int page = 1;
+            int pageSize = 100; // Fetch 100 incidents per page
+            bool hasMore = true;
+            var allIncidents = new List<DLPIncident>();
+            
+            while (hasMore)
+            {
+                var incidents = await _collectorService.FetchIncidentsAsync(startTime, endTime, page, pageSize);
+                _logger.LogInformation("Fetched {Count} incidents from Forcepoint DLP API (Page: {Page}, PageSize: {PageSize})", 
+                    incidents.Count, page, pageSize);
+                
+                // Add incidents to collection
+                allIncidents.AddRange(incidents);
+                
+                // Check if there are more pages
+                // If we got fewer incidents than pageSize, we've reached the last page
+                hasMore = incidents.Count >= pageSize;
+                page++;
+                
+                // Safety limit: prevent infinite loops (max 1000 pages = 100,000 incidents)
+                if (page > 1000)
+                {
+                    _logger.LogWarning("Reached maximum page limit (1000 pages). Stopping pagination.");
+                    break;
+                }
+            }
+            
+            _logger.LogInformation("Total fetched {TotalCount} incidents from Forcepoint DLP API across {PageCount} pages", 
+                allIncidents.Count, page - 1);
 
-            // Step 3: Convert DLP API incidents to internal model and push to Redis
+            // Step 3: Push incidents to Redis
             var pushedCount = 0;
             var errorCount = 0;
             
-            foreach (var dlpIncident in incidents)
+            foreach (var dlpIncident in allIncidents)
             {
                 try
                 {
@@ -94,7 +122,7 @@ public class CollectorBackgroundService : BackgroundService
             }
 
             _logger.LogInformation("Successfully collected and pushed {PushedCount} incidents to Redis (Errors: {ErrorCount}, Total: {TotalCount})", 
-                pushedCount, errorCount, incidents.Count);
+                pushedCount, errorCount, allIncidents.Count);
         }
         catch (Exception ex)
         {
