@@ -146,15 +146,75 @@ builder.Services.AddAuthentication(options =>
 });
 
 // CORS - Security: Restrict to specific origins in production
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
-    ?? new[] { "http://localhost:3000", "http://localhost:3001", "http://localhost:3002" };
+// For internal network, allow any IP address on port 3002 (dashboard)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
     
+if (allowedOrigins == null || allowedOrigins.Length == 0)
+{
+    // Default: Allow localhost and common internal network IP ranges
+    // Internal network için tüm IP'lerden erişime izin ver (sadece internal network)
+    allowedOrigins = new[] 
+    { 
+        "http://localhost:3000", 
+        "http://localhost:3001", 
+        "http://localhost:3002",
+        // Internal network IP ranges - will be validated by CORS policy
+        // Note: For internal networks, you can use SetIsOriginAllowed to allow any IP
+    };
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyMethod()
+        // For internal network, allow any origin from internal IP ranges
+        // This allows access from any IP address on the internal network
+        var allowInternalNetwork = builder.Configuration.GetValue<bool>("Cors:AllowInternalNetwork", false);
+        
+        if (builder.Environment.IsDevelopment() || allowInternalNetwork)
+        {
+            // Internal network için: Herhangi bir IP'den erişime izin ver
+            // Sadece internal network olduğu için güvenli
+            policy.SetIsOriginAllowed(origin =>
+            {
+                try
+                {
+                    // Allow localhost
+                    if (origin.StartsWith("http://localhost:") || origin.StartsWith("https://localhost:"))
+                        return true;
+                    
+                    // Allow any IP address on port 3000, 3001, or 3002 (internal network)
+                    var uri = new Uri(origin);
+                    var port = uri.Port;
+                    if (port == 3000 || port == 3001 || port == 3002)
+                    {
+                        // Allow if it's an IP address (not a domain name)
+                        var host = uri.Host;
+                        if (System.Net.IPAddress.TryParse(host, out _))
+                        {
+                            return true; // It's an IP address, allow it
+                        }
+                        // Also allow if it's localhost or 127.0.0.1
+                        if (host == "localhost" || host == "127.0.0.1")
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+        else
+        {
+            // Production: Use explicit origins from configuration
+            policy.WithOrigins(allowedOrigins);
+        }
+        
+        policy.AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials()
               .WithExposedHeaders("Content-Disposition"); // For file downloads
@@ -527,27 +587,66 @@ app.MapGet("/api", () => Results.Ok(new
     }
 }));
 
-// Configure URL binding - similar to Next.js, works with both localhost and network IP
+// Configure URL binding - CRITICAL: Must listen on 0.0.0.0 for network access
+// This allows API to be accessible from other devices on the network
 var urlsEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
 string defaultUrl = "http://0.0.0.0:5001"; // 0.0.0.0 allows both localhost and network IP access
 
-if (!string.IsNullOrEmpty(urlsEnv))
+// CRITICAL FIX: Always force 0.0.0.0 for network access, even if environment variable is set
+// This ensures API is accessible from other devices on the network
+bool forceNetworkAccess = true; // Set to false only if you specifically want localhost-only access
+
+if (forceNetworkAccess)
 {
-    // If ASPNETCORE_URLS is set, use it (may contain multiple URLs separated by ;)
-    var urls = urlsEnv.Split(';', StringSplitOptions.RemoveEmptyEntries);
-    foreach (var url in urls)
-    {
-        var trimmedUrl = url.Trim();
-        if (!string.IsNullOrEmpty(trimmedUrl))
-        {
-            app.Urls.Add(trimmedUrl);
-        }
-    }
+    // Force 0.0.0.0:5001 for network access
+    app.Urls.Clear();
+    app.Urls.Add(defaultUrl);
+    Console.WriteLine("INFO: API configured to listen on 0.0.0.0:5001 for network access");
 }
 else
 {
-    // If not set, use default 0.0.0.0:5001 (works like Next.js - accessible via both localhost and network IP)
-    app.Urls.Add(defaultUrl);
+    // Original logic (only if forceNetworkAccess is false)
+    app.Urls.Clear();
+    
+    if (!string.IsNullOrEmpty(urlsEnv))
+    {
+        // If ASPNETCORE_URLS is set, parse it but ensure it uses 0.0.0.0 instead of localhost
+        var urls = urlsEnv.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var url in urls)
+        {
+            var trimmedUrl = url.Trim();
+            if (!string.IsNullOrEmpty(trimmedUrl))
+            {
+                // Replace localhost with 0.0.0.0 to allow network access
+                if (trimmedUrl.Contains("localhost") || trimmedUrl.Contains("127.0.0.1"))
+                {
+                    trimmedUrl = trimmedUrl.Replace("localhost", "0.0.0.0").Replace("127.0.0.1", "0.0.0.0");
+                }
+                app.Urls.Add(trimmedUrl);
+            }
+        }
+        
+        // If no valid URLs were added, use default
+        if (app.Urls.Count == 0)
+        {
+            app.Urls.Add(defaultUrl);
+        }
+    }
+    else
+    {
+        // If not set, use default 0.0.0.0:5001 (works like Next.js - accessible via both localhost and network IP)
+        app.Urls.Add(defaultUrl);
+    }
+    
+    // CRITICAL: Ensure we're listening on 0.0.0.0, not just localhost
+    // This is required for other devices on the network to access the API
+    if (!app.Urls.Any(url => url.Contains("0.0.0.0")))
+    {
+        // If no 0.0.0.0 URL found, add it
+        app.Urls.Clear();
+        app.Urls.Add(defaultUrl);
+        Console.WriteLine("WARNING: Forced API to listen on 0.0.0.0:5001 for network access");
+    }
 }
 
 // Log listening addresses

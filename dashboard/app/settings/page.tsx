@@ -225,7 +225,9 @@ const fetchEmailSettings = async () => {
         throw new Error(response.data.message || 'Failed to save settings')
       }
     } catch (error: any) {
-      console.error('Error saving settings:', error)
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error saving settings:', error)
+      }
       let errorMessage = 'Failed to save settings'
       
       if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {

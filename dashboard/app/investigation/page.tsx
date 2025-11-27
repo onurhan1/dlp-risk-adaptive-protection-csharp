@@ -59,7 +59,9 @@ export default function InvestigationPage() {
       })
       setAiAnalysis(response.data)
     } catch (error: any) {
-      console.error('Error fetching AI analysis:', error)
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error fetching AI analysis:', error)
+      }
       // Silently fail - AI analysis is optional
       setAiAnalysis(null)
     } finally {
@@ -68,41 +70,70 @@ export default function InvestigationPage() {
   }
 
   const handleEventSelect = (event: TimelineEvent) => {
+    // Extract IOB number from IOBs array if available (from API)
+    const iobNumber = (event as any).iobs && Array.isArray((event as any).iobs) && (event as any).iobs.length > 0
+      ? (event as any).iobs[0].replace('IOB-', '').replace('IoB-', '')
+      : event.iob_number || '904'
+    
+    // Use DataType from API if available, otherwise infer from tags
+    const dataType = (event as any).dataType || event.alert_type
+    const classification = dataType 
+      ? (dataType === 'PII' || dataType === 'PCI' || dataType === 'CCN' ? [dataType] : [])
+      : (event.tags.includes('Data exfiltration')
+        ? ['PCI', 'CCN', 'PII']
+        : event.classification || [])
+    
+    // Use IOBs from API if available, otherwise create default
+    const matchedRules = (event as any).iobs && Array.isArray((event as any).iobs) && (event as any).iobs.length > 0
+      ? (event as any).iobs.map((iob: string) => `NEO ${iob} ${event.description}`)
+      : event.matched_rules || [`NEO IoB-${iobNumber} ${event.description}`]
+    
     // Enrich event with additional details from API or defaults
     const enrichedEvent: TimelineEvent = {
       ...event,
       destination: event.channel === 'Email' ? 'gmail.com' : event.destination,
-      classification: event.tags.includes('Data exfiltration')
-        ? ['PCI', 'CCN', 'PII']
-        : event.classification || [],
-      matched_rules: event.matched_rules || [`NEO IoB-502 ${event.description}`],
+      classification: classification,
+      matched_rules: matchedRules,
       source_application: event.channel === 'Email' ? 'outlook.exe' : event.source_application,
       email_subject: event.channel === 'Email' ? 'backup customer list' : event.email_subject,
       recipients: event.channel === 'Email' ? 'fabianoCese@gmail.com' : event.recipients,
-      iob_number: event.iob_number || '904',
+      iob_number: iobNumber,
       files: event.files || [
         {
           name: 'Top 100.pdf',
           size: '12MB',
           protected: true,
-          classification: []
+          classification: classification.length > 0 ? classification : []
         },
         {
           name: 'Customer list.csv',
           size: '1MB',
           protected: true,
-          classification: ['CCN', 'PII']
+          classification: classification.length > 0 ? classification : ['CCN', 'PII']
         },
         {
           name: 'QBR 0122.pptx',
           size: '5MB',
           protected: true,
-          classification: ['PCI', 'CCN']
+          classification: classification.length > 0 ? classification : ['PCI', 'CCN']
         }
       ]
     }
     setSelectedEvent(enrichedEvent)
   }
+
+  // Handle automatic selection of first event when timeline loads
+  const handleEventsLoaded = (events: TimelineEvent[]) => {
+    // Only auto-select if no event is currently selected
+    if (!selectedEvent && events.length > 0) {
+      handleEventSelect(events[0])
+    }
+  }
+
+  // Reset selected event when user changes
+  useEffect(() => {
+    setSelectedEvent(undefined)
+  }, [selectedUser])
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)' }}>
@@ -405,6 +436,7 @@ export default function InvestigationPage() {
             userRiskScore={selectedUserRiskScore}
             onEventSelect={handleEventSelect}
             selectedEventId={selectedEvent?.id}
+            onEventsLoaded={handleEventsLoaded}
           />
         </div>
 

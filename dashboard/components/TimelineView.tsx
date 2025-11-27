@@ -63,7 +63,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       
       setEvents(timelineEvents)
     } catch (error) {
-      console.error('Error fetching timeline:', error)
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error fetching timeline:', error)
+      }
     } finally {
       setLoading(false)
     }
@@ -116,9 +118,10 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       e.preventDefault()
       e.stopPropagation()
     }
-    console.log('Filter clicked, current:', filterActive)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Filter clicked, current:', filterActive)
+    }
     setFilterActive(!filterActive)
-    console.log('Filter active set to:', !filterActive)
   }
 
   const handleSortClick = (e?: React.MouseEvent | React.KeyboardEvent) => {
@@ -127,7 +130,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       e.stopPropagation()
     }
     const newOrder = sortOrder === 'desc' ? 'asc' : 'desc'
-    console.log('Sort clicked, current:', sortOrder, 'new:', newOrder)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Sort clicked, current:', sortOrder, 'new:', newOrder)
+    }
     setSortOrder(newOrder)
   }
 
@@ -136,7 +141,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       e.preventDefault()
       e.stopPropagation()
     }
-    console.log('Timeline close clicked')
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Timeline close clicked')
+    }
     setIsClosed(true)
     setEvents([])
   }

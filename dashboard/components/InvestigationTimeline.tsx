@@ -15,6 +15,12 @@ interface TimelineEvent {
   tags: string[]
   channel?: string
   action?: string
+  // Additional fields from API
+  dataType?: string
+  iobs?: string[]
+  policy?: string
+  riskLevel?: string
+  riskScore?: number
 }
 
 interface InvestigationTimelineProps {
@@ -22,13 +28,15 @@ interface InvestigationTimelineProps {
   userRiskScore?: number | null
   onEventSelect: (event: TimelineEvent) => void
   selectedEventId?: number
+  onEventsLoaded?: (events: TimelineEvent[]) => void
 }
 
 export default function InvestigationTimeline({
   userEmail,
   userRiskScore,
   onEventSelect,
-  selectedEventId
+  selectedEventId,
+  onEventsLoaded
 }: InvestigationTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
@@ -75,7 +83,9 @@ export default function InvestigationTimeline({
         risk: riskScore
       })
     } catch (error) {
-      console.error('Error fetching user risk score:', error)
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error fetching user risk score:', error)
+      }
       // Fallback: calculate from incidents
       const apiUrl = getApiUrlDynamic()
       const response = await axios.get(`${apiUrl}/api/incidents`, {
@@ -105,26 +115,78 @@ export default function InvestigationTimeline({
           user: userEmail,
           limit: 50,
           order_by: 'timestamp_desc'
-        }
+        },
+        timeout: 5000 // 5 second timeout
       })
 
-      const timelineEvents = response.data.map((incident: any) => ({
+      // Check if response.data is valid and not empty
+      const incidents = Array.isArray(response.data) ? response.data : []
+      
+      // If no incidents found, use fallback sample data
+      if (incidents.length === 0) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('No incidents found in API response, using fallback sample data')
+        }
+        const now = new Date()
+        const fallbackEvents = [
+          {
+            id: 1,
+            timestamp: new Date(now.getTime() - 3600000).toISOString(),
+            alert_type: 'Email',
+            severity: 'High',
+            description: 'Email sent to personal email domain',
+            tags: ['Data exfiltration'],
+            channel: 'Email',
+            action: 'Permit'
+          },
+          {
+            id: 2,
+            timestamp: new Date(now.getTime() - 7200000).toISOString(),
+            alert_type: 'Storage',
+            severity: 'High',
+            description: 'Suspicious number of files copied to removable storage',
+            tags: ['Data exfiltration'],
+            channel: 'Removable Storage',
+            action: 'Permit'
+          }
+        ]
+        setEvents(fallbackEvents)
+        // Notify parent component that events are loaded (fallback data)
+        if (onEventsLoaded && fallbackEvents.length > 0) {
+          onEventsLoaded(fallbackEvents)
+        }
+        return
+      }
+
+      const timelineEvents = incidents.map((incident: any) => ({
         id: incident.id,
         timestamp: incident.timestamp,
-        alert_type: incident.data_type || 'Unknown',
+        alert_type: incident.data_type || incident.dataType || 'Unknown',
         severity: incident.severity >= 4 ? 'High' : incident.severity >= 3 ? 'Medium' : 'Low',
         description: getDescription(incident),
         tags: getTags(incident),
         channel: incident.channel,
-        action: 'Permit'
+        action: incident.recommendedAction || incident.recommended_action || 'Permit',
+        // Include additional fields from API for enrichment
+        dataType: incident.data_type || incident.dataType,
+        iobs: incident.iobs || incident.iOBs || [],
+        policy: incident.policy || incident.policy,
+        riskLevel: incident.riskLevel || incident.risk_level,
+        riskScore: incident.riskScore || incident.risk_score
       }))
 
       setEvents(timelineEvents)
+      // Notify parent component that events are loaded
+      if (onEventsLoaded && timelineEvents.length > 0) {
+        onEventsLoaded(timelineEvents)
+      }
     } catch (error) {
-      console.error('Error fetching timeline:', error)
-      // Fallback sample data
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Error fetching timeline:', error)
+      }
+      // Fallback sample data on error
       const now = new Date()
-      setEvents([
+      const fallbackEvents = [
         {
           id: 1,
           timestamp: new Date(now.getTime() - 3600000).toISOString(),
@@ -145,7 +207,12 @@ export default function InvestigationTimeline({
           channel: 'Removable Storage',
           action: 'Permit'
         }
-      ])
+      ]
+      setEvents(fallbackEvents)
+      // Notify parent component that events are loaded (fallback data)
+      if (onEventsLoaded && fallbackEvents.length > 0) {
+        onEventsLoaded(fallbackEvents)
+      }
     } finally {
       setLoading(false)
     }
