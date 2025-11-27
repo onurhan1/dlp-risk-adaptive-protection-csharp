@@ -1,12 +1,22 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 
 export default function Navigation() {
+  const [mounted, setMounted] = useState(false)
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return null
+  }
 
   return (
     <nav className="main-header">
