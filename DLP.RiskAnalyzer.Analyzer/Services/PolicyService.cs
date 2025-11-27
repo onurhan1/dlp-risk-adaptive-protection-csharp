@@ -90,17 +90,29 @@ public class PolicyService
 
     /// <summary>
     /// Fetch all policies from Forcepoint DLP API
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/policies
     /// </summary>
     public async Task<List<Dictionary<string, object>>> FetchPoliciesAsync()
     {
         var token = await GetAccessTokenAsync();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        
+        // Forcepoint DLP API uses POST for all operations
+        var request = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/policies");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        
+        // Some DLP API versions may require a body, even if empty
+        var requestBody = new { type = "POLICIES" };
+        var jsonBody = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+        request.Content = content;
 
-        var response = await _httpClient.GetAsync("/dlp/rest/v1/policies");
+        var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
-        var content = await response.Content.ReadAsStringAsync();
-        var policies = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(content) 
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var policies = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(responseContent) 
             ?? new List<Dictionary<string, object>>();
 
         return policies;
@@ -108,17 +120,29 @@ public class PolicyService
 
     /// <summary>
     /// Fetch a specific policy by ID
+    /// According to Forcepoint DLP REST API v1 documentation:
+    /// POST https://<DLP Manager IP>:<DLP Manager port>/dlp/rest/v1/policies/{policyId}
     /// </summary>
     public async Task<Dictionary<string, object>> FetchPolicyAsync(string policyId)
     {
         var token = await GetAccessTokenAsync();
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        
+        // Forcepoint DLP API uses POST for all operations
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/dlp/rest/v1/policies/{policyId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        
+        // Some DLP API versions may require a body with policy ID
+        var requestBody = new { policy_id = policyId };
+        var jsonBody = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+        request.Content = content;
 
-        var response = await _httpClient.GetAsync($"/dlp/rest/v1/policies/{policyId}");
+        var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
-        var content = await response.Content.ReadAsStringAsync();
-        var policy = JsonSerializer.Deserialize<Dictionary<string, object>>(content)
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var policy = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
             ?? new Dictionary<string, object>();
 
         return policy;
