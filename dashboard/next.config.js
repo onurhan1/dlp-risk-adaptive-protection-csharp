@@ -9,6 +9,10 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['react-plotly.js', 'plotly.js'],
   },
+  // Ensure all dependencies are included in standalone build
+  outputFileTracingIncludes: {
+    '/': ['./node_modules/react-plotly.js/**/*', './node_modules/plotly.js/**/*'],
+  },
 }
 
 module.exports = nextConfig
