@@ -257,25 +257,50 @@ public class DlpConfigurationService
 
     private async Task UpsertSettingAsync(string key, string value, CancellationToken cancellationToken)
     {
-        var entity = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == key, cancellationToken);
+        // Clear change tracker to avoid conflicts
+        _context.ChangeTracker.Clear();
+        
+        // Use AsNoTracking to avoid change tracker conflicts
+        var entity = await _context.SystemSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Key == key, cancellationToken);
+            
         if (entity == null)
         {
-            entity = new SystemSetting
+            // Add new setting
+            var newSetting = new SystemSetting
             {
                 Key = key,
                 Value = value,
                 UpdatedAt = DateTime.UtcNow
             };
-            _context.SystemSettings.Add(entity);
+            _context.SystemSettings.Add(newSetting);
+            _logger.LogInformation("Adding new DLP setting: {Key}", key);
         }
         else
         {
+            // Update existing setting - must use Update() to mark as modified
             entity.Value = value;
             entity.UpdatedAt = DateTime.UtcNow;
             _context.SystemSettings.Update(entity);
+            _logger.LogInformation("Updating existing DLP setting: {Key}", key);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            var savedCount = await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Saved DLP setting {Key}. Rows affected: {Count}", key, savedCount);
+            
+            if (savedCount == 0)
+            {
+                _logger.LogWarning("WARNING: SaveChangesAsync returned 0 rows affected for DLP setting {Key}!", key);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving DLP setting {Key} = {Value}", key, value?.Substring(0, Math.Min(10, value?.Length ?? 0)) ?? "null");
+            throw;
+        }
     }
 
     private async Task BroadcastConfigAsync(DlpConfigBroadcastMessage message, CancellationToken cancellationToken)
