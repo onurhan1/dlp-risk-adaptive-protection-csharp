@@ -36,15 +36,11 @@ export default function LoginPage() {
       
       // Normalize password: trim whitespace and remove any control characters
       // Also normalize for Windows Server compatibility (remove line endings)
-      let normalizedPassword = password.trim()
+      const normalizedPassword = password.trim()
         .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
         .replace(/\r\n/g, '') // Remove Windows line endings
         .replace(/\r/g, '')   // Remove carriage returns
         .replace(/\n/g, '');  // Remove line feeds
-      
-      // Ensure UTF-8 encoding
-      normalizedPassword = new TextEncoder().encode(normalizedPassword);
-      normalizedPassword = new TextDecoder('utf-8').decode(normalizedPassword);
       
       const response = await axios.post(`${apiUrl}/api/auth/login`, {
         username: username.trim(),
