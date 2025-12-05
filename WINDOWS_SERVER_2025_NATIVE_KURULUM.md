@@ -354,7 +354,55 @@ dotnet ef --version
 
 ## 🗄️ Veritabanı Yapılandırması
 
-### 1. Migration'ları Çalıştırma
+### 1. Veritabanı Oluşturma
+
+```powershell
+# PostgreSQL'e bağlanın
+$env:PGPASSWORD = "YourStrongPassword123!"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost
+```
+
+PostgreSQL komut satırında:
+
+```sql
+-- Database oluştur
+CREATE DATABASE dlp_analyzer;
+
+-- Çıkış
+\q
+```
+
+### 2. Migration'ları Çalıştırma
+
+**ÖNEMLİ:** Migration'lar **otomatik olarak** uygulama başlarken çalışır. Manuel migration yapmak istemiyorsanız bu adımı atlayabilirsiniz.
+
+#### Otomatik Migration (Varsayılan - Önerilen)
+
+Migration'lar uygulama başlarken otomatik olarak çalışır. `appsettings.json`'da:
+
+```json
+{
+  "Database": {
+    "AutoMigrate": true
+  }
+}
+```
+
+Uygulama ilk kez başlatıldığında migration'lar otomatik uygulanır.
+
+#### Manuel Migration (Opsiyonel)
+
+Eğer otomatik migration'ı devre dışı bırakmak isterseniz:
+
+```json
+{
+  "Database": {
+    "AutoMigrate": false
+  }
+}
+```
+
+Sonra manuel olarak migration'ları çalıştırın:
 
 ```powershell
 # Analyzer projesine gidin
@@ -375,7 +423,7 @@ Applying migration '20241117182303_AddAuditLogs'.
 Done.
 ```
 
-### 2. Veritabanı Bağlantı Testi
+### 3. Veritabanı Bağlantı Testi
 
 ```powershell
 # PostgreSQL'e bağlanın
@@ -383,13 +431,7 @@ $env:PGPASSWORD = "YourStrongPassword123!"
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d dlp_analyzer -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"
 ```
 
-### 3. System Settings Tablosunu Oluşturma (Eğer Gerekirse)
-
-```powershell
-# create_system_settings_table.sql dosyasını çalıştırın
-$env:PGPASSWORD = "YourStrongPassword123!"
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d dlp_analyzer -f "create_system_settings_table.sql"
-```
+**Not:** Migration'lar otomatik uygulandıysa, tablolar zaten oluşturulmuş olmalı.
 
 ---
 
@@ -404,17 +446,12 @@ $env:PGPASSWORD = "YourStrongPassword123!"
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=dlp_analyzer;Username=postgres;Password=YOUR_POSTGRES_PASSWORD"
   },
+  "Database": {
+    "AutoMigrate": true
+  },
   "Redis": {
     "Host": "localhost",
     "Port": 6379
-  },
-  "DLP": {
-    "ManagerIP": "YOUR_DLP_MANAGER_IP",
-    "ManagerPort": 8443,
-    "Username": "YOUR_DLP_USERNAME",
-    "Password": "YOUR_DLP_PASSWORD",
-    "UseHttps": true,
-    "Timeout": 30
   },
   "Reports": {
     "Directory": "reports"
@@ -471,9 +508,22 @@ $env:PGPASSWORD = "YourStrongPassword123!"
 
 **⚠️ Önemli Değişiklikler:**
 - `YOUR_POSTGRES_PASSWORD`: PostgreSQL şifrenizi yazın
-- `YOUR_DLP_MANAGER_IP`: Forcepoint DLP Manager IP adresini yazın
-- `YOUR_DLP_USERNAME`: Forcepoint DLP API kullanıcı adını yazın
-- `YOUR_DLP_PASSWORD`: Forcepoint DLP API şifresini yazın
+- `Database:AutoMigrate`: `true` (varsayılan) - Migration'lar otomatik uygulanır. `false` yaparak manuel migration yapabilirsiniz.
+- `InternalApi:SharedSecret`: Production'da değiştirin
+- `Jwt:SecretKey`: Production'da değiştirin
+
+**🔴 KRİTİK: DLP API Ayarları**
+
+**DLP API ayarları `appsettings.json`'da YAPILMAMALI!** Tüm DLP API ayarları Dashboard Settings sayfasından yapılmalı:
+
+1. Dashboard'u açın: `http://localhost:3002` (veya network IP)
+2. Settings sayfasına gidin
+3. **DLP API Configuration** bölümüne gidin
+4. Manager IP, Port, Username, Password girin
+5. **Test Connection** ile test edin
+6. **Save DLP API Settings** ile kaydedin
+
+Settings sayfasından ayar yapılmadan Collector çalışmayacaktır. `appsettings.json`'daki DLP placeholder değerleri kullanılmaz.
 
 ### 2. Collector Yapılandırması
 
@@ -491,10 +541,26 @@ $env:PGPASSWORD = "YourStrongPassword123!"
   },
   "Redis": {
     "Host": "localhost",
-    "Port": 6379
+    "Port": 6379,
+    "StreamName": "dlp:incidents"
+  },
+  "Collector": {
+    "IntervalMinutes": 60,
+    "LookbackHours": 24,
+    "BatchSize": 100
+  },
+  "Analyzer": {
+    "BaseUrl": "http://localhost:5001",
+    "InternalSecret": "ChangeThisSecret",
+    "ConfigPollIntervalSeconds": 300
   }
 }
 ```
+
+**⚠️ ÖNEMLİ:** Collector `appsettings.json`'daki DLP değerlerini **sadece başlangıçta** kullanır. Gerçek DLP API ayarları Dashboard Settings sayfasından yapılmalı ve Analyzer API üzerinden Collector'a aktarılır.
+
+- `InternalSecret`: Analyzer API ile aynı olmalı
+- `Analyzer:BaseUrl`: Analyzer API'nin URL'i (genellikle `http://localhost:5001`)
 
 ### 3. Dashboard Yapılandırması
 
@@ -774,6 +840,29 @@ Get-Content "C:\Services\DLPRiskAnalyzerAPI\logs\stdout.log" -Tail 50
 
 ### 4. Migration Sorunları
 
+#### Otomatik Migration Çalışmıyorsa
+
+```powershell
+# appsettings.json'da AutoMigrate kontrol edin
+# "Database": { "AutoMigrate": true }
+
+# Log'larda migration hatalarını kontrol edin
+Get-Content "C:\Services\DLPRiskAnalyzerAPI\logs\stdout.log" | Select-String "migration"
+```
+
+#### Manuel Migration (Otomatik Migration Devre Dışıysa)
+
+```powershell
+# Migration'ları manuel çalıştır
+cd "C:\Projects\dlp-risk-adaptive-protection-csharp\DLP.RiskAnalyzer.Analyzer"
+dotnet ef database update
+
+# Migration durumunu kontrol et
+dotnet ef migrations list
+```
+
+#### Migration'ları Sıfırdan Çalıştırma (DİKKAT: Veri Kaybı Olabilir)
+
 ```powershell
 # Migration'ları sıfırdan çalıştır (DİKKAT: Veri kaybı olabilir)
 cd "C:\Projects\dlp-risk-adaptive-protection-csharp\DLP.RiskAnalyzer.Analyzer"
@@ -790,6 +879,45 @@ $env:PGPASSWORD = "YourStrongPassword123!"
 
 # Eğer yüklü değilse, extension'ı yükle
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d dlp_analyzer -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+```
+
+### 6. DLP API Bağlantı Sorunları
+
+#### Settings Sayfasından Ayar Yapılmamışsa
+
+```powershell
+# Collector log'larını kontrol edin
+Get-Content "C:\Services\DLPRiskAnalyzerCollector\logs\stdout.log" | Select-String "DLP API settings are not configured"
+
+# Hata görünüyorsa:
+# 1. Dashboard'u açın: http://localhost:3002
+# 2. Settings → DLP API Configuration
+# 3. Manager IP, Port, Username, Password girin
+# 4. Test Connection ile test edin
+# 5. Save DLP API Settings ile kaydedin
+```
+
+#### DLP API'den Veri Gelmiyorsa
+
+```powershell
+# Collector log'larını kontrol edin
+Get-Content "C:\Services\DLPRiskAnalyzerCollector\logs\stdout.log" | Select-String "Failed to get access token\|Failed to fetch incidents"
+
+# Network bağlantısını test edin
+Test-NetConnection -ComputerName YOUR_DLP_MANAGER_IP -Port 8443
+
+# DLP Manager'a curl ile test edin
+curl -k https://YOUR_DLP_MANAGER_IP:8443/dlp/rest/v1/auth/access-token -X POST -H "username: YOUR_USERNAME" -H "password: YOUR_PASSWORD"
+```
+
+#### Veritabanında DLP Ayarlarını Kontrol Etme
+
+```powershell
+# PostgreSQL'de DLP ayarlarını kontrol et
+$env:PGPASSWORD = "YourStrongPassword123!"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d dlp_analyzer -c "SELECT key, value FROM system_settings WHERE key LIKE 'dlp_%';"
+
+# dlp_manager_ip, dlp_manager_port, dlp_username, dlp_password_protected değerleri görünmeli
 ```
 
 ---
@@ -816,11 +944,15 @@ $env:PGPASSWORD = "YourStrongPassword123!"
 ### Proje Kurulumu
 - [ ] Proje klonlandı/kopyalandı
 - [ ] NuGet paketleri restore edildi
-- [ ] Dashboard npm paketleri yüklendi
-- [ ] Entity Framework migrations çalıştırıldı
+- [ ] Dashboard npm paketleri yüklendi (`node_modules` dahil - offline kurulum için)
+- [ ] Entity Framework migrations otomatik uygulanacak (veya manuel çalıştırıldı)
 
 ### Yapılandırma
-- [ ] `appsettings.json` düzenlendi (PostgreSQL şifresi, DLP API bilgileri)
+- [ ] `appsettings.json` düzenlendi (PostgreSQL şifresi)
+- [ ] `Database:AutoMigrate` ayarlandı (varsayılan: `true`)
+- [ ] `InternalApi:SharedSecret` production'da değiştirildi
+- [ ] `Jwt:SecretKey` production'da değiştirildi
+- [ ] **Dashboard Settings sayfasından DLP API ayarları yapıldı** (KRİTİK!)
 - [ ] `dashboard/.env.local` oluşturuldu (opsiyonel)
 
 ### Windows Services
@@ -835,10 +967,15 @@ $env:PGPASSWORD = "YourStrongPassword123!"
 - [ ] Port 6379 (Redis) sadece localhost için açık
 
 ### Test ve Doğrulama
-- [ ] API Swagger UI erişilebilir: `http://localhost:5001/swagger`
+- [ ] API Swagger UI erişilebilir: `http://localhost:5001/swagger` (Development mode'da)
 - [ ] Dashboard erişilebilir: `http://localhost:3002`
 - [ ] Network IP'den erişim test edildi: `http://SERVER_IP:5001` ve `http://SERVER_IP:3002`
-- [ ] DLP API bağlantısı test edildi (Settings → DLP API Configuration → Test)
+- [ ] **Dashboard Settings sayfasından DLP API ayarları yapıldı**
+- [ ] **DLP API bağlantısı test edildi** (Settings → DLP API Configuration → Test Connection)
+- [ ] **DLP API ayarları kaydedildi** (Settings → DLP API Configuration → Save DLP API Settings)
+- [ ] Collector servisi DLP API'den veri çekiyor (log'larda "Fetched X incidents" görünmeli)
+- [ ] Analyzer servisi Redis'ten veri işliyor (log'larda "Processed X incidents" görünmeli)
+- [ ] Dashboard'da incident'ler görünüyor
 
 ### Backup
 - [ ] PostgreSQL backup script'i hazırlandı
@@ -856,6 +993,39 @@ Sorun yaşarsanız:
 
 ---
 
-**Son Güncelleme**: 2024-11-XX
-**Versiyon**: 1.0.0
+---
+
+## 📝 Önemli Notlar
+
+### Offline Çalışma
+
+- ✅ **Dashboard tamamen offline** - Google Fonts kaldırıldı, sistem fontları kullanılıyor
+- ✅ **node_modules dahil** - Zip'te mevcut, ekstra kurulum gerekmez
+- ✅ **Standalone build** - Next.js standalone build aktif
+- ✅ **DLP API internal network** - Internet gerektirmez
+
+### DLP API Ayarları
+
+- 🔴 **KRİTİK:** DLP API ayarları **Dashboard Settings sayfasından** yapılmalı
+- ❌ **appsettings.json'da YAPMAYIN** - Placeholder değerler kullanılmaz
+- ✅ **Settings sayfasından yapın** - Dashboard → Settings → DLP API Configuration
+- ✅ **Test Connection** ile test edin
+- ✅ **Save DLP API Settings** ile kaydedin
+
+### Otomatik Migration
+
+- ✅ **Varsayılan: Otomatik** - `Database:AutoMigrate: true`
+- ✅ **Uygulama başlarken** migration'lar otomatik uygulanır
+- ⚙️ **Opsiyonel: Manuel** - `Database:AutoMigrate: false` ile devre dışı bırakabilirsiniz
+
+### Network Erişimi
+
+- ✅ **API: 0.0.0.0:5001** - Network erişimi için zorunlu
+- ✅ **Dashboard: 0.0.0.0:3002** - Network erişimi için
+- ✅ **CORS: Internal network** - IP adresleri otomatik kabul edilir
+
+---
+
+**Son Güncelleme**: 2024-12-XX
+**Versiyon**: 2.0.0
 
