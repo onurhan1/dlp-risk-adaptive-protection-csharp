@@ -9,6 +9,12 @@
 - API yeniden başlatıldığında, **yeni bir salt/hash oluşturuluyor**
 - Eski hash ile yeni hash eşleşmiyor!
 
+**Neden Mac OS'da Sorun Yok?**
+- Mac'te API sürekli çalışıyor (yeniden başlatılmıyor)
+- Mac'te development ortamında API restart'ları nadir
+- Windows Server'da NSSM ile servis olarak çalışıyor, her restart'ta yeni hash
+- Windows Server'da sistem restart'ları veya servis restart'ları daha sık
+
 **Çözüm**: Password hash'i database'e kaydetmek veya sabit bir salt kullanmak gerekiyor.
 
 **Geçici Çözüm**: API'yi yeniden başlatın ve hemen login yapmayı deneyin.
