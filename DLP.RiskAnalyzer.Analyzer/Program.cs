@@ -231,8 +231,11 @@ var app = builder.Build();
 // Apply database migrations automatically on startup
 // Can be disabled by setting "Database:AutoMigrate" to false in appsettings.json
 var autoMigrate = builder.Configuration.GetValue<bool>("Database:AutoMigrate", true);
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+
 if (autoMigrate)
 {
+    startupLogger.LogInformation("=== AUTOMATIC MIGRATION ENABLED ===");
     using (var scope = app.Services.CreateScope())
     {
         var services = scope.ServiceProvider;
@@ -241,14 +244,46 @@ if (autoMigrate)
             var context = services.GetRequiredService<AnalyzerDbContext>();
             var logger = services.GetRequiredService<ILogger<Program>>();
             
+            // Check database connection first
+            logger.LogInformation("Checking database connection...");
+            var canConnect = await context.Database.CanConnectAsync();
+            if (!canConnect)
+            {
+                logger.LogError("Cannot connect to database. Please check connection string and ensure PostgreSQL is running.");
+                throw new InvalidOperationException("Cannot connect to database. Check connection string and PostgreSQL service.");
+            }
+            logger.LogInformation("Database connection successful.");
+            
+            // Get pending migrations
+            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+            if (pendingMigrations.Any())
+            {
+                logger.LogInformation("Found {Count} pending migrations: {Migrations}", 
+                    pendingMigrations.Count(), 
+                    string.Join(", ", pendingMigrations));
+            }
+            else
+            {
+                logger.LogInformation("No pending migrations. Database is up to date.");
+            }
+            
             logger.LogInformation("Applying database migrations automatically...");
-            context.Database.Migrate();
-            logger.LogInformation("Database migrations applied successfully.");
+            await context.Database.MigrateAsync();
+            logger.LogInformation("=== Database migrations applied successfully ===");
+        }
+        catch (Npgsql.NpgsqlException ex)
+        {
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            logger.LogError(ex, "PostgreSQL connection error during migration: {Message}. Please check: 1) PostgreSQL is running, 2) Connection string is correct, 3) Database 'dlp_analyzer' exists.", ex.Message);
+            Console.WriteLine($"ERROR: Database migration failed - {ex.Message}");
+            // Don't fail the application startup - allow it to continue
         }
         catch (Exception ex)
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "An error occurred while applying database migrations. The application will continue, but database may not be ready.");
+            logger.LogError(ex, "An error occurred while applying database migrations: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
+            Console.WriteLine($"ERROR: Database migration failed - {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
             // Don't fail the application startup - allow it to continue
             // Migration errors will be visible in logs
         }
@@ -256,8 +291,8 @@ if (autoMigrate)
 }
 else
 {
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("Automatic database migration is disabled. Migrations must be applied manually using 'dotnet ef database update'.");
+    startupLogger.LogInformation("=== AUTOMATIC MIGRATION DISABLED ===");
+    startupLogger.LogInformation("Automatic database migration is disabled. Migrations must be applied manually using 'dotnet ef database update'.");
 }
 
 // Configure the HTTP request pipeline
