@@ -13,6 +13,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/': ['./node_modules/react-plotly.js/**/*', './node_modules/plotly.js/**/*'],
   },
+  // Fix workspace root warning
+  turbopack: {
+    root: process.cwd(),
+  },
 }
 
 module.exports = nextConfig
