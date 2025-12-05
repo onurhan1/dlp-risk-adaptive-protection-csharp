@@ -80,6 +80,105 @@ Create a complete **Data Loss Prevention (DLP) Risk Adaptive Protection System**
 - Automatic retry on failure
 - Background service with configurable polling interval
 
+#### Forcepoint DLP Manager API Integration Details
+
+**Base URL Format:**
+```
+https://<DLP Manager IP>:<DLP Manager Port>/dlp/rest/v1
+```
+Example: `https://172.16.245.126:8443/dlp/rest/v1`
+
+**Authentication Endpoint:**
+- **URL**: `POST /dlp/rest/v1/auth/access-token`
+- **Method**: POST
+- **Headers**:
+  - `username`: DLP Manager username (Application Administrator)
+  - `password`: DLP Manager password
+- **Response Format**:
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",  // Some versions use snake_case
+  "expiresIn": 3600,
+  "access_token_expires_in": 3600  // Some versions use snake_case
+}
+```
+- **Token Expiry**: Typically 1 hour (3600 seconds)
+- **Token Caching**: Cache token until expiry (subtract 60 seconds for safety margin)
+- **Note**: Some DLP versions (8.9-9.0) expect username/password in headers, not body
+
+**Incidents Fetch Endpoint:**
+- **URL**: `POST /dlp/rest/v1/incidents/`
+- **Method**: POST (Forcepoint DLP API uses POST for incidents query)
+- **Headers**:
+  - `Authorization`: `Bearer <access_token>`
+  - `Content-Type`: `application/json`
+- **Request Body**:
+```json
+{
+  "type": "INCIDENTS",
+  "from_date": "dd/MM/yyyy HH:mm:ss",
+  "to_date": "dd/MM/yyyy HH:mm:ss"
+}
+```
+Example:
+```json
+{
+  "type": "INCIDENTS",
+  "from_date": "15/01/2024 10:00:00",
+  "to_date": "16/01/2024 10:00:00"
+}
+```
+- **Response Format**: Array of incident objects with fields:
+  - `incidentId` (string)
+  - `userEmail` (string)
+  - `userName` (string)
+  - `department` (string)
+  - `channel` (string: Web, Email, Print, Removable Storage, System log event, Security)
+  - `severity` (int: 1-5)
+  - `dataSensitivity` (int: 1-5)
+  - `policyName` (string)
+  - `timestamp` (DateTime string)
+  - `actionTaken` (string)
+  - Additional fields as per Forcepoint DLP API response
+
+**Remediation Endpoint:**
+- **URL**: `POST /dlp/rest/v1/incidents/update` (or similar, check DLP API version)
+- **Method**: POST
+- **Headers**:
+  - `Authorization`: `Bearer <access_token>`
+  - `Content-Type`: `application/json`
+- **Request Body**:
+```json
+{
+  "incidentId": "<incident_id>",
+  "action": "remediate"  // or other actions per DLP API
+}
+```
+
+**SSL Certificate Handling:**
+- Support for self-signed certificates
+- SSL certificate validation bypass for development/internal networks
+- Implementation using `HttpClientHandler` with `ServerCertificateCustomValidationCallback`
+```csharp
+var handler = new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+};
+```
+
+**Error Handling:**
+- Handle 401 Unauthorized (token expired) → Refresh token
+- Handle 403 Forbidden (insufficient permissions)
+- Handle network timeouts → Retry with exponential backoff
+- Log all API errors with detailed information
+
+**Configuration:**
+- DLP Manager IP, Username, Password configurable via Dashboard Settings UI
+- Settings stored in database (`system_settings` table)
+- Runtime configuration updates without service restart
+- Connection test endpoint: `POST /api/settings/dlp/test-connection`
+
 ### 3. Risk Analysis Engine
 - **Risk Score Calculation**: `risk = (severity * 3) + (repeat_count * 2) + (data_sensitivity * 5)`
 - **Risk Levels**:
@@ -524,8 +623,14 @@ module.exports = nextConfig
 
 4. **Collector Service**
    - DLP Manager API integration
+     - Authentication endpoint: `POST /dlp/rest/v1/auth/access-token` (header-based auth)
+     - Incidents endpoint: `POST /dlp/rest/v1/incidents/` (with date range in body)
+     - JWT token caching and refresh
+     - SSL certificate bypass for self-signed certs
    - Redis Stream writing
    - Background service implementation
+   - Configurable polling interval (default: 60 seconds)
+   - Date range handling (fetch last N days of incidents)
 
 5. **Analyzer API**
    - RESTful endpoints
