@@ -47,11 +47,27 @@ public class AuthController : ControllerBase
             // Remove any zero-width characters or BOM that might cause issues
             normalizedPassword = System.Text.RegularExpressions.Regex.Replace(normalizedPassword, @"\p{C}", string.Empty);
 
-            if (!UsersController.TryValidateCredentials(normalizedUsername, normalizedPassword, out var user))
+            _logger.LogInformation("Login attempt - Username: '{Username}' (Length: {UserLen}), Password Length: {PassLen}", 
+                normalizedUsername, normalizedUsername.Length, normalizedPassword.Length);
+            
+            // Check if user exists first
+            var userExists = UsersController.GetUserByUsername(normalizedUsername);
+            if (userExists == null)
             {
-                _logger.LogWarning("Failed login attempt for username: {Username}", request.Username);
+                _logger.LogWarning("Login failed - User not found: {Username}", normalizedUsername);
                 return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
             }
+            
+            _logger.LogInformation("User found - Username: {Username}, HasPasswordHash: {HasHash}, HasPasswordSalt: {HasSalt}", 
+                userExists.Username, !string.IsNullOrEmpty(userExists.PasswordHash), !string.IsNullOrEmpty(userExists.PasswordSalt));
+
+            if (!UsersController.TryValidateCredentials(normalizedUsername, normalizedPassword, out var user))
+            {
+                _logger.LogWarning("Login failed - Password validation failed for username: {Username}", normalizedUsername);
+                return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
+            }
+            
+            _logger.LogInformation("Password validation successful for username: {Username}", normalizedUsername);
 
             // Generate JWT token (simplified - use proper JWT library in production)
             var token = GenerateToken(normalizedUsername, user!.Role);

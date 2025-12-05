@@ -24,12 +24,18 @@ public class UsersController : ControllerBase
     public static bool TryValidateCredentials(string username, string password, out UserModel? user)
     {
         user = GetUserByUsername(username);
-        if (user == null || string.IsNullOrWhiteSpace(password))
+        if (user == null)
+        {
+            return false;
+        }
+        
+        if (string.IsNullOrWhiteSpace(password))
         {
             return false;
         }
 
-        return VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
+        var isValid = VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
+        return isValid;
     }
 
     public UsersController(IConfiguration configuration, ILogger<UsersController> logger)
@@ -43,6 +49,9 @@ public class UsersController : ControllerBase
             var defaultAdmin = _configuration["Authentication:Username"] ?? "admin";
             var defaultPassword = _configuration["Authentication:Password"] ?? "admin123";
             
+            _logger.LogInformation("Initializing default admin user - Username: {Username}, Password Length: {PassLen}", 
+                defaultAdmin, defaultPassword.Length);
+            
             var (hash, salt) = CreatePasswordHash(defaultPassword);
             _users.Add(new UserModel
             {
@@ -55,6 +64,13 @@ public class UsersController : ControllerBase
                 PasswordHash = hash,
                 PasswordSalt = salt
             });
+            
+            _logger.LogInformation("Default admin user created - Username: {Username}, Hash Length: {HashLen}, Salt Length: {SaltLen}", 
+                defaultAdmin, hash.Length, salt.Length);
+            
+            // Verify the password hash works
+            var testVerify = VerifyPassword(defaultPassword, hash, salt);
+            _logger.LogInformation("Password hash verification test: {Result}", testVerify ? "SUCCESS" : "FAILED");
             
             _initialized = true;
         }
@@ -269,10 +285,20 @@ public class UsersController : ControllerBase
             return false;
         }
 
-        var saltBytes = Convert.FromBase64String(salt);
-        var expectedHash = Convert.FromBase64String(hash);
-        var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
-        return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+        try
+        {
+            var saltBytes = Convert.FromBase64String(salt);
+            var expectedHash = Convert.FromBase64String(hash);
+            var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
+            var isValid = CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't expose details to caller
+            System.Diagnostics.Debug.WriteLine($"Password verification error: {ex.Message}");
+            return false;
+        }
     }
 }
 
