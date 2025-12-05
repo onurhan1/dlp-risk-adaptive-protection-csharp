@@ -295,6 +295,28 @@ else
     startupLogger.LogInformation("Automatic database migration is disabled. Migrations must be applied manually using 'dotnet ef database update'.");
 }
 
+// Initialize default admin user on application startup
+// This ensures the user list is populated before any login attempts
+// CRITICAL: This must be done before any HTTP requests are processed
+startupLogger.LogInformation("=== INITIALIZING DEFAULT ADMIN USER ===");
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<DLP.RiskAnalyzer.Analyzer.Controllers.UsersController>>();
+        
+        DLP.RiskAnalyzer.Analyzer.Controllers.UsersController.InitializeDefaultAdmin(configuration, logger);
+        startupLogger.LogInformation("=== DEFAULT ADMIN USER INITIALIZED SUCCESSFULLY ===");
+    }
+}
+catch (Exception ex)
+{
+    startupLogger.LogError(ex, "Failed to initialize default admin user: {Message}", ex.Message);
+    // Don't fail the application startup - allow it to continue
+    // User initialization will be attempted when UsersController is first accessed
+}
+
 // Configure the HTTP request pipeline
 app.UseRouting();
 

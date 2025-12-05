@@ -38,41 +38,56 @@ public class UsersController : ControllerBase
         return isValid;
     }
 
+    /// <summary>
+    /// Initialize default admin user - called from Program.cs on application startup
+    /// This ensures the user list is populated before any login attempts
+    /// </summary>
+    public static void InitializeDefaultAdmin(IConfiguration configuration, ILogger<UsersController>? logger = null)
+    {
+        if (_initialized)
+        {
+            return; // Already initialized
+        }
+
+        var defaultAdmin = configuration["Authentication:Username"] ?? "admin";
+        var defaultPassword = configuration["Authentication:Password"] ?? "admin123";
+        
+        logger?.LogInformation("Initializing default admin user - Username: {Username}, Password Length: {PassLen}", 
+            defaultAdmin, defaultPassword.Length);
+        
+        var (hash, salt) = CreatePasswordHash(defaultPassword);
+        _users.Add(new UserModel
+        {
+            Id = 1,
+            Username = defaultAdmin,
+            Email = $"{defaultAdmin}@company.com",
+            Role = "admin",
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true,
+            PasswordHash = hash,
+            PasswordSalt = salt
+        });
+        
+        logger?.LogInformation("Default admin user created - Username: {Username}, Hash Length: {HashLen}, Salt Length: {SaltLen}", 
+            defaultAdmin, hash.Length, salt.Length);
+        
+        // Verify the password hash works
+        var testVerify = VerifyPassword(defaultPassword, hash, salt);
+        logger?.LogInformation("Password hash verification test: {Result}", testVerify ? "SUCCESS" : "FAILED");
+        
+        _initialized = true;
+    }
+
     public UsersController(IConfiguration configuration, ILogger<UsersController> logger)
     {
         _configuration = configuration;
         _logger = logger;
         
-        // Initialize with default admin user if not already done
+        // Initialize with default admin user if not already done (fallback for backward compatibility)
+        // Note: This should already be initialized in Program.cs, but we keep this as a safety net
         if (!_initialized)
         {
-            var defaultAdmin = _configuration["Authentication:Username"] ?? "admin";
-            var defaultPassword = _configuration["Authentication:Password"] ?? "admin123";
-            
-            _logger.LogInformation("Initializing default admin user - Username: {Username}, Password Length: {PassLen}", 
-                defaultAdmin, defaultPassword.Length);
-            
-            var (hash, salt) = CreatePasswordHash(defaultPassword);
-            _users.Add(new UserModel
-            {
-                Id = 1,
-                Username = defaultAdmin,
-                Email = $"{defaultAdmin}@company.com",
-                Role = "admin",
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
-                PasswordHash = hash,
-                PasswordSalt = salt
-            });
-            
-            _logger.LogInformation("Default admin user created - Username: {Username}, Hash Length: {HashLen}, Salt Length: {SaltLen}", 
-                defaultAdmin, hash.Length, salt.Length);
-            
-            // Verify the password hash works
-            var testVerify = VerifyPassword(defaultPassword, hash, salt);
-            _logger.LogInformation("Password hash verification test: {Result}", testVerify ? "SUCCESS" : "FAILED");
-            
-            _initialized = true;
+            InitializeDefaultAdmin(configuration, logger);
         }
     }
 
