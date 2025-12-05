@@ -124,10 +124,24 @@ public class CollectorBackgroundService : BackgroundService
             _logger.LogInformation("Successfully collected and pushed {PushedCount} incidents to Redis (Errors: {ErrorCount}, Total: {TotalCount})", 
                 pushedCount, errorCount, allIncidents.Count);
         }
+        catch (HttpRequestException ex)
+        {
+            // Network/connection errors - don't crash the service, just log and retry later
+            _logger.LogWarning(ex, "DLP API connection error. Will retry on next interval. Error: {Message}", ex.Message);
+            // Don't throw - let the service continue and retry on next interval
+        }
+        catch (TaskCanceledException ex)
+        {
+            // Timeout errors - don't crash the service
+            _logger.LogWarning(ex, "DLP API request timeout. Will retry on next interval.");
+            // Don't throw - let the service continue and retry on next interval
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to collect incidents from Forcepoint DLP API");
-            throw;
+            // Other errors - log but don't crash the service
+            _logger.LogError(ex, "Failed to collect incidents from Forcepoint DLP API. Will retry on next interval. Error: {Message}", ex.Message);
+            // Don't throw - let the service continue and retry on next interval
+            // This ensures the service keeps running even if DLP API is temporarily unavailable
         }
     }
 }
