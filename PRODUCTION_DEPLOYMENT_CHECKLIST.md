@@ -205,20 +205,34 @@ curl http://localhost:5001/api/dlp/test/connection
 
 ### DLP API'den Veri Gelmiyor
 
-1. **Bağlantı testi:**
+1. **Settings sayfasından ayar yapıldı mı?**
+   - Dashboard → Settings → DLP API Configuration
+   - Manager IP, Port, Username, Password girildi mi?
+   - "Test Connection" butonu ile bağlantı test edildi mi?
+   - "Save DLP API Settings" butonu ile kaydedildi mi?
+
+2. **Bağlantı testi:**
    ```powershell
    curl -k https://YOUR_DLP_MANAGER_IP:8443/dlp/rest/v1/auth/access-token -X POST -H "username: YOUR_USERNAME" -H "password: YOUR_PASSWORD"
    ```
 
-2. **Log kontrolü:**
+3. **Log kontrolü:**
    ```powershell
    # Collector log'larını kontrol edin
+   # "DLP API settings are not configured" hatası var mı?
    # "Failed to get access token" veya "Failed to fetch incidents" hataları var mı?
    ```
 
-3. **Network kontrolü:**
+4. **Network kontrolü:**
    ```powershell
    Test-NetConnection -ComputerName YOUR_DLP_MANAGER_IP -Port 8443
+   ```
+
+5. **Veritabanı kontrolü:**
+   ```sql
+   -- PostgreSQL'de
+   SELECT * FROM system_settings WHERE key LIKE 'dlp_%';
+   -- dlp_manager_ip, dlp_manager_port, dlp_username, dlp_password_protected değerleri görünmeli
    ```
 
 ### Migration Hataları
