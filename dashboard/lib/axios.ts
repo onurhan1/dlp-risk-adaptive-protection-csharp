@@ -5,7 +5,7 @@ import { getApiUrlDynamic } from './api-config'
 // Note: baseURL will be set dynamically per request in the interceptor
 const apiClient = axios.create({
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
   },
 })
 
@@ -17,6 +17,11 @@ apiClient.interceptors.request.use(
     // Dynamically set baseURL for each request to ensure correct hostname detection
     // This is crucial for remote device access
     config.baseURL = getApiUrlDynamic()
+    
+    // Ensure UTF-8 encoding for all requests
+    if (!config.headers['Content-Type']) {
+      config.headers['Content-Type'] = 'application/json; charset=utf-8'
+    }
     
     const token = localStorage.getItem('authToken')
     if (token) {

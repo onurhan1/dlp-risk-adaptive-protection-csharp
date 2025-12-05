@@ -39,22 +39,30 @@ public class AuthController : ControllerBase
                 return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = "Username and password are required" }));
             }
 
-            if (!UsersController.TryValidateCredentials(request.Username, request.Password, out var user))
+            // Normalize username and password to prevent encoding issues
+            // Trim whitespace and ensure UTF-8 encoding
+            var normalizedUsername = request.Username.Trim();
+            var normalizedPassword = request.Password.Trim();
+            
+            // Remove any zero-width characters or BOM that might cause issues
+            normalizedPassword = System.Text.RegularExpressions.Regex.Replace(normalizedPassword, @"\p{C}", string.Empty);
+
+            if (!UsersController.TryValidateCredentials(normalizedUsername, normalizedPassword, out var user))
             {
                 _logger.LogWarning("Failed login attempt for username: {Username}", request.Username);
                 return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
             }
 
             // Generate JWT token (simplified - use proper JWT library in production)
-            var token = GenerateToken(request.Username, user!.Role);
+            var token = GenerateToken(normalizedUsername, user!.Role);
             var expiresAt = DateTime.UtcNow.AddHours(8); // Token expires in 8 hours
 
-            _logger.LogInformation("Successful login for username: {Username} with role {Role}", request.Username, user.Role);
+            _logger.LogInformation("Successful login for username: {Username} with role {Role}", normalizedUsername, user.Role);
 
             return Task.FromResult<ActionResult<LoginResponse>>(Ok(new LoginResponse
             {
                 Token = token,
-                Username = request.Username,
+                Username = normalizedUsername,
                 Role = user.Role,
                 ExpiresAt = expiresAt
             }));

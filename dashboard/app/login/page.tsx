@@ -34,9 +34,16 @@ export default function LoginPage() {
       const apiUrl = getApiUrlDynamic()
       console.log('Login - Using API URL:', apiUrl)
       
+      // Normalize password: trim whitespace and remove any control characters
+      const normalizedPassword = password.trim().replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+      
       const response = await axios.post(`${apiUrl}/api/auth/login`, {
         username: username.trim(),
-        password: password
+        password: normalizedPassword
+      }, {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8'
+        }
       })
 
       console.log('Login response:', response.data)
