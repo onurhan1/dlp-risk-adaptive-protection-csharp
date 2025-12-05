@@ -163,21 +163,337 @@ Example:
 ```csharp
 var handler = new HttpClientHandler
 {
-    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+};
+
+var scheme = config.UseHttps ? "https" : "http";
+var baseUrl = $"{scheme}://{config.ManagerIP}:{config.ManagerPort}";
+
+var httpClient = new HttpClient(handler)
+{
+    BaseAddress = new Uri(baseUrl),
+    Timeout = TimeSpan.FromSeconds(config.Timeout <= 0 ? 30 : config.Timeout)
 };
 ```
 
+**Complete Implementation Example - Authentication:**
+```csharp
+public async Task<string> GetAccessTokenAsync()
+{
+    // Check if token is still valid (cache check)
+    if (!string.IsNullOrEmpty(_accessToken) && DateTime.UtcNow < _tokenExpiry)
+    {
+        return _accessToken;
+    }
+
+    // Get current config at runtime (may have been updated via UI)
+    var config = _configProvider.GetCurrent();
+    
+    // Validate that config is actually configured (not placeholder values)
+    if (config.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+        (config.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(config.Username)))
+    {
+        throw new InvalidOperationException("DLP API settings are not configured.");
+    }
+    
+    // Update HttpClient if config changed
+    if (!ConfigEquals(_currentConfig, config))
+    {
+        lock (_clientLock)
+        {
+            _currentConfig = config;
+            _httpClient?.Dispose();
+            _httpClient = CreateHttpClient(_currentConfig);
+        }
+    }
+    
+    // Forcepoint DLP REST API v1 Authentication endpoint
+    var url = "/dlp/rest/v1/auth/access-token";
+    
+    // Use header-based authentication (matching Postman format)
+    var request = new HttpRequestMessage(HttpMethod.Post, url);
+    request.Headers.Add("username", _currentConfig.Username);
+    request.Headers.Add("password", _currentConfig.Password);
+
+    var response = await _httpClient.SendAsync(request);
+    response.EnsureSuccessStatusCode();
+
+    var responseContent = await response.Content.ReadAsStringAsync();
+    var tokenResponse = JsonConvert.DeserializeObject<AccessTokenResponse>(responseContent);
+
+    // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+    _accessToken = tokenResponse?.AccessToken ?? 
+                  tokenResponse?.Token ?? 
+                  throw new Exception("No token received from DLP API");
+
+    // Set expiry (subtract 60 seconds for safety)
+    var expiresIn = tokenResponse?.ExpiresIn ?? tokenResponse?.AccessTokenExpiresIn ?? 3600;
+    _tokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60);
+
+    return _accessToken;
+}
+```
+
+**Complete Implementation Example - Fetch Incidents:**
+```csharp
+public async Task<List<DLPIncident>> FetchIncidentsAsync(DateTime startTime, DateTime endTime, int page = 1, int pageSize = 100)
+{
+    // Step 1: Authenticate and get access token
+    var token = await GetAccessTokenAsync();
+
+    // Step 2: Build request body according to Forcepoint DLP API format
+    // Format dates as "dd/MM/yyyy HH:mm:ss" (Forcepoint DLP API format)
+    var fromDate = startTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
+    var toDate = endTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
+
+    var incidentsUrl = "/dlp/rest/v1/incidents/";
+    var requestBody = new
+    {
+        type = "INCIDENTS",
+        from_date = fromDate,
+        to_date = toDate,
+        start = (page - 1) * pageSize,  // Pagination: starting index (0-based)
+        limit = pageSize                 // Pagination: number of records per page
+    };
+
+    var jsonBody = JsonConvert.SerializeObject(requestBody);
+    var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+    // Step 3: Create POST request with Bearer token authentication
+    var request = new HttpRequestMessage(HttpMethod.Post, incidentsUrl);
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+    request.Content = content;
+
+    // Step 4: Send request
+    var response = await _httpClient.SendAsync(request);
+    response.EnsureSuccessStatusCode();
+
+    var responseContent = await response.Content.ReadAsStringAsync();
+    
+    // Step 5: Parse response - Forcepoint DLP API may return incidents as array or object with incidents property
+    List<DLPIncident> incidents;
+    try
+    {
+        // Try to deserialize as DLPIncidentResponse first
+        var incidentResponse = JsonConvert.DeserializeObject<DLPIncidentResponse>(responseContent);
+        incidents = incidentResponse?.Incidents ?? new List<DLPIncident>();
+    }
+    catch
+    {
+        // If that fails, try to deserialize as array directly
+        incidents = JsonConvert.DeserializeObject<List<DLPIncident>>(responseContent) ?? new List<DLPIncident>();
+    }
+
+    return incidents;
+}
+```
+
+**Required Model Classes:**
+
+```csharp
+/// <summary>
+/// Access token response model - Supports both snake_case and camelCase
+/// </summary>
+public class AccessTokenResponse
+{
+    // Forcepoint DLP API returns access_token (snake_case), but some versions use accessToken (camelCase)
+    [JsonProperty("access_token")]
+    public string? AccessTokenSnakeCase { get; set; }
+    
+    [JsonProperty("accessToken")]
+    public string? AccessTokenCamelCase { get; set; }
+    
+    // Property that returns the token from either format
+    public string? AccessToken => AccessTokenSnakeCase ?? AccessTokenCamelCase;
+    
+    [JsonProperty("token")]
+    public string? Token { get; set; }
+    
+    [JsonProperty("access_token_expires_in")]
+    public int? ExpiresInSnakeCase { get; set; }
+    
+    [JsonProperty("expiresIn")]
+    public int? ExpiresInCamelCase { get; set; }
+    
+    // Property that returns expires_in from either format
+    public int? ExpiresIn => ExpiresInSnakeCase ?? ExpiresInCamelCase;
+    
+    public int? AccessTokenExpiresIn => ExpiresIn;
+}
+
+/// <summary>
+/// DLP Incident Source model (from API)
+/// </summary>
+public class DLPIncidentSource
+{
+    [JsonProperty("manager")]
+    public string? Manager { get; set; }
+    
+    [JsonProperty("department")]
+    public string? Department { get; set; }
+    
+    [JsonProperty("login_name")]
+    public string? LoginName { get; set; }
+    
+    [JsonProperty("host_name")]
+    public string? HostName { get; set; }
+    
+    [JsonProperty("business_unit")]
+    public string? BusinessUnit { get; set; }
+}
+
+/// <summary>
+/// DLP Incident model (from API)
+/// </summary>
+public class DLPIncident
+{
+    [JsonProperty("id")]
+    public int Id { get; set; }
+    
+    [JsonProperty("severity")]
+    public string? SeverityString { get; set; }
+    
+    [JsonIgnore]
+    public int Severity
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SeverityString))
+                return 0;
+            
+            return SeverityString.ToUpper() switch
+            {
+                "LOW" => 1,
+                "MEDIUM" => 2,
+                "HIGH" => 3,
+                "CRITICAL" => 4,
+                _ => 0
+            };
+        }
+    }
+    
+    [JsonProperty("source")]
+    public DLPIncidentSource? Source { get; set; }
+    
+    [JsonIgnore]
+    public string User => Source?.LoginName ?? string.Empty;
+    
+    [JsonIgnore]
+    public string? Department => Source?.Department;
+    
+    [JsonProperty("event_time")]
+    public string? EventTimeString { get; set; }
+    
+    [JsonProperty("incident_time")]
+    public string? IncidentTimeString { get; set; }
+    
+    [JsonIgnore]
+    public DateTime Timestamp
+    {
+        get
+        {
+            // Try to parse incident_time first
+            if (!string.IsNullOrEmpty(IncidentTimeString))
+            {
+                // Try multiple date formats (Forcepoint DLP API may use different formats)
+                var formats = new[] { 
+                    "dd/MM/yyyy HH:mm:ss",
+                    "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "dd-MM-yyyy HH:mm:ss"
+                };
+                
+                foreach (var format in formats)
+                {
+                    if (DateTime.TryParseExact(IncidentTimeString, format, CultureInfo.InvariantCulture, 
+                        DateTimeStyles.None, out var incidentTime))
+                    {
+                        return incidentTime;
+                    }
+                }
+                
+                // Fallback to standard parse
+                if (DateTime.TryParse(IncidentTimeString, CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, out var parsedTime))
+                {
+                    return parsedTime;
+                }
+            }
+            
+            // Try to parse event_time
+            if (!string.IsNullOrEmpty(EventTimeString))
+            {
+                var formats = new[] { 
+                    "dd/MM/yyyy HH:mm:ss",
+                    "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "dd-MM-yyyy HH:mm:ss"
+                };
+                
+                foreach (var format in formats)
+                {
+                    if (DateTime.TryParseExact(EventTimeString, format, CultureInfo.InvariantCulture, 
+                        DateTimeStyles.None, out var eventTime))
+                    {
+                        return eventTime;
+                    }
+                }
+                
+                if (DateTime.TryParse(EventTimeString, CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, out var parsedTime))
+                {
+                    return parsedTime;
+                }
+            }
+            
+            return DateTime.UtcNow;
+        }
+    }
+    
+    [JsonProperty("policies")]
+    public string? Policy { get; set; }
+    
+    [JsonProperty("channel")]
+    public string? Channel { get; set; }
+    
+    [JsonProperty("data_type")]
+    public string? DataType { get; set; }
+}
+
+/// <summary>
+/// DLP Incident response model (wraps array of incidents)
+/// </summary>
+public class DLPIncidentResponse
+{
+    public List<DLPIncident> Incidents { get; set; } = new();
+    public int Total { get; set; }
+}
+```
+
 **Error Handling:**
-- Handle 401 Unauthorized (token expired) → Refresh token
-- Handle 403 Forbidden (insufficient permissions)
+- Handle 401 Unauthorized (token expired) → Refresh token automatically
+- Handle 403 Forbidden (insufficient permissions) → Log error and throw exception
 - Handle network timeouts → Retry with exponential backoff
-- Log all API errors with detailed information
+- Handle SSL certificate errors → Bypass validation (for self-signed certs)
+- Log all API errors with detailed information (status code, response body)
+- Handle both array and object response formats (some DLP versions return different formats)
 
 **Configuration:**
 - DLP Manager IP, Username, Password configurable via Dashboard Settings UI
 - Settings stored in database (`system_settings` table)
 - Runtime configuration updates without service restart
+- Configuration change events trigger HttpClient recreation
 - Connection test endpoint: `POST /api/settings/dlp/test-connection`
+- Validate configuration before making API calls (check for placeholder values)
+
+**Data Transformation:**
+- Convert `DLPIncident` (from API) to `Incident` (internal model)
+- Map severity string ("LOW", "MEDIUM", "HIGH", "CRITICAL") to integer (1-4)
+- Extract user email from `source.login_name`
+- Extract department from `source.department`
+- Parse multiple date formats (dd/MM/yyyy, MM/dd/yyyy, yyyy-MM-dd, etc.)
+- Handle null/empty values gracefully
 
 ### 3. Risk Analysis Engine
 - **Risk Score Calculation**: `risk = (severity * 3) + (repeat_count * 2) + (data_sensitivity * 5)`
