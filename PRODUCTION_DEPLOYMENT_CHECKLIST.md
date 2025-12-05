@@ -13,11 +13,13 @@
 
 ### 2. DLP API Bağlantısı
 
-- [ ] **DLP Manager IP doğru** - `appsettings.json`'da ayarlanmış
-- [ ] **DLP Manager Port doğru** - Genellikle 8443 (HTTPS)
-- [ ] **DLP Username/Password doğru** - API erişimi için
+- [ ] **DLP Manager IP doğru** - Dashboard Settings sayfasından ayarlanmış
+- [ ] **DLP Manager Port doğru** - Dashboard Settings sayfasından ayarlanmış (genellikle 8443)
+- [ ] **DLP Username/Password doğru** - Dashboard Settings sayfasından ayarlanmış
 - [ ] **Network erişimi test edildi** - DLP Manager'a ping/curl ile
 - [ ] **SSL sertifikası bypass** - Self-signed cert için kod'da var
+
+**ÖNEMLİ:** DLP API ayarları **Dashboard Settings sayfasından** yapılmalı. `appsettings.json`'daki placeholder değerler kullanılmaz. Settings sayfasından ayar yapılmadan Collector çalışmayacaktır.
 
 ### 3. Veritabanı Hazırlığı
 
@@ -40,17 +42,11 @@
 {
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=dlp_analyzer;Username=postgres;Password=YOUR_PASSWORD"
-  },
-  "DLP": {
-    "ManagerIP": "YOUR_DLP_MANAGER_IP",
-    "ManagerPort": 8443,
-    "Username": "YOUR_DLP_USERNAME",
-    "Password": "YOUR_DLP_PASSWORD",
-    "UseHttps": true,
-    "Timeout": 30
   }
 }
 ```
+
+**ÖNEMLİ:** DLP API ayarları `appsettings.json`'da **YAPILMAMALI**. Tüm DLP ayarları Dashboard Settings sayfasından yapılmalı. `appsettings.json`'daki placeholder değerler kullanılmaz.
 
 #### DLP.RiskAnalyzer.Collector/appsettings.json
 ```json
@@ -65,6 +61,8 @@
   }
 }
 ```
+
+**ÖNEMLİ:** Collector `appsettings.json`'daki değerleri sadece başlangıçta kullanır. Gerçek ayarlar Dashboard Settings sayfasından yapılmalı ve Analyzer API üzerinden Collector'a aktarılır.
 
 ## 🚀 Deployment Adımları
 

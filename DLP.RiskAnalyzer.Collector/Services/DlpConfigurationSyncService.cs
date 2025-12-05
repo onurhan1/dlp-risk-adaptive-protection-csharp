@@ -58,7 +58,21 @@ public class DlpConfigurationSyncService : BackgroundService
         var remoteConfig = await _configClient.FetchConfigAsync(cancellationToken);
         if (remoteConfig != null)
         {
+            // Validate that config is actually configured (not placeholder values)
+            if (remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+                remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username))
+            {
+                _logger.LogWarning("DLP API settings are not configured. Collector will not fetch incidents until settings are configured via Settings page.");
+                _logger.LogWarning("Please configure DLP API settings in the dashboard: Settings → DLP API Configuration");
+                return; // Don't update config with placeholder values
+            }
+            
             _configProvider.Update(remoteConfig, "Analyzer API (initial load)");
+        }
+        else
+        {
+            _logger.LogWarning("Failed to load DLP configuration from Analyzer API. Collector will use appsettings.json defaults.");
+            _logger.LogWarning("Please ensure DLP API settings are configured via Settings page in the dashboard.");
         }
     }
 
@@ -102,6 +116,14 @@ public class DlpConfigurationSyncService : BackgroundService
         var remoteConfig = await _configClient.FetchConfigAsync(cancellationToken);
         if (remoteConfig != null)
         {
+            // Validate that config is actually configured (not placeholder values)
+            if (remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+                remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username))
+            {
+                _logger.LogWarning("DLP API settings are not configured. Skipping config update.");
+                return; // Don't update config with placeholder values
+            }
+            
             _configProvider.Update(remoteConfig, $"Analyzer API ({reason})");
         }
     }

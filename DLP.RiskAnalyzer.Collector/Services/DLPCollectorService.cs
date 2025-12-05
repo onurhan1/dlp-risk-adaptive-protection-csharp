@@ -59,6 +59,20 @@ public class DLPCollectorService : IDisposable
             // Get current config at runtime (may have been updated via UI)
             var config = _configProvider.GetCurrent();
             
+            // Validate that config is actually configured (not placeholder values)
+            if (config.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+                (config.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(config.Username)))
+            {
+                _logger.LogError("DLP API settings are not configured. Please configure via Settings page in the dashboard.");
+                throw new InvalidOperationException("DLP API settings are not configured. Please configure DLP Manager IP, Username, and Password via Settings page in the dashboard.");
+            }
+            
+            if (string.IsNullOrWhiteSpace(config.Username) || string.IsNullOrWhiteSpace(config.Password))
+            {
+                _logger.LogError("DLP API credentials are not configured. Username or Password is empty.");
+                throw new InvalidOperationException("DLP API credentials are not configured. Please configure Username and Password via Settings page in the dashboard.");
+            }
+            
             // Update HttpClient if config changed
             if (!ConfigEquals(_currentConfig, config))
             {
