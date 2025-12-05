@@ -45,7 +45,15 @@ public class AuthController : ControllerBase
             var normalizedPassword = request.Password.Trim();
             
             // Remove any zero-width characters or BOM that might cause issues
+            // Also normalize line endings and other control characters that might differ between OS
             normalizedPassword = System.Text.RegularExpressions.Regex.Replace(normalizedPassword, @"\p{C}", string.Empty);
+            
+            // Additional normalization for Windows Server compatibility
+            // Remove any Windows-specific line endings or hidden characters
+            normalizedPassword = normalizedPassword.Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+            
+            // Ensure consistent encoding (UTF-8)
+            normalizedPassword = System.Text.Encoding.UTF8.GetString(System.Text.Encoding.UTF8.GetBytes(normalizedPassword));
 
             _logger.LogInformation("Login attempt - Username: '{Username}' (Length: {UserLen}), Password Length: {PassLen}", 
                 normalizedUsername, normalizedUsername.Length, normalizedPassword.Length);
