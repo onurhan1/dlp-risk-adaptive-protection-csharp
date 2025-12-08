@@ -1,3 +1,7 @@
+// Enable legacy timestamp behavior for Npgsql 6.0+
+// This allows DateTime with Kind=Unspecified to be written to PostgreSQL timestamp with time zone columns
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Options;
 using DLP.RiskAnalyzer.Analyzer.Services;
