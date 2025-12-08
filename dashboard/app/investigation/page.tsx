@@ -73,51 +73,39 @@ export default function InvestigationPage() {
     // Extract IOB number from IOBs array if available (from API)
     const iobNumber = (event as any).iobs && Array.isArray((event as any).iobs) && (event as any).iobs.length > 0
       ? (event as any).iobs[0].replace('IOB-', '').replace('IoB-', '')
-      : event.iob_number || '904'
+      : event.iob_number || undefined
     
     // Use DataType from API if available, otherwise infer from tags
     const dataType = (event as any).dataType || event.alert_type
     const classification = dataType 
       ? (dataType === 'PII' || dataType === 'PCI' || dataType === 'CCN' ? [dataType] : [])
-      : (event.tags.includes('Data exfiltration')
+      : (event.tags && event.tags.includes('Data exfiltration')
         ? ['PCI', 'CCN', 'PII']
         : event.classification || [])
     
-    // Use IOBs from API if available, otherwise create default
+    // Use IOBs from API if available, otherwise use policy as matched rule
     const matchedRules = (event as any).iobs && Array.isArray((event as any).iobs) && (event as any).iobs.length > 0
       ? (event as any).iobs.map((iob: string) => `NEO ${iob} ${event.description}`)
-      : event.matched_rules || [`NEO IoB-${iobNumber} ${event.description}`]
+      : (event as any).policy 
+        ? [(event as any).policy]
+        : event.matched_rules || []
     
-    // Enrich event with additional details from API or defaults
+    // Enrich event with additional details from API - only use real data, no mock data
     const enrichedEvent: TimelineEvent = {
       ...event,
-      destination: event.channel === 'Email' ? 'gmail.com' : event.destination,
+      // Only set destination if it exists in event data, otherwise leave undefined
+      destination: event.destination || undefined,
       classification: classification,
       matched_rules: matchedRules,
-      source_application: event.channel === 'Email' ? 'outlook.exe' : event.source_application,
-      email_subject: event.channel === 'Email' ? 'backup customer list' : event.email_subject,
-      recipients: event.channel === 'Email' ? 'fabianoCese@gmail.com' : event.recipients,
+      // Only set source_application if it exists in event data, otherwise leave undefined
+      source_application: event.source_application || undefined,
+      // Only set email_subject if it exists in event data, otherwise leave undefined
+      email_subject: event.email_subject || undefined,
+      // Only set recipients if it exists in event data, otherwise leave undefined
+      recipients: event.recipients || undefined,
       iob_number: iobNumber,
-      files: event.files || [
-        {
-          name: 'Top 100.pdf',
-          size: '12MB',
-          protected: true,
-          classification: classification.length > 0 ? classification : []
-        },
-        {
-          name: 'Customer list.csv',
-          size: '1MB',
-          protected: true,
-          classification: classification.length > 0 ? classification : ['CCN', 'PII']
-        },
-        {
-          name: 'QBR 0122.pptx',
-          size: '5MB',
-          protected: true,
-          classification: classification.length > 0 ? classification : ['PCI', 'CCN']
-        }
-      ]
+      // Only show files if they exist in event data, otherwise leave undefined (no mock files)
+      files: event.files || undefined
     }
     setSelectedEvent(enrichedEvent)
   }

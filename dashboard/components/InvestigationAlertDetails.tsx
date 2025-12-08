@@ -87,9 +87,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             {event.matched_rules.map((rule, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
-                <span style={{ color: '#ef4444', fontWeight: '500' }}>NEO</span>
-                <span style={{ color: 'var(--text-primary)' }}>IoB-{event.iob_number || '502'}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>{event.description}</span>
+                <span style={{ color: 'var(--text-primary)' }}>{rule}</span>
               </div>
             ))}
           </div>
@@ -121,98 +119,89 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
         </div>
       </div>
 
-      {/* Forensics Section */}
-      <div style={{ marginBottom: '24px' }}>
-        <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Forensics</h4>
-        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-          Filter the table below by classification type or search for a specific file.
-        </p>
+      {/* Forensics Section - Only show if files are available */}
+      {event.files && event.files.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Forensics</h4>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Filter the table below by classification type or search for a specific file.
+          </p>
 
-        {/* Search and Filter */}
-        <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="Search / select a file"
-              style={{
-                width: '100%',
-                padding: '8px 32px 8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: '14px',
-                background: 'var(--background)',
-                color: 'var(--text-primary)',
-                outline: 'none'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'var(--primary)'
-                e.target.style.boxShadow = '0 0 0 2px rgba(0, 168, 232, 0.2)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'var(--border)'
-                e.target.style.boxShadow = 'none'
-              }}
-            />
-            <svg
-              style={{ position: 'absolute', right: '8px', top: '10px', width: '16px', height: '16px', color: 'var(--text-muted)' }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Search and Filter */}
+          <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search / select a file"
+                style={{
+                  width: '100%',
+                  padding: '8px 32px 8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  background: 'var(--background)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'var(--primary)'
+                  e.target.style.boxShadow = '0 0 0 2px rgba(0, 168, 232, 0.2)'
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--border)'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
+              <svg
+                style={{ position: 'absolute', right: '8px', top: '10px', width: '16px', height: '16px', color: 'var(--text-muted)' }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <button style={{
+              width: '100%',
+              padding: '8px 12px',
+              background: 'rgba(0, 168, 232, 0.1)',
+              color: 'var(--primary)',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+            }}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+              <span>Classifiers</span>
+              <span>▼</span>
+            </button>
           </div>
-          <button style={{
-            width: '100%',
-            padding: '8px 12px',
-            background: 'rgba(0, 168, 232, 0.1)',
-            color: 'var(--primary)',
-            borderRadius: '6px',
-            fontSize: '14px',
-            fontWeight: '500',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
-          }}
-          >
-            <span>Classifiers</span>
-            <span>▼</span>
-          </button>
-        </div>
 
-        {/* DLP Classifiers */}
-        <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
-              DLP: US credit cards: all credit cards
+          {/* DLP Classifiers - Only show if classification data is available */}
+          {event.classification && event.classification.length > 0 && (
+            <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {event.classification.map((cls, idx) => (
+                <div key={idx} style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    {cls}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <span>Matches: 10</span>
-              <span>Unique: 4</span>
-            </div>
-          </div>
-          <div style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
-              US SSN With First And Last Names
-            </div>
-            <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-              <span>Matches: 3</span>
-              <span>Unique: 3</span>
-            </div>
-          </div>
-        </div>
+          )}
 
-        {/* Files Table */}
-        {event.files && event.files.length > 0 && (
+          {/* Files Table */}
           <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
             <table style={{ width: '100%', fontSize: '14px' }}>
               <thead style={{ background: 'var(--background-secondary)' }}>
@@ -261,8 +250,8 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Remediate Button */}
       <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
