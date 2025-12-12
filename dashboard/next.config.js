@@ -1,0 +1,22 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  output: 'standalone',
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001',
+  },
+  // Offline mode: Optimize package imports for offline use
+  experimental: {
+    optimizePackageImports: ['react-plotly.js', 'plotly.js'],
+  },
+  // Ensure all dependencies are included in standalone build
+  outputFileTracingIncludes: {
+    '/': ['./node_modules/react-plotly.js/**/*', './node_modules/plotly.js/**/*'],
+  },
+  // Fix workspace root warning
+  turbopack: {
+    root: process.cwd(),
+  },
+}
+
+module.exports = nextConfig

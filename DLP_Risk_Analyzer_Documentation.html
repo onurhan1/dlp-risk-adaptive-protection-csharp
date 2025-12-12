@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLP Risk Analyzer - Proje Dokümantasyonu</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px;
+            background: #f5f7fa;
+        }
+
+        h1 {
+            color: #1a1f2e;
+            font-size: 32px;
+            margin-bottom: 10px;
+            border-bottom: 3px solid #00a8e8;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin: 30px 0 15px;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #00a8e8, #0066cc);
+            color: white;
+            border-radius: 5px;
+        }
+
+        h3 {
+            color: #00a8e8;
+            font-size: 18px;
+            margin: 20px 0 10px;
+        }
+
+        h4 {
+            color: #2c3e50;
+            font-size: 16px;
+            margin: 15px 0 8px;
+        }
+
+        p {
+            margin-bottom: 12px;
+            text-align: justify;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #00a8e8;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .tech-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-top: 4px solid #00a8e8;
+        }
+
+        .tech-card h4 {
+            color: #00a8e8;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tech-card .icon {
+            font-size: 24px;
+        }
+
+        code {
+            background: #e8f4f8;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #0066cc;
+        }
+
+        pre {
+            background: #1a1f2e;
+            color: #e8eaed;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            margin: 15px 0;
+        }
+
+        pre code {
+            background: transparent;
+            color: #e8eaed;
+            padding: 0;
+        }
+
+        .endpoint {
+            background: #f0f7ff;
+            border: 1px solid #b8d4f0;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin: 10px 0;
+        }
+
+        .endpoint .method {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+
+        .endpoint .post {
+            background: #49cc90;
+            color: white;
+        }
+
+        .endpoint .get {
+            background: #61affe;
+            color: white;
+        }
+
+        .endpoint .url {
+            font-family: 'Consolas', monospace;
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        th {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .flow-diagram {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .flow-box {
+            display: inline-block;
+            background: white;
+            border: 2px solid #00a8e8;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 5px;
+            min-width: 150px;
+        }
+
+        .flow-arrow {
+            display: inline-block;
+            color: #00a8e8;
+            font-size: 24px;
+            margin: 0 10px;
+        }
+
+        .step-number {
+            display: inline-flex;
+            width: 30px;
+            height: 30px;
+            background: #00a8e8;
+            color: white;
+            border-radius: 50%;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .info {
+            background: #e7f3ff;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* ========================================
+           A4 PDF / PRINT STYLES
+           ======================================== */
+        @media print {
+            @page {
+                size: A4;
+                margin: 15mm 15mm 20mm 15mm;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                font-size: 11pt;
+                line-height: 1.4;
+            }
+
+            h1 {
+                font-size: 22pt;
+                page-break-after: avoid;
+            }
+
+            h2 {
+                font-size: 16pt;
+                page-break-after: avoid;
+                margin-top: 20px;
+            }
+
+            h3 {
+                font-size: 13pt;
+                page-break-after: avoid;
+            }
+
+            h4 {
+                font-size: 11pt;
+                page-break-after: avoid;
+            }
+
+            /* Prevent content from splitting across pages */
+            .card,
+            .tech-card,
+            .toc,
+            .flow-diagram,
+            .warning,
+            .info,
+            .success {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                box-shadow: none !important;
+                border: 1px solid #ddd !important;
+            }
+
+            table {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                box-shadow: none !important;
+                border: 1px solid #ddd !important;
+                font-size: 10pt;
+            }
+
+            tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            pre {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                white-space: pre-wrap !important;
+                word-wrap: break-word !important;
+                font-size: 9pt;
+                max-height: none !important;
+                overflow: visible !important;
+            }
+
+            .endpoint {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            /* Tech grid - force 2 columns for print */
+            .tech-grid {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 10px !important;
+            }
+
+            .tech-card {
+                padding: 12px !important;
+                font-size: 10pt;
+            }
+
+            /* Force page breaks before major sections */
+            h2 {
+                page-break-before: auto;
+            }
+
+            /* Don't break inside these elements */
+            img,
+            svg,
+            figure {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            /* Hide elements not needed in print */
+            .no-print {
+                display: none !important;
+            }
+
+            /* Ensure links are visible */
+            a {
+                color: #0066cc !important;
+                text-decoration: none !important;
+            }
+
+            /* Table of contents styling for print */
+            .toc {
+                border: 1px solid #ddd;
+                padding: 15px;
+            }
+
+            .toc ul ul {
+                margin-left: 20px;
+            }
+
+            /* Compact code for print */
+            code {
+                font-size: 9pt;
+                background: #f0f0f0 !important;
+            }
+
+            /* Reduce margins for print */
+            .card {
+                margin: 10px 0 !important;
+                padding: 15px !important;
+            }
+
+            p {
+                orphans: 3;
+                widows: 3;
+            }
+        }
+
+        .toc {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            padding: 5px 0;
+        }
+
+        .toc a {
+            color: #00a8e8;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .header-info {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🛡️ DLP Risk Analyzer - Proje Dokümantasyonu</h1>
+    <p class="header-info">Forcepoint DLP Adaptive Risk Protection Sistemi | Versiyon 1.0 | Oluşturulma: 11 Aralık 2025
+    </p>
+
+    <div class="toc">
+        <h3>📋 İçindekiler</h3>
+        <ul>
+            <li><a href="#teknolojiler">1. Kullanılan Teknolojiler</a></li>
+            <li><a href="#mimari">2. Sistem Mimarisi</a></li>
+            <li><a href="#veri-toplama">3. DLP API'den Veri Toplama</a></li>
+            <li><a href="#redis-islemleri">4. Redis Stream İşlemleri</a></li>
+            <li><a href="#veritabani">5. PostgreSQL Veritabanı İşlemleri</a></li>
+            <li><a href="#risk-analizi">6. Risk Skoru Hesaplama</a>
+                <ul>
+                    <li><a href="#risk-analizi">6.1 Hesaplama Formülü</a></li>
+                    <li><a href="#risk-analizi">6.2 Skor Hesaplama Detayları (Severity, RepeatCount,
+                            DataSensitivity)</a></li>
+                    <li><a href="#risk-analizi">6.3 Politika Aksiyonları Matrisi</a></li>
+                    <li><a href="#risk-analizi">6.4 IOB Tespiti</a></li>
+                    <li><a href="#risk-analizi">6.5 Sabit Değerler (Constants)</a></li>
+                </ul>
+            </li>
+            <li><a href="#ai-analiz">7. AI Davranış Analizi</a></li>
+            <li><a href="#remediation">8. Olay Düzeltme (Remediation)</a></li>
+            <li><a href="#frontend">9. Dashboard (Frontend)</a></li>
+            <li><a href="#api-endpoints">10. API Endpoint'leri</a></li>
+        </ul>
+    </div>
+
+    <h2 id="teknolojiler">1. Kullanılan Teknolojiler</h2>
+
+    <div class="tech-grid">
+        <div class="tech-card">
+            <h4><span class="icon">🐘</span> PostgreSQL</h4>
+            <p><strong>Amaç:</strong> Ana veritabanı sistemi</p>
+            <p>Incident'lar, kullanıcılar, AI analizleri ve sistem ayarları burada saklanır. Entity Framework Core ile
+                ORM desteği sağlanır.</p>
+            <p><strong>Tablolar:</strong> Incidents, Users, AIBehavioralAnalyses, SystemSettings, AuditLogs</p>
+        </div>
+
+        <div class="tech-card">
+            <h4><span class="icon">🔴</span> Redis</h4>
+            <p><strong>Amaç:</strong> Mesaj kuyruğu (Stream)</p>
+            <p>DLP API'den çekilen incident'lar önce Redis Stream'e yazılır. Bu sayede veri kaybı önlenir ve asenkron
+                işleme sağlanır.</p>
+            <p><strong>Stream:</strong> <code>dlp:incidents</code></p>
+        </div>
+
+        <div class="tech-card">
+            <h4><span class="icon">🔷</span> .NET 8 / C#</h4>
+            <p><strong>Amaç:</strong> Backend API</p>
+            <p>ASP.NET Core Web API ile RESTful servisler sunulur. Dependency Injection, Entity Framework Core,
+                Background Services kullanılır.</p>
+        </div>
+
+        <div class="tech-card">
+            <h4><span class="icon">⚛️</span> Next.js / React</h4>
+            <p><strong>Amaç:</strong> Frontend Dashboard</p>
+            <p>TypeScript ile yazılmış modern dashboard. Plotly.js ile grafikler, Tailwind CSS ile stil, Axios ile API
+                iletişimi.</p>
+        </div>
+
+        <div class="tech-card">
+            <h4><span class="icon">🔒</span> Forcepoint DLP API</h4>
+            <p><strong>Amaç:</strong> Veri kaynağı</p>
+            <p>Forcepoint DLP Manager REST API v1 üzerinden incident verileri çekilir. JWT token tabanlı kimlik
+                doğrulama kullanılır.</p>
+        </div>
+
+        <div class="tech-card">
+            <h4><span class="icon">🤖</span> OpenAI / Azure OpenAI</h4>
+            <p><strong>Amaç:</strong> AI Analiz</p>
+            <p>Davranış anomalilerinin açıklaması ve önerileri için GPT modelleri kullanılır. Opsiyonel entegrasyon.</p>
+        </div>
+    </div>
+
+    <h2 id="mimari">2. Sistem Mimarisi</h2>
+
+    <div class="card">
+        <h3>Veri Akış Diyagramı</h3>
+        <div class="flow-diagram">
+            <div class="flow-box"><strong>Forcepoint DLP</strong><br>Manager API</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box"><strong>Collector</strong><br>Service</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box"><strong>Redis</strong><br>Stream</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box"><strong>Analyzer</strong><br>Service</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box"><strong>PostgreSQL</strong><br>Database</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box"><strong>Dashboard</strong><br>Next.js</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Proje Yapısı</h3>
+        <table>
+            <tr>
+                <th>Proje</th>
+                <th>Açıklama</th>
+                <th>Port</th>
+            </tr>
+            <tr>
+                <td><code>DLP.RiskAnalyzer.Collector</code></td>
+                <td>DLP API'den veri toplama servisi</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td><code>DLP.RiskAnalyzer.Analyzer</code></td>
+                <td>Ana API servisi (Backend)</td>
+                <td>5062</td>
+            </tr>
+            <tr>
+                <td><code>DLP.RiskAnalyzer.Shared</code></td>
+                <td>Ortak modeller ve sabitler</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td><code>DLP.RiskAnalyzer.Dashboard</code></td>
+                <td>WPF Desktop Uygulaması</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td><code>dashboard</code></td>
+                <td>Next.js Web Dashboard</td>
+                <td>3002</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 id="veri-toplama">3. DLP API'den Veri Toplama</h2>
+
+    <div class="card">
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Collector/Services/DLPCollectorService.cs</code></p>
+
+        <h3><span class="step-number">1</span> Kimlik Doğrulama (Authentication)</h3>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            <span class="url">/dlp/rest/v1/auth/access-token</span>
+        </div>
+        <pre><code>// İstek Headers
+Headers:
+  username: &lt;DLP kullanıcı adı&gt;
+  password: &lt;DLP şifresi&gt;
+
+// Yanıt
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5c...",
+  "access_token_expires_in": 3600
+}</code></pre>
+
+        <h3><span class="step-number">2</span> Incident'ları Çekme</h3>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            <span class="url">/dlp/rest/v1/incidents/</span>
+        </div>
+        <pre><code>// İstek Headers
+Authorization: Bearer &lt;access_token&gt;
+Content-Type: application/json
+
+// İstek Body
+{
+  "type": "INCIDENTS",
+  "from_date": "01/12/2024 00:00:00",
+  "to_date": "10/12/2024 23:59:59",
+  "start": 0,
+  "limit": 100
+}
+
+// Yanıt
+{
+  "incidents": [
+    {
+      "id": 12345,
+      "severity": "HIGH",
+      "source": {
+        "login_name": "john.doe@company.com",
+        "department": "Finance"
+      },
+      "incident_time": "05/12/2024 14:30:00",
+      "channel": "Email",
+      "policies": "Data Loss Prevention"
+    }
+  ],
+  "total": 150
+}</code></pre>
+    </div>
+
+    <h2 id="redis-islemleri">4. Redis Stream İşlemleri</h2>
+
+    <div class="card">
+        <p><strong>Dosya:</strong> <code>DLPCollectorService.cs</code> (Satır 233-260)</p>
+
+        <h3><span class="step-number">1</span> Stream'e Yazma</h3>
+        <pre><code>// Redis Stream'e incident yazma
+var streamName = "dlp:incidents";
+var fields = new NameValueEntry[]
+{
+    new("user", incident.UserEmail),
+    new("department", incident.Department ?? ""),
+    new("severity", incident.Severity.ToString()),
+    new("data_type", incident.DataType ?? ""),
+    new("timestamp", incident.Timestamp.ToString("O")),
+    new("policy", incident.Policy ?? ""),
+    new("channel", incident.Channel ?? "")
+};
+
+await db.StreamAddAsync(streamName, fields);</code></pre>
+
+        <h3><span class="step-number">2</span> Stream'den Okuma</h3>
+        <p><strong>Dosya:</strong> <code>DatabaseService.cs</code> (Satır 71-185)</p>
+        <pre><code>// Consumer Group ile okuma
+var consumerGroup = "analyzer";
+var messages = await db.StreamReadGroupAsync(
+    streamName, 
+    consumerGroup, 
+    consumerName, 
+    ">",        // Yeni mesajları oku
+    count: 100  // Max 100 mesaj
+);
+
+// İşleme sonrası acknowledge
+await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);</code></pre>
+    </div>
+
+    <h2 id="veritabani">5. PostgreSQL Veritabanı İşlemleri</h2>
+
+    <div class="card">
+        <h3>Incident Tablosu</h3>
+        <table>
+            <tr>
+                <th>Alan</th>
+                <th>Tip</th>
+                <th>Açıklama</th>
+            </tr>
+            <tr>
+                <td>Id</td>
+                <td>int</td>
+                <td>Primary Key</td>
+            </tr>
+            <tr>
+                <td>UserEmail</td>
+                <td>string</td>
+                <td>Kullanıcı e-postası</td>
+            </tr>
+            <tr>
+                <td>Department</td>
+                <td>string?</td>
+                <td>Departman</td>
+            </tr>
+            <tr>
+                <td>Severity</td>
+                <td>int</td>
+                <td>Ciddiyet (1-5)</td>
+            </tr>
+            <tr>
+                <td>DataType</td>
+                <td>string?</td>
+                <td>Veri tipi (PII, PCI...)</td>
+            </tr>
+            <tr>
+                <td>Timestamp</td>
+                <td>DateTime</td>
+                <td>Olay zamanı</td>
+            </tr>
+            <tr>
+                <td>Policy</td>
+                <td>string?</td>
+                <td>Tetiklenen politika</td>
+            </tr>
+            <tr>
+                <td>Channel</td>
+                <td>string?</td>
+                <td>Kanal (Email, USB...)</td>
+            </tr>
+            <tr>
+                <td>RiskScore</td>
+                <td>int?</td>
+                <td>Risk skoru (0-100)</td>
+            </tr>
+            <tr>
+                <td>RepeatCount</td>
+                <td>int</td>
+                <td>Tekrar sayısı</td>
+            </tr>
+            <tr>
+                <td>DataSensitivity</td>
+                <td>int</td>
+                <td>Veri hassasiyeti</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2 id="risk-analizi">6. Risk Skoru Hesaplama</h2>
+
+    <div class="card">
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Shared/Services/RiskAnalyzer.cs</code></p>
+
+        <h3>Hesaplama Formülü</h3>
+        <pre><code>RiskScore = (Severity × 3) + (RepeatCount × 2) + (DataSensitivity × 5)
+
+// Maksimum 100 ile sınırlandırılır
+return Math.Min(100, baseScore);</code></pre>
+
+        <h3>Risk Seviyeleri</h3>
+        <table>
+            <tr>
+                <th>Skor Aralığı</th>
+                <th>Seviye</th>
+                <th>Aksiyon</th>
+            </tr>
+            <tr>
+                <td>91-100</td>
+                <td style="color: #dc2626; font-weight: bold;">Critical</td>
+                <td>Block (Engelle)</td>
+            </tr>
+            <tr>
+                <td>61-90</td>
+                <td style="color: #f59e0b; font-weight: bold;">High</td>
+                <td>Encrypt (Şifrele)</td>
+            </tr>
+            <tr>
+                <td>41-60</td>
+                <td style="color: #eab308; font-weight: bold;">Medium</td>
+                <td>Confirm Prompt (Onay İste)</td>
+            </tr>
+            <tr>
+                <td>0-40</td>
+                <td style="color: #10b981; font-weight: bold;">Low</td>
+                <td>Audit (Kaydet)</td>
+            </tr>
+        </table>
+
+        <h3>Veri Hassasiyeti Eşikleri</h3>
+        <pre><code>PII (Kişisel Bilgi)   → Threshold: 8
+PCI (Ödeme Kartı)     → Threshold: 9
+Confidential (Gizli)  → Threshold: 7</code></pre>
+    </div>
+
+    <div class="card">
+        <h3>📊 Skor Hesaplama Detayları</h3>
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Shared/Constants/RiskConstants.cs</code> ve
+            <code>RiskAnalyzer.cs</code>
+        </p>
+
+        <div class="warning">
+            <strong>⚠️ Önemli:</strong> Sistem tüm DLP politikalarından bağımsız olarak çalışır. Politikalar Forcepoint
+            DLP'den alınır, ancak risk skoru aşağıdaki 3 faktöre göre hesaplanır.
+        </div>
+
+        <h4>1️⃣ Severity (Ciddiyet) - Ağırlık: ×3</h4>
+        <p>Forcepoint DLP API'den gelen <code>severity</code> değeri string olarak alınır ve sayıya dönüştürülür:</p>
+        <table>
+            <tr>
+                <th>API Değeri</th>
+                <th>Sayısal Değer</th>
+                <th>Skor Katkısı</th>
+            </tr>
+            <tr>
+                <td>LOW</td>
+                <td>1</td>
+                <td>1 × 3 = 3</td>
+            </tr>
+            <tr>
+                <td>MEDIUM</td>
+                <td>2</td>
+                <td>2 × 3 = 6</td>
+            </tr>
+            <tr>
+                <td>HIGH</td>
+                <td>3</td>
+                <td>3 × 3 = 9</td>
+            </tr>
+            <tr>
+                <td>CRITICAL</td>
+                <td>4</td>
+                <td>4 × 3 = 12</td>
+            </tr>
+        </table>
+
+        <h4>2️⃣ RepeatCount (Tekrar Sayısı) - Ağırlık: ×2</h4>
+        <p>Aynı kullanıcının benzer olayları tekrarlama sayısı. Bu değer veritabanında takip edilir.</p>
+        <table>
+            <tr>
+                <th>Tekrar Sayısı</th>
+                <th>Skor Katkısı</th>
+                <th>Açıklama</th>
+            </tr>
+            <tr>
+                <td>0-2</td>
+                <td>0-4</td>
+                <td>Normal davranış</td>
+            </tr>
+            <tr>
+                <td>3-5</td>
+                <td>6-10</td>
+                <td>Dikkat edilmeli</td>
+            </tr>
+            <tr>
+                <td>6-10</td>
+                <td>12-20</td>
+                <td>Şüpheli aktivite</td>
+            </tr>
+            <tr>
+                <td>10+</td>
+                <td>20+</td>
+                <td>IOB-311 (Stockpiling) tetiklenir</td>
+            </tr>
+        </table>
+
+        <h4>3️⃣ DataSensitivity (Veri Hassasiyeti) - Ağırlık: ×5</h4>
+        <p>Veri tipi (DataType) alanına göre hassasiyet seviyesi belirlenir:</p>
+        <table>
+            <tr>
+                <th>Veri Tipi</th>
+                <th>Eşik Değeri</th>
+                <th>Skor Katkısı (×5)</th>
+            </tr>
+            <tr>
+                <td>PCI (Ödeme Kartı)</td>
+                <td>9</td>
+                <td>9 × 5 = 45</td>
+            </tr>
+            <tr>
+                <td>PII (Kişisel Bilgi)</td>
+                <td>8</td>
+                <td>8 × 5 = 40</td>
+            </tr>
+            <tr>
+                <td>Confidential (Gizli)</td>
+                <td>7</td>
+                <td>7 × 5 = 35</td>
+            </tr>
+            <tr>
+                <td>Financial (Finansal)</td>
+                <td>6</td>
+                <td>6 × 5 = 30</td>
+            </tr>
+            <tr>
+                <td>Health (Sağlık)</td>
+                <td>6</td>
+                <td>6 × 5 = 30</td>
+            </tr>
+            <tr>
+                <td>Internal (Şirket İçi)</td>
+                <td>4</td>
+                <td>4 × 5 = 20</td>
+            </tr>
+            <tr>
+                <td>Public (Genel)</td>
+                <td>1</td>
+                <td>1 × 5 = 5</td>
+            </tr>
+        </table>
+
+        <h4>📐 Örnek Hesaplama</h4>
+        <pre><code>// Senaryo: Yüksek ciddiyetli, 3 kez tekrarlanan PII verisi sızıntısı
+Severity = HIGH (3)       → 3 × 3 = 9
+RepeatCount = 3           → 3 × 2 = 6  
+DataSensitivity = PII (8) → 8 × 5 = 40
+─────────────────────────────────────
+Toplam Risk Skoru         = 9 + 6 + 40 = 55 (Medium Risk)</code></pre>
+    </div>
+
+    <div class="card">
+        <h3>🎯 Politika Aksiyonları Matrisi</h3>
+        <p><strong>Dosya:</strong> <code>RiskAnalyzer.cs</code> - <code>GetPolicyAction()</code> metodu</p>
+        <p>Risk seviyesi ve kanal kombinasyonuna göre otomatik aksiyon önerilir:</p>
+
+        <table>
+            <tr>
+                <th>Risk Seviyesi</th>
+                <th>Email</th>
+                <th>USB</th>
+                <th>Cloud</th>
+                <th>Web</th>
+                <th>Print</th>
+            </tr>
+            <tr>
+                <td style="color: #dc2626; font-weight: bold;">Critical (91-100)</td>
+                <td>Block</td>
+                <td>Block</td>
+                <td>Block</td>
+                <td>Block</td>
+                <td>Block</td>
+            </tr>
+            <tr>
+                <td style="color: #f59e0b; font-weight: bold;">High (61-90)</td>
+                <td>Encrypt</td>
+                <td>Encrypt</td>
+                <td>Encrypt</td>
+                <td>Encrypt</td>
+                <td>Notify</td>
+            </tr>
+            <tr>
+                <td style="color: #eab308; font-weight: bold;">Medium (41-60)</td>
+                <td>Confirm</td>
+                <td>Confirm</td>
+                <td>Confirm</td>
+                <td>Confirm</td>
+                <td>Audit</td>
+            </tr>
+            <tr>
+                <td style="color: #10b981; font-weight: bold;">Low (0-40)</td>
+                <td>Audit</td>
+                <td>Audit</td>
+                <td>Audit</td>
+                <td>Audit</td>
+                <td>Audit</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>🔍 IOB (Indicator of Behavior) Tespiti</h3>
+        <p><strong>Dosya:</strong> <code>RiskAnalyzer.cs</code> - <code>DetectIOB()</code> metodu</p>
+        <p>Belirli davranış kalıpları tespit edildiğinde IOB kodları atanır:</p>
+
+        <table>
+            <tr>
+                <th>IOB Kodu</th>
+                <th>Açıklama</th>
+                <th>Tetikleme Koşulu</th>
+            </tr>
+            <tr>
+                <td><code>IOB-511</code></td>
+                <td>Personal Email Exfiltration</td>
+                <td>Email kanalı + kişisel domain (@company.com dışı)</td>
+            </tr>
+            <tr>
+                <td><code>IOB-299</code></td>
+                <td>USB Data Transfer</td>
+                <td>USB kanalı + Severity ≥ 7</td>
+            </tr>
+            <tr>
+                <td><code>IOB-811</code></td>
+                <td>Cloud Upload</td>
+                <td>Cloud kanalı + DataSensitivity ≥ 8</td>
+            </tr>
+            <tr>
+                <td><code>IOB-311</code></td>
+                <td>Anomalous File Copying (Stockpiling)</td>
+                <td>RepeatCount ≥ 10</td>
+            </tr>
+            <tr>
+                <td><code>IOB-280</code></td>
+                <td>Agent Tampering</td>
+                <td>Policy içinde "Agent" + Severity ≥ 8</td>
+            </tr>
+        </table>
+
+        <pre><code>// IOB tespit örneği
+if (incident.Channel == "USB" && incident.Severity >= 7)
+{
+    iobs.Add("IOB-299"); // USB upload
+}
+
+if (incident.RepeatCount >= 10)
+{
+    iobs.Add("IOB-311"); // Stockpiling
+}</code></pre>
+    </div>
+
+    <div class="card">
+        <h3>📁 Sabit Değerler (Constants)</h3>
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Shared/Constants/RiskConstants.cs</code></p>
+
+        <h4>Risk Skor Eşikleri</h4>
+        <pre><code>public static class RiskScores
+{
+    public const int CriticalThreshold = 91;
+    public const int HighThreshold = 61;
+    public const int MediumThreshold = 41;
+    public const int MaxScore = 100;
+    public const int MinScore = 0;
+}</code></pre>
+
+        <h4>Desteklenen Kanallar</h4>
+        <pre><code>public static class Channels
+{
+    public const string Cloud = "Cloud";
+    public const string CloudStorage = "Cloud Storage";
+    public const string Email = "Email";
+    public const string NetworkShare = "Network Share";
+    public const string RemovableStorage = "Removable Storage";
+    public const string Printer = "Printer";
+}</code></pre>
+
+        <h4>Veri Hassasiyeti Tipleri</h4>
+        <pre><code>public static class DataSensitivity
+{
+    public const string PII = "pii";
+    public const string Personal = "personal";
+    public const string PCI = "pci";
+    public const string Credit = "credit";
+    public const string Confidential = "confidential";
+}</code></pre>
+
+        <div class="success">
+            <strong>✅ Sonuç:</strong> Tüm eşik değerleri ve politika aksiyonları <code>RiskConstants.cs</code>
+            dosyasında merkezi olarak tanımlanmıştır. Bu sayede değişiklikler tek noktadan yapılabilir.
+        </div>
+    </div>
+
+    <h2 id="ai-analiz">7. AI Davranış Analizi</h2>
+
+    <div class="card">
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Analyzer/Services/BehaviorEngineService.cs</code></p>
+
+        <h3>Z-Score Anomali Tespiti</h3>
+        <pre><code>// Z-score hesaplama: z = (x - μ) / σ
+// x: Mevcut değer, μ: Ortalama, σ: Standart sapma
+
+var incidentCountZ = (currentMean - baselineMean) / baselineStdDev;
+var severityZ = (currentAvgSeverity - baselineAvgSeverity) / baselineStdDevSeverity;</code></pre>
+
+        <h3>Anomali Seviyeleri</h3>
+        <table>
+            <tr>
+                <th>Z-Score</th>
+                <th>Seviye</th>
+                <th>Risk Skoru</th>
+            </tr>
+            <tr>
+                <td>≥ 3.0</td>
+                <td>Kritik</td>
+                <td>100</td>
+            </tr>
+            <tr>
+                <td>≥ 2.0</td>
+                <td>Yüksek</td>
+                <td>80</td>
+            </tr>
+            <tr>
+                <td>≥ 1.0</td>
+                <td>Orta</td>
+                <td>50</td>
+            </tr>
+            <tr>
+                <td>
+                    < 1.0</td>
+                <td>Düşük</td>
+                <td>30</td>
+            </tr>
+        </table>
+
+        <h3>AI Model Entegrasyonu</h3>
+        <p>Sistem üç AI sağlayıcısını destekler:</p>
+        <ul>
+            <li><strong>OpenAI:</strong> GPT-4, GPT-4o-mini</li>
+            <li><strong>Azure OpenAI:</strong> Kurumsal Azure entegrasyonu</li>
+            <li><strong>Local:</strong> Statik açıklama (AI olmadan)</li>
+        </ul>
+    </div>
+
+    <h2 id="remediation">8. Olay Düzeltme (Remediation)</h2>
+
+    <div class="card">
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Analyzer/Services/RemediationService.cs</code></p>
+
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            <span class="url">/dlp/rest/v1/incidents/update</span>
+        </div>
+        <pre><code>// İstek Body
+{
+  "incidentId": "12345",
+  "action": "block",           // block, encrypt, notify, audit
+  "reason": "Data exfiltration attempt",
+  "notes": "User attempted to send PII via personal email"
+}</code></pre>
+    </div>
+
+    <h2 id="frontend">9. Dashboard (Frontend)</h2>
+
+    <div class="card">
+        <p><strong>Dizin:</strong> <code>dashboard/</code></p>
+
+        <h3>Sayfalar</h3>
+        <table>
+            <tr>
+                <th>Sayfa</th>
+                <th>Yol</th>
+                <th>Açıklama</th>
+            </tr>
+            <tr>
+                <td>Dashboard</td>
+                <td><code>/</code></td>
+                <td>Ana sayfa, özet grafikler</td>
+            </tr>
+            <tr>
+                <td>Investigation</td>
+                <td><code>/investigation</code></td>
+                <td>Kullanıcı inceleme, timeline</td>
+            </tr>
+            <tr>
+                <td>Users</td>
+                <td><code>/users</code></td>
+                <td>Kullanıcı yönetimi</td>
+            </tr>
+            <tr>
+                <td>Reports</td>
+                <td><code>/reports</code></td>
+                <td>Rapor oluşturma</td>
+            </tr>
+            <tr>
+                <td>AI Behavioral</td>
+                <td><code>/ai-behavioral</code></td>
+                <td>AI anomali analizi</td>
+            </tr>
+            <tr>
+                <td>Settings</td>
+                <td><code>/settings</code></td>
+                <td>Sistem ayarları</td>
+            </tr>
+        </table>
+
+        <h3>API İletişimi</h3>
+        <pre><code>// Örnek API çağrısı
+const response = await axios.get(`${apiUrl}/api/incidents`, {
+    params: {
+        start_date: '2024-12-01',
+        end_date: '2024-12-10',
+        limit: 100,
+        order_by: 'risk_score_desc'
+    }
+});</code></pre>
+    </div>
+
+    <h2 id="api-endpoints">10. API Endpoint'leri</h2>
+
+    <div class="card">
+        <h3>Incident Endpoint'leri</h3>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/incidents</span> - Tüm
+            incident'ları listele</div>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/incidents/{id}</span> - Tek
+            incident detayı</div>
+        <div class="endpoint"><span class="method post">POST</span><span
+                class="url">/api/incidents/seed-sample-data</span> - Test verisi oluştur</div>
+
+        <h3>Risk Endpoint'leri</h3>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/daily-summary</span> -
+            Günlük özet</div>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/department-summary</span> -
+            Departman özeti</div>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/user-list</span> -
+            Kullanıcı risk listesi</div>
+
+        <h3>AI Behavioral Endpoint'leri</h3>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/ai-behavioral/overview</span> -
+            AI analiz özeti</div>
+        <div class="endpoint"><span class="method get">GET</span><span
+                class="url">/api/ai-behavioral/entity/{type}/{id}</span> - Entity analizi</div>
+        <div class="endpoint"><span class="method post">POST</span><span class="url">/api/ai-behavioral/analyze</span> -
+            Yeni analiz başlat</div>
+
+        <h3>DLP Test Endpoint'leri</h3>
+        <div class="endpoint"><span class="method post">POST</span><span class="url">/api/dlptest/connection</span> -
+            Bağlantı testi</div>
+        <div class="endpoint"><span class="method post">POST</span><span class="url">/api/dlptest/auth</span> - Kimlik
+            doğrulama testi</div>
+        <div class="endpoint"><span class="method post">POST</span><span class="url">/api/dlptest/incidents</span> -
+            Incident çekme testi</div>
+    </div>
+
+    <div class="info" style="margin-top: 40px;">
+        <strong>📝 Not:</strong> Bu dokümantasyon tarayıcıda PDF olarak yazdırılabilir (Ctrl+P veya Cmd+P).
+    </div>
+
+</body>
+
+</html>

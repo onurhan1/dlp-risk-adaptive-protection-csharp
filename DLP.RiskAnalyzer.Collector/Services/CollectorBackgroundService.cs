@@ -1,0 +1,134 @@
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace DLP.RiskAnalyzer.Collector.Services;
+
+/// <summary>
+/// Background service that collects incidents from DLP API
+/// </summary>
+public class CollectorBackgroundService : BackgroundService
+{
+    private readonly DLPCollectorService _collectorService;
+    private readonly ILogger<CollectorBackgroundService> _logger;
+    private readonly TimeSpan _collectionInterval = TimeSpan.FromHours(1); // Collect every hour
+
+    public CollectorBackgroundService(
+        DLPCollectorService collectorService,
+        ILogger<CollectorBackgroundService> logger)
+    {
+        _collectorService = collectorService;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("DLP Collector Service started");
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await CollectIncidentsAsync(stoppingToken);
+                await Task.Delay(_collectionInterval, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in collector background service");
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken); // Retry after 5 minutes
+            }
+        }
+
+        _logger.LogInformation("DLP Collector Service stopped");
+    }
+
+    private async Task CollectIncidentsAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1...");
+
+        // Use 24 hour lookback - may cause timeout if too many incidents
+        var endTime = DateTime.UtcNow;
+        var startTime = endTime.AddHours(-24); // Last 24 hours
+
+        try
+        {
+            // Fetch all incidents in single request (DLP API ignores pagination params)
+            // Add retry logic for connection stability
+            List<DLPIncident> allIncidents = new();
+            int maxRetries = 3;
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("Fetching incidents from DLP API (Attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+                    allIncidents = await _collectorService.FetchIncidentsAsync(startTime, endTime, 1, 1000);
+                    _logger.LogInformation("Successfully fetched {Count} incidents from DLP API", allIncidents.Count);
+                    break; // Success, exit retry loop
+                }
+                catch (TaskCanceledException) when (attempt < maxRetries)
+                {
+                    _logger.LogWarning("DLP API request timeout on attempt {Attempt}. Retrying in 10 seconds...", attempt);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                }
+                catch (HttpRequestException) when (attempt < maxRetries)
+                {
+                    _logger.LogWarning("DLP API connection error on attempt {Attempt}. Retrying in 10 seconds...", attempt);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                }
+            }
+
+            if (allIncidents.Count == 0)
+            {
+                _logger.LogInformation("No incidents found in the time range {StartTime} to {EndTime}", startTime, endTime);
+                return;
+            }
+
+            // Push incidents to Redis
+            var pushedCount = 0;
+            var errorCount = 0;
+            
+            foreach (var dlpIncident in allIncidents)
+            {
+                try
+                {
+                    var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
+                    {
+                        UserEmail = dlpIncident.User ?? "unknown",
+                        Department = dlpIncident.Department,
+                        Severity = dlpIncident.Severity,
+                        DataType = dlpIncident.DataType,
+                        Timestamp = dlpIncident.Timestamp,
+                        Policy = dlpIncident.Policy,
+                        Channel = dlpIncident.Channel,
+                        // New fields
+                        Action = dlpIncident.Action,
+                        Destination = dlpIncident.Destination,
+                        FileName = dlpIncident.FileName,
+                        LoginName = dlpIncident.LoginName,
+                        EmailAddress = dlpIncident.EmailAddress,
+                        ViolationTriggers = dlpIncident.ViolationTriggers != null 
+                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers) 
+                            : null
+                    };
+
+                    await _collectorService.PushToRedisStreamAsync(incident);
+                    pushedCount++;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    _logger.LogError(ex, "Failed to push incident: User={User}", dlpIncident.User);
+                }
+            }
+
+            _logger.LogInformation("Successfully pushed {PushedCount} incidents to Redis (Errors: {ErrorCount})", 
+                pushedCount, errorCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to collect incidents from Forcepoint DLP API");
+            throw;
+        }
+    }
+}

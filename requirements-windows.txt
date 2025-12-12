@@ -1,0 +1,133 @@
+# Forcepoint Risk Adaptive Protection - Windows Requirements
+# Bu dosya Windows ortamında kurulum için gerekli tüm bağımlılıkları listeler
+# Python'daki requirements.txt dosyasına benzer şekilde kullanılır
+
+# ============================================================================
+# 1. İŞLETİM SİSTEMİ VE ÇERÇEVE
+# ============================================================================
+.NET_SDK_VERSION=8.0.xxx
+.NET_RUNTIME=Microsoft.NETCore.App 8.0
+.NET_DESKTOP_RUNTIME=Microsoft.WindowsDesktop.App 8.0 (WPF için)
+Windows_Version=Windows 10 (1809+) veya Windows 11
+
+# ============================================================================
+# 2. VERİTABANI VE STORAGE
+# ============================================================================
+PostgreSQL_Version=14.0+ veya 16.0+
+TimescaleDB_Extension=latest-pg14 veya latest-pg16
+Redis_Version=6.0+ veya 7.0+
+
+# ============================================================================
+# 3. GELİŞTİRME ORTAMI (Opsiyonel ama önerilen)
+# ============================================================================
+Visual_Studio_2022=Community/Professional/Enterprise
+Visual_Studio_Code=Latest (opsiyonel)
+Git=2.40.0+
+
+# ============================================================================
+# 4. .NET PROJELERİ İÇİN NUGET PAKETLERİ
+# ============================================================================
+
+# Shared Library
+Microsoft.Extensions.Configuration>=8.0.0
+Microsoft.Extensions.Configuration.Json>=8.0.0
+System.Text.Json>=8.0.0
+
+# Collector Service
+StackExchange.Redis>=2.7.0
+Newtonsoft.Json>=13.0.3
+Microsoft.Extensions.Http>=8.0.0
+Microsoft.Extensions.Logging>=8.0.0
+Microsoft.Extensions.Logging.Console>=8.0.0
+Microsoft.Extensions.Hosting>=8.0.0
+Microsoft.Extensions.Options>=8.0.0
+
+# Analyzer Service (ASP.NET Core Web API)
+Microsoft.AspNetCore.App>=8.0.0
+Microsoft.EntityFrameworkCore>=8.0.0
+Microsoft.EntityFrameworkCore.Design>=8.0.0
+Npgsql.EntityFrameworkCore.PostgreSQL>=8.0.0
+StackExchange.Redis>=2.7.0
+Swashbuckle.AspNetCore>=6.5.0
+QuestPDF>=2024.3.10
+Microsoft.Extensions.Http>=8.0.0
+
+# Dashboard (WPF)
+Microsoft.WindowsDesktop.App>=8.0.0
+MaterialDesignThemes>=4.9.0
+MaterialDesignColors>=2.1.4
+CommunityToolkit.Mvvm>=8.2.2
+Microsoft.Extensions.Hosting>=8.0.0
+Microsoft.Extensions.DependencyInjection>=8.0.0
+
+# ============================================================================
+# 5. WEB DASHBOARD (Next.js)
+# ============================================================================
+Node.js>=18.0.0
+npm>=9.0.0
+
+# Dashboard Dependencies (package.json içinde)
+# next>=15.0.0
+# react>=18.2.0
+# react-dom>=18.2.0
+# axios>=1.6.2
+# plotly.js>=2.27.0
+# react-plotly.js>=2.6.0
+# tailwindcss>=3.4.18
+# date-fns>=2.30.0
+
+# ============================================================================
+# 6. SERVİS BAĞIMLILIKLARI
+# ============================================================================
+Docker_Desktop=Latest (PostgreSQL/Redis için opsiyonel)
+WSL2=Windows Subsystem for Linux 2 (opsiyonel, Redis için)
+
+# ============================================================================
+# 7. NETWORK VE GÜVENLİK
+# ============================================================================
+Firewall_Ports_Required:
+  - 8000 (Analyzer API)
+  - 3001 (Dashboard - Next.js)
+  - 5432 (PostgreSQL)
+  - 6379 (Redis)
+  - 8443 (Forcepoint DLP API - HTTPS)
+
+SSL_Certificates:
+  - Forcepoint DLP Manager SSL Certificate (self-signed olabilir)
+  - Development için SSL validation bypass kullanılır
+
+# ============================================================================
+# 8. SYSTEM TOOLS (Opsiyonel)
+# ============================================================================
+PowerShell=5.1+ (Windows 10/11'de varsayılan)
+Chocolatey=Latest (Paket yöneticisi - opsiyonel)
+NSSM=Latest (Windows Service Manager - opsiyonel)
+
+# ============================================================================
+# 9. YAPILANDIRMA DOSYALARI
+# ============================================================================
+# Aşağıdaki dosyalarda yapılandırma gerekir:
+appsettings.json (Collector)
+appsettings.json (Analyzer)
+appsettings.json (Dashboard)
+.env.local (Dashboard - Next.js)
+
+# ============================================================================
+# 10. ENVIRONMENT VARIABLES (Opsiyonel)
+# ============================================================================
+ASPNETCORE_ENVIRONMENT=Development veya Production
+ASPNETCORE_URLS=http://localhost:8000
+DOTNET_ENVIRONMENT=Development
+
+# ============================================================================
+# KURULUM NOTLARI
+# ============================================================================
+# 1. .NET SDK: https://dotnet.microsoft.com/download/dotnet/8.0
+# 2. PostgreSQL: https://www.postgresql.org/download/windows/
+# 3. Redis: https://www.memurai.com/get-memurai (Windows için)
+# 4. Node.js: https://nodejs.org/
+# 5. Visual Studio: https://visualstudio.microsoft.com/downloads/
+#
+# Otomatik kurulum için: install-windows-dependencies.ps1 script'ini kullanın
+# ============================================================================
+

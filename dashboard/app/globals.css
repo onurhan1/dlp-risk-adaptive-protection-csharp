@@ -1,0 +1,420 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Tenable Security Center Color Scheme */
+  --primary: #00a8e8; /* Tenable Blue */
+  --primary-dark: #0066cc;
+  --primary-light: #5bc0de;
+  --secondary: #2c3e50; /* Dark Blue-Gray */
+  --accent: #00d4ff;
+  --success: #5cb85c;
+  --warning: #f0ad4e;
+  --danger: #d9534f;
+  --info: #5bc0de;
+}
+
+/* Dark Theme (Default) */
+.dark-theme {
+  --background: #1a1f2e; /* Dark Blue-Gray */
+  --background-secondary: #252b3d; /* Slightly Lighter */
+  --surface: #2d3447; /* Card Background */
+  --surface-hover: #353b4f;
+  --surface-active: #3d4457;
+  
+  /* Text Colors */
+  --text-primary: #e8eaed; /* Light Gray */
+  --text-secondary: #b0b8c4;
+  --text-muted: #8a9199;
+  --text-inverse: #1a1f2e;
+  
+  /* Borders */
+  --border: #3a4054;
+  --border-hover: #4a5064;
+  --border-light: #2d3447;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.7);
+}
+
+/* Light Theme */
+.light-theme {
+  --background: #f5f7fa; /* Light Gray-Blue */
+  --background-secondary: #ffffff;
+  --surface: #ffffff; /* White */
+  --surface-hover: #f8fafc;
+  --surface-active: #f1f5f9;
+  
+  /* Text Colors */
+  --text-primary: #1e293b; /* Dark Gray */
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+  
+  /* Borders */
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --border-light: #f1f5f9;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Default to dark theme */
+html {
+  color-scheme: dark;
+}
+
+html.dark-theme {
+  color-scheme: dark;
+}
+
+html.light-theme {
+  color-scheme: light;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  /* Windows Server 2025 optimized font stack - Segoe UI is native to Windows 11/Server 2025 */
+  font-family: 'Segoe UI', 'Segoe UI Variable', 'Segoe UI Historic', 'Segoe UI Emoji', Tahoma, Arial, Verdana, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+body {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Container */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Card - Tenable Style */
+.card {
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+  color: var(--text-primary);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+
+.card h2 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.card h3 {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-hover);
+}
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+}
+
+.badge-risk-critical {
+  background-color: #ef4444;
+}
+
+.badge-risk-high {
+  background-color: #f59e0b;
+}
+
+.badge-risk-medium {
+  background-color: #fbbf24;
+}
+
+.badge-risk-low {
+  background-color: #10b981;
+}
+
+.badge-risk-safe {
+  background-color: #6b7280;
+}
+
+/* Input */
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Table */
+.table-modern {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-modern th {
+  background: var(--surface-hover);
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+}
+
+.table-modern td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.table-modern tr:hover {
+  background: var(--surface-hover);
+}
+
+.table-modern tr:last-child td {
+  border-bottom: none;
+}
+
+/* Sidebar - Tenable Style */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: 240px;
+  background: var(--background-secondary);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  z-index: 1000;
+  box-shadow: var(--shadow-lg);
+  border-right: 1px solid var(--border);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-theme .sidebar {
+  background: linear-gradient(180deg, #1a1f2e 0%, #252b3d 100%);
+}
+
+.light-theme .sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.sidebar-logo {
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.sidebar-icon {
+  width: 100%;
+  height: 48px;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0 16px;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-icon:hover {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  border-left-color: var(--primary);
+}
+
+.sidebar-icon.active {
+  background-color: var(--surface-active);
+  color: var(--primary);
+  border-left-color: var(--primary);
+  font-weight: 600;
+}
+
+.sidebar-icon svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* Navigation - Tenable Style */
+.nav-modern {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+.main-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Utilities */
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-4 {
+  gap: 16px;
+}
+
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+}
