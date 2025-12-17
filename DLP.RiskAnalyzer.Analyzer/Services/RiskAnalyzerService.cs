@@ -583,28 +583,53 @@ public class RiskAnalyzerService
             }
 
             // Try to parse ViolationTriggers for rule names
+            // ViolationTriggers format: [{"policy_name": "...", "rule_name": "...", "classifiers": [...]}]
             if (!string.IsNullOrEmpty(incident.ViolationTriggers))
             {
                 try
                 {
-                    var triggers = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(incident.ViolationTriggers);
-                    if (triggers != null)
+                    using var doc = System.Text.Json.JsonDocument.Parse(incident.ViolationTriggers);
+                    var root = doc.RootElement;
+                    
+                    if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
                     {
-                        foreach (var trigger in triggers)
+                        foreach (var trigger in root.EnumerateArray())
                         {
-                            var ruleName = trigger.GetValueOrDefault("rule_name")?.ToString() ?? "Default Rule";
+                            string ruleName = policyName; // Default to policy name
+                            
+                            // Try to get rule_name from the trigger object
+                            if (trigger.TryGetProperty("rule_name", out var ruleNameElement) && 
+                                ruleNameElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                var ruleValue = ruleNameElement.GetString();
+                                if (!string.IsNullOrEmpty(ruleValue))
+                                {
+                                    ruleName = ruleValue;
+                                }
+                            }
+                            // Also try RuleName (camelCase)
+                            else if (trigger.TryGetProperty("RuleName", out var ruleNameCamelElement) && 
+                                ruleNameCamelElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                var ruleValue = ruleNameCamelElement.GetString();
+                                if (!string.IsNullOrEmpty(ruleValue))
+                                {
+                                    ruleName = ruleValue;
+                                }
+                            }
+                            
                             policyRuleData[policyName][ruleName] = policyRuleData[policyName].GetValueOrDefault(ruleName, 0) + 1;
                         }
                         continue;
                     }
                 }
-                catch
+                catch (System.Text.Json.JsonException)
                 {
-                    // JSON parse failed, use policy name as rule
+                    // JSON parse failed, fall through to use policy name as rule
                 }
             }
             
-            // If no ViolationTriggers, use policy name as the rule
+            // If no ViolationTriggers or parsing failed, use policy name as the rule
             policyRuleData[policyName][policyName] = policyRuleData[policyName].GetValueOrDefault(policyName, 0) + 1;
         }
 
