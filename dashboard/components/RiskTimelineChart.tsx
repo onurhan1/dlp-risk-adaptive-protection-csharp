@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import dynamic from 'next/dynamic'
 import { format, subDays } from 'date-fns'
-
-const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -327,19 +324,6 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
           </div>
         </div>
       )}
-
-      <Plot
-        data={chartData}
-        layout={{
-          height: 300,
-          xaxis: { title: 'Date' },
-          yaxis: { title: 'Alert Count' },
-          hovermode: 'x unified',
-          showlegend: true,
-          legend: { orientation: 'h', y: -0.2 }
-        }}
-        style={{ width: '100%', height: '300px' }}
-      />
 
       <style jsx>{`
         .risk-timeline-chart {

@@ -113,14 +113,16 @@ export default function Home() {
       // Calculate top users
       const usersMap = new Map<string, { alerts: number, risk: number }>()
       incidentsRes.data.forEach((incident: any) => {
-        const user = incident.user_email
+        const user = incident.userEmail || incident.user_email || ''
+        if (!user) return // Skip if no user email
         const existing = usersMap.get(user) || { alerts: 0, risk: 0 }
         usersMap.set(user, {
           alerts: existing.alerts + 1,
-          risk: Math.max(existing.risk, incident.risk_score || 0)
+          risk: Math.max(existing.risk, incident.riskScore || incident.risk_score || 0)
         })
       })
       const topUsersData = Array.from(usersMap.entries())
+        .filter(([email]) => email && email.length > 0) // Filter out empty emails
         .map(([user_email, data]) => ({
           user_email,
           total_alerts: data.alerts,
