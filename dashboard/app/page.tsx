@@ -414,27 +414,68 @@ export default function Home() {
           <h2>📈 Daily Incident Trends</h2>
           <p className="chart-subtitle">Daily Incident Count</p>
         </div>
-        <Plot
-          data={[dailyTrendData]}
-          layout={{
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#666', size: 12 },
-            xaxis: {
-              gridcolor: '#e0e0e0',
-              title: { text: 'Date', font: { size: 14 } }
-            },
-            yaxis: {
-              gridcolor: '#e0e0e0',
-              title: { text: 'Number of Incidents', font: { size: 14 } }
-            },
-            height: 400,
-            margin: { l: 60, r: 20, t: 40, b: 60 },
-            showlegend: true
-          }}
-          style={{ width: '100%', height: '400px' }}
-          config={{ displayModeBar: false, responsive: true }}
-        />
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: '#999' }}>
+            Loading chart...
+          </div>
+        ) : dailySummary.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: '#999' }}>
+            No data available for selected date range
+          </div>
+        ) : (
+          <Plot
+            data={[
+              {
+                x: dailySummary.map(d => d.date),
+                y: dailySummary.map(d => d.total_incidents),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Total Incidents',
+                line: { color: '#3b82f6', width: 2 },
+                marker: { size: 6, color: '#3b82f6' },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(59, 130, 246, 0.1)'
+              },
+              {
+                x: dailySummary.map(d => d.date),
+                y: dailySummary.map(d => d.high_risk_count),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'High Risk',
+                line: { color: '#ef4444', width: 2 },
+                marker: { size: 6, color: '#ef4444' }
+              }
+            ]}
+            layout={{
+              paper_bgcolor: 'rgba(0,0,0,0)',
+              plot_bgcolor: 'rgba(0,0,0,0)',
+              font: { color: 'var(--text-secondary)', size: 12 },
+              xaxis: {
+                gridcolor: 'rgba(128,128,128,0.2)',
+                title: { text: 'Date', font: { size: 14, color: 'var(--text-secondary)' } },
+                tickformat: '%d %b',
+                tickfont: { color: 'var(--text-secondary)' }
+              },
+              yaxis: {
+                gridcolor: 'rgba(128,128,128,0.2)',
+                title: { text: 'Number of Incidents', font: { size: 14, color: 'var(--text-secondary)' } },
+                tickfont: { color: 'var(--text-secondary)' },
+                rangemode: 'tozero'
+              },
+              height: 400,
+              margin: { l: 60, r: 20, t: 40, b: 60 },
+              showlegend: true,
+              legend: {
+                orientation: 'h',
+                y: -0.15,
+                font: { color: 'var(--text-secondary)' }
+              },
+              hovermode: 'x unified'
+            }}
+            style={{ width: '100%', height: '400px' }}
+            config={{ displayModeBar: false, responsive: true }}
+          />
+        )}
       </div>
 
       <style jsx>{`
