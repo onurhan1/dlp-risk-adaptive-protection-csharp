@@ -418,69 +418,134 @@ export default function Home() {
       <div className="card">
         <div className="chart-header">
           <h2>📈 Daily Incident Trends</h2>
-          <p className="chart-subtitle">Daily Incident Count</p>
+          <p className="chart-subtitle">Last {dailySummary.length} days overview</p>
         </div>
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: '#999' }}>
-            Loading chart...
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
+            Loading...
           </div>
         ) : dailySummary.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: '#999' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
             No data available for selected date range
           </div>
         ) : (
-          <Plot
-            data={[
-              {
-                x: dailySummary.map(d => d.date || d.Date || ''),
-                y: dailySummary.map(d => d.total_incidents ?? d.TotalIncidents ?? 0),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Total Incidents',
-                line: { color: '#3b82f6', width: 2 },
-                marker: { size: 6, color: '#3b82f6' },
-                fill: 'tozeroy',
-                fillcolor: 'rgba(59, 130, 246, 0.1)'
-              },
-              {
-                x: dailySummary.map(d => d.date || d.Date || ''),
-                y: dailySummary.map(d => d.high_risk_count ?? d.HighRiskCount ?? 0),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'High Risk',
-                line: { color: '#ef4444', width: 2 },
-                marker: { size: 6, color: '#ef4444' }
-              }
-            ]}
-            layout={{
-              paper_bgcolor: 'rgba(0,0,0,0)',
-              plot_bgcolor: 'rgba(0,0,0,0)',
-              font: { color: 'var(--text-secondary)', size: 12 },
-              xaxis: {
-                gridcolor: 'rgba(128,128,128,0.2)',
-                title: { text: 'Date', font: { size: 14, color: 'var(--text-secondary)' } },
-                tickformat: '%d %b',
-                tickfont: { color: 'var(--text-secondary)' }
-              },
-              yaxis: {
-                gridcolor: 'rgba(128,128,128,0.2)',
-                title: { text: 'Number of Incidents', font: { size: 14, color: 'var(--text-secondary)' } },
-                tickfont: { color: 'var(--text-secondary)' },
-                rangemode: 'tozero'
-              },
-              height: 400,
-              margin: { l: 60, r: 20, t: 40, b: 60 },
-              showlegend: true,
-              legend: {
-                orientation: 'h',
-                y: -0.15,
-                font: { color: 'var(--text-secondary)' }
-              },
-              hovermode: 'x unified'
-            }}
-            style={{ width: '100%', height: '400px' }}
-            config={{ displayModeBar: false, responsive: true }}
-          />
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Total Incidents</th>
+                  <th>High Risk</th>
+                  <th>Avg Score</th>
+                  <th>Unique Users</th>
+                  <th style={{ width: '200px' }}>Distribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const maxIncidents = Math.max(...dailySummary.map(d => d.total_incidents ?? d.TotalIncidents ?? 0));
+                  return dailySummary
+                    .slice()
+                    .sort((a, b) => {
+                      const dateA = a.date || a.Date || '';
+                      const dateB = b.date || b.Date || '';
+                      return dateB.localeCompare(dateA);
+                    })
+                    .slice(0, 14) // Show last 14 days
+                    .map((day, idx) => {
+                      const total = day.total_incidents ?? day.TotalIncidents ?? 0;
+                      const highRisk = day.high_risk_count ?? day.HighRiskCount ?? 0;
+                      const avgScore = day.avg_risk_score ?? day.AvgRiskScore ?? 0;
+                      const uniqueUsers = day.unique_users ?? day.UniqueUsers ?? 0;
+                      const dateStr = day.date || day.Date || '';
+                      const percentage = maxIncidents > 0 ? (total / maxIncidents) * 100 : 0;
+                      const highRiskPercentage = total > 0 ? (highRisk / total) * 100 : 0;
+
+                      // Format date
+                      let formattedDate = dateStr;
+                      try {
+                        const d = new Date(dateStr);
+                        formattedDate = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', weekday: 'short' });
+                      } catch { }
+
+                      return (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: '500' }}>{formattedDate}</td>
+                          <td>
+                            <span style={{
+                              fontWeight: '600',
+                              color: total > 100 ? '#ef4444' : total > 50 ? '#f59e0b' : '#10b981'
+                            }}>
+                              {total}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{
+                              backgroundColor: highRisk > 0 ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+                              color: highRisk > 0 ? '#ef4444' : '#999',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}>
+                              {highRisk}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{
+                              color: avgScore >= 70 ? '#ef4444' : avgScore >= 40 ? '#f59e0b' : '#10b981',
+                              fontWeight: '500'
+                            }}>
+                              {avgScore.toFixed(1)}
+                            </span>
+                          </td>
+                          <td>{uniqueUsers}</td>
+                          <td>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              width: '100%'
+                            }}>
+                              <div style={{
+                                flex: 1,
+                                height: '12px',
+                                backgroundColor: 'rgba(128,128,128,0.2)',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                position: 'relative'
+                              }}>
+                                <div style={{
+                                  position: 'absolute',
+                                  left: 0,
+                                  top: 0,
+                                  height: '100%',
+                                  width: `${percentage}%`,
+                                  background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
+                                  borderRadius: '6px',
+                                  transition: 'width 0.3s ease'
+                                }} />
+                                {highRisk > 0 && (
+                                  <div style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    height: '100%',
+                                    width: `${(highRisk / maxIncidents) * 100}%`,
+                                    backgroundColor: '#ef4444',
+                                    borderRadius: '6px 0 0 6px'
+                                  }} />
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                })()}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
