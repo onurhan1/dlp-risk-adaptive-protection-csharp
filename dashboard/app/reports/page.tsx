@@ -6,6 +6,50 @@ import { format, subDays } from 'date-fns'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
+interface ActionSummary {
+  authorized: number
+  block: number
+  quarantine: number
+  total: number
+}
+
+interface TopUser {
+  user_email: string
+  login_name: string
+  total_alerts: number
+  risk_score: number
+  risk_level: string
+}
+
+interface TopPolicy {
+  policy_name: string
+  total_alerts: number
+  top_rules: Array<{
+    rule_name: string
+    alert_count: number
+  }>
+}
+
+interface ChannelBreakdown {
+  channel: string
+  total_alerts: number
+  percentage: number
+}
+
+interface TopDestination {
+  destination: string
+  total_alerts: number
+}
+
+interface DailySummary {
+  date: string
+  action_summary: ActionSummary
+  top_users: TopUser[]
+  top_policies: TopPolicy[]
+  channel_breakdown: ChannelBreakdown[]
+  top_destinations: TopDestination[]
+}
+
 interface Report {
   id: number
   report_type: string
@@ -16,17 +60,22 @@ interface Report {
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
+  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [summaryLoading, setSummaryLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  
-  const [reportType, setReportType] = useState<'daily' | 'department' | 'user_risk'>('daily')
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'))
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [expandedPolicies, setExpandedPolicies] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchReports()
   }, [])
+
+  useEffect(() => {
+    fetchDailySummary()
+  }, [selectedDate])
 
   const fetchReports = async () => {
     setLoading(true)
@@ -39,98 +88,85 @@ export default function ReportsPage() {
       setReports(response.data.reports || [])
     } catch (error: any) {
       console.error('Error fetching reports:', error)
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to load reports' 
-      })
-      setTimeout(() => setMessage(null), 5000)
     } finally {
       setLoading(false)
     }
   }
 
-  const generateReport = async () => {
+  const fetchDailySummary = async () => {
+    setSummaryLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/reports/daily-summary`, {
+        params: { date: selectedDate }
+      })
+      setDailySummary(response.data)
+    } catch (error: any) {
+      console.error('Error fetching daily summary:', error)
+      setDailySummary(null)
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
+  const downloadPdf = async () => {
     setGenerating(true)
     setMessage(null)
     try {
       const token = localStorage.getItem('authToken')
       const apiUrl = getApiUrlDynamic()
-      const response = await axios.post(
-        `${apiUrl}/api/reports/generate`,
-        {
-          report_type: reportType,
-          start_date: startDate,
-          end_date: endDate
-        },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        }
-      )
+      const response = await axios.get(`${apiUrl}/api/reports/daily-summary/pdf`, {
+        params: { date: selectedDate },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        responseType: 'blob'
+      })
 
-      if (response.data.success) {
-        setMessage({ 
-          type: 'success', 
-          text: `Report generated successfully: ${response.data.filename}` 
-        })
-        setTimeout(() => setMessage(null), 5000)
-        // Refresh reports list
-        await fetchReports()
-      } else {
-        throw new Error(response.data.message || 'Failed to generate report')
-      }
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `daily_summary_${selectedDate}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      setMessage({ type: 'success', text: 'PDF downloaded successfully!' })
+      setTimeout(() => setMessage(null), 5000)
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to generate report'
-      setMessage({ type: 'error', text: errorMessage })
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.detail || 'Failed to download PDF'
+      })
       setTimeout(() => setMessage(null), 5000)
     } finally {
       setGenerating(false)
     }
   }
 
-  const downloadReport = async (reportId: number, filename: string) => {
-    try {
-      const token = localStorage.getItem('authToken')
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.get(
-        `${apiUrl}/api/reports/${reportId}/download`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          responseType: 'blob'
-        }
-      )
-
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error: any) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to download report' 
-      })
-      setTimeout(() => setMessage(null), 5000)
+  const togglePolicy = (policyName: string) => {
+    const newExpanded = new Set(expandedPolicies)
+    if (newExpanded.has(policyName)) {
+      newExpanded.delete(policyName)
+    } else {
+      newExpanded.add(policyName)
     }
+    setExpandedPolicies(newExpanded)
   }
 
-  if (loading) {
-    return (
-      <div className="dashboard-page">
-        <div className="loading">Loading reports...</div>
-      </div>
-    )
+  const getRiskColor = (score: number): string => {
+    if (score >= 91) return '#d32f2f'
+    if (score >= 61) return '#f57c00'
+    if (score >= 41) return '#fbc02d'
+    return '#4caf50'
   }
 
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div>
-          <h1>Reports</h1>
-          <p className="dashboard-subtitle">Generate and manage security reports</p>
+          <h1>Daily Summary Reports</h1>
+          <p className="dashboard-subtitle">View and export daily security reports</p>
         </div>
       </div>
 
@@ -149,20 +185,16 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* Generate Report Section */}
-      <div className="card">
-        <h2>Generate New Report</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Report Type
-            </label>
-            <select
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value as 'daily' | 'department' | 'user_risk')}
+      {/* Date Selection and Download */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <label style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Report Date:</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
               style={{
-                width: '100%',
-                maxWidth: '400px',
                 padding: '10px 14px',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
@@ -170,169 +202,301 @@ export default function ReportsPage() {
                 background: 'var(--surface)',
                 color: 'var(--text-primary)'
               }}
-            >
-              <option value="daily">Daily Summary</option>
-              <option value="department">Department Summary</option>
-              <option value="user_risk">User Risk Trends</option>
-            </select>
+            />
           </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  background: 'var(--surface)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: 'var(--text-primary)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  background: 'var(--surface)',
-                  color: 'var(--text-primary)'
-                }}
-              />
-            </div>
-          </div>
-
           <button
-            onClick={generateReport}
-            disabled={generating}
+            onClick={downloadPdf}
+            disabled={generating || summaryLoading}
             style={{
-              padding: '12px 32px',
+              padding: '12px 24px',
               background: 'var(--primary)',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
               cursor: generating ? 'not-allowed' : 'pointer',
               fontWeight: '600',
-              fontSize: '16px',
+              fontSize: '14px',
               opacity: generating ? 0.6 : 1,
-              alignSelf: 'flex-start',
               boxShadow: '0 2px 8px rgba(0, 168, 232, 0.3)',
               transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => {
-              if (!generating) {
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 168, 232, 0.4)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 168, 232, 0.3)'
-            }}
           >
-            {generating ? 'Generating...' : 'Generate Report'}
+            {generating ? 'Generating PDF...' : '📥 Download PDF Report'}
           </button>
         </div>
       </div>
 
-      {/* Reports List */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2>Generated Reports</h2>
-          <button
-            onClick={fetchReports}
-            style={{
-              padding: '8px 16px',
-              background: 'var(--surface-hover)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Refresh
-          </button>
+      {summaryLoading ? (
+        <div className="card" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+          Loading daily summary...
         </div>
-
-        {reports.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            No reports generated yet. Generate a report to get started.
+      ) : !dailySummary ? (
+        <div className="card" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+          No data available for {selectedDate}
+        </div>
+      ) : (
+        <>
+          {/* Action Summary Cards */}
+          <div className="card" style={{ marginBottom: '24px' }}>
+            <h2>Action Summary</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginTop: '16px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white'
+              }}>
+                <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>AUTHORIZED</div>
+                <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.authorized}</div>
+              </div>
+              <div style={{
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white'
+              }}>
+                <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>BLOCK</div>
+                <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.block}</div>
+              </div>
+              <div style={{
+                background: 'linear-gradient(135deg, #9013ff 0%, #7d0962 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white'
+              }}>
+                <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>QUARANTINE</div>
+                <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.quarantine}</div>
+              </div>
+              <div style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white'
+              }}>
+                <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>TOTAL</div>
+                <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.total}</div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="table-container">
+
+          {/* Two Column Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+            {/* Top 10 Users */}
+            <div className="card">
+              <h2>Top 10 Users</h2>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>User</th>
+                    <th className="text-center">Risk</th>
+                    <th className="text-right">Incidents</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailySummary.top_users.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                        No data
+                      </td>
+                    </tr>
+                  ) : (
+                    dailySummary.top_users.map((user, idx) => (
+                      <tr key={idx}>
+                        <td>{idx + 1}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span>{user.login_name || user.user_email}</span>
+                          </div>
+                        </td>
+                        <td className="text-center">
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: 'white',
+                            backgroundColor: getRiskColor(user.risk_score)
+                          }}>
+                            {user.risk_score}
+                          </span>
+                        </td>
+                        <td className="text-right">{user.total_alerts}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Channel Breakdown */}
+            <div className="card">
+              <h2>Channel Breakdown</h2>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Channel</th>
+                    <th className="text-right">Alerts</th>
+                    <th className="text-right">Percentage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailySummary.channel_breakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                        No data
+                      </td>
+                    </tr>
+                  ) : (
+                    dailySummary.channel_breakdown.map((channel, idx) => (
+                      <tr key={idx}>
+                        <td>{channel.channel}</td>
+                        <td className="text-right">{channel.total_alerts}</td>
+                        <td className="text-right">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                            <div style={{
+                              width: '60px',
+                              height: '8px',
+                              backgroundColor: 'var(--border)',
+                              borderRadius: '4px',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                width: `${channel.percentage}%`,
+                                height: '100%',
+                                backgroundColor: 'var(--primary)',
+                                borderRadius: '4px'
+                              }} />
+                            </div>
+                            <span>{channel.percentage}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top 10 Policies with Rules */}
+          <div className="card" style={{ marginBottom: '24px' }}>
+            <h2>Top 10 Policies with Top 3 Rules</h2>
+            <div style={{ marginTop: '16px' }}>
+              {dailySummary.top_policies.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                  No data
+                </div>
+              ) : (
+                dailySummary.top_policies.map((policy, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      marginBottom: '8px',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div
+                      onClick={() => togglePolicy(policy.policy_name)}
+                      style={{
+                        padding: '12px 16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: 'var(--surface-hover)',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{
+                          fontSize: '16px',
+                          transition: 'transform 0.2s',
+                          transform: expandedPolicies.has(policy.policy_name) ? 'rotate(90deg)' : 'rotate(0deg)'
+                        }}>
+                          ▶
+                        </span>
+                        <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {policy.policy_name}
+                        </span>
+                      </div>
+                      <span style={{
+                        padding: '4px 12px',
+                        backgroundColor: '#f57c00',
+                        color: 'white',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        {policy.total_alerts} alerts
+                      </span>
+                    </div>
+                    {expandedPolicies.has(policy.policy_name) && (
+                      <div style={{ padding: '12px 16px 12px 48px', borderTop: '1px solid var(--border)' }}>
+                        {policy.top_rules.length === 0 ? (
+                          <div style={{ color: '#999', fontSize: '13px' }}>No rules available</div>
+                        ) : (
+                          policy.top_rules.map((rule, rIdx) => (
+                            <div
+                              key={rIdx}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                padding: '8px 0',
+                                borderBottom: rIdx < policy.top_rules.length - 1 ? '1px solid var(--border)' : 'none'
+                              }}
+                            >
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                                • {rule.rule_name}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                                {rule.alert_count} alerts
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Top 10 Destinations */}
+          <div className="card">
+            <h2>Top 10 Destinations</h2>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Report Type</th>
-                  <th>Generated At</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>#</th>
+                  <th>Destination</th>
+                  <th className="text-right">Alerts</th>
                 </tr>
               </thead>
               <tbody>
-                {reports.map((report) => (
-                  <tr key={report.id}>
-                    <td>{report.id}</td>
-                    <td>{report.report_type}</td>
-                    <td>{new Date(report.generated_at).toLocaleString()}</td>
-                    <td>
-                      <span
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          background: report.status === 'completed' ? 'rgba(92, 184, 92, 0.1)' : 'rgba(240, 173, 78, 0.1)',
-                          color: report.status === 'completed' ? '#5cb85c' : '#f0ad4e'
-                        }}
-                      >
-                        {report.status}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => downloadReport(report.id, report.filename)}
-                        style={{
-                          padding: '6px 12px',
-                          background: 'var(--primary)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '500'
-                        }}
-                      >
-                        Download
-                      </button>
+                {dailySummary.top_destinations.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                      No data
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  dailySummary.top_destinations.map((dest, idx) => (
+                    <tr key={idx}>
+                      <td>{idx + 1}</td>
+                      <td>{dest.destination}</td>
+                      <td className="text-right">{dest.total_alerts}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <style jsx>{`
         .dashboard-page {
@@ -365,7 +529,6 @@ export default function ReportsPage() {
           padding: 24px;
           box-shadow: var(--shadow);
           border: 1px solid var(--border);
-          margin-bottom: 24px;
           transition: all 0.2s;
         }
 
@@ -380,10 +543,6 @@ export default function ReportsPage() {
           font-size: 18px;
           font-weight: 600;
           letter-spacing: -0.02em;
-        }
-
-        .table-container {
-          overflow-x: auto;
         }
 
         .data-table {
@@ -414,25 +573,26 @@ export default function ReportsPage() {
           background: var(--surface-hover);
         }
 
-        .loading {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 40px;
-          color: var(--text-secondary);
+        .text-right {
+          text-align: right;
+        }
+
+        .text-center {
+          text-align: center;
+        }
+
+        @media (max-width: 1024px) {
+          .dashboard-page > div[style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
         }
 
         @media (max-width: 768px) {
-          .dashboard-page {
-            padding: 0;
-          }
-
-          .card {
-            padding: 16px;
+          .card > div[style*="grid-template-columns: repeat(4"] {
+            grid-template-columns: repeat(2, 1fr) !important;
           }
         }
       `}</style>
     </div>
   )
 }
-

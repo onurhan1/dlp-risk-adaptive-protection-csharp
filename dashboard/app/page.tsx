@@ -316,17 +316,18 @@ export default function Home() {
             <thead>
               <tr>
                 <th>User</th>
+                <th className="text-center">Risk Score</th>
                 <th className="text-right">Total alerts</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={2} className="loading-cell">Loading...</td>
+                  <td colSpan={3} className="loading-cell">Loading...</td>
                 </tr>
               ) : topUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="empty-cell">No data available</td>
+                  <td colSpan={3} className="empty-cell">No data available</td>
                 </tr>
               ) : (
                 topUsers.map((user, idx) => (
@@ -336,6 +337,20 @@ export default function Home() {
                         <RiskLevelBadge riskScore={user.risk_score} showScore={false} />
                         <span>{user.user_email}</span>
                       </div>
+                    </td>
+                    <td className="text-center">
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: 'white',
+                        backgroundColor: user.risk_score >= 91 ? '#d32f2f' :
+                          user.risk_score >= 61 ? '#f57c00' :
+                            user.risk_score >= 41 ? '#fbc02d' : '#4caf50'
+                      }}>
+                        {user.risk_score}
+                      </span>
                     </td>
                     <td className="text-right">{user.total_alerts}</td>
                   </tr>
@@ -595,6 +610,10 @@ export default function Home() {
 
         .text-right {
           text-align: right;
+        }
+
+        .text-center {
+          text-align: center;
         }
 
         .loading-cell,

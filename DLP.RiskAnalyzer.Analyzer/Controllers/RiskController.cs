@@ -238,4 +238,61 @@ public class RiskController : ControllerBase
             return Task.FromResult<ActionResult<Dictionary<string, object>>>(StatusCode(500, new { detail = ex.Message }));
         }
     }
+
+    /// <summary>
+    /// Get top users by day with their daily alert counts (for Investigation 30 days - Risky Users tab)
+    /// </summary>
+    [HttpGet("top-users-daily")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopUsersByDay(
+        [FromQuery] int days = 30,
+        [FromQuery] int limit = 20)
+    {
+        try
+        {
+            var result = await _riskAnalyzerService.GetTopUsersByDayAsync(days, limit);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get top rules by day with their daily alert counts (for Investigation 30 days - Alerts tab)
+    /// </summary>
+    [HttpGet("top-rules-daily")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRulesByDay(
+        [FromQuery] int days = 30,
+        [FromQuery] int limit = 10)
+    {
+        try
+        {
+            var result = await _riskAnalyzerService.GetTopRulesByDayAsync(days, limit);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get comprehensive daily report data for Reports page
+    /// </summary>
+    [HttpGet("daily-report-data")]
+    public async Task<ActionResult<Dictionary<string, object>>> GetDailyReportData(
+        [FromQuery] DateTime? date = null)
+    {
+        try
+        {
+            var targetDate = date ?? DateTime.UtcNow.Date;
+            var result = await _riskAnalyzerService.GetDailyReportDataAsync(targetDate);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
 }

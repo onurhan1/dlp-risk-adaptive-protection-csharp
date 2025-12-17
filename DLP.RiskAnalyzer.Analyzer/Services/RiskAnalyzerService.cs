@@ -411,4 +411,252 @@ public class RiskAnalyzerService
             { "users_affected", ((HashSet<string>)iob["users_affected"]).Count }
         }).OrderByDescending(i => (int)i["count"]).ToList();
     }
+
+    /// <summary>
+    /// Get top users by day with their daily alert counts
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetTopUsersByDayAsync(int days = 30, int limit = 20)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-days);
+
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+
+        // Group by user, calculate stats
+        var userStats = incidents
+            .GroupBy(i => i.UserEmail)
+            .Select(g => new
+            {
+                UserEmail = g.Key,
+                TotalAlerts = g.Count(),
+                RiskScore = g.Max(i => i.RiskScore ?? 0),
+                Department = g.Where(i => !string.IsNullOrEmpty(i.Department))
+                             .Select(i => i.Department)
+                             .FirstOrDefault() ?? "",
+                LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
+                            .Select(i => i.LoginName)
+                            .FirstOrDefault() ?? ""
+            })
+            .OrderByDescending(u => u.TotalAlerts)
+            .Take(limit)
+            .ToList();
+
+        return userStats.Select(u => new Dictionary<string, object>
+        {
+            { "user_email", u.UserEmail },
+            { "login_name", u.LoginName },
+            { "total_alerts", u.TotalAlerts },
+            { "risk_score", u.RiskScore },
+            { "department", u.Department },
+            { "risk_level", GetRiskLevelFromScore(u.RiskScore) }
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Get top rules by day with their daily alert counts
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetTopRulesByDayAsync(int days = 30, int limit = 10)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-days);
+
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+
+        // Group by policy (rule), calculate stats
+        var ruleStats = incidents
+            .Where(i => !string.IsNullOrEmpty(i.Policy))
+            .GroupBy(i => i.Policy!)
+            .Select(g => new
+            {
+                RuleName = g.Key,
+                TotalAlerts = g.Count(),
+                AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
+                UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count()
+            })
+            .OrderByDescending(r => r.TotalAlerts)
+            .Take(limit)
+            .ToList();
+
+        return ruleStats.Select(r => new Dictionary<string, object>
+        {
+            { "rule_name", r.RuleName },
+            { "total_alerts", r.TotalAlerts },
+            { "avg_risk_score", Math.Round(r.AvgRiskScore, 1) },
+            { "unique_users", r.UniqueUsers }
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Get comprehensive daily report data for a specific date
+    /// </summary>
+    public async Task<Dictionary<string, object>> GetDailyReportDataAsync(DateTime date)
+    {
+        var targetDate = DateOnly.FromDateTime(date);
+        var incidents = await _incidentRepository.GetIncidentsAsync(targetDate, targetDate);
+
+        // Action Summary
+        var actionSummary = incidents
+            .GroupBy(i => i.Action?.ToUpper() ?? "UNKNOWN")
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var authorized = actionSummary.GetValueOrDefault("AUTHORIZED", 0);
+        var block = actionSummary.GetValueOrDefault("BLOCK", 0) + actionSummary.GetValueOrDefault("BLOCKED", 0);
+        var quarantine = actionSummary.GetValueOrDefault("QUARANTINE", 0) + actionSummary.GetValueOrDefault("QUARANTINED", 0);
+        var total = incidents.Count;
+
+        // Top 10 Users
+        var topUsers = incidents
+            .GroupBy(i => i.UserEmail)
+            .Select(g => new
+            {
+                UserEmail = g.Key,
+                LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
+                            .Select(i => i.LoginName)
+                            .FirstOrDefault() ?? "",
+                TotalAlerts = g.Count(),
+                RiskScore = g.Max(i => i.RiskScore ?? 0)
+            })
+            .OrderByDescending(u => u.TotalAlerts)
+            .Take(10)
+            .Select(u => new Dictionary<string, object>
+            {
+                { "user_email", u.UserEmail },
+                { "login_name", u.LoginName },
+                { "total_alerts", u.TotalAlerts },
+                { "risk_score", u.RiskScore },
+                { "risk_level", GetRiskLevelFromScore(u.RiskScore) }
+            })
+            .ToList();
+
+        // Top 10 Policies with Top 3 Rules each
+        var topPolicies = await GetTopPoliciesWithRulesAsync(incidents);
+
+        // Channel Breakdown
+        var channelBreakdown = incidents
+            .Where(i => !string.IsNullOrEmpty(i.Channel))
+            .GroupBy(i => i.Channel!)
+            .Select(g => new Dictionary<string, object>
+            {
+                { "channel", g.Key },
+                { "total_alerts", g.Count() },
+                { "percentage", total > 0 ? Math.Round((g.Count() / (double)total) * 100, 1) : 0 }
+            })
+            .OrderByDescending(c => (int)c["total_alerts"])
+            .ToList();
+
+        // Top 10 Destinations
+        var topDestinations = await GetDestinationSummaryAsync(incidents, 10);
+
+        return new Dictionary<string, object>
+        {
+            { "date", date.ToString("yyyy-MM-dd") },
+            { "action_summary", new Dictionary<string, object>
+                {
+                    { "authorized", authorized },
+                    { "block", block },
+                    { "quarantine", quarantine },
+                    { "total", total }
+                }
+            },
+            { "top_users", topUsers },
+            { "top_policies", topPolicies },
+            { "channel_breakdown", channelBreakdown },
+            { "top_destinations", topDestinations }
+        };
+    }
+
+    /// <summary>
+    /// Get top policies with their top 3 rules
+    /// </summary>
+    private async Task<List<Dictionary<string, object>>> GetTopPoliciesWithRulesAsync(List<Incident> incidents)
+    {
+        // Parse ViolationTriggers to extract policy and rule combinations
+        var policyRuleData = new Dictionary<string, Dictionary<string, int>>();
+
+        foreach (var incident in incidents)
+        {
+            var policyName = incident.Policy ?? "Unknown Policy";
+            
+            if (!policyRuleData.ContainsKey(policyName))
+            {
+                policyRuleData[policyName] = new Dictionary<string, int>();
+            }
+
+            // Try to parse ViolationTriggers for rule names
+            if (!string.IsNullOrEmpty(incident.ViolationTriggers))
+            {
+                try
+                {
+                    var triggers = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(incident.ViolationTriggers);
+                    if (triggers != null)
+                    {
+                        foreach (var trigger in triggers)
+                        {
+                            var ruleName = trigger.GetValueOrDefault("rule_name")?.ToString() ?? "Default Rule";
+                            policyRuleData[policyName][ruleName] = policyRuleData[policyName].GetValueOrDefault(ruleName, 0) + 1;
+                        }
+                        continue;
+                    }
+                }
+                catch
+                {
+                    // JSON parse failed, use policy name as rule
+                }
+            }
+            
+            // If no ViolationTriggers, use policy name as the rule
+            policyRuleData[policyName][policyName] = policyRuleData[policyName].GetValueOrDefault(policyName, 0) + 1;
+        }
+
+        return policyRuleData
+            .Select(p => new Dictionary<string, object>
+            {
+                { "policy_name", p.Key },
+                { "total_alerts", p.Value.Values.Sum() },
+                { "top_rules", p.Value
+                    .OrderByDescending(r => r.Value)
+                    .Take(3)
+                    .Select(r => new Dictionary<string, object>
+                    {
+                        { "rule_name", r.Key },
+                        { "alert_count", r.Value }
+                    })
+                    .ToList()
+                }
+            })
+            .OrderByDescending(p => (int)p["total_alerts"])
+            .Take(10)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Get destination summary
+    /// </summary>
+    private Task<List<Dictionary<string, object>>> GetDestinationSummaryAsync(List<Incident> incidents, int limit = 10)
+    {
+        var destinations = incidents
+            .Where(i => !string.IsNullOrEmpty(i.Destination))
+            .GroupBy(i => i.Destination!)
+            .Select(g => new Dictionary<string, object>
+            {
+                { "destination", g.Key },
+                { "total_alerts", g.Count() }
+            })
+            .OrderByDescending(d => (int)d["total_alerts"])
+            .Take(limit)
+            .ToList();
+
+        return Task.FromResult(destinations);
+    }
+
+    /// <summary>
+    /// Helper method to get risk level from score
+    /// </summary>
+    private string GetRiskLevelFromScore(int score)
+    {
+        if (score >= 91) return "Critical";
+        if (score >= 61) return "High";
+        if (score >= 41) return "Medium";
+        return "Low";
+    }
 }

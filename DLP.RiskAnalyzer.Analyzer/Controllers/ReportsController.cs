@@ -67,17 +67,20 @@ public class ReportsController : ControllerBase
 
             if (reportType == "daily")
             {
-                pdfBytes = _reportGenerator.GenerateDailyReport(startDate, null);
+                // Generate comprehensive daily summary report with real data
+                pdfBytes = await _reportGenerator.GenerateDailySummaryReportAsync(startDate);
                 filename = $"daily_report_{startDate:yyyyMMdd}.pdf";
             }
             else if (reportType == "department")
             {
-                pdfBytes = _reportGenerator.GenerateDailyReport(startDate, null); // Placeholder
+                var reportData = await _riskAnalyzerService.GetDailyReportDataAsync(startDate);
+                pdfBytes = _reportGenerator.GenerateDailyReport(startDate, reportData);
                 filename = $"department_report_{startDate:yyyyMMdd}_{endDate:yyyyMMdd}.pdf";
             }
             else // user_risk
             {
-                pdfBytes = _reportGenerator.GenerateDailyReport(startDate, null); // Placeholder
+                var reportData = await _riskAnalyzerService.GetDailyReportDataAsync(startDate);
+                pdfBytes = _reportGenerator.GenerateDailyReport(startDate, reportData);
                 filename = $"risk_trends_report_{startDate:yyyyMMdd}_{endDate:yyyyMMdd}.pdf";
             }
 
@@ -99,7 +102,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("summary")]
-    public IActionResult GetSummaryReport([FromQuery] string? start_date, [FromQuery] string? end_date)
+    public async Task<IActionResult> GetSummaryReport([FromQuery] string? start_date, [FromQuery] string? end_date)
     {
         try
         {
@@ -110,8 +113,8 @@ public class ReportsController : ControllerBase
                 ? DateTime.Parse(end_date)
                 : DateTime.UtcNow;
 
-            // Generate PDF report directly
-            var pdfBytes = _reportGenerator.GenerateDailyReport(startDate, null);
+            // Generate comprehensive PDF report with real data
+            var pdfBytes = await _reportGenerator.GenerateDailySummaryReportAsync(startDate);
             var filename = $"dlp_report_{startDate:yyyyMMdd}_to_{endDate:yyyyMMdd}.pdf";
 
             return File(pdfBytes, "application/pdf", filename);
@@ -119,6 +122,44 @@ public class ReportsController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { detail = $"Error generating summary report: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Get daily summary data as JSON for the Reports page
+    /// </summary>
+    [HttpGet("daily-summary")]
+    public async Task<ActionResult<Dictionary<string, object>>> GetDailySummaryData([FromQuery] DateTime? date = null)
+    {
+        try
+        {
+            var targetDate = date ?? DateTime.UtcNow.Date;
+            var result = await _riskAnalyzerService.GetDailyReportDataAsync(targetDate);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Download daily summary as PDF for a specific date
+    /// </summary>
+    [HttpGet("daily-summary/pdf")]
+    public async Task<IActionResult> DownloadDailySummaryPdf([FromQuery] DateTime? date = null)
+    {
+        try
+        {
+            var targetDate = date ?? DateTime.UtcNow.Date;
+            var pdfBytes = await _reportGenerator.GenerateDailySummaryReportAsync(targetDate);
+            var filename = $"daily_summary_{targetDate:yyyyMMdd}.pdf";
+
+            return File(pdfBytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = $"Error generating daily summary PDF: {ex.Message}" });
         }
     }
 
