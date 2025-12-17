@@ -13,12 +13,18 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface DailySummary {
-  date: string
-  total_incidents: number
-  high_risk_count: number
-  avg_risk_score: number
-  unique_users: number
-  departments_affected: number
+  date?: string
+  Date?: string
+  total_incidents?: number
+  TotalIncidents?: number
+  high_risk_count?: number
+  HighRiskCount?: number
+  avg_risk_score?: number
+  AvgRiskScore?: number
+  unique_users?: number
+  UniqueUsers?: number
+  departments_affected?: number
+  DepartmentsAffected?: number
 }
 
 interface DepartmentSummary {
@@ -426,8 +432,8 @@ export default function Home() {
           <Plot
             data={[
               {
-                x: dailySummary.map(d => d.date),
-                y: dailySummary.map(d => d.total_incidents),
+                x: dailySummary.map(d => d.date || d.Date || ''),
+                y: dailySummary.map(d => d.total_incidents ?? d.TotalIncidents ?? 0),
                 type: 'scatter',
                 mode: 'lines+markers',
                 name: 'Total Incidents',
@@ -437,8 +443,8 @@ export default function Home() {
                 fillcolor: 'rgba(59, 130, 246, 0.1)'
               },
               {
-                x: dailySummary.map(d => d.date),
-                y: dailySummary.map(d => d.high_risk_count),
+                x: dailySummary.map(d => d.date || d.Date || ''),
+                y: dailySummary.map(d => d.high_risk_count ?? d.HighRiskCount ?? 0),
                 type: 'scatter',
                 mode: 'lines+markers',
                 name: 'High Risk',
