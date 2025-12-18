@@ -186,10 +186,11 @@ public class ReportGeneratorService
                     var riskColor = GetRiskColor(riskScore);
 
                     table.Cell().Element(CellStyle).Text((i + 1).ToString());
-                    table.Cell().Element(CellStyle).Text(user.GetValueOrDefault("login_name", "")?.ToString() ?? "");
-                    table.Cell().Element(CellStyle).Text(user.GetValueOrDefault("department", "")?.ToString() ?? "");
+                    table.Cell().Element(CellStyle).Text(user.GetValueOrDefault("login_name", user.GetValueOrDefault("loginName", ""))?.ToString() ?? "");
+                    var dept = user.GetValueOrDefault("department", user.GetValueOrDefault("Department", ""))?.ToString() ?? "";
+                    table.Cell().Element(CellStyle).Text(dept);
                     table.Cell().Element(CellStyle).Text(riskScore.ToString()).FontColor(riskColor).Bold();
-                    table.Cell().Element(CellStyle).Text(user.GetValueOrDefault("total_alerts", 0)?.ToString() ?? "0");
+                    table.Cell().Element(CellStyle).Text(user.GetValueOrDefault("total_alerts", user.GetValueOrDefault("totalAlerts", 0))?.ToString() ?? "0");
                 }
             });
         });
