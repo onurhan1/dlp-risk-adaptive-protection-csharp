@@ -166,7 +166,7 @@ export default function Home() {
     setActionIncidents([])
 
     try {
-      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5000`
+      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5001`
       const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
         params: {
           action: action,
