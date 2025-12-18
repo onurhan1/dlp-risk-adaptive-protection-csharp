@@ -231,7 +231,7 @@ export default function ActionIncidentsModal({
                                                 {incident.rule_name}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right' }}>
+                                        <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
                                             <div>{incident.timestamp.split(' ')[0]}</div>
                                             <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
                                                 {incident.timestamp.split(' ')[1] || incident.timestamp}
