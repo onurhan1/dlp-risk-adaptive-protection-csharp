@@ -170,7 +170,8 @@ export default function Home() {
       const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
         params: {
           action: action,
-          date: dateRange.end // Use current end date
+          start_date: dateRange.start,
+          end_date: dateRange.end
         }
       })
       setActionIncidents(response.data)
@@ -842,7 +843,7 @@ export default function Home() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         action={selectedAction}
-        date={format(new Date(dateRange.end), 'yyyy-MM-dd')}
+        date={`${dateRange.start} - ${dateRange.end}`}
         incidents={actionIncidents}
         loading={incidentsLoading}
       />

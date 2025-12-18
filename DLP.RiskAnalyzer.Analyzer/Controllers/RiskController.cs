@@ -302,7 +302,9 @@ public class RiskController : ControllerBase
     [HttpGet("incidents/by-action")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetIncidentsByAction(
         [FromQuery] string action,
-        [FromQuery] string? date = null)
+        [FromQuery] string? date = null,
+        [FromQuery] string? start_date = null,
+        [FromQuery] string? end_date = null)
     {
         try
         {
@@ -315,23 +317,47 @@ public class RiskController : ControllerBase
                 return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED" });
             }
 
-            // Parse date
-            DateTime targetDate;
-            if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+            // Parse date range - support both single date and date range
+            DateTime startOfRange;
+            DateTime endOfRange;
+            
+            if (!string.IsNullOrEmpty(start_date) && !string.IsNullOrEmpty(end_date))
             {
-                targetDate = parsedDate.Date;
+                // Use date range if both provided
+                if (DateTime.TryParse(start_date, out var parsedStart) && DateTime.TryParse(end_date, out var parsedEnd))
+                {
+                    startOfRange = parsedStart.Date;
+                    endOfRange = parsedEnd.Date.AddDays(1); // End of that day
+                }
+                else
+                {
+                    return BadRequest(new { detail = "Invalid date format. Use yyyy-MM-dd" });
+                }
+            }
+            else if (!string.IsNullOrEmpty(date))
+            {
+                // Single date (backward compatible)
+                if (DateTime.TryParse(date, out var parsedDate))
+                {
+                    startOfRange = parsedDate.Date;
+                    endOfRange = parsedDate.Date.AddDays(1);
+                }
+                else
+                {
+                    return BadRequest(new { detail = "Invalid date format. Use yyyy-MM-dd" });
+                }
             }
             else
             {
-                targetDate = DateTime.UtcNow.Date;
+                // Default to today
+                startOfRange = DateTime.UtcNow.Date;
+                endOfRange = startOfRange.AddDays(1);
             }
 
             // Query incidents
-            var startOfDay = targetDate;
-            var endOfDay = targetDate.AddDays(1);
 
             var incidents = await _context.Incidents
-                .Where(i => i.Timestamp >= startOfDay && i.Timestamp < endOfDay)
+                .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
                 .Where(i => i.Action != null && 
                            (i.Action.ToUpper() == normalizedAction || 
                             (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
