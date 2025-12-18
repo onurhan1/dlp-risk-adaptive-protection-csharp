@@ -358,9 +358,10 @@ export default function ReportsPage() {
                         <td>{channel.channel}</td>
                         <td className="text-right">{channel.total_alerts}</td>
                         <td className="text-right">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+                            <span style={{ minWidth: '45px', textAlign: 'right' }}>{channel.percentage.toFixed(1)}%</span>
                             <div style={{
-                              width: '60px',
+                              width: '100px',
                               height: '8px',
                               backgroundColor: 'var(--border)',
                               borderRadius: '4px',
@@ -373,7 +374,6 @@ export default function ReportsPage() {
                                 borderRadius: '4px'
                               }} />
                             </div>
-                            <span>{channel.percentage}%</span>
                           </div>
                         </td>
                       </tr>
