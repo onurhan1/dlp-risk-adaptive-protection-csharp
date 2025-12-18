@@ -5,6 +5,7 @@ import axios from 'axios'
 import { format, subDays } from 'date-fns'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import ActionIncidentsModal from '@/components/ActionIncidentsModal'
 
 interface ActionSummary {
   authorized: number
@@ -71,6 +72,12 @@ export default function ReportsPage() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [expandedPolicies, setExpandedPolicies] = useState<Set<string>>(new Set())
 
+  // Modal state for action incidents
+  const [showModal, setShowModal] = useState(false)
+  const [selectedAction, setSelectedAction] = useState<string>('')
+  const [actionIncidents, setActionIncidents] = useState<any[]>([])
+  const [incidentsLoading, setIncidentsLoading] = useState(false)
+
   useEffect(() => {
     fetchReports()
   }, [])
@@ -110,6 +117,29 @@ export default function ReportsPage() {
       setDailySummary(null)
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const fetchActionIncidents = async (action: string) => {
+    setIncidentsLoading(true)
+    setShowModal(true)
+    setSelectedAction(action)
+    setActionIncidents([])
+
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
+        params: {
+          action: action,
+          date: selectedDate
+        }
+      })
+      setActionIncidents(response.data)
+    } catch (error: any) {
+      console.error('Error fetching action incidents:', error)
+      setActionIncidents([])
+    } finally {
+      setIncidentsLoading(false)
     }
   }
 
@@ -253,21 +283,47 @@ export default function ReportsPage() {
                 <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>AUTHORIZED</div>
                 <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.authorized}</div>
               </div>
-              <div style={{
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white'
-              }}>
+              <div
+                onClick={() => fetchActionIncidents('BLOCK')}
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
                 <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>BLOCK</div>
                 <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.block}</div>
               </div>
-              <div style={{
-                background: 'linear-gradient(135deg, #9013ff 0%, #7d0962 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white'
-              }}>
+              <div
+                onClick={() => fetchActionIncidents('QUARANTINE')}
+                style={{
+                  background: 'linear-gradient(135deg, #9013ff 0%, #7d0962 100%)',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(144, 19, 255, 0.4)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
                 <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>QUARANTINE</div>
                 <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.quarantine}</div>
               </div>
@@ -599,7 +655,18 @@ export default function ReportsPage() {
             grid-template-columns: repeat(2, 1fr) !important;
           }
         }
-      `}</style>
+        `}
+      </style>
+
+      {/* Action Incidents Modal */}
+      <ActionIncidentsModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        action={selectedAction}
+        date={selectedDate}
+        incidents={actionIncidents}
+        loading={incidentsLoading}
+      />
     </div>
   )
 }

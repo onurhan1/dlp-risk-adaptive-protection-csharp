@@ -295,4 +295,93 @@ public class RiskController : ControllerBase
             return StatusCode(500, new { detail = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get incidents filtered by action type for Action Summary modal
+    /// </summary>
+    [HttpGet("incidents/by-action")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetIncidentsByAction(
+        [FromQuery] string action,
+        [FromQuery] string? date = null)
+    {
+        try
+        {
+            // Validate action parameter
+            var validActions = new[] { "BLOCK", "BLOCKED", "QUARANTINE", "QUARANTINED", "AUTHORIZED" };
+            var normalizedAction = action?.ToUpper();
+            
+            if (string.IsNullOrEmpty(normalizedAction) || !validActions.Contains(normalizedAction))
+            {
+                return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED" });
+            }
+
+            // Parse date
+            DateTime targetDate;
+            if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+            {
+                targetDate = parsedDate.Date;
+            }
+            else
+            {
+                targetDate = DateTime.UtcNow.Date;
+            }
+
+            // Query incidents
+            var startOfDay = targetDate;
+            var endOfDay = targetDate.AddDays(1);
+
+            var incidents = await _context.Incidents
+                .Where(i => i.Timestamp >= startOfDay && i.Timestamp < endOfDay)
+                .Where(i => i.Action != null && 
+                           (i.Action.ToUpper() == normalizedAction || 
+                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
+                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")))
+                .OrderByDescending(i => i.Timestamp)
+                .ToListAsync();
+
+            // Format response
+            var result = incidents.Select(i =>
+            {
+                // Extract rule name from ViolationTriggers
+                string ruleName = "N/A";
+                if (!string.IsNullOrEmpty(i.ViolationTriggers))
+                {
+                    try
+                    {
+                        var triggers = System.Text.Json.JsonDocument.Parse(i.ViolationTriggers);
+                        if (triggers.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                            triggers.RootElement.GetArrayLength() > 0)
+                        {
+                            var firstTrigger = triggers.RootElement[0];
+                            if (firstTrigger.TryGetProperty("RuleName", out var ruleNameElement))
+                            {
+                                ruleName = ruleNameElement.GetString() ?? "N/A";
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // If parsing fails, use policy name as fallback
+                        ruleName = i.Policy ?? "N/A";
+                    }
+                }
+                
+                return new Dictionary<string, object>
+                {
+                    { "login_name", i.LoginName ?? i.UserEmail ?? "N/A" },
+                    { "destination", i.Destination ?? "N/A" },
+                    { "channel", i.Channel ?? "N/A" },
+                    { "policy", i.Policy ?? "N/A" },
+                    { "rule_name", ruleName },
+                    { "timestamp", i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") }
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
 }

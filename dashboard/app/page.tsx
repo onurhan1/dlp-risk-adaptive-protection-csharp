@@ -7,6 +7,7 @@ import { format, subDays } from 'date-fns'
 import RiskTimelineChart from '../components/RiskTimelineChart'
 import ChannelActivity from '../components/ChannelActivity'
 import RiskLevelBadge from '../components/RiskLevelBadge'
+import ActionIncidentsModal from '../components/ActionIncidentsModal'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -71,6 +72,12 @@ export default function Home() {
     start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
   })
+
+  // Modal state for action incidents
+  const [showModal, setShowModal] = useState(false)
+  const [selectedAction, setSelectedAction] = useState<string>('')
+  const [actionIncidents, setActionIncidents] = useState<any[]>([])
+  const [incidentsLoading, setIncidentsLoading] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -149,6 +156,29 @@ export default function Home() {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchActionIncidents = async (action: string) => {
+    setIncidentsLoading(true)
+    setShowModal(true)
+    setSelectedAction(action)
+    setActionIncidents([])
+
+    try {
+      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5000`
+      const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
+        params: {
+          action: action,
+          date: dateRange.end // Use current end date
+        }
+      })
+      setActionIncidents(response.data)
+    } catch (error: any) {
+      console.error('Error fetching action incidents:', error)
+      setActionIncidents([])
+    } finally {
+      setIncidentsLoading(false)
     }
   }
 
@@ -292,21 +322,47 @@ export default function Home() {
               <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>AUTHORIZED</div>
               <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.authorized}</div>
             </div>
-            <div style={{
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              padding: '20px',
-              borderRadius: '8px',
-              color: 'white'
-            }}>
+            <div
+              onClick={() => fetchActionIncidents('BLOCK')}
+              style={{
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(-0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
               <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>BLOCK</div>
               <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.block}</div>
             </div>
-            <div style={{
-              background: 'linear-gradient(135deg, #90137fff 0%, #7d0962ff 100%)',
-              padding: '20px',
-              borderRadius: '8px',
-              color: 'white'
-            }}>
+            <div
+              onClick={() => fetchActionIncidents('QUARANTINE')}
+              style={{
+                background: 'linear-gradient(135deg, #90137fff 0%, #7d0962ff 100%)',
+                padding: '20px',
+                borderRadius: '8px',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(144, 19, 255, 0.4)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
               <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>QUARANTINE</div>
               <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.quarantine}</div>
             </div>
@@ -321,7 +377,8 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Two Column Layout */}
       <div className="dashboard-grid">
@@ -779,6 +836,16 @@ export default function Home() {
           }
         }
       `}</style>
-    </div>
+
+      {/* Action Incidents Modal */}
+      <ActionIncidentsModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        action={selectedAction}
+        date={format(new Date(dateRange.end), 'yyyy-MM-dd')}
+        incidents={actionIncidents}
+        loading={incidentsLoading}
+      />
+    </div >
   )
 }
