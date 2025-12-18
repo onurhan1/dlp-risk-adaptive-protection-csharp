@@ -185,7 +185,7 @@ export default function ActionIncidentsModal({
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Destination</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Channel</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy/Rule</th>
-                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Time</th>
+                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -232,11 +232,10 @@ export default function ActionIncidentsModal({
                                             </div>
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right' }}>
-                                            {new Date(incident.timestamp).toLocaleTimeString('tr-TR', {
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                second: '2-digit'
-                                            })}
+                                            <div>{incident.timestamp.split(' ')[0]}</div>
+                                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                                {incident.timestamp.split(' ')[1] || incident.timestamp}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

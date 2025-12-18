@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLP Risk Analyzer - Email Uyarı Sistemi Dokümantasyonu</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            padding: 40px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, #0f172a 100%);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--primary), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .section h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h3 {
+            color: var(--text);
+            margin: 20px 0 10px 0;
+        }
+
+        .code-block {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid var(--border);
+        }
+
+        .code-block pre {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            color: #e2e8f0;
+        }
+
+        .code-block .comment {
+            color: #6b7280;
+        }
+
+        .code-block .keyword {
+            color: #c084fc;
+        }
+
+        .code-block .string {
+            color: #34d399;
+        }
+
+        .code-block .type {
+            color: #60a5fa;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #0f172a;
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        tr:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--primary);
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 30px;
+            flex-wrap: wrap;
+        }
+
+        .flow-box {
+            background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-card) 100%);
+            padding: 20px 30px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .flow-box.highlight {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .flow-arrow {
+            font-size: 24px;
+            color: var(--text-muted);
+        }
+
+        .checklist {
+            list-style: none;
+        }
+
+        .checklist li {
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checklist li::before {
+            content: "☐";
+            color: var(--text-muted);
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid var(--warning);
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid var(--primary);
+        }
+
+        .email-preview {
+            background: white;
+            color: #1f2937;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+
+        .email-preview h4 {
+            color: #111827;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .email-preview .header {
+            background: #ef4444;
+            color: white;
+            padding: 20px;
+            margin: -30px -30px 20px -30px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📧 DLP Email Uyarı Sistemi</h1>
+            <p>Yüksek riskli kullanıcılara otomatik SMTP uyarı maili gönderme modülü</p>
+            <p style="margin-top: 10px; font-size: 13px;">Versiyon 1.0 | Aralık 2024</p>
+        </header>
+
+        <!-- GENEL BAKIŞ -->
+        <div class="section">
+            <h2>📋 Genel Bakış</h2>
+            <p>Bu modül, DLP Risk Analyzer sisteminde aşağıdaki durumlarda kullanıcılara otomatik uyarı e-postaları
+                gönderilmesini sağlar:</p>
+
+            <table>
+                <tr>
+                    <th>Senaryo</th>
+                    <th>Tetikleyici</th>
+                    <th>Öncelik</th>
+                </tr>
+                <tr>
+                    <td>Yüksek Risk Skoru</td>
+                    <td>Risk skoru ≥ 80</td>
+                    <td><span class="badge badge-danger">Kritik</span></td>
+                </tr>
+                <tr>
+                    <td>Tekrarlayan İhlal</td>
+                    <td>Aynı politika 3+ kez ihlal</td>
+                    <td><span class="badge badge-warning">Yüksek</span></td>
+                </tr>
+                <tr>
+                    <td>Bloklanmış İşlem</td>
+                    <td>BLOCKED veya QUARANTINED action</td>
+                    <td><span class="badge badge-info">Orta</span></td>
+                </tr>
+                <tr>
+                    <td>Manuel Tetikleme</td>
+                    <td>Dashboard'dan admin tarafından</td>
+                    <td><span class="badge badge-success">Düşük</span></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- MİMARİ -->
+        <div class="section">
+            <h2>🏗️ Sistem Mimarisi</h2>
+
+            <div class="flow-diagram">
+                <div class="flow-box">
+                    <strong>Incident</strong><br>
+                    <small>Yeni olay</small>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <strong>Risk Analizi</strong><br>
+                    <small>Skor hesaplama</small>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box highlight">
+                    <strong>Email Service</strong><br>
+                    <small>Uyarı kontrolü</small>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <strong>SMTP Sunucu</strong><br>
+                    <small>Mail gönderimi</small>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-box">
+                    <strong>Kullanıcı</strong><br>
+                    <small>Inbox</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- SMTP YAPILANDIRMASI -->
+        <div class="section">
+            <h2>⚙️ SMTP Yapılandırması</h2>
+            <p><code>appsettings.json</code> dosyasına eklenecek ayarlar:</p>
+
+            <div class="code-block">
+                <pre>{
+  <span class="string">"EmailSettings"</span>: {
+    <span class="string">"SmtpServer"</span>: <span class="string">"smtp.kuveytturk.com.tr"</span>,
+    <span class="string">"SmtpPort"</span>: 587,
+    <span class="string">"SmtpUsername"</span>: <span class="string">"dlp-alert@kuveytturk.com.tr"</span>,
+    <span class="string">"SmtpPassword"</span>: <span class="string">"*****"</span>,
+    <span class="string">"FromEmail"</span>: <span class="string">"dlp-alert@kuveytturk.com.tr"</span>,
+    <span class="string">"FromName"</span>: <span class="string">"DLP Risk Analyzer"</span>,
+    <span class="string">"EnableSsl"</span>: <span class="keyword">true</span>,
+    <span class="string">"DefaultDomain"</span>: <span class="string">"@kuveytturk.com.tr"</span>
+  }
+}</pre>
+            </div>
+
+            <div class="alert alert-warning">
+                ⚠️ <strong>Güvenlik Notu:</strong> SMTP şifresi production ortamında environment variable veya Azure Key
+                Vault gibi güvenli bir depolama kullanılmalıdır.
+            </div>
+        </div>
+
+        <!-- GEREKLI PAKETLER -->
+        <div class="section">
+            <h2>📦 Gerekli NuGet Paketleri</h2>
+
+            <div class="code-block">
+                <pre><span class="comment"># MailKit - Modern ve güvenli email kütüphanesi</span>
+dotnet add package MailKit
+
+<span class="comment"># MimeKit - Email mesaj oluşturma</span>
+dotnet add package MimeKit</pre>
+            </div>
+
+            <table>
+                <tr>
+                    <th>Paket</th>
+                    <th>Versiyon</th>
+                    <th>Açıklama</th>
+                </tr>
+                <tr>
+                    <td>MailKit</td>
+                    <td>4.x</td>
+                    <td>SMTP client, modern .NET desteği</td>
+                </tr>
+                <tr>
+                    <td>MimeKit</td>
+                    <td>4.x</td>
+                    <td>MIME mesaj oluşturma, HTML email</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- EMAIL SERVİS KODU -->
+        <div class="section">
+            <h2>💻 EmailService Kod Yapısı</h2>
+
+            <h3>1. Interface Tanımı</h3>
+            <div class="code-block">
+                <pre><span class="keyword">public interface</span> <span class="type">IEmailService</span>
+{
+    <span class="type">Task</span>&lt;<span class="type">bool</span>&gt; SendWarningEmailAsync(
+        <span class="type">string</span> toEmail,
+        <span class="type">string</span> userName,
+        <span class="type">int</span> incidentCount,
+        <span class="type">string</span> policyName,
+        <span class="type">string</span> riskLevel
+    );
+    
+    <span class="type">Task</span>&lt;<span class="type">bool</span>&gt; SendDailyReportAsync(
+        <span class="type">string</span> toEmail,
+        <span class="type">List</span>&lt;<span class="type">IncidentSummary</span>&gt; incidents
+    );
+}</pre>
+            </div>
+
+            <h3>2. Service Implementation</h3>
+            <div class="code-block">
+                <pre><span class="keyword">public class</span> <span class="type">EmailService</span> : <span class="type">IEmailService</span>
+{
+    <span class="keyword">private readonly</span> <span class="type">EmailSettings</span> _settings;
+    <span class="keyword">private readonly</span> <span class="type">ILogger</span>&lt;<span class="type">EmailService</span>&gt; _logger;
+
+    <span class="keyword">public async</span> <span class="type">Task</span>&lt;<span class="type">bool</span>&gt; SendWarningEmailAsync(...)
+    {
+        <span class="keyword">try</span>
+        {
+            <span class="keyword">var</span> message = <span class="keyword">new</span> <span class="type">MimeMessage</span>();
+            message.From.Add(<span class="keyword">new</span> <span class="type">MailboxAddress</span>(
+                _settings.FromName, 
+                _settings.FromEmail
+            ));
+            message.To.Add(<span class="keyword">new</span> <span class="type">MailboxAddress</span>(userName, toEmail));
+            message.Subject = <span class="string">$"DLP Uyarı: {policyName} İhlali"</span>;
+            
+            message.Body = <span class="keyword">new</span> <span class="type">TextPart</span>(<span class="string">"html"</span>)
+            {
+                Text = BuildWarningEmailTemplate(userName, incidentCount, policyName, riskLevel)
+            };
+
+            <span class="keyword">using var</span> client = <span class="keyword">new</span> <span class="type">SmtpClient</span>();
+            <span class="keyword">await</span> client.ConnectAsync(
+                _settings.SmtpServer, 
+                _settings.SmtpPort, 
+                _settings.EnableSsl ? <span class="type">SecureSocketOptions</span>.StartTls : <span class="type">SecureSocketOptions</span>.None
+            );
+            <span class="keyword">await</span> client.AuthenticateAsync(_settings.SmtpUsername, _settings.SmtpPassword);
+            <span class="keyword">await</span> client.SendAsync(message);
+            <span class="keyword">await</span> client.DisconnectAsync(<span class="keyword">true</span>);
+
+            _logger.LogInformation(<span class="string">"Uyarı maili gönderildi: {Email}"</span>, toEmail);
+            <span class="keyword">return true</span>;
+        }
+        <span class="keyword">catch</span> (<span class="type">Exception</span> ex)
+        {
+            _logger.LogError(ex, <span class="string">"Email gönderilemedi: {Email}"</span>, toEmail);
+            <span class="keyword">return false</span>;
+        }
+    }
+}</pre>
+            </div>
+        </div>
+
+        <!-- TETİKLEME MANTIGI -->
+        <div class="section">
+            <h2>🎯 Tetikleme Mantığı</h2>
+
+            <h3>Senaryo 1: Risk Skoru Yüksek</h3>
+            <div class="code-block">
+                <pre><span class="comment">// Günlük kontrol - yüksek riskli kullanıcılara mail</span>
+<span class="keyword">var</span> highRiskUsers = <span class="keyword">await</span> _context.Incidents
+    .Where(i => i.RiskScore >= 80)
+    .Where(i => i.Timestamp >= DateTime.Today)
+    .GroupBy(i => i.LoginName)
+    .Select(g => <span class="keyword">new</span> { User = g.Key, Count = g.Count() })
+    .ToListAsync();
+
+<span class="keyword">foreach</span> (<span class="keyword">var</span> user <span class="keyword">in</span> highRiskUsers)
+{
+    <span class="keyword">await</span> _emailService.SendWarningEmailAsync(
+        $"{user.User}@kuveytturk.com.tr",
+        user.User,
+        user.Count,
+        <span class="string">"Yüksek Risk"</span>,
+        <span class="string">"Critical"</span>
+    );
+}</pre>
+            </div>
+
+            <h3>Senaryo 2: Tekrarlayan İhlal (Aynı Politika 3+ Kez)</h3>
+            <div class="code-block">
+                <pre><span class="comment">// Son 7 gün içinde aynı politikayı 3+ kez ihlal edenler</span>
+<span class="keyword">var</span> repeatOffenders = <span class="keyword">await</span> _context.Incidents
+    .Where(i => i.Timestamp >= DateTime.Today.AddDays(-7))
+    .GroupBy(i => <span class="keyword">new</span> { i.LoginName, i.Policy })
+    .Where(g => g.Count() >= 3)
+    .Select(g => <span class="keyword">new</span> { 
+        User = g.Key.LoginName, 
+        Policy = g.Key.Policy, 
+        Count = g.Count() 
+    })
+    .ToListAsync();</pre>
+            </div>
+        </div>
+
+        <!-- EMAIL ŞABLONİ ÖNİZLEME -->
+        <div class="section">
+            <h2>✉️ Email Şablon Önizleme</h2>
+
+            <div class="email-preview">
+                <div class="header">
+                    <strong style="font-size: 20px;">⚠️ DLP Güvenlik Uyarısı</strong>
+                </div>
+                <h4>Sayın Ahmet YILMAZ,</h4>
+                <p style="margin-bottom: 15px;">
+                    Sistemimiz, hesabınızla ilişkili <strong style="color: #ef4444;">3 adet güvenlik ihlali</strong>
+                    tespit etmiştir.
+                </p>
+
+                <table style="background: #f3f4f6; border-radius: 8px; color: #374151;">
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"><strong>Politika:</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">KT PCI/PII-KW Politikasi</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"><strong>İhlal Sayısı:</strong></td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">3</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"><strong>Risk Seviyesi:</strong>
+                        </td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;"><span
+                                style="color: #ef4444; font-weight: bold;">Yüksek</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px;"><strong>Tarih:</strong></td>
+                        <td style="padding: 12px;">18 Aralık 2024</td>
+                    </tr>
+                </table>
+
+                <p style="margin-top: 20px; color: #6b7280; font-size: 14px;">
+                    Bu aktiviteler güvenlik ekibimiz tarafından izlenmektedir. Herhangi bir sorunuz varsa lütfen IT
+                    Güvenlik ekibi ile iletişime geçiniz.
+                </p>
+
+                <p
+                    style="margin-top: 30px; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 15px;">
+                    Bu otomatik bir bildirimdir. DLP Risk Analyzer Sistemi
+                </p>
+            </div>
+        </div>
+
+        <!-- API ENDPOINT -->
+        <div class="section">
+            <h2>🔌 API Endpoints</h2>
+
+            <table>
+                <tr>
+                    <th>Method</th>
+                    <th>Endpoint</th>
+                    <th>Açıklama</th>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">POST</span></td>
+                    <td><code>/api/email/send-warning</code></td>
+                    <td>Tek kullanıcıya uyarı maili gönder</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">POST</span></td>
+                    <td><code>/api/email/send-bulk-warning</code></td>
+                    <td>Toplu uyarı maili gönder</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-info">GET</span></td>
+                    <td><code>/api/email/history</code></td>
+                    <td>Gönderilen maillerin geçmişi</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-success">POST</span></td>
+                    <td><code>/api/email/test</code></td>
+                    <td>SMTP bağlantı testi</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- UYGULAMA ADIMLARI -->
+        <div class="section">
+            <h2>📝 Uygulama Adımları (Checklist)</h2>
+
+            <ul class="checklist">
+                <li>SMTP sunucu bilgilerini al (host, port, credentials)</li>
+                <li>MailKit NuGet paketini ekle</li>
+                <li>appsettings.json'a EmailSettings ekle</li>
+                <li>EmailSettings model sınıfı oluştur</li>
+                <li>IEmailService interface oluştur</li>
+                <li>EmailService implement et</li>
+                <li>Dependency Injection konfigüre et</li>
+                <li>EmailController oluştur</li>
+                <li>Email şablonları hazırla (HTML)</li>
+                <li>Tetikleme mantığını ekle (RiskAnalyzerService)</li>
+                <li>Dashboard'a "Uyarı Gönder" butonu ekle</li>
+                <li>Email geçmişi için veritabanı tablosu oluştur</li>
+                <li>Loglama ekle</li>
+                <li>Test et</li>
+            </ul>
+        </div>
+
+        <!-- NOTLAR -->
+        <div class="section">
+            <h2>📌 Önemli Notlar</h2>
+
+            <div class="alert alert-info">
+                ℹ️ <strong>Email Adresi:</strong> Veritabanında <code>email_address</code> alanı boş olan kullanıcılar
+                için <code>login_name + @kuveytturk.com.tr</code> formatı kullanılabilir.
+            </div>
+
+            <div class="alert alert-warning">
+                ⚠️ <strong>Rate Limiting:</strong> Aynı kullanıcıya günde maksimum 1 uyarı maili gönderilmelidir (spam
+                önleme).
+            </div>
+
+            <div class="alert alert-info">
+                ℹ️ <strong>Loglama:</strong> Tüm gönderilen mailler veritabanına kaydedilmeli (audit trail).
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>DLP Risk Analyzer</strong> - Email Uyarı Sistemi Dokümantasyonu</p>
+            <p>Oluşturulma Tarihi: 18 Aralık 2024</p>
+        </footer>
+    </div>
+</body>
+
+</html>

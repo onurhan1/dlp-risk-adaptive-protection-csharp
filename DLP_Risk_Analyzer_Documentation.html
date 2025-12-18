@@ -449,6 +449,7 @@
             <li><a href="#remediation">8. Olay Düzeltme (Remediation)</a></li>
             <li><a href="#frontend">9. Dashboard (Frontend)</a></li>
             <li><a href="#api-endpoints">10. API Endpoint'leri</a></li>
+            <li><a href="#action-summary-modal">11. Action Summary Incident Details (YENİ)</a></li>
         </ul>
     </div>
 
@@ -1171,6 +1172,11 @@ const response = await axios.get(`${apiUrl}/api/incidents`, {
             Departman özeti</div>
         <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/user-list</span> -
             Kullanıcı risk listesi</div>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/action-summary</span> -
+            Aksiyon özeti (BLOCK, QUARANTINE, AUTHORIZED)</div>
+        <div class="endpoint"><span class="method get">GET</span><span class="url">/api/risk/incidents/by-action</span>
+            -
+            Aksiyona göre incident detayları <span style="color: #10b981; font-weight: bold;">(YENİ)</span></div>
 
         <h3>AI Behavioral Endpoint'leri</h3>
         <div class="endpoint"><span class="method get">GET</span><span class="url">/api/ai-behavioral/overview</span> -
@@ -1189,8 +1195,188 @@ const response = await axios.get(`${apiUrl}/api/incidents`, {
             Incident çekme testi</div>
     </div>
 
+    <h2 id="action-summary-modal">11. Action Summary Incident Details (YENİ ÖZELLİK)</h2>
+
+    <div class="card">
+        <div class="success">
+            <strong>✅ Eklendi:</strong> 18 Aralık 2024 - Dashboard ve Reports sayfalarında Action Summary kartları artık
+            tıklanabilir.
+        </div>
+
+        <h3>📋 Özellik Açıklaması</h3>
+        <p>Dashboard ve Reports sayfalarındaki <strong>BLOCK</strong> ve <strong>QUARANTINE</strong> aksiyonlarına
+            tıklandığında,
+            ilgili tarihteki tüm incident'ların detaylarını gösteren bir modal açılır.</p>
+
+        <h3>🎯 Kullanım Senaryosu</h3>
+        <table>
+            <tr>
+                <th>Kart</th>
+                <th>Renk</th>
+                <th>Tıklandığında</th>
+            </tr>
+            <tr>
+                <td style="font-weight: bold; color: #ef4444;">BLOCK</td>
+                <td>🔴 Kırmızı</td>
+                <td>Bloklanmış incident'ların listesi</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold; color: #8b5cf6;">QUARANTINE</td>
+                <td>🟣 Mor</td>
+                <td>Karantinaya alınmış incident'ların listesi</td>
+            </tr>
+        </table>
+
+        <h3>📊 Modal İçeriği</h3>
+        <p>Modal'da gösterilen kolonlar:</p>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Kolon</th>
+                <th>Açıklama</th>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>Login Name</td>
+                <td>Kullanıcı adı (örn: KUVEYTTURK\ahmet.yilmaz)</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>Destination</td>
+                <td>Hedef adres (email, URL, vb.)</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>Channel</td>
+                <td>Kanal (EMAIL, CLOUD, USB, vb.)</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>Policy/Rule</td>
+                <td>Tetiklenen politika ve kural adı</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>Time</td>
+                <td>Olay zamanı (HH:MM:SS)</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>🔌 API Endpoint</h3>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            <span class="url">/api/risk/incidents/by-action</span>
+        </div>
+
+        <h4>Parametreler:</h4>
+        <table>
+            <tr>
+                <th>Parametre</th>
+                <th>Tip</th>
+                <th>Zorunlu</th>
+                <th>Açıklama</th>
+            </tr>
+            <tr>
+                <td><code>action</code></td>
+                <td>string</td>
+                <td>✅ Evet</td>
+                <td>BLOCK, QUARANTINE veya AUTHORIZED</td>
+            </tr>
+            <tr>
+                <td><code>date</code></td>
+                <td>string</td>
+                <td>❌ Hayır</td>
+                <td>Tek tarih (yyyy-MM-dd) - Reports için</td>
+            </tr>
+            <tr>
+                <td><code>start_date</code></td>
+                <td>string</td>
+                <td>❌ Hayır</td>
+                <td>Başlangıç tarihi - Dashboard için</td>
+            </tr>
+            <tr>
+                <td><code>end_date</code></td>
+                <td>string</td>
+                <td>❌ Hayır</td>
+                <td>Bitiş tarihi - Dashboard için</td>
+            </tr>
+        </table>
+
+        <h4>Örnek İstek:</h4>
+        <pre><code>// Reports (tek gün)
+GET /api/risk/incidents/by-action?action=BLOCK&date=2024-12-18
+
+// Dashboard (30 gün aralığı)
+GET /api/risk/incidents/by-action?action=BLOCK&start_date=2024-11-18&end_date=2024-12-18</code></pre>
+
+        <h4>Örnek Yanıt:</h4>
+        <pre><code>[
+  {
+    "login_name": "KUVEYTTURK\\ahmet.yilmaz",
+    "destination": "user@external.com",
+    "channel": "EMAIL",
+    "policy": "KT PCI/PII-KW Politikasi",
+    "rule_name": "Credit Card Detection",
+    "timestamp": "2024-12-18 14:30:25"
+  },
+  ...
+]</code></pre>
+    </div>
+
+    <div class="card">
+        <h3>💻 Frontend Bileşenleri</h3>
+
+        <h4>1. ActionIncidentsModal Component</h4>
+        <p><strong>Dosya:</strong> <code>dashboard/components/ActionIncidentsModal.tsx</code></p>
+        <p>Yeniden kullanılabilir modal bileşeni. Props:</p>
+        <pre><code>interface ActionIncidentsModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    action: string;         // "BLOCK" veya "QUARANTINE"
+    date: string;           // Gösterilecek tarih
+    incidents: Incident[];  // Incident listesi
+    loading: boolean;       // Yükleniyor durumu
+}</code></pre>
+
+        <h4>2. Dashboard Entegrasyonu</h4>
+        <p><strong>Dosya:</strong> <code>dashboard/app/page.tsx</code></p>
+        <ul>
+            <li>BLOCK ve QUARANTINE kartlarına <code>onClick</code> handler eklendi</li>
+            <li>30 günlük tarih aralığı gönderiliyor (<code>start_date</code>, <code>end_date</code>)</li>
+            <li>Hover efektleri eklendi (cursor, shadow, transform)</li>
+        </ul>
+
+        <h4>3. Reports Entegrasyonu</h4>
+        <p><strong>Dosya:</strong> <code>dashboard/app/reports/page.tsx</code></p>
+        <ul>
+            <li>Seçili güne göre tek tarih gönderiliyor (<code>date</code>)</li>
+            <li>Daily Summary kartları tıklanabilir</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>� Backend Implementation</h3>
+        <p><strong>Dosya:</strong> <code>DLP.RiskAnalyzer.Analyzer/Controllers/RiskController.cs</code></p>
+
+        <h4>Önemli Noktalar:</h4>
+        <ul>
+            <li><strong>Action Matching:</strong> "BLOCK" ile "BLOCKED", "QUARANTINE" ile "QUARANTINED" eşleştirilir
+            </li>
+            <li><strong>Rule Name Extraction:</strong> <code>ViolationTriggers</code> JSON alanından parse edilir</li>
+            <li><strong>Login Name Priority:</strong> <code>email_address</code> yerine <code>login_name</code> tercih
+                edilir (genellikle dolu)</li>
+            <li><strong>Date Range Support:</strong> Hem tek tarih hem aralık desteklenir</li>
+        </ul>
+    </div>
+
     <div class="info" style="margin-top: 40px;">
-        <strong>📝 Not:</strong> Bu dokümantasyon tarayıcıda PDF olarak yazdırılabilir (Ctrl+P veya Cmd+P).
+        <strong>�📝 Not:</strong> Bu dokümantasyon tarayıcıda PDF olarak yazdırılabilir (Ctrl+P veya Cmd+P).
+    </div>
+
+    <div style="text-align: center; margin-top: 30px; color: #666; font-size: 13px;">
+        <p>Son Güncelleme: 18 Aralık 2024 | Versiyon 1.1</p>
     </div>
 
 </body>
