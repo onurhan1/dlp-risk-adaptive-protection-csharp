@@ -102,6 +102,8 @@ export default function ReportsPage() {
       const response = await axios.get(`${apiUrl}/api/reports/daily-summary`, {
         params: { date: selectedDate }
       })
+      console.log('Daily Summary API Response:', response.data)
+      console.log('Top Users Sample:', response.data.top_users?.[0])
       setDailySummary(response.data)
     } catch (error: any) {
       console.error('Error fetching daily summary:', error)

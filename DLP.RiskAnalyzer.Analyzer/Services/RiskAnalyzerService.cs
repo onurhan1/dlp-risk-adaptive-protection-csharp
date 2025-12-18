@@ -517,6 +517,9 @@ public class RiskAnalyzerService
                 LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
                             .Select(i => i.LoginName)
                             .FirstOrDefault() ?? "",
+                Department = g.Where(i => !string.IsNullOrEmpty(i.Department))
+                             .Select(i => i.Department)
+                             .FirstOrDefault() ?? "",
                 TotalAlerts = g.Count(),
                 RiskScore = g.Max(i => i.RiskScore ?? 0)
             })
@@ -526,6 +529,7 @@ public class RiskAnalyzerService
             {
                 { "user_email", u.UserEmail },
                 { "login_name", u.LoginName },
+                { "department", u.Department },
                 { "total_alerts", u.TotalAlerts },
                 { "risk_score", u.RiskScore },
                 { "risk_level", GetRiskLevelFromScore(u.RiskScore) }
