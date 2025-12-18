@@ -16,6 +16,7 @@ interface ActionSummary {
 interface TopUser {
   user_email: string
   login_name: string
+  email_address?: string
   total_alerts: number
   risk_score: number
   risk_level: string
@@ -306,7 +307,10 @@ export default function ReportsPage() {
                         <td>{idx + 1}</td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span>{user.login_name || user.user_email}</span>
+                            <span>{user.email_address || user.user_email}</span>
+                            {user.login_name && user.login_name !== (user.email_address || user.user_email) && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.login_name}</span>
+                            )}
                           </div>
                         </td>
                         <td className="text-center">

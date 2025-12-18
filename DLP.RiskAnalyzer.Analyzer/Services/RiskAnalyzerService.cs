@@ -435,7 +435,10 @@ public class RiskAnalyzerService
                              .FirstOrDefault() ?? "",
                 LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
                             .Select(i => i.LoginName)
-                            .FirstOrDefault() ?? ""
+                            .FirstOrDefault() ?? "",
+                EmailAddress = g.Where(i => !string.IsNullOrEmpty(i.EmailAddress))
+                              .Select(i => i.EmailAddress)
+                              .FirstOrDefault() ?? ""
             })
             .OrderByDescending(u => u.TotalAlerts)
             .Take(limit)
@@ -445,6 +448,7 @@ public class RiskAnalyzerService
         {
             { "user_email", u.UserEmail },
             { "login_name", u.LoginName },
+            { "email_address", !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail },
             { "total_alerts", u.TotalAlerts },
             { "risk_score", u.RiskScore },
             { "department", u.Department },
