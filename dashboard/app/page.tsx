@@ -17,14 +17,19 @@ interface DailySummary {
   Date?: string
   total_incidents?: number
   TotalIncidents?: number
+  totalIncidents?: number  // camelCase from .NET
   high_risk_count?: number
   HighRiskCount?: number
+  highRiskCount?: number  // camelCase from .NET
   avg_risk_score?: number
   AvgRiskScore?: number
+  avgRiskScore?: number  // camelCase from .NET
   unique_users?: number
   UniqueUsers?: number
+  uniqueUsers?: number  // camelCase from .NET
   departments_affected?: number
   DepartmentsAffected?: number
+  departmentsAffected?: number  // camelCase from .NET
 }
 
 interface DepartmentSummary {
@@ -101,6 +106,8 @@ export default function Home() {
       ])
 
       setDailySummary(dailyRes.data)
+      console.log('Daily Summary Data:', dailyRes.data)
+      console.log('Sample day data:', dailyRes.data[0])
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
 
@@ -443,7 +450,7 @@ export default function Home() {
               </thead>
               <tbody>
                 {(() => {
-                  const maxIncidents = Math.max(...dailySummary.map(d => d.total_incidents ?? d.TotalIncidents ?? 0));
+                  const maxIncidents = Math.max(...dailySummary.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0));
                   return dailySummary
                     .slice()
                     .sort((a, b) => {
@@ -453,10 +460,10 @@ export default function Home() {
                     })
                     .slice(0, 14) // Show last 14 days
                     .map((day, idx) => {
-                      const total = day.total_incidents ?? day.TotalIncidents ?? 0;
-                      const highRisk = day.high_risk_count ?? day.HighRiskCount ?? 0;
-                      const avgScore = day.avg_risk_score ?? day.AvgRiskScore ?? 0;
-                      const uniqueUsers = day.unique_users ?? day.UniqueUsers ?? 0;
+                      const total = day.total_incidents ?? day.totalIncidents ?? day.TotalIncidents ?? 0;
+                      const highRisk = day.high_risk_count ?? day.highRiskCount ?? day.HighRiskCount ?? 0;
+                      const avgScore = day.avg_risk_score ?? day.avgRiskScore ?? day.AvgRiskScore ?? 0;
+                      const uniqueUsers = day.unique_users ?? day.uniqueUsers ?? day.UniqueUsers ?? 0;
                       const dateStr = day.date || day.Date || '';
                       const percentage = maxIncidents > 0 ? (total / maxIncidents) * 100 : 0;
                       const highRiskPercentage = total > 0 ? (highRisk / total) * 100 : 0;
