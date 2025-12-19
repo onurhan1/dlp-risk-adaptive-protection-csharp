@@ -384,7 +384,10 @@ export default function Home() {
       {/* Two Column Layout */}
       <div className="dashboard-grid">
         <div className="card">
-          <h2>Top users</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>Top users</h2>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: 'var(--surface-hover)', padding: '4px 12px', borderRadius: '12px' }}>Last 24 Hours</span>
+          </div>
           <table className="data-table">
             <thead>
               <tr>
