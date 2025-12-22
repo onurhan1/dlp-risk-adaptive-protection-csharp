@@ -35,11 +35,35 @@ $AnalyzerPath = Join-Path $ProjectRoot "DLP.RiskAnalyzer.Analyzer"
 $CollectorPath = Join-Path $ProjectRoot "DLP.RiskAnalyzer.Collector"
 $DashboardPath = Join-Path $ProjectRoot "dashboard"
 
+# Redis Server yolunu bul
+$RedisServerPath = $null
+$RedisPossiblePaths = @(
+    "C:\Program Files\Redis\redis-server.exe",
+    "C:\Redis\redis-server.exe",
+    "C:\redis\redis-server.exe",
+    "C:\Tools\Redis\redis-server.exe"
+)
+
+foreach ($path in $RedisPossiblePaths) {
+    if (Test-Path $path) {
+        $RedisServerPath = $path
+        break
+    }
+}
+
+# Eğer bulunamadıysa, PATH'te ara
+if (-not $RedisServerPath) {
+    $redisInPath = Get-Command redis-server -ErrorAction SilentlyContinue
+    if ($redisInPath) {
+        $RedisServerPath = $redisInPath.Source
+    }
+}
+
 # Var olan görevleri sil (güncelleme için)
 Write-Host ""
 Write-Host "[*] Mevcut gorevler kontrol ediliyor..." -ForegroundColor $Yellow
 
-$tasksToRemove = @("DLP-Analyzer", "DLP-Collector", "DLP-Dashboard")
+$tasksToRemove = @("DLP-Redis", "DLP-Analyzer", "DLP-Collector", "DLP-Dashboard")
 foreach ($task in $tasksToRemove) {
     $existingTask = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
     if ($existingTask) {
@@ -49,10 +73,56 @@ foreach ($task in $tasksToRemove) {
 }
 
 # ============================================================================
+# 0. Redis Server Görevi
+# ============================================================================
+Write-Host ""
+Write-Host "[1/4] Redis Server gorevi olusturuluyor..." -ForegroundColor $Cyan
+
+if ($RedisServerPath) {
+    Write-Host "    Redis bulundu: $RedisServerPath" -ForegroundColor $Green
+    
+    $RedisDir = Split-Path $RedisServerPath -Parent
+    
+    $RedisAction = New-ScheduledTaskAction `
+        -Execute $RedisServerPath `
+        -WorkingDirectory $RedisDir
+
+    $RedisTrigger = New-ScheduledTaskTrigger -AtStartup
+    $RedisTrigger.Delay = "PT10S"  # 10 saniye gecikme
+
+    $RedisSettings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -RestartInterval (New-TimeSpan -Minutes 1) `
+        -RestartCount 3 `
+        -ExecutionTimeLimit (New-TimeSpan -Days 365)
+
+    $RedisPrincipal = New-ScheduledTaskPrincipal `
+        -UserId "SYSTEM" `
+        -LogonType ServiceAccount `
+        -RunLevel Highest
+
+    Register-ScheduledTask `
+        -TaskName "DLP-Redis" `
+        -Action $RedisAction `
+        -Trigger $RedisTrigger `
+        -Settings $RedisSettings `
+        -Principal $RedisPrincipal `
+        -Description "Redis Server - Otomatik Baslatma" | Out-Null
+
+    Write-Host "    [OK] DLP-Redis gorevi olusturuldu" -ForegroundColor $Green
+} else {
+    Write-Host "    [UYARI] Redis server bulunamadi!" -ForegroundColor $Yellow
+    Write-Host "    Redis'i manuel olarak baslatmaniz gerekecek." -ForegroundColor $Yellow
+    Write-Host "    Ya da Redis yolunu bu scripte ekleyin." -ForegroundColor $Yellow
+}
+
+# ============================================================================
 # 1. DLP Analyzer Görevi (Kendi dizininde çalışır)
 # ============================================================================
 Write-Host ""
-Write-Host "[1/3] DLP Analyzer gorevi olusturuluyor..." -ForegroundColor $Cyan
+Write-Host "[2/4] DLP Analyzer gorevi olusturuluyor..." -ForegroundColor $Cyan
 
 $AnalyzerAction = New-ScheduledTaskAction `
     -Execute "dotnet" `
@@ -89,7 +159,7 @@ Write-Host "    [OK] DLP-Analyzer gorevi olusturuldu" -ForegroundColor $Green
 # 2. DLP Collector Görevi (Kendi dizininde çalışır)
 # ============================================================================
 Write-Host ""
-Write-Host "[2/3] DLP Collector gorevi olusturuluyor..." -ForegroundColor $Cyan
+Write-Host "[3/4] DLP Collector gorevi olusturuluyor..." -ForegroundColor $Cyan
 
 $CollectorAction = New-ScheduledTaskAction `
     -Execute "dotnet" `
@@ -126,7 +196,7 @@ Write-Host "    [OK] DLP-Collector gorevi olusturuldu" -ForegroundColor $Green
 # 3. DLP Dashboard Görevi
 # ============================================================================
 Write-Host ""
-Write-Host "[3/3] DLP Dashboard gorevi olusturuluyor..." -ForegroundColor $Cyan
+Write-Host "[4/4] DLP Dashboard gorevi olusturuluyor..." -ForegroundColor $Cyan
 
 # Dashboard için batch dosyası oluştur (npm run dev için)
 $DashboardBatchPath = Join-Path $ProjectRoot "start-dashboard-service.bat"
@@ -187,15 +257,17 @@ $tasks | ForEach-Object {
 
 Write-Host ""
 Write-Host "Baslama sirasi:" -ForegroundColor $Yellow
-Write-Host "  1. PostgreSQL ve Redis (zaten Automatic)" -ForegroundColor White
-Write-Host "  2. DLP-Analyzer (30 sn sonra)" -ForegroundColor White
-Write-Host "  3. DLP-Collector (45 sn sonra)" -ForegroundColor White
-Write-Host "  4. DLP-Dashboard (60 sn sonra)" -ForegroundColor White
+Write-Host "  1. PostgreSQL (zaten Automatic)" -ForegroundColor White
+Write-Host "  2. DLP-Redis (10 sn sonra)" -ForegroundColor White
+Write-Host "  3. DLP-Analyzer (30 sn sonra)" -ForegroundColor White
+Write-Host "  4. DLP-Collector (45 sn sonra)" -ForegroundColor White
+Write-Host "  5. DLP-Dashboard (60 sn sonra)" -ForegroundColor White
 Write-Host ""
 Write-Host "Gorevleri yonetmek icin:" -ForegroundColor $Yellow
 Write-Host "  Task Scheduler: taskschd.msc" -ForegroundColor White
 Write-Host ""
 Write-Host "Simdi test etmek icin:" -ForegroundColor $Yellow
+Write-Host "  Start-ScheduledTask -TaskName 'DLP-Redis'" -ForegroundColor White
 Write-Host "  Start-ScheduledTask -TaskName 'DLP-Analyzer'" -ForegroundColor White
 Write-Host "  Start-ScheduledTask -TaskName 'DLP-Collector'" -ForegroundColor White
 Write-Host "  Start-ScheduledTask -TaskName 'DLP-Dashboard'" -ForegroundColor White
