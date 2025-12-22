@@ -534,6 +534,7 @@ public class RiskAnalyzerService
         var authorized = actionSummary.GetValueOrDefault("AUTHORIZED", 0);
         var block = actionSummary.GetValueOrDefault("BLOCK", 0) + actionSummary.GetValueOrDefault("BLOCKED", 0);
         var quarantine = actionSummary.GetValueOrDefault("QUARANTINE", 0) + actionSummary.GetValueOrDefault("QUARANTINED", 0);
+        var released = actionSummary.GetValueOrDefault("RELEASED", 0);
         var total = incidents.Count;
 
         // Top 10 Users
@@ -591,6 +592,7 @@ public class RiskAnalyzerService
                     { "authorized", authorized },
                     { "block", block },
                     { "quarantine", quarantine },
+                    { "released", released },
                     { "total", total }
                 }
             },
