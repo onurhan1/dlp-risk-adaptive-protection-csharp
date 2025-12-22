@@ -39,7 +39,7 @@ Write-Host ""
 
 # pg_dump ile backup al
 try {
-    $env:PGPASSWORD = ""  # Şifre gerekiyorsa buraya yazın veya pgpass.conf kullanın
+    $env:PGPASSWORD = "postgres"  # Şifre gerekiyorsa buraya yazın veya pgpass.conf kullanın
     
     # pg_dump komutunu çalıştır
     $pgDumpPath = "pg_dump"  # PATH'te olmalı, yoksa tam yolu yazın
