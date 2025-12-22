@@ -11,6 +11,7 @@ interface ActionSummary {
   authorized: number
   block: number
   quarantine: number
+  released: number
   total: number
 }
 
@@ -273,7 +274,7 @@ export default function ReportsPage() {
           {/* Action Summary Cards */}
           <div className="card" style={{ marginBottom: '24px' }}>
             <h2>Action Summary</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginTop: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginTop: '16px' }}>
               <div
                 onClick={() => fetchActionIncidents('AUTHORIZED')}
                 style={{
@@ -339,6 +340,28 @@ export default function ReportsPage() {
               >
                 <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>QUARANTINE</div>
                 <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.quarantine}</div>
+              </div>
+              <div
+                onClick={() => fetchActionIncidents('RELEASED')}
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>RELEASED</div>
+                <div style={{ fontSize: '32px', fontWeight: '700' }}>{dailySummary.action_summary.released || 0}</div>
               </div>
               <div
                 onClick={() => fetchActionIncidents('TOTAL')}

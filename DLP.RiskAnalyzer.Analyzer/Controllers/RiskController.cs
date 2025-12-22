@@ -50,14 +50,16 @@ public class RiskController : ControllerBase
             var authorized = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "AUTHORIZED")?.Count ?? 0;
             var block = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "BLOCK" || a.Action.ToUpper() == "BLOCKED")?.Count ?? 0;
             var quarantine = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "QUARANTINE" || a.Action.ToUpper() == "QUARANTINED")?.Count ?? 0;
+            var released = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "RELEASED")?.Count ?? 0;
             var unknown = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "UNKNOWN" || string.IsNullOrEmpty(a.Action))?.Count ?? 0;
-            var total = authorized + block + quarantine + unknown;
+            var total = authorized + block + quarantine + released + unknown;
 
             return Ok(new Dictionary<string, object>
             {
                 { "authorized", authorized },
                 { "block", block },
                 { "quarantine", quarantine },
+                { "released", released },
                 { "unknown", unknown },
                 { "total", total },
                 { "actions", actionCounts.Select(a => new { action = a.Action, count = a.Count }).ToList() }
@@ -309,12 +311,12 @@ public class RiskController : ControllerBase
         try
         {
             // Validate action parameter
-            var validActions = new[] { "BLOCK", "BLOCKED", "QUARANTINE", "QUARANTINED", "AUTHORIZED", "TOTAL" };
+            var validActions = new[] { "BLOCK", "BLOCKED", "QUARANTINE", "QUARANTINED", "AUTHORIZED", "RELEASED", "TOTAL" };
             var normalizedAction = action?.ToUpper();
             
             if (string.IsNullOrEmpty(normalizedAction) || !validActions.Contains(normalizedAction))
             {
-                return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED, TOTAL" });
+                return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED, RELEASED, TOTAL" });
             }
 
             // Parse date range - support both single date and date range

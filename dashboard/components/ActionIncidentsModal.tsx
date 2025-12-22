@@ -380,7 +380,8 @@ export default function ActionIncidentsModal({
                                                         backgroundColor:
                                                             incident.action?.toUpperCase() === 'BLOCK' || incident.action?.toUpperCase() === 'BLOCKED' ? '#ef4444' :
                                                                 incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#9013ff' :
-                                                                    incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' : '#6b7280'
+                                                                    incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' :
+                                                                        incident.action?.toUpperCase() === 'RELEASED' ? '#f59e0b' : '#6b7280'
                                                     }}>
                                                         {incident.action || 'N/A'}
                                                     </span>
