@@ -253,6 +253,7 @@ public class DLPCollectorService : IDisposable
 
             var fields = new NameValueEntry[]
             {
+                new("id", incident.Id.ToString()),  // DLP API'den gelen orijinal ID
                 new("user", incident.UserEmail),
                 new("department", incident.Department ?? ""),
                 new("severity", incident.Severity.ToString()),

@@ -105,6 +105,8 @@ public class DatabaseService
         {
             try
             {
+                // DLP API'den gelen orijinal ID
+                var idValue = message.Values.FirstOrDefault(v => v.Name == "id");
                 var userEmailValue = message.Values.FirstOrDefault(v => v.Name == "user");
                 var departmentValue = message.Values.FirstOrDefault(v => v.Name == "department");
                 var severityValue = message.Values.FirstOrDefault(v => v.Name == "severity");
@@ -128,6 +130,13 @@ public class DatabaseService
                     continue;
                 }
 
+                // Parse ID - DLP API'den gelen orijinal ID
+                var incidentId = 0;
+                if (idValue.Value.HasValue && !string.IsNullOrEmpty(idValue.Value.ToString()))
+                {
+                    int.TryParse(idValue.Value.ToString(), out incidentId);
+                }
+
                 var userEmail = userEmailValue.Value.ToString();
                 var department = departmentValue.Value.HasValue ? departmentValue.Value.ToString() : null;
                 var severity = int.Parse(severityValue.Value.ToString());
@@ -144,16 +153,26 @@ public class DatabaseService
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
 
-                // Check if incident already exists (avoid duplicates)
-                var exists = await _context.Incidents
-                    .AnyAsync(i => i.UserEmail == userEmail && 
-                                  i.Timestamp == timestamp && 
-                                  i.Policy == policy);
+                // Check if incident already exists by ID (primary duplicate check)
+                // If ID is 0 (old format), fall back to timestamp+user+policy check
+                bool exists;
+                if (incidentId > 0)
+                {
+                    exists = await _context.Incidents.AnyAsync(i => i.Id == incidentId);
+                }
+                else
+                {
+                    exists = await _context.Incidents
+                        .AnyAsync(i => i.UserEmail == userEmail && 
+                                      i.Timestamp == timestamp && 
+                                      i.Policy == policy);
+                }
 
                 if (!exists)
                 {
                     var incident = new Incident
                     {
+                        Id = incidentId,  // DLP API'den gelen orijinal ID (0 ise auto-increment)
                         UserEmail = userEmail,
                         Department = string.IsNullOrEmpty(department) ? null : department,
                         Severity = severity,

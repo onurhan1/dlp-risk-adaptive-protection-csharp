@@ -94,6 +94,7 @@ public class CollectorBackgroundService : BackgroundService
                 {
                     var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
                     {
+                        Id = dlpIncident.Id,  // DLP API'den gelen orijinal ID
                         UserEmail = dlpIncident.User ?? "unknown",
                         Department = dlpIncident.Department,
                         Severity = dlpIncident.Severity,
