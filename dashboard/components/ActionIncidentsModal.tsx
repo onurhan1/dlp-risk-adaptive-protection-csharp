@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 
 interface ActionIncident {
     login_name: string
@@ -28,6 +28,26 @@ export default function ActionIncidentsModal({
     incidents,
     loading = false
 }: ActionIncidentsModalProps) {
+    // Search filter states
+    const [filters, setFilters] = useState({
+        login_name: '',
+        destination: '',
+        channel: '',
+        policy: ''
+    })
+
+    // Reset filters when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setFilters({
+                login_name: '',
+                destination: '',
+                channel: '',
+                policy: ''
+            })
+        }
+    }, [isOpen])
+
     // Close modal on ESC key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -39,6 +59,36 @@ export default function ActionIncidentsModal({
         }
     }, [isOpen, onClose])
 
+    // Filtered incidents based on search filters
+    const filteredIncidents = useMemo(() => {
+        return incidents.filter(incident => {
+            const matchLoginName = !filters.login_name ||
+                incident.login_name?.toLowerCase().includes(filters.login_name.toLowerCase())
+            const matchDestination = !filters.destination ||
+                incident.destination?.toLowerCase().includes(filters.destination.toLowerCase())
+            const matchChannel = !filters.channel ||
+                incident.channel?.toLowerCase().includes(filters.channel.toLowerCase())
+            const matchPolicy = !filters.policy ||
+                incident.policy?.toLowerCase().includes(filters.policy.toLowerCase()) ||
+                incident.rule_name?.toLowerCase().includes(filters.policy.toLowerCase())
+
+            return matchLoginName && matchDestination && matchChannel && matchPolicy
+        })
+    }, [incidents, filters])
+
+    // Check if any filter is active
+    const hasActiveFilters = Object.values(filters).some(f => f.length > 0)
+
+    // Clear all filters
+    const clearFilters = () => {
+        setFilters({
+            login_name: '',
+            destination: '',
+            channel: '',
+            policy: ''
+        })
+    }
+
     if (!isOpen) return null
 
     const actionColors = {
@@ -47,6 +97,18 @@ export default function ActionIncidentsModal({
     }
 
     const actionColor = actionColors[action as keyof typeof actionColors] || '#3b82f6'
+
+    const inputStyle = {
+        width: '100%',
+        padding: '6px 10px',
+        fontSize: '12px',
+        border: '1px solid var(--border)',
+        borderRadius: '4px',
+        backgroundColor: 'var(--background)',
+        color: 'var(--text-primary)',
+        outline: 'none',
+        transition: 'border-color 0.2s'
+    }
 
     return (
         <>
@@ -117,7 +179,25 @@ export default function ActionIncidentsModal({
                             fontSize: '13px',
                             color: 'var(--text-muted)'
                         }}>
-                            {date} • {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
+                            {date} • Showing {filteredIncidents.length} of {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
+                            {hasActiveFilters && (
+                                <button
+                                    onClick={clearFilters}
+                                    style={{
+                                        marginLeft: '12px',
+                                        padding: '2px 8px',
+                                        fontSize: '11px',
+                                        backgroundColor: 'var(--warning)',
+                                        color: '#000',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    Clear Filters
+                                </button>
+                            )}
                         </p>
                     </div>
                     <button
@@ -176,69 +256,124 @@ export default function ActionIncidentsModal({
                             borderCollapse: 'collapse'
                         }}>
                             <thead>
+                                {/* Column Headers */}
                                 <tr style={{
                                     backgroundColor: 'var(--background-secondary)',
-                                    borderBottom: '2px solid var(--border)'
+                                    borderBottom: '1px solid var(--border)'
                                 }}>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>#</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', width: '40px' }}>#</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Login Name</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Destination</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Channel</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy/Rule</th>
                                     <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
                                 </tr>
+                                {/* Search Filter Row */}
+                                <tr style={{
+                                    backgroundColor: 'var(--surface)',
+                                    borderBottom: '2px solid var(--border)'
+                                }}>
+                                    <td style={{ padding: '8px 12px' }}>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>🔍</span>
+                                    </td>
+                                    <td style={{ padding: '8px 12px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search login..."
+                                            value={filters.login_name}
+                                            onChange={(e) => setFilters(f => ({ ...f, login_name: e.target.value }))}
+                                            style={inputStyle}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '8px 12px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search destination..."
+                                            value={filters.destination}
+                                            onChange={(e) => setFilters(f => ({ ...f, destination: e.target.value }))}
+                                            style={inputStyle}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '8px 12px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search channel..."
+                                            value={filters.channel}
+                                            onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
+                                            style={inputStyle}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '8px 12px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search policy/rule..."
+                                            value={filters.policy}
+                                            onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
+                                            style={inputStyle}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '8px 12px' }}></td>
+                                </tr>
                             </thead>
                             <tbody>
-                                {incidents.map((incident, idx) => (
-                                    <tr
-                                        key={idx}
-                                        style={{
-                                            borderBottom: '1px solid var(--border)',
-                                            transition: 'background 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-hover)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                    >
-                                        <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>{idx + 1}</td>
-                                        <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                            {incident.login_name}
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                            <div style={{
-                                                maxWidth: '250px',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                            }} title={incident.destination}>
-                                                {incident.destination}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                            <span style={{
-                                                padding: '4px 8px',
-                                                backgroundColor: 'var(--background-secondary)',
-                                                borderRadius: '4px',
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                textTransform: 'uppercase'
-                                            }}>
-                                                {incident.channel}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{incident.policy}</div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginTop: '2px' }}>
-                                                {incident.rule_name}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
-                                            <div>{incident.timestamp.split(' ')[0]}</div>
-                                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                                                {incident.timestamp.split(' ')[1] || incident.timestamp}
-                                            </div>
+                                {filteredIncidents.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                            No incidents match your filter criteria
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    filteredIncidents.map((incident, idx) => (
+                                        <tr
+                                            key={idx}
+                                            style={{
+                                                borderBottom: '1px solid var(--border)',
+                                                transition: 'background 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-hover)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                            <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                                            <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                                {incident.login_name}
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                                <div style={{
+                                                    maxWidth: '250px',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }} title={incident.destination}>
+                                                    {incident.destination}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    backgroundColor: 'var(--background-secondary)',
+                                                    borderRadius: '4px',
+                                                    fontSize: '11px',
+                                                    fontWeight: '600',
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {incident.channel}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{incident.policy}</div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginTop: '2px' }}>
+                                                    {incident.rule_name}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                                                <div>{incident.timestamp.split(' ')[0]}</div>
+                                                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                                    {incident.timestamp.split(' ')[1] || incident.timestamp}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     )}
