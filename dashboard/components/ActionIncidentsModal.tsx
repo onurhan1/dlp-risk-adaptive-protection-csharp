@@ -8,6 +8,7 @@ interface ActionIncident {
     channel: string
     policy: string
     rule_name: string
+    action?: string
     timestamp: string
 }
 
@@ -266,6 +267,7 @@ export default function ActionIncidentsModal({
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Destination</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Channel</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy/Rule</th>
+                                    {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>}
                                     <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
                                 </tr>
                                 {/* Search Filter Row */}
@@ -312,13 +314,14 @@ export default function ActionIncidentsModal({
                                             style={inputStyle}
                                         />
                                     </td>
+                                    {action === 'TOTAL' && <td style={{ padding: '8px 12px' }}></td>}
                                     <td style={{ padding: '8px 12px' }}></td>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredIncidents.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        <td colSpan={action === 'TOTAL' ? 7 : 6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                             No incidents match your filter criteria
                                         </td>
                                     </tr>
@@ -365,6 +368,24 @@ export default function ActionIncidentsModal({
                                                     {incident.rule_name}
                                                 </div>
                                             </td>
+                                            {action === 'TOTAL' && (
+                                                <td style={{ padding: '12px', textAlign: 'center' }}>
+                                                    <span style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '4px',
+                                                        fontSize: '10px',
+                                                        fontWeight: '700',
+                                                        textTransform: 'uppercase',
+                                                        color: 'white',
+                                                        backgroundColor:
+                                                            incident.action?.toUpperCase() === 'BLOCK' || incident.action?.toUpperCase() === 'BLOCKED' ? '#ef4444' :
+                                                                incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#9013ff' :
+                                                                    incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' : '#6b7280'
+                                                    }}>
+                                                        {incident.action || 'N/A'}
+                                                    </span>
+                                                </td>
+                                            )}
                                             <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
                                                 <div>{incident.timestamp.split(' ')[0]}</div>
                                                 <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>

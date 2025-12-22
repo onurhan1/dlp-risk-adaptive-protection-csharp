@@ -412,6 +412,7 @@ public class RiskController : ControllerBase
                     { "channel", i.Channel ?? "N/A" },
                     { "policy", i.Policy ?? "N/A" },
                     { "rule_name", ruleName },
+                    { "action", i.Action ?? "N/A" },
                     { "timestamp", i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") }
                 };
             }).ToList();
