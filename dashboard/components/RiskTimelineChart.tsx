@@ -28,43 +28,56 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   const [topRules, setTopRules] = useState<TopRule[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'users' | 'alerts'>('users')
-  const [selectedSeverities, setSelectedSeverities] = useState({
-    critical: true,
-    high: true,
-    medium: true,
-    low: true,
-    total: true
+
+  // Date range state
+  const [dateRange, setDateRange] = useState({
+    start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
   })
 
   useEffect(() => {
     fetchData()
-  }, [days])
+  }, [dateRange.start, dateRange.end])
 
   const fetchData = async () => {
     setLoading(true)
     try {
       const apiUrl = getApiUrlDynamic()
 
-      // Fetch daily summary for chart
+      // Calculate days from date range
+      const startDate = new Date(dateRange.start)
+      const endDate = new Date(dateRange.end)
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+      // Fetch daily summary for chart with date range
       const [summaryResponse, usersResponse, rulesResponse] = await Promise.all([
-        axios.get(`${apiUrl}/api/risk/daily-summary`, { params: { days } }),
-        axios.get(`${apiUrl}/api/risk/top-users-daily`, { params: { days, limit: 20 } }),
-        axios.get(`${apiUrl}/api/risk/top-rules-daily`, { params: { days, limit: 10 } })
+        axios.get(`${apiUrl}/api/risk/daily-summary`, {
+          params: {
+            startDate: dateRange.start,
+            endDate: dateRange.end,
+            days: daysDiff
+          }
+        }),
+        axios.get(`${apiUrl}/api/risk/top-users-daily`, {
+          params: {
+            startDate: dateRange.start,
+            endDate: dateRange.end,
+            limit: 20
+          }
+        }),
+        axios.get(`${apiUrl}/api/risk/top-rules-daily`, {
+          params: {
+            startDate: dateRange.start,
+            endDate: dateRange.end,
+            limit: 10
+          }
+        })
       ])
 
       // Transform daily summary for chart
       const transformed = summaryResponse.data.map((item: any) => {
-        const critical = item.avg_risk_score >= 91 ? item.total_incidents * 0.2 : 0
-        const high = item.avg_risk_score >= 61 && item.avg_risk_score < 91 ? item.total_incidents * 0.3 : 0
-        const medium = item.avg_risk_score >= 41 && item.avg_risk_score < 61 ? item.total_incidents * 0.3 : 0
-        const low = item.avg_risk_score < 41 ? item.total_incidents * 0.2 : 0
-
         return {
           ...item,
-          critical: Math.round(critical),
-          high: Math.round(high),
-          medium: Math.round(medium),
-          low: Math.round(low),
           total: item.total_incidents
         }
       })
@@ -90,75 +103,56 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
     return <div>Loading investigation timeline...</div>
   }
 
-  // Chart data for timeline view
+  // Chart data for timeline view - only showing total incidents
   const chartData: any[] = []
 
   if (data && data.length > 0) {
-    if (selectedSeverities.critical) {
-      chartData.push({
-        x: data.map((d: any) => d.date),
-        y: data.map((d: any) => d.critical),
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Critical',
-        line: { color: '#d32f2f', width: 2 },
-        marker: { size: 6 }
-      })
-    }
-
-    if (selectedSeverities.high) {
-      chartData.push({
-        x: data.map((d: any) => d.date),
-        y: data.map((d: any) => d.high),
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'High',
-        line: { color: '#f57c00', width: 2 },
-        marker: { size: 6 }
-      })
-    }
-
-    if (selectedSeverities.medium) {
-      chartData.push({
-        x: data.map((d: any) => d.date),
-        y: data.map((d: any) => d.medium),
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Medium',
-        line: { color: '#fbc02d', width: 2 },
-        marker: { size: 6 }
-      })
-    }
-
-    if (selectedSeverities.low) {
-      chartData.push({
-        x: data.map((d: any) => d.date),
-        y: data.map((d: any) => d.low),
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Low',
-        line: { color: '#4caf50', width: 2 },
-        marker: { size: 6 }
-      })
-    }
-
-    if (selectedSeverities.total) {
-      chartData.push({
-        x: data.map((d: any) => d.date),
-        y: data.map((d: any) => d.total),
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Total',
-        line: { color: '#1976d2', width: 3 },
-        marker: { size: 8 }
-      })
-    }
+    chartData.push({
+      x: data.map((d: any) => d.date),
+      y: data.map((d: any) => d.total),
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Total Incidents',
+      line: { color: '#1976d2', width: 3 },
+      marker: { size: 8 }
+    })
   }
 
   return (
     <div className="risk-timeline-chart">
       <div className="chart-header">
-        <h3>Investigation {days} days</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h3>Investigation</h3>
+          <div className="date-filters" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--background)',
+                color: 'var(--text-primary)',
+                fontSize: '13px'
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)' }}>to</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--background)',
+                color: 'var(--text-primary)',
+                fontSize: '13px'
+              }}
+            />
+          </div>
+        </div>
         <div className="tabs">
           <button
             className={`tab ${activeTab === 'users' ? 'active' : ''}`}
@@ -175,53 +169,6 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
         </div>
       </div>
 
-      <div className="filters">
-        <label className="filter-item">
-          <input
-            type="checkbox"
-            checked={selectedSeverities.critical}
-            onChange={(e) => setSelectedSeverities({ ...selectedSeverities, critical: e.target.checked })}
-          />
-          <span className="filter-dot" style={{ backgroundColor: '#d32f2f' }} />
-          Critical
-        </label>
-        <label className="filter-item">
-          <input
-            type="checkbox"
-            checked={selectedSeverities.high}
-            onChange={(e) => setSelectedSeverities({ ...selectedSeverities, high: e.target.checked })}
-          />
-          <span className="filter-dot" style={{ backgroundColor: '#f57c00' }} />
-          High
-        </label>
-        <label className="filter-item">
-          <input
-            type="checkbox"
-            checked={selectedSeverities.medium}
-            onChange={(e) => setSelectedSeverities({ ...selectedSeverities, medium: e.target.checked })}
-          />
-          <span className="filter-dot" style={{ backgroundColor: '#fbc02d' }} />
-          Medium
-        </label>
-        <label className="filter-item">
-          <input
-            type="checkbox"
-            checked={selectedSeverities.low}
-            onChange={(e) => setSelectedSeverities({ ...selectedSeverities, low: e.target.checked })}
-          />
-          <span className="filter-dot" style={{ backgroundColor: '#4caf50' }} />
-          Low
-        </label>
-        <label className="filter-item">
-          <input
-            type="checkbox"
-            checked={selectedSeverities.total}
-            onChange={(e) => setSelectedSeverities({ ...selectedSeverities, total: e.target.checked })}
-          />
-          <span className="filter-dot" style={{ backgroundColor: '#1976d2' }} />
-          Total
-        </label>
-      </div>
 
       {activeTab === 'users' ? (
         <div className="tab-content">

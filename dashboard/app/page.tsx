@@ -283,41 +283,7 @@ export default function Home() {
         <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
       </div>
 
-      <div className="dashboard-filters">
-        <div className="filter-group">
-          <label>Start Date:</label>
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-            className="filter-input"
-          />
-        </div>
-        <div className="filter-group">
-          <label>End Date:</label>
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-            className="filter-input"
-          />
-        </div>
-        <div className="filter-group">
-          <label>Heatmap Dimension:</label>
-          <select
-            value={selectedDimension}
-            onChange={(e) => setSelectedDimension(e.target.value)}
-            className="filter-select"
-          >
-            <option value="department">Department</option>
-            <option value="user">User</option>
-            <option value="channel">Channel</option>
-          </select>
-        </div>
-        <button className="download-btn" onClick={downloadReport}>
-          Download PDF Report
-        </button>
-      </div>
+      {/* Filters removed - date filtering moved to RiskTimelineChart */}
 
       {/* Investigation Timeline - Full Width */}
       <div className="card timeline-card">
