@@ -91,10 +91,11 @@ export default function Home() {
       const currentEnd = dateRange.end
       const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
 
-      // Calculate last 24 hours for top users
+      // Calculate last 24 hours for top users - use ISO format with time
       const now = new Date()
-      const last24HoursStart = format(subDays(now, 1), 'yyyy-MM-dd')
-      const today = format(now, 'yyyy-MM-dd')
+      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000) // exactly 24 hours ago
+      const last24HoursStart = last24Hours.toISOString()
+      const nowISO = now.toISOString()
 
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
@@ -115,11 +116,11 @@ export default function Home() {
             orderBy: 'risk_score_desc'
           }
         }).catch(() => ({ data: [] })),
-        // Separate call for last 24 hours for top users
+        // Separate call for last 24 hours for top users - using ISO timestamp
         axios.get(`${apiUrl}/api/incidents`, {
           params: {
             startDate: last24HoursStart,
-            endDate: today,
+            endDate: nowISO,
             limit: 5000,
             orderBy: 'risk_score_desc'
           }
