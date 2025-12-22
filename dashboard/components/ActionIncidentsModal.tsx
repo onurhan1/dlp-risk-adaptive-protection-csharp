@@ -77,6 +77,17 @@ export default function ActionIncidentsModal({
         })
     }, [incidents, filters])
 
+    // Get unique values for autocomplete suggestions
+    const uniqueValues = useMemo(() => ({
+        login_names: Array.from(new Set(incidents.map(i => i.login_name).filter(Boolean))).sort(),
+        destinations: Array.from(new Set(incidents.map(i => i.destination).filter(Boolean))).sort(),
+        channels: Array.from(new Set(incidents.map(i => i.channel).filter(Boolean))).sort(),
+        policies: Array.from(new Set([
+            ...incidents.map(i => i.policy).filter(Boolean),
+            ...incidents.map(i => i.rule_name).filter(Boolean)
+        ])).sort()
+    }), [incidents])
+
     // Check if any filter is active
     const hasActiveFilters = Object.values(filters).some(f => f.length > 0)
 
@@ -281,38 +292,62 @@ export default function ActionIncidentsModal({
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Search login..."
+                                            list="login-names-list"
+                                            placeholder="Search or select login..."
                                             value={filters.login_name}
                                             onChange={(e) => setFilters(f => ({ ...f, login_name: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="login-names-list">
+                                            {uniqueValues.login_names.map((name, i) => (
+                                                <option key={i} value={name} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Search destination..."
+                                            list="destinations-list"
+                                            placeholder="Search or select destination..."
                                             value={filters.destination}
                                             onChange={(e) => setFilters(f => ({ ...f, destination: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="destinations-list">
+                                            {uniqueValues.destinations.map((dest, i) => (
+                                                <option key={i} value={dest} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Search channel..."
+                                            list="channels-list"
+                                            placeholder="Search or select channel..."
                                             value={filters.channel}
                                             onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="channels-list">
+                                            {uniqueValues.channels.map((ch, i) => (
+                                                <option key={i} value={ch} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Search policy/rule..."
+                                            list="policies-list"
+                                            placeholder="Search or select policy..."
                                             value={filters.policy}
                                             onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="policies-list">
+                                            {uniqueValues.policies.map((pol, i) => (
+                                                <option key={i} value={pol} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     {action === 'TOTAL' && <td style={{ padding: '8px 12px' }}></td>}
                                     <td style={{ padding: '8px 12px' }}></td>
