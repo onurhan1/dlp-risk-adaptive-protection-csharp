@@ -247,11 +247,13 @@ public class RiskController : ControllerBase
     [HttpGet("top-users-daily")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopUsersByDay(
         [FromQuery] int days = 30,
-        [FromQuery] int limit = 20)
+        [FromQuery] int limit = 20,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var result = await _riskAnalyzerService.GetTopUsersByDayAsync(days, limit);
+            var result = await _riskAnalyzerService.GetTopUsersByDayAsync(days, limit, startDate, endDate);
             return Ok(result);
         }
         catch (Exception ex)
@@ -266,11 +268,13 @@ public class RiskController : ControllerBase
     [HttpGet("top-rules-daily")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRulesByDay(
         [FromQuery] int days = 30,
-        [FromQuery] int limit = 10)
+        [FromQuery] int limit = 10,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var result = await _riskAnalyzerService.GetTopRulesByDayAsync(days, limit);
+            var result = await _riskAnalyzerService.GetTopRulesByDayAsync(days, limit, startDate, endDate);
             return Ok(result);
         }
         catch (Exception ex)

@@ -415,12 +415,26 @@ public class RiskAnalyzerService
     /// <summary>
     /// Get top users by day with their daily alert counts
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopUsersByDayAsync(int days = 30, int limit = 20)
+    public async Task<List<Dictionary<string, object>>> GetTopUsersByDayAsync(
+        int days = 30, 
+        int limit = 20,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
     {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-days);
+        DateOnly start, end;
+        
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            start = DateOnly.FromDateTime(startDate.Value);
+            end = DateOnly.FromDateTime(endDate.Value);
+        }
+        else
+        {
+            end = DateOnly.FromDateTime(DateTime.UtcNow);
+            start = end.AddDays(-days);
+        }
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+        var incidents = await _incidentRepository.GetIncidentsAsync(start, end);
 
         // Group by user, calculate stats
         var userStats = incidents
@@ -459,12 +473,26 @@ public class RiskAnalyzerService
     /// <summary>
     /// Get top rules by day with their daily alert counts
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopRulesByDayAsync(int days = 30, int limit = 10)
+    public async Task<List<Dictionary<string, object>>> GetTopRulesByDayAsync(
+        int days = 30, 
+        int limit = 10,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
     {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-days);
+        DateOnly start, end;
+        
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            start = DateOnly.FromDateTime(startDate.Value);
+            end = DateOnly.FromDateTime(endDate.Value);
+        }
+        else
+        {
+            end = DateOnly.FromDateTime(DateTime.UtcNow);
+            start = end.AddDays(-days);
+        }
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+        var incidents = await _incidentRepository.GetIncidentsAsync(start, end);
 
         // Group by policy (rule), calculate stats
         var ruleStats = incidents
