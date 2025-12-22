@@ -129,6 +129,7 @@ public class ReportGeneratorService
                 var authorized = Convert.ToInt32(actionSummary.GetValueOrDefault("authorized", 0));
                 var block = Convert.ToInt32(actionSummary.GetValueOrDefault("block", 0));
                 var quarantine = Convert.ToInt32(actionSummary.GetValueOrDefault("quarantine", 0));
+                var released = Convert.ToInt32(actionSummary.GetValueOrDefault("released", 0));
                 var total = Convert.ToInt32(actionSummary.GetValueOrDefault("total", 0));
 
                 row.RelativeItem().Element(c => ComposeActionCard(c, "AUTHORIZED", authorized, Colors.Green.Darken1));
@@ -136,6 +137,8 @@ public class ReportGeneratorService
                 row.RelativeItem().Element(c => ComposeActionCard(c, "BLOCK", block, Colors.Red.Darken1));
                 row.ConstantItem(10);
                 row.RelativeItem().Element(c => ComposeActionCard(c, "QUARANTINE", quarantine, Colors.Purple.Darken1));
+                row.ConstantItem(10);
+                row.RelativeItem().Element(c => ComposeActionCard(c, "RELEASED", released, Colors.Orange.Darken1));
                 row.ConstantItem(10);
                 row.RelativeItem().Element(c => ComposeActionCard(c, "TOTAL", total, Colors.Blue.Darken2));
             });
