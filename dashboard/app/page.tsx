@@ -103,10 +103,10 @@ export default function Home() {
         }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/incidents`, {
           params: {
-            start_date: currentStart,
-            end_date: currentEnd,
-            limit: 1000,
-            order_by: 'risk_score_desc'
+            startDate: currentStart,
+            endDate: currentEnd,
+            limit: 5000,
+            orderBy: 'risk_score_desc'
           }
         }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null }))
