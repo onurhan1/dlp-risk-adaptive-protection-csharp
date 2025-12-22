@@ -97,8 +97,8 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
-            start_date: currentStart,
-            end_date: currentEnd
+            startDate: currentStart,
+            endDate: currentEnd
           }
         }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/incidents`, {

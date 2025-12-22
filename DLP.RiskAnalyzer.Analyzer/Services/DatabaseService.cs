@@ -153,20 +153,12 @@ public class DatabaseService
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
 
-                // Check if incident already exists by ID (primary duplicate check)
-                // If ID is 0 (old format), fall back to timestamp+user+policy check
-                bool exists;
-                if (incidentId > 0)
-                {
-                    exists = await _context.Incidents.AnyAsync(i => i.Id == incidentId);
-                }
-                else
-                {
-                    exists = await _context.Incidents
-                        .AnyAsync(i => i.UserEmail == userEmail && 
-                                      i.Timestamp == timestamp && 
-                                      i.Policy == policy);
-                }
+                // Check if incident already exists
+                // Her zaman user+timestamp kombinasyonuna bakarak duplicate kontrolü yap
+                // (ID değişse bile aynı incident tekrar kaydedilmemeli)
+                var exists = await _context.Incidents
+                    .AnyAsync(i => i.UserEmail == userEmail && 
+                                  i.Timestamp == timestamp);
 
                 if (!exists)
                 {
