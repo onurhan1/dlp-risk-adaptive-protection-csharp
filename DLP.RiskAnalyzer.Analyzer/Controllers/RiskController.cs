@@ -309,12 +309,12 @@ public class RiskController : ControllerBase
         try
         {
             // Validate action parameter
-            var validActions = new[] { "BLOCK", "BLOCKED", "QUARANTINE", "QUARANTINED", "AUTHORIZED" };
+            var validActions = new[] { "BLOCK", "BLOCKED", "QUARANTINE", "QUARANTINED", "AUTHORIZED", "TOTAL" };
             var normalizedAction = action?.ToUpper();
             
             if (string.IsNullOrEmpty(normalizedAction) || !validActions.Contains(normalizedAction))
             {
-                return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED" });
+                return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED, TOTAL" });
             }
 
             // Parse date range - support both single date and date range
@@ -354,16 +354,29 @@ public class RiskController : ControllerBase
                 endOfRange = startOfRange.AddDays(1);
             }
 
-            // Query incidents
-
-            var incidents = await _context.Incidents
-                .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
-                .Where(i => i.Action != null && 
-                           (i.Action.ToUpper() == normalizedAction || 
-                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
-                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")))
-                .OrderByDescending(i => i.Timestamp)
-                .ToListAsync();
+            // Query incidents - TOTAL returns all incidents, others filter by action
+            List<Incident> incidents;
+            
+            if (normalizedAction == "TOTAL")
+            {
+                // Return all incidents for the date range
+                incidents = await _context.Incidents
+                    .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
+                    .OrderByDescending(i => i.Timestamp)
+                    .ToListAsync();
+            }
+            else
+            {
+                // Filter by specific action
+                incidents = await _context.Incidents
+                    .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
+                    .Where(i => i.Action != null && 
+                               (i.Action.ToUpper() == normalizedAction || 
+                                (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
+                                (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")))
+                    .OrderByDescending(i => i.Timestamp)
+                    .ToListAsync();
+            }
 
             // Format response
             var result = incidents.Select(i =>
