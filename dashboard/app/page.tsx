@@ -91,10 +91,15 @@ export default function Home() {
       const currentEnd = dateRange.end
       const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
 
+      // Calculate last 24 hours for top users
+      const now = new Date()
+      const last24HoursStart = format(subDays(now, 1), 'yyyy-MM-dd')
+      const today = format(now, 'yyyy-MM-dd')
+
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
 
-      const [dailyRes, deptRes, incidentsRes, actionRes] = await Promise.all([
+      const [dailyRes, deptRes, incidentsRes, incidentsLast24hRes, actionRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
@@ -110,6 +115,15 @@ export default function Home() {
             orderBy: 'risk_score_desc'
           }
         }).catch(() => ({ data: [] })),
+        // Separate call for last 24 hours for top users
+        axios.get(`${apiUrl}/api/incidents`, {
+          params: {
+            startDate: last24HoursStart,
+            endDate: today,
+            limit: 5000,
+            orderBy: 'risk_score_desc'
+          }
+        }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null }))
       ])
 
@@ -119,7 +133,7 @@ export default function Home() {
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
 
-      // Calculate top rules
+      // Calculate top rules from dateRange incidents
       const rulesMap = new Map<string, number>()
       incidentsRes.data.forEach((incident: any) => {
         const ruleName = incident.policy || 'Unknown Rule'
@@ -131,9 +145,9 @@ export default function Home() {
         .slice(0, 10)
       setTopRules(topRulesData)
 
-      // Calculate top users
+      // Calculate top users from LAST 24 HOURS incidents only
       const usersMap = new Map<string, { alerts: number, risk: number }>()
-      incidentsRes.data.forEach((incident: any) => {
+      incidentsLast24hRes.data.forEach((incident: any) => {
         const user = incident.userEmail || incident.user_email || ''
         if (!user) return // Skip if no user email
         const existing = usersMap.get(user) || { alerts: 0, risk: 0 }
