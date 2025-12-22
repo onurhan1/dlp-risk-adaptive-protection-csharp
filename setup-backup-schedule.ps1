@@ -28,7 +28,7 @@ if (-not $isAdmin) {
 Write-Host "[OK] Administrator yetkisi dogrulandi" -ForegroundColor $Green
 
 # Yapılandırma
-$ProjectRoot = "C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main"
+$ProjectRoot = "C:\Users\syadm55576\Desktop\dlp-risk-adaptive-protection-csharp-main"
 $BackupScriptPath = Join-Path $ProjectRoot "backup-database.ps1"
 
 # Backup dizinini oluştur
