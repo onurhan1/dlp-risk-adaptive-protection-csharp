@@ -5,7 +5,7 @@
 # ============================================================================
 
 # Yapılandırma
-$BackupDir = "C:\DLP-Backups"
+$BackupDir = "D:\DLP-Backups"
 $DatabaseName = "dlp_analyzer"
 $PostgresUser = "postgres"
 $RetentionDays = 30  # Kaç günlük backup tutulsun

@@ -32,7 +32,7 @@ $ProjectRoot = "C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main"
 $BackupScriptPath = Join-Path $ProjectRoot "backup-database.ps1"
 
 # Backup dizinini oluştur
-$BackupDir = "C:\DLP-Backups"
+$BackupDir = "D:\DLP-Backups"
 if (-not (Test-Path $BackupDir)) {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
     Write-Host "[OK] Backup dizini olusturuldu: $BackupDir" -ForegroundColor $Green
