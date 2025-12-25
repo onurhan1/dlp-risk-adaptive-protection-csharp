@@ -326,9 +326,9 @@ public class RiskAnalyzerService
             {
                 Channel = g.Key!,
                 TotalIncidents = g.Count(),
-                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.CriticalThreshold),
+                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= 750), // High risk in 1000-scale (75+ on dashboard)
                 HighCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold && 
-                                         (i.RiskScore ?? 0) < RiskConstants.RiskScores.CriticalThreshold),
+                                         (i.RiskScore ?? 0) < 750),
                 MediumCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.MediumThreshold && 
                                           (i.RiskScore ?? 0) < RiskConstants.RiskScores.HighThreshold),
                 LowCount = g.Count(i => (i.RiskScore ?? 0) < RiskConstants.RiskScores.MediumThreshold)
