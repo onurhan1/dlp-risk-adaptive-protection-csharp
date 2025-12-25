@@ -634,14 +634,27 @@ public class BehaviorEngineService
 
     private double CalculateChannelZScore(string channel, BehaviorMetrics current, BehaviorMetrics baseline)
     {
+        // Get current and baseline counts for THIS SPECIFIC channel
         var currentCount = current.ChannelCounts.GetValueOrDefault(channel, 0);
         var baselineCount = baseline.ChannelCounts.GetValueOrDefault(channel, 0);
-        var baselineMean = baseline.ChannelCounts.Values.Any() ? baseline.ChannelCounts.Values.Average() : 0;
+        
+        // If no baseline data for this channel, can't calculate meaningful z-score
+        if (baselineCount == 0)
+        {
+            // If current has activity but baseline doesn't, this is notable
+            return currentCount > 0 ? 2.0 : 0; // Default anomaly score for new activity
+        }
+        
+        // Calculate std dev from all channels as a measure of typical variation
         var baselineStd = baseline.ChannelCounts.Count > 1
-            ? Math.Sqrt(baseline.ChannelCounts.Values.Sum(x => Math.Pow(x - baselineMean, 2)) / (baseline.ChannelCounts.Count - 1))
-            : 1;
-
-        return baselineStd > 0 ? (currentCount - baselineMean) / baselineStd : 0;
+            ? Math.Sqrt(baseline.ChannelCounts.Values.Sum(x => Math.Pow(x - baseline.ChannelCounts.Values.Average(), 2)) / (baseline.ChannelCounts.Count - 1))
+            : Math.Max(1, baselineCount * 0.3); // Use 30% of baseline as estimated std if only one channel
+        
+        // Ensure minimum std dev to avoid division issues
+        baselineStd = Math.Max(baselineStd, 1);
+        
+        // Z-score: compare current channel against ITS OWN baseline
+        return (currentCount - baselineCount) / baselineStd;
     }
 
     private int CalculateRiskScore(AnomalyResults results)
