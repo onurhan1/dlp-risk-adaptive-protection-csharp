@@ -8,32 +8,50 @@ namespace DLP.RiskAnalyzer.Shared.Services;
 public class RiskAnalyzer
 {
     /// <summary>
-    /// Risk skoru hesapla: risk = (severity*3) + (repeat_count*2) + (data_sensitivity*5)
+    /// Risk skoru hesapla: 
+    /// RiskScore = (Severity × 2.5) + (RepeatCount × 1.5) + (DataSensitivity × 2) + (MaxMatches × 4)
+    /// Dashboard'da /10 olarak gösterilir
     /// </summary>
-    public int CalculateRiskScore(int severity, int repeatCount, int dataSensitivity)
+    public int CalculateRiskScore(int severity, int repeatCount, int dataSensitivity, int maxMatches = 0)
     {
-        var baseScore = (severity * 3) + (repeatCount * 2) + (dataSensitivity * 5);
-        // Cap at 100 (Forcepoint RAP scale)
-        return Math.Min(100, baseScore);
+        var baseScore = (severity * 2.5) + (repeatCount * 1.5) + (dataSensitivity * 2) + (maxMatches * 4);
+        // Cap at 1000
+        return (int)Math.Min(1000, baseScore);
+    }
+    
+    /// <summary>
+    /// Eski metot - geriye uyumluluk için
+    /// </summary>
+    [Obsolete("Use CalculateRiskScore with maxMatches parameter")]
+    public int CalculateRiskScoreLegacy(int severity, int repeatCount, int dataSensitivity)
+    {
+        return CalculateRiskScore(severity, repeatCount, dataSensitivity, 0);
     }
 
     /// <summary>
-    /// Risk seviyesi belirle
-    /// - Critical: 91-100
-    /// - High: 61-80
-    /// - Medium: 41-60
-    /// - Low: 0-40
+    /// Risk seviyesi belirle (1000 üzerinden)
+    /// - High: 500-1000 (Dashboard: 50-100)
+    /// - Medium: 250-499 (Dashboard: 25-49.9)
+    /// - Low: 0-249 (Dashboard: 0-24.9)
     /// </summary>
     public string GetRiskLevel(int riskScore)
     {
-        if (riskScore >= 91)
-            return "Critical";
-        else if (riskScore >= 61)
+        if (riskScore >= 500)
             return "High";
-        else if (riskScore >= 41)
+        else if (riskScore >= 250)
             return "Medium";
         else
             return "Low";
+    }
+    
+    /// <summary>
+    /// Dashboard için skor dönüşümü (1000 → 100 ölçeği)
+    /// </summary>
+    public double GetDisplayScore(int riskScore)
+    {
+        var displayScore = riskScore / 10.0;
+        // 0.5 üstü yukarı yuvarlama
+        return Math.Round(displayScore, 1, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

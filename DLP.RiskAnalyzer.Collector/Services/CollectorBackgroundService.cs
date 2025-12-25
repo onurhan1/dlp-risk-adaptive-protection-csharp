@@ -119,6 +119,18 @@ public class CollectorBackgroundService : BackgroundService
             {
                 try
                 {
+                    // Calculate MaxMatches from ViolationTriggers
+                    var maxMatches = 0;
+                    if (dlpIncident.ViolationTriggers != null)
+                    {
+                        maxMatches = dlpIncident.ViolationTriggers
+                            .Where(t => t.Classifiers != null)
+                            .SelectMany(t => t.Classifiers!)
+                            .Select(c => c.NumberMatches)
+                            .DefaultIfEmpty(0)
+                            .Max();
+                    }
+                    
                     var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
                     {
                         Id = dlpIncident.Id,  // DLP API'den gelen orijinal ID
@@ -129,6 +141,7 @@ public class CollectorBackgroundService : BackgroundService
                         Timestamp = dlpIncident.Timestamp,
                         Policy = dlpIncident.Policy,
                         Channel = dlpIncident.Channel,
+                        MaxMatches = maxMatches,  // New field
                         // New fields
                         Action = dlpIncident.Action,
                         Destination = dlpIncident.Destination,

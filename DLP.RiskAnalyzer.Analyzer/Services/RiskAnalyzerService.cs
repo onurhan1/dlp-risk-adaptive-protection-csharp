@@ -217,13 +217,15 @@ public class RiskAnalyzerService
             // Calculate data sensitivity (based on data type and severity)
             var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
 
-            // Calculate risk score
+            // Calculate risk score with new formula including MaxMatches
             incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
                 incident.Severity,
                 repeatCount,
-                dataSensitivity);
+                dataSensitivity,
+                incident.MaxMatches);  // New parameter
             incident.RepeatCount = repeatCount;
             incident.DataSensitivity = dataSensitivity;
+            incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
 
             updatedCount++;
         }
@@ -713,13 +715,20 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
-    /// Helper method to get risk level from score
+    /// Helper method to get risk level from score (1000 scale)
     /// </summary>
     private string GetRiskLevelFromScore(int score)
     {
-        if (score >= 91) return "Critical";
-        if (score >= 61) return "High";
-        if (score >= 41) return "Medium";
+        if (score >= 500) return "High";
+        if (score >= 250) return "Medium";
         return "Low";
+    }
+    
+    /// <summary>
+    /// Get display score for dashboard (1000 -> 100 scale)
+    /// </summary>
+    public double GetDisplayScore(int riskScore)
+    {
+        return _riskAnalyzer.GetDisplayScore(riskScore);
     }
 }

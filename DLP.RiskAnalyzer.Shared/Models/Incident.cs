@@ -16,6 +16,7 @@ public class Incident
     public int? RiskScore { get; set; }
     public int RepeatCount { get; set; }
     public int DataSensitivity { get; set; }
+    public int MaxMatches { get; set; }  // Maximum classifier matches from ViolationTriggers
     
     // New fields from Forcepoint DLP API
     public string? Action { get; set; }  // AUTHORIZED, BLOCK, QUARANTINE
@@ -47,6 +48,7 @@ public class IncidentResponse
     public int? RiskScore { get; set; }
     public int RepeatCount { get; set; }
     public int DataSensitivity { get; set; }
+    public int MaxMatches { get; set; }  // Maximum classifier matches from ViolationTriggers
     
     // New fields from Forcepoint DLP API
     public string? Action { get; set; }

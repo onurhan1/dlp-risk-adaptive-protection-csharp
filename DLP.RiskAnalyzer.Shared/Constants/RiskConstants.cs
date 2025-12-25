@@ -7,12 +7,17 @@ public static class RiskConstants
 {
     public static class RiskScores
     {
-        public const int CriticalThreshold = 91;
-        public const int HighThreshold = 61;
-        public const int MediumThreshold = 41;
+        // New 1000-point scale (displayed as 0-100 on dashboard)
+        public const int HighThreshold = 500;      // 50+ on dashboard
+        public const int MediumThreshold = 250;    // 25+ on dashboard
         
-        public const int MaxScore = 100;
+        public const int MaxScore = 1000;
         public const int MinScore = 0;
+        
+        // Legacy thresholds for backward compatibility
+        public const int LegacyCriticalThreshold = 91;
+        public const int LegacyHighThreshold = 61;
+        public const int LegacyMediumThreshold = 41;
     }
 
     public static class Channels
