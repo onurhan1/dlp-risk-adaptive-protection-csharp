@@ -266,7 +266,7 @@ public class BehaviorEngineService
             .ToListAsync();
 
         var userAnalyses = new List<AIBehavioralAnalysisResponse>();
-        foreach (var user in users.Take(200)) // Analyze up to 200 users for comprehensive overview
+        foreach (var user in users) // Analyze all users
         {
             try
             {
@@ -326,7 +326,6 @@ public class BehaviorEngineService
             .Where(i => i.Timestamp >= startDate && !string.IsNullOrEmpty(i.Destination))
             .Select(i => i.Destination!)
             .Distinct()
-            .Take(50) // Limit destinations to prevent too many unique values
             .ToListAsync();
 
         var destinationAnalyses = new List<AIBehavioralAnalysisResponse>();
@@ -367,7 +366,7 @@ public class BehaviorEngineService
         }
 
         var ruleAnalyses = new List<AIBehavioralAnalysisResponse>();
-        foreach (var ruleName in ruleNames.Take(50)) // Limit rules
+        foreach (var ruleName in ruleNames) // Analyze all rules
         {
             try
             {

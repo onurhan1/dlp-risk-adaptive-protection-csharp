@@ -152,14 +152,13 @@ export default function AIBehavioralPage() {
     const analyzedEntityIds = currentTabData.anomalies.map(a => a.entityId)
 
     if (!filterText.trim()) {
-      // When not typing, show all analyzed entities (up to 50)
-      return analyzedEntityIds.slice(0, 50)
+      // When not typing, show all analyzed entities
+      return analyzedEntityIds
     }
 
     // When typing, filter and show matches
     return analyzedEntityIds
       .filter(v => v.toLowerCase().includes(filterText.toLowerCase()))
-      .slice(0, 20)
   }, [currentTabData.anomalies, filterText])
 
   const tabConfig = [
