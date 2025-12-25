@@ -62,6 +62,7 @@ builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
 {
     var redisHost = builder.Configuration["Redis:Host"] ?? "localhost";
     var redisPort = builder.Configuration.GetValue<int>("Redis:Port", 6379);
+    var redisPassword = builder.Configuration["Redis:Password"];
     
     // Use EnvironmentHelper for Docker Desktop compatibility
     var connectionString = EnvironmentHelper.GetRedisConnectionString(redisHost, redisPort);
@@ -76,6 +77,12 @@ builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
         ReconnectRetryPolicy = new StackExchange.Redis.ExponentialRetry(1000), // Retry with exponential backoff
         ConnectRetry = 3 // Retry connection 3 times
     };
+    
+    // Add password if configured
+    if (!string.IsNullOrEmpty(redisPassword))
+    {
+        config.Password = redisPassword;
+    }
     
     return StackExchange.Redis.ConnectionMultiplexer.Connect(config);
 });

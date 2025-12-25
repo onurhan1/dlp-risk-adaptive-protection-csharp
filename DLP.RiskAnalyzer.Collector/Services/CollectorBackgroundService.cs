@@ -1,24 +1,39 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace DLP.RiskAnalyzer.Collector.Services;
 
 /// <summary>
 /// Background service that collects incidents from DLP API
+/// Now with PAGINATION support to fetch ALL incidents, not just first 1000
 /// </summary>
 public class CollectorBackgroundService : BackgroundService
 {
     private readonly DLPCollectorService _collectorService;
     private readonly ILogger<CollectorBackgroundService> _logger;
-    private readonly TimeSpan _collectionInterval = TimeSpan.FromHours(1); // Collect every hour
+    private readonly IConfiguration _configuration;
+    private readonly TimeSpan _collectionInterval;
+    private readonly int _lookbackHours;
+    private readonly int _pageSize;
 
     public CollectorBackgroundService(
         DLPCollectorService collectorService,
-        ILogger<CollectorBackgroundService> logger)
+        ILogger<CollectorBackgroundService> logger,
+        IConfiguration configuration)
     {
         _collectorService = collectorService;
         _logger = logger;
+        _configuration = configuration;
+        
+        // Read settings from configuration
+        var intervalMinutes = _configuration.GetValue<int>("Collector:IntervalMinutes", 60);
+        _collectionInterval = TimeSpan.FromMinutes(intervalMinutes);
+        _lookbackHours = _configuration.GetValue<int>("Collector:LookbackHours", 24);
+        _pageSize = _configuration.GetValue<int>("Collector:BatchSize", 1000);
+        
+        _logger.LogInformation("Collector configured: Interval={Interval}min, Lookback={Lookback}h, PageSize={PageSize}", 
+            intervalMinutes, _lookbackHours, _pageSize);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,37 +61,74 @@ public class CollectorBackgroundService : BackgroundService
     {
         _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1...");
 
-        // Use 24 hour lookback - may cause timeout if too many incidents
         var endTime = DateTime.UtcNow;
-        var startTime = endTime.AddHours(-24); // Last 24 hours
+        var startTime = endTime.AddHours(-_lookbackHours);
+        
+        _logger.LogInformation("Fetching incidents from {StartTime} to {EndTime} ({LookbackHours} hour lookback)", 
+            startTime, endTime, _lookbackHours);
 
         try
         {
-            // Fetch all incidents in single request (DLP API ignores pagination params)
-            // Add retry logic for connection stability
+            // PAGINATION: Fetch ALL incidents by iterating through pages
             List<DLPIncident> allIncidents = new();
+            int page = 1;
             int maxRetries = 3;
+            bool hasMorePages = true;
             
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            while (hasMorePages)
             {
-                try
+                List<DLPIncident> pageIncidents = new();
+                
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    _logger.LogInformation("Fetching incidents from DLP API (Attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
-                    allIncidents = await _collectorService.FetchIncidentsAsync(startTime, endTime, 1, 1000);
-                    _logger.LogInformation("Successfully fetched {Count} incidents from DLP API", allIncidents.Count);
-                    break; // Success, exit retry loop
+                    try
+                    {
+                        _logger.LogInformation("Fetching page {Page} from DLP API (Attempt {Attempt}/{MaxRetries})", 
+                            page, attempt, maxRetries);
+                        
+                        pageIncidents = await _collectorService.FetchIncidentsAsync(startTime, endTime, page, _pageSize);
+                        
+                        _logger.LogInformation("Page {Page}: Fetched {Count} incidents", page, pageIncidents.Count);
+                        break; // Success, exit retry loop
+                    }
+                    catch (TaskCanceledException) when (attempt < maxRetries)
+                    {
+                        _logger.LogWarning("DLP API request timeout on page {Page}, attempt {Attempt}. Retrying in 10 seconds...", 
+                            page, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    }
+                    catch (HttpRequestException) when (attempt < maxRetries)
+                    {
+                        _logger.LogWarning("DLP API connection error on page {Page}, attempt {Attempt}. Retrying in 10 seconds...", 
+                            page, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    }
                 }
-                catch (TaskCanceledException) when (attempt < maxRetries)
+                
+                allIncidents.AddRange(pageIncidents);
+                
+                // Check if there are more pages
+                // If we received fewer incidents than page size, we've reached the end
+                if (pageIncidents.Count < _pageSize)
                 {
-                    _logger.LogWarning("DLP API request timeout on attempt {Attempt}. Retrying in 10 seconds...", attempt);
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    hasMorePages = false;
+                    _logger.LogInformation("Reached last page (received {Count} < {PageSize})", 
+                        pageIncidents.Count, _pageSize);
                 }
-                catch (HttpRequestException) when (attempt < maxRetries)
+                else
                 {
-                    _logger.LogWarning("DLP API connection error on attempt {Attempt}. Retrying in 10 seconds...", attempt);
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    page++;
+                    // Safety limit: don't fetch more than 100 pages (100,000 incidents)
+                    if (page > 100)
+                    {
+                        _logger.LogWarning("Reached safety limit of 100 pages. Stopping pagination.");
+                        hasMorePages = false;
+                    }
                 }
             }
+            
+            _logger.LogInformation("Successfully fetched TOTAL {Count} incidents from DLP API across {Pages} pages", 
+                allIncidents.Count, page);
 
             if (allIncidents.Count == 0)
             {
