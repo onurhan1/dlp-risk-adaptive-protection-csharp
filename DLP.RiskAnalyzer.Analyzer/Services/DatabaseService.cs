@@ -31,11 +31,22 @@ public class DatabaseService
     {
         var query = _context.Incidents.AsQueryable();
 
+        // Convert dates to UTC for PostgreSQL timestamptz compatibility
         if (startDate.HasValue)
-            query = query.Where(i => i.Timestamp >= startDate.Value);
+        {
+            var utcStartDate = startDate.Value.Kind == DateTimeKind.Unspecified 
+                ? DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc) 
+                : startDate.Value.ToUniversalTime();
+            query = query.Where(i => i.Timestamp >= utcStartDate);
+        }
 
         if (endDate.HasValue)
-            query = query.Where(i => i.Timestamp <= endDate.Value);
+        {
+            var utcEndDate = endDate.Value.Kind == DateTimeKind.Unspecified 
+                ? DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc) 
+                : endDate.Value.ToUniversalTime();
+            query = query.Where(i => i.Timestamp <= utcEndDate);
+        }
 
         if (!string.IsNullOrEmpty(user))
             query = query.Where(i => i.UserEmail == user);

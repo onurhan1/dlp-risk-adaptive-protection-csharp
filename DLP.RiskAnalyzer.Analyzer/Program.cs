@@ -11,6 +11,10 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Security.Claims;
 
+// Enable legacy timestamp behavior for Npgsql to handle DateTime with Kind=Unspecified
+// This allows DateTime values to be automatically treated as UTC when sent to PostgreSQL
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
