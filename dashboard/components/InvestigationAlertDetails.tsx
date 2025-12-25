@@ -122,19 +122,58 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             const ruleNames = triggers.map((t: any) => t.RuleName).filter(Boolean)
             const rules = ruleNames.length > 0 ? ruleNames : (event.matched_rules || [])
 
-            return rules.length > 0 ? (
-              <div style={{ marginTop: '12px' }}>
-                <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
-                  {rules.map((rule: string, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
-                      <span style={{ color: 'var(--text-primary)' }}>{rule}</span>
+            // Extract classifiers with NumberMatches
+            const classifiersWithMatches = triggers.flatMap((t: any) =>
+              (t.Classifiers || []).map((c: any) => ({
+                name: c.ClassifierName,
+                matches: c.NumberMatches,
+                rule: t.RuleName
+              }))
+            ).filter((c: any) => c.name && c.matches > 0)
+
+            return (
+              <>
+                {rules.length > 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
+                      {rules.map((rule: string, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                          <span style={{ color: 'var(--text-primary)' }}>{rule}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : null
+                  </div>
+                )}
+
+                {/* MaxMatches - Classifier Matches Section */}
+                {classifiersWithMatches.length > 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Classifier Matches
+                    </h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
+                      {classifiersWithMatches.map((c: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{c.name}</span>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
+                            color: 'white'
+                          }}>
+                            {c.matches} matches
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
           })()}
         </div>
       )}

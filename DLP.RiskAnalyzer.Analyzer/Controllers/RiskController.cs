@@ -387,8 +387,10 @@ public class RiskController : ControllerBase
             // Format response
             var result = incidents.Select(i =>
             {
-                // Extract rule name from ViolationTriggers
+                // Extract rule name and max matches from ViolationTriggers
                 string ruleName = "N/A";
+                int maxMatches = i.MaxMatches;
+                
                 if (!string.IsNullOrEmpty(i.ViolationTriggers))
                 {
                     try
@@ -401,6 +403,26 @@ public class RiskController : ControllerBase
                             if (firstTrigger.TryGetProperty("RuleName", out var ruleNameElement))
                             {
                                 ruleName = ruleNameElement.GetString() ?? "N/A";
+                            }
+                            
+                            // Extract max matches from all classifiers if not already set
+                            if (maxMatches == 0)
+                            {
+                                foreach (var trigger in triggers.RootElement.EnumerateArray())
+                                {
+                                    if (trigger.TryGetProperty("Classifiers", out var classifiers) &&
+                                        classifiers.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var classifier in classifiers.EnumerateArray())
+                                        {
+                                            if (classifier.TryGetProperty("NumberMatches", out var matchesElement))
+                                            {
+                                                var matches = matchesElement.GetInt32();
+                                                if (matches > maxMatches) maxMatches = matches;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -419,7 +441,9 @@ public class RiskController : ControllerBase
                     { "policy", i.Policy ?? "N/A" },
                     { "rule_name", ruleName },
                     { "action", i.Action ?? "N/A" },
-                    { "timestamp", i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") }
+                    { "timestamp", i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") },
+                    { "max_matches", maxMatches },
+                    { "violation_triggers", i.ViolationTriggers ?? "" }
                 };
             }).ToList();
 

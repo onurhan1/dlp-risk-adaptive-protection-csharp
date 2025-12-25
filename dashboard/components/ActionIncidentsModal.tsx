@@ -10,6 +10,8 @@ interface ActionIncident {
     rule_name: string
     action?: string
     timestamp: string
+    max_matches?: number
+    violation_triggers?: string
 }
 
 interface ActionIncidentsModalProps {
@@ -278,6 +280,7 @@ export default function ActionIncidentsModal({
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Destination</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Channel</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy/Rule</th>
+                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Matches</th>
                                     {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>}
                                     <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
                                 </tr>
@@ -349,6 +352,7 @@ export default function ActionIncidentsModal({
                                             ))}
                                         </datalist>
                                     </td>
+                                    <td style={{ padding: '8px 12px' }}></td>
                                     {action === 'TOTAL' && <td style={{ padding: '8px 12px' }}></td>}
                                     <td style={{ padding: '8px 12px' }}></td>
                                 </tr>
@@ -356,7 +360,7 @@ export default function ActionIncidentsModal({
                             <tbody>
                                 {filteredIncidents.length === 0 ? (
                                     <tr>
-                                        <td colSpan={action === 'TOTAL' ? 7 : 6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                        <td colSpan={action === 'TOTAL' ? 8 : 7} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                             No incidents match your filter criteria
                                         </td>
                                     </tr>
@@ -402,6 +406,22 @@ export default function ActionIncidentsModal({
                                                 <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginTop: '2px' }}>
                                                     {incident.rule_name}
                                                 </div>
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center' }}>
+                                                {(incident.max_matches ?? 0) > 0 ? (
+                                                    <span style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '12px',
+                                                        fontSize: '12px',
+                                                        fontWeight: '600',
+                                                        color: 'white',
+                                                        backgroundColor: (incident.max_matches ?? 0) >= 10 ? '#dc2626' : (incident.max_matches ?? 0) >= 5 ? '#f59e0b' : '#10b981'
+                                                    }}>
+                                                        {incident.max_matches}
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                                )}
                                             </td>
                                             {action === 'TOTAL' && (
                                                 <td style={{ padding: '12px', textAlign: 'center' }}>
