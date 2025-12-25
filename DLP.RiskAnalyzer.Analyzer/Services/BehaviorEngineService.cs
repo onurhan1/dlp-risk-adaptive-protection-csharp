@@ -70,6 +70,7 @@ public class BehaviorEngineService
 
     /// <summary>
     /// Analyze behavior for a specific entity (user/channel/department)
+    /// Uses adaptive baseline selection - expands baseline window if insufficient data
     /// </summary>
     public async Task<AIBehavioralAnalysisResponse> AnalyzeEntityAsync(
         string entityType,
@@ -82,8 +83,7 @@ public class BehaviorEngineService
             
             var endDate = DateTime.UtcNow;
             var startDate = endDate.AddDays(-lookbackDays);
-            var baselineStartDate = endDate.AddDays(-(lookbackDays * 2)); // Baseline: previous period
-
+            
             // Get current period incidents
             _logger.LogDebug("Fetching current period incidents for {EntityType}: {EntityId} from {StartDate} to {EndDate}", 
                 entityType, entityId, startDate, endDate);
@@ -91,12 +91,43 @@ public class BehaviorEngineService
             _logger.LogInformation("Found {Count} current period incidents for {EntityType}: {EntityId}", 
                 currentIncidents.Count, entityType, entityId);
             
-            // Get baseline period incidents (previous period)
-            _logger.LogDebug("Fetching baseline period incidents for {EntityType}: {EntityId} from {BaselineStartDate} to {StartDate}", 
-                entityType, entityId, baselineStartDate, startDate);
-            var baselineIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, startDate);
-            _logger.LogInformation("Found {Count} baseline period incidents for {EntityType}: {EntityId}", 
-                baselineIncidents.Count, entityType, entityId);
+            // ADAPTIVE BASELINE SELECTION
+            // Try to find baseline data, expanding the window up to 4x lookback if needed
+            List<Incident> baselineIncidents = new();
+            DateTime baselineStartDate;
+            DateTime baselineEndDate = startDate;
+            int actualBaselineDays = lookbackDays;
+            int maxMultiplier = 4; // Look back up to 4x the lookback period
+            
+            for (int multiplier = 1; multiplier <= maxMultiplier; multiplier++)
+            {
+                actualBaselineDays = lookbackDays * multiplier;
+                baselineStartDate = startDate.AddDays(-actualBaselineDays);
+                
+                _logger.LogDebug("Trying baseline period: {BaselineStartDate} to {BaselineEndDate} ({Days} days)", 
+                    baselineStartDate, baselineEndDate, actualBaselineDays);
+                
+                baselineIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, baselineEndDate);
+                
+                // If we have at least 30% of current incidents or at least 5 incidents, use this baseline
+                var minRequired = Math.Max(1, (int)(currentIncidents.Count * 0.3));
+                if (baselineIncidents.Count >= minRequired || baselineIncidents.Count >= 5)
+                {
+                    _logger.LogInformation("Found sufficient baseline data: {Count} incidents in {Days}-day window", 
+                        baselineIncidents.Count, actualBaselineDays);
+                    break;
+                }
+                
+                // If we've reached max multiplier, use whatever we found
+                if (multiplier == maxMultiplier)
+                {
+                    _logger.LogWarning("Baseline data insufficient even after expanding to {Days} days. Using available {Count} incidents.", 
+                        actualBaselineDays, baselineIncidents.Count);
+                }
+            }
+            
+            // Calculate actual baseline start date
+            baselineStartDate = startDate.AddDays(-actualBaselineDays);
 
             if (currentIncidents.Count == 0 && baselineIncidents.Count == 0)
             {
@@ -110,9 +141,24 @@ public class BehaviorEngineService
                     AIExplanation = $"No incidents found for {entityType} '{entityId}' in the analyzed period.",
                     AIRecommendation = "No action required.",
                     ReferenceIncidentIds = new List<int>(),
-                    AnalysisMetadata = new Dictionary<string, object>(),
+                    AnalysisMetadata = new Dictionary<string, object>
+                    {
+                        { "analysis_note", "No data available for analysis" }
+                    },
                     AnalysisDate = endDate
                 };
+            }
+            
+            // Handle case where we have current data but no baseline
+            bool isBaselineInsufficient = baselineIncidents.Count == 0;
+            if (isBaselineInsufficient && currentIncidents.Count > 0)
+            {
+                // Use current period split in half as pseudo-baseline
+                var halfIndex = currentIncidents.Count / 2;
+                baselineIncidents = currentIncidents.Take(halfIndex).ToList();
+                currentIncidents = currentIncidents.Skip(halfIndex).ToList();
+                _logger.LogInformation("No baseline data available. Using split-period analysis with {Current} current and {Baseline} baseline incidents", 
+                    currentIncidents.Count, baselineIncidents.Count);
             }
 
             // Calculate metrics
@@ -139,18 +185,21 @@ public class BehaviorEngineService
 
             var metadata = new Dictionary<string, object>
             {
+                { "current_period_days", lookbackDays },
+                { "baseline_period_days", actualBaselineDays },
+                { "baseline_mode", isBaselineInsufficient ? "split_period" : "historical" },
                 { "current_incident_count", currentMetrics.TotalIncidents },
                 { "baseline_incident_count", baselineMetrics.TotalIncidents },
-                { "z_score_incident_count", anomalyResults.IncidentCountZScore },
-                { "z_score_severity", anomalyResults.SeverityZScore },
-                { "z_score_channel_email", anomalyResults.ChannelEmailZScore },
-                { "z_score_channel_web", anomalyResults.ChannelWebZScore },
-                { "z_score_channel_endpoint", anomalyResults.ChannelEndpointZScore },
-                { "baseline_mean_incidents", baselineMetrics.MeanIncidentsPerDay },
-                { "baseline_std_incidents", baselineMetrics.StdDevIncidentsPerDay },
-                { "current_mean_incidents", currentMetrics.MeanIncidentsPerDay },
-                { "current_avg_severity", currentMetrics.AvgSeverity },
-                { "baseline_avg_severity", baselineMetrics.AvgSeverity },
+                { "z_score_incident_count", Math.Round(anomalyResults.IncidentCountZScore, 2) },
+                { "z_score_severity", Math.Round(anomalyResults.SeverityZScore, 2) },
+                { "z_score_channel_email", Math.Round(anomalyResults.ChannelEmailZScore, 2) },
+                { "z_score_channel_web", Math.Round(anomalyResults.ChannelWebZScore, 2) },
+                { "z_score_channel_endpoint", Math.Round(anomalyResults.ChannelEndpointZScore, 2) },
+                { "baseline_mean_incidents", Math.Round(baselineMetrics.MeanIncidentsPerDay, 2) },
+                { "baseline_std_incidents", Math.Round(baselineMetrics.StdDevIncidentsPerDay, 2) },
+                { "current_mean_incidents", Math.Round(currentMetrics.MeanIncidentsPerDay, 2) },
+                { "current_avg_severity", Math.Round(currentMetrics.AvgSeverity, 2) },
+                { "baseline_avg_severity", Math.Round(baselineMetrics.AvgSeverity, 2) },
                 { "risk_score", riskScore }
             };
 
@@ -217,7 +266,7 @@ public class BehaviorEngineService
             .ToListAsync();
 
         var userAnalyses = new List<AIBehavioralAnalysisResponse>();
-        foreach (var user in users.Take(50)) // Limit to top 50 users
+        foreach (var user in users.Take(200)) // Analyze up to 200 users for comprehensive overview
         {
             try
             {
@@ -272,7 +321,71 @@ public class BehaviorEngineService
             }
         }
 
-        var allAnalyses = userAnalyses.Concat(channelAnalyses).Concat(departmentAnalyses).ToList();
+        // Analyze destinations
+        var destinations = await _context.Incidents
+            .Where(i => i.Timestamp >= startDate && !string.IsNullOrEmpty(i.Destination))
+            .Select(i => i.Destination!)
+            .Distinct()
+            .Take(50) // Limit destinations to prevent too many unique values
+            .ToListAsync();
+
+        var destinationAnalyses = new List<AIBehavioralAnalysisResponse>();
+        foreach (var destination in destinations)
+        {
+            try
+            {
+                var analysis = await AnalyzeEntityAsync("destination", destination, lookbackDays);
+                destinationAnalyses.Add(analysis);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to analyze destination {Destination}", destination);
+            }
+        }
+
+        // Analyze rules (extracted from ViolationTriggers JSON)
+        var allViolationTriggers = await _context.Incidents
+            .Where(i => i.Timestamp >= startDate && !string.IsNullOrEmpty(i.ViolationTriggers))
+            .Select(i => i.ViolationTriggers!)
+            .ToListAsync();
+        
+        var ruleNames = new HashSet<string>();
+        foreach (var triggersJson in allViolationTriggers)
+        {
+            try
+            {
+                var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(triggersJson);
+                if (triggers != null)
+                {
+                    foreach (var trigger in triggers.Where(t => !string.IsNullOrEmpty(t.RuleName)))
+                    {
+                        ruleNames.Add(trigger.RuleName!);
+                    }
+                }
+            }
+            catch { /* Skip invalid JSON */ }
+        }
+
+        var ruleAnalyses = new List<AIBehavioralAnalysisResponse>();
+        foreach (var ruleName in ruleNames.Take(50)) // Limit rules
+        {
+            try
+            {
+                var analysis = await AnalyzeEntityAsync("rule", ruleName, lookbackDays);
+                ruleAnalyses.Add(analysis);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to analyze rule {Rule}", ruleName);
+            }
+        }
+
+        var allAnalyses = userAnalyses
+            .Concat(channelAnalyses)
+            .Concat(departmentAnalyses)
+            .Concat(destinationAnalyses)
+            .Concat(ruleAnalyses)
+            .ToList();
 
         var highAnomalies = allAnalyses.Count(a => a.AnomalyLevel == "high");
         var mediumAnomalies = allAnalyses.Count(a => a.AnomalyLevel == "medium");
@@ -297,6 +410,22 @@ public class BehaviorEngineService
             HighAnomalyCount = highAnomalies,
             MediumAnomalyCount = mediumAnomalies,
             LowAnomalyCount = lowAnomalies,
+            
+            // Entity-specific arrays (sorted by risk score descending)
+            UserAnomalies = userAnalyses.OrderByDescending(a => a.RiskScore).ToList(),
+            ChannelAnomalies = channelAnalyses.OrderByDescending(a => a.RiskScore).ToList(),
+            DepartmentAnomalies = departmentAnalyses.OrderByDescending(a => a.RiskScore).ToList(),
+            DestinationAnomalies = destinationAnalyses.OrderByDescending(a => a.RiskScore).ToList(),
+            RuleAnomalies = ruleAnalyses.OrderByDescending(a => a.RiskScore).ToList(),
+            
+            // Unique values for autocomplete (sorted alphabetically)
+            UniqueUsers = users.Where(u => !string.IsNullOrEmpty(u)).OrderBy(u => u).ToList(),
+            UniqueChannels = channels.OrderBy(c => c).ToList(),
+            UniqueDepartments = departments.OrderBy(d => d).ToList(),
+            UniqueDestinations = destinations.OrderBy(d => d).ToList(),
+            UniqueRules = ruleNames.OrderBy(r => r).ToList(),
+            
+            // Backward compatibility
             TopAnomalies = topAnomalies,
             AnomalyByChannel = anomalyByChannel,
             AnomalyByDepartment = anomalyByDepartment
@@ -358,13 +487,61 @@ public class BehaviorEngineService
             var query = _context.Incidents
                 .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate);
 
-            var result = entityType.ToLower() switch
+            List<Incident> result;
+            
+            switch (entityType.ToLower())
             {
-                "user" => await query.Where(i => i.UserEmail == entityId).ToListAsync(),
-                "channel" => await query.Where(i => i.Channel == entityId).ToListAsync(),
-                "department" => await query.Where(i => i.Department == entityId).ToListAsync(),
-                _ => new List<Incident>()
-            };
+                case "user":
+                    result = await query.Where(i => i.UserEmail == entityId).ToListAsync();
+                    break;
+                    
+                case "channel":
+                    result = await query.Where(i => i.Channel == entityId).ToListAsync();
+                    break;
+                    
+                case "department":
+                    result = await query.Where(i => i.Department == entityId).ToListAsync();
+                    break;
+                    
+                case "destination":
+                    result = await query.Where(i => i.Destination == entityId).ToListAsync();
+                    break;
+                    
+                case "policy":
+                    result = await query.Where(i => i.Policy == entityId).ToListAsync();
+                    break;
+                    
+                case "datatype":
+                    result = await query.Where(i => i.DataType == entityId).ToListAsync();
+                    break;
+                    
+                case "rule":
+                    // Rule is stored in ViolationTriggers JSON field
+                    // Search for rule_name in the JSON string
+                    var allIncidents = await query
+                        .Where(i => !string.IsNullOrEmpty(i.ViolationTriggers) && i.ViolationTriggers.Contains(entityId))
+                        .ToListAsync();
+                    
+                    // Filter more precisely by parsing JSON
+                    result = allIncidents.Where(i => 
+                    {
+                        try
+                        {
+                            if (string.IsNullOrEmpty(i.ViolationTriggers)) return false;
+                            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(i.ViolationTriggers);
+                            return triggers?.Any(t => t.RuleName == entityId) == true;
+                        }
+                        catch
+                        {
+                            return false;
+                        }
+                    }).ToList();
+                    break;
+                    
+                default:
+                    result = new List<Incident>();
+                    break;
+            }
             
             _logger.LogDebug("Query executed for {EntityType}: {EntityId}. Found {Count} incidents between {StartDate} and {EndDate}", 
                 entityType, entityId, result.Count, startDate, endDate);
@@ -377,6 +554,16 @@ public class BehaviorEngineService
                 entityType, entityId, ex.Message);
             throw;
         }
+    }
+    
+    // DTO for parsing ViolationTriggers JSON
+    private class ViolationTriggerDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("policy_name")]
+        public string? PolicyName { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("rule_name")]
+        public string? RuleName { get; set; }
     }
 
     private BehaviorMetrics CalculateMetrics(List<Incident> incidents)
