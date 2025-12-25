@@ -354,7 +354,7 @@ public class BehaviorEngineService
         {
             try
             {
-                var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(triggersJson);
+                var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(triggersJson, JsonOptions);
                 if (triggers != null)
                 {
                     foreach (var trigger in triggers.Where(t => !string.IsNullOrEmpty(t.RuleName)))
@@ -528,7 +528,7 @@ public class BehaviorEngineService
                         try
                         {
                             if (string.IsNullOrEmpty(i.ViolationTriggers)) return false;
-                            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(i.ViolationTriggers);
+                            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(i.ViolationTriggers, JsonOptions);
                             return triggers?.Any(t => t.RuleName == entityId) == true;
                         }
                         catch
@@ -556,15 +556,18 @@ public class BehaviorEngineService
         }
     }
     
-    // DTO for parsing ViolationTriggers JSON
+    // DTO for parsing ViolationTriggers JSON (supports PascalCase from DB)
     private class ViolationTriggerDto
     {
-        [System.Text.Json.Serialization.JsonPropertyName("policy_name")]
         public string? PolicyName { get; set; }
-        
-        [System.Text.Json.Serialization.JsonPropertyName("rule_name")]
         public string? RuleName { get; set; }
     }
+    
+    // JSON options for case-insensitive parsing
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     private BehaviorMetrics CalculateMetrics(List<Incident> incidents)
     {

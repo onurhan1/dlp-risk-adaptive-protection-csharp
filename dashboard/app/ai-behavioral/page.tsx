@@ -146,13 +146,21 @@ export default function AIBehavioralPage() {
     )
   }, [currentTabData.anomalies, filterText])
 
-  // Filter dropdown suggestions
+  // Filter dropdown suggestions - show analyzed entities from anomalies
   const filteredSuggestions = useMemo(() => {
-    if (!filterText.trim()) return currentTabData.uniqueValues.slice(0, 10)
-    return currentTabData.uniqueValues
+    // Get entity IDs from anomalies (these are the analyzed ones)
+    const analyzedEntityIds = currentTabData.anomalies.map(a => a.entityId)
+
+    if (!filterText.trim()) {
+      // When not typing, show all analyzed entities (up to 50)
+      return analyzedEntityIds.slice(0, 50)
+    }
+
+    // When typing, filter and show matches
+    return analyzedEntityIds
       .filter(v => v.toLowerCase().includes(filterText.toLowerCase()))
-      .slice(0, 10)
-  }, [currentTabData.uniqueValues, filterText])
+      .slice(0, 20)
+  }, [currentTabData.anomalies, filterText])
 
   const tabConfig = [
     { key: 'users' as const, label: 'Users', count: overview?.userAnomalies?.length || 0 },
