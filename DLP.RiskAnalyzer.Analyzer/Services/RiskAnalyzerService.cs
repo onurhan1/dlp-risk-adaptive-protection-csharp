@@ -104,9 +104,9 @@ public class RiskAnalyzerService
             {
                 Date = g.Key,
                 TotalIncidents = g.Count(),
-                // Count unique HIGH RISK USERS (users whose max risk score >= 61 that day)
+                // Count unique HIGH RISK USERS (users whose max risk score >= 500, i.e., 50+ when normalized)
                 HighRiskCount = g.GroupBy(i => i.UserEmail)
-                                 .Count(userGroup => userGroup.Max(i => i.RiskScore ?? 0) >= RiskConstants.RiskScores.LegacyHighThreshold),
+                                 .Count(userGroup => userGroup.Max(i => i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
                 DepartmentsAffected = g.Where(i => !string.IsNullOrEmpty(i.Department))

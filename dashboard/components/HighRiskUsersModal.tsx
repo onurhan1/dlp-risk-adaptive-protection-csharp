@@ -147,7 +147,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                             fontSize: '13px',
                             color: 'var(--text-muted)'
                         }}>
-                            {formattedDate} • {users.length} user{users.length !== 1 ? 's' : ''} with risk score ≥ 61
+                            {formattedDate} • {users.length} user{users.length !== 1 ? 's' : ''} with risk score ≥ 50
                         </p>
                     </div>
                     <button

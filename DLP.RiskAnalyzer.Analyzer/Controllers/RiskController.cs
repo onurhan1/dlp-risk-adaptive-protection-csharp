@@ -139,7 +139,7 @@ public class RiskController : ControllerBase
                     MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
                     IncidentCount = g.Count()
                 })
-                .Where(u => u.MaxRiskScore >= 61)  // Legacy high threshold
+                .Where(u => u.MaxRiskScore >= 500)  // High risk threshold in 1000-scale (50+ when normalized to 0-100)
                 .OrderByDescending(u => u.MaxRiskScore)
                 .ThenByDescending(u => u.IncidentCount)
                 .ToList();
@@ -150,8 +150,7 @@ public class RiskController : ControllerBase
                 { "login_name", u.LoginName },
                 { "department", u.Department },
                 { "max_risk_score", u.MaxRiskScore },
-                { "incident_count", u.IncidentCount },
-                { "risk_level", u.MaxRiskScore >= 91 ? "Critical" : u.MaxRiskScore >= 61 ? "High" : "Medium" }
+                { "incident_count", u.IncidentCount }
             }).ToList();
 
             return Ok(result);
