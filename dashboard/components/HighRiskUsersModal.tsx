@@ -35,7 +35,14 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
             const response = await axios.get(`${apiUrl}/api/risk/high-risk-users`, {
                 params: { date }
             })
-            setUsers(response.data)
+            // Normalize scores: if > 100, it's on 1000-scale, divide by 10
+            const normalizedUsers = response.data.map((user: any) => ({
+                ...user,
+                max_risk_score: user.max_risk_score > 100
+                    ? Math.round(user.max_risk_score / 10)
+                    : user.max_risk_score
+            }))
+            setUsers(normalizedUsers)
         } catch (error) {
             console.error('Error fetching high-risk users:', error)
             setUsers([])

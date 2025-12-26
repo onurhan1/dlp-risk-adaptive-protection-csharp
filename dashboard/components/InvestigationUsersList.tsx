@@ -39,11 +39,16 @@ export default function InvestigationUsersList({
         params: { page, page_size: pageSize }
       })
       // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)
-      const usersData = (response.data.users || []).map((user: any) => ({
-        user_email: user.user_email || user.userEmail || '',
-        risk_score: user.risk_score || user.maxRiskScore || 0,
-        total_incidents: user.total_incidents || user.totalIncidents || 0
-      }))
+      const usersData = (response.data.users || []).map((user: any) => {
+        const rawScore = user.risk_score || user.maxRiskScore || 0
+        // Normalize: if score > 100, it's on 1000-scale, divide by 10
+        const normalizedScore = rawScore > 100 ? Math.round(rawScore / 10) : rawScore
+        return {
+          user_email: user.user_email || user.userEmail || '',
+          risk_score: normalizedScore,
+          total_incidents: user.total_incidents || user.totalIncidents || 0
+        }
+      })
 
       // If no users found, show sample data for demonstration
       if (usersData.length === 0) {
