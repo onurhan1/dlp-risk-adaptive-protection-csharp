@@ -277,17 +277,20 @@ public class RiskAnalyzerService
                 user_email = g.Key,
                 risk_score = g.Max(i => i.RiskScore ?? 0),
                 total_incidents = g.Count(),
+                last_incident_date = g.Max(i => i.Timestamp),
                 department = g.Where(i => !string.IsNullOrEmpty(i.Department))
                              .Select(i => i.Department)
                              .FirstOrDefault() ?? null
             })
+            // Sort by: 1) Risk score desc, 2) Last incident date desc (most recent first)
             .OrderByDescending(u => u.risk_score)
+            .ThenByDescending(u => u.last_incident_date)
             .ToList();
 
         // Apply search filter if provided
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchLower = search.ToLower();
+            var searchLower = search.ToLower().Trim();
             userGroups = userGroups
                 .Where(u => u.user_email.ToLower().Contains(searchLower) ||
                            (u.department != null && u.department.ToLower().Contains(searchLower)))
@@ -305,6 +308,7 @@ public class RiskAnalyzerService
                 { "user_email", u.user_email },
                 { "risk_score", u.risk_score },
                 { "total_incidents", u.total_incidents },
+                { "last_incident_date", u.last_incident_date.ToString("O") },
                 { "department", u.department ?? "" }
             }) },
             { "total", total },

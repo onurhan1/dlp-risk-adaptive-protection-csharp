@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,14 +18,16 @@ public class RemediationService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly AnalyzerDbContext _dbContext;
+    private readonly ILogger<RemediationService> _logger;
     private string? _accessToken;
     private DateTime _tokenExpiry = DateTime.MinValue;
 
-    public RemediationService(HttpClient httpClient, IConfiguration configuration, AnalyzerDbContext dbContext)
+    public RemediationService(HttpClient httpClient, IConfiguration configuration, AnalyzerDbContext dbContext, ILogger<RemediationService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _dbContext = dbContext;
+        _logger = logger;
         
         var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
         var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
@@ -169,22 +172,40 @@ public class RemediationService
         // Step 2: ALWAYS save to database (this is the important part)
         try
         {
+            _logger.LogInformation("Attempting to save remediation to DB. IncidentId={IncidentId}", incidentId);
+            
             if (int.TryParse(incidentId, out int id))
             {
+                _logger.LogInformation("Parsed incident ID: {Id}", id);
+                
                 var incident = await _dbContext.Incidents.FirstOrDefaultAsync(i => i.Id == id);
+                
                 if (incident != null)
                 {
+                    _logger.LogInformation("Found incident in DB: Id={Id}, UserEmail={User}", incident.Id, incident.UserEmail);
+                    
                     incident.IsRemediated = true;
                     incident.RemediatedAt = remediatedAt;
                     incident.RemediatedBy = remediatedBy ?? "System";
                     incident.RemediationAction = action;
                     incident.RemediationNotes = notes ?? reason ?? "";
-                    await _dbContext.SaveChangesAsync();
+                    
+                    var savedCount = await _dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Database save completed. Rows affected: {Count}", savedCount);
                 }
+                else
+                {
+                    _logger.LogWarning("Incident NOT FOUND in database. Id={Id}", id);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Could not parse incidentId '{IncidentId}' as integer", incidentId);
             }
         }
         catch (Exception dbEx)
         {
+            _logger.LogError(dbEx, "Database error while saving remediation for incident {IncidentId}", incidentId);
             return new Dictionary<string, object>
             {
                 { "success", false },
