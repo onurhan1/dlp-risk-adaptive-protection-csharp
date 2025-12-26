@@ -83,7 +83,12 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
       })
 
       setData(transformed)
-      setTopUsers(usersResponse.data || [])
+      // Normalize risk scores: if > 100, it's on 1000-scale, divide by 10
+      const normalizedUsers = (usersResponse.data || []).map((user: any) => ({
+        ...user,
+        risk_score: user.risk_score > 100 ? Math.round(user.risk_score / 10) : user.risk_score
+      })).sort((a: any, b: any) => b.risk_score - a.risk_score)
+      setTopUsers(normalizedUsers)
       setTopRules(rulesResponse.data || [])
     } catch (error) {
       console.error('Error fetching timeline data:', error)
@@ -93,10 +98,11 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   }
 
   const getRiskColor = (score: number): string => {
-    if (score >= 91) return '#d32f2f'
-    if (score >= 61) return '#f57c00'
-    if (score >= 41) return '#fbc02d'
-    return '#4caf50'
+    // Updated thresholds for normalized 0-100 scale
+    if (score >= 75) return '#d32f2f'  // Critical (750-1000 in 1000-scale)
+    if (score >= 50) return '#f57c00'  // High (500-749)
+    if (score >= 25) return '#fbc02d'  // Medium (250-499)
+    return '#4caf50'  // Low (0-249)
   }
 
   if (loading) {
