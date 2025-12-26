@@ -220,7 +220,13 @@ export default function InvestigationTimeline({
         fileName: incident.fileName || incident.file_name,
         loginName: incident.loginName || incident.login_name,
         emailAddress: incident.emailAddress || incident.email_address,
-        violationTriggers: incident.violationTriggers || incident.violation_triggers
+        violationTriggers: incident.violationTriggers || incident.violation_triggers,
+        // Remediation fields
+        isRemediated: incident.isRemediated || incident.is_remediated || false,
+        remediatedAt: incident.remediatedAt || incident.remediated_at,
+        remediatedBy: incident.remediatedBy || incident.remediated_by,
+        remediationAction: incident.remediationAction || incident.remediation_action,
+        remediationNotes: incident.remediationNotes || incident.remediation_notes
       }))
 
       setEvents(timelineEvents)

@@ -31,6 +31,12 @@ interface InvestigationAlertDetailsProps {
     emailAddress?: string
     violationTriggers?: string
     policy?: string
+    // Remediation fields
+    isRemediated?: boolean
+    remediatedAt?: string
+    remediatedBy?: string
+    remediationAction?: string
+    remediationNotes?: string
   }
 }
 
@@ -370,14 +376,46 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
         </div>
       )}
 
-      {/* Remediate Button */}
+      {/* Remediation Section */}
       <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-        <RemediateButton
-          incidentId={event.id}
-          onRemediated={() => {
-            window.location.reload()
-          }}
-        />
+        {event.isRemediated ? (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: '8px',
+            padding: '12px 16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>✅</span>
+              <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated</span>
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Date:</strong> {event.remediatedAt ? new Date(event.remediatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>By:</strong> {event.remediatedBy || 'System'}
+              </div>
+              {event.remediationAction && (
+                <div style={{ marginBottom: '4px' }}>
+                  <strong>Action:</strong> <span style={{ color: '#f59e0b', fontWeight: '500' }}>{event.remediationAction}</span>
+                </div>
+              )}
+              {event.remediationNotes && (
+                <div>
+                  <strong>Notes:</strong> {event.remediationNotes}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <RemediateButton
+            incidentId={event.id}
+            onRemediated={() => {
+              window.location.reload()
+            }}
+          />
+        )}
       </div>
     </div>
   )

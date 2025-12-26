@@ -143,7 +143,13 @@ public class IncidentsController : ControllerBase
                     // Enriched fields
                     RiskLevel = riskLevel,
                     RecommendedAction = policyAction,
-                    IOBs = iobs
+                    IOBs = iobs,
+                    // Remediation fields
+                    IsRemediated = incident.IsRemediated,
+                    RemediatedAt = incident.RemediatedAt,
+                    RemediatedBy = incident.RemediatedBy,
+                    RemediationAction = incident.RemediationAction,
+                    RemediationNotes = incident.RemediationNotes
                 };
             }).ToList();
 

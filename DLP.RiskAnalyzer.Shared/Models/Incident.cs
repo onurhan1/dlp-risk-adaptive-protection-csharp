@@ -69,4 +69,11 @@ public class IncidentResponse
     public string? RiskLevel { get; set; }
     public string? RecommendedAction { get; set; }
     public List<string>? IOBs { get; set; }
+    
+    // Remediation fields
+    public bool IsRemediated { get; set; }
+    public DateTime? RemediatedAt { get; set; }
+    public string? RemediatedBy { get; set; }
+    public string? RemediationAction { get; set; }
+    public string? RemediationNotes { get; set; }
 }
