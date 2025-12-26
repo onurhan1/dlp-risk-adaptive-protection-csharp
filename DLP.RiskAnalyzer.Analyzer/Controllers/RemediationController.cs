@@ -26,11 +26,12 @@ public class RemediationController : ControllerBase
             var action = request.GetValueOrDefault("action", "investigating")?.ToString() ?? "investigating";
             var reason = request.GetValueOrDefault("reason")?.ToString();
             var notes = request.GetValueOrDefault("notes")?.ToString();
+            var remediatedBy = "Admin"; // Default user, can be extracted from auth token later
 
             _logger.LogInformation("Remediating incident {IncidentId} with action {Action}", incidentId, action);
             
             var result = await _remediationService.RemediateIncidentAsync(
-                incidentId.ToString(), action, reason, notes);
+                incidentId.ToString(), action, reason, notes, remediatedBy);
 
             _logger.LogInformation("Remediation result: {Result}", System.Text.Json.JsonSerializer.Serialize(result));
             

@@ -387,7 +387,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <span style={{ fontSize: '18px' }}>✅</span>
-              <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated</span>
+              <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated #{event.id}</span>
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
               <div style={{ marginBottom: '4px' }}>
