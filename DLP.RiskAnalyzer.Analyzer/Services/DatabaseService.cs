@@ -165,10 +165,11 @@ public class DatabaseService
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
 
                 // Check if incident already exists by ID (ID is unique in DLP API)
-                var exists = await _context.Incidents.AnyAsync(i => i.Id == incidentId);
+                var existingIncident = await _context.Incidents.FirstOrDefaultAsync(i => i.Id == incidentId);
 
-                if (!exists)
+                if (existingIncident == null)
                 {
+                    // New incident - insert
                     var incident = new Incident
                     {
                         Id = incidentId,  // DLP API'den gelen orijinal ID (0 ise auto-increment)
@@ -203,8 +204,40 @@ public class DatabaseService
                         skippedCount++;
                     }
                 }
+                else if (existingIncident.Action != action && !string.IsNullOrEmpty(action))
+                {
+                    // Incident exists but action changed (e.g., QUARANTINE -> RELEASE)
+                    // Update the existing record
+                    _logger.LogInformation(
+                        "Incident {Id} action changed from {OldAction} to {NewAction}, updating...",
+                        incidentId, existingIncident.Action, action);
+                    
+                    existingIncident.Action = action;
+                    existingIncident.Timestamp = timestamp;  // Update timestamp to latest
+                    
+                    // Update other fields that might have changed
+                    if (!string.IsNullOrEmpty(destination))
+                        existingIncident.Destination = destination;
+                    if (!string.IsNullOrEmpty(fileName))
+                        existingIncident.FileName = fileName;
+                    if (!string.IsNullOrEmpty(violationTriggers))
+                        existingIncident.ViolationTriggers = violationTriggers;
+                    
+                    try
+                    {
+                        await _context.SaveChangesAsync();
+                        processedCount++;
+                        _logger.LogInformation("Incident {Id} updated with new action: {Action}", incidentId, action);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error updating incident {Id}", incidentId);
+                        skippedCount++;
+                    }
+                }
                 else
                 {
+                    // Duplicate with same action - skip
                     skippedCount++;
                 }
 
