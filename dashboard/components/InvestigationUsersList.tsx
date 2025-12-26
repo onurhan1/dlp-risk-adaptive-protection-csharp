@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 
 interface UserRisk {
@@ -22,35 +22,28 @@ export default function InvestigationUsersList({
   searchQuery,
   filterRisk
 }: InvestigationUsersListProps) {
-  const [users, setUsers] = useState<UserRisk[]>([])
+  const [allUsers, setAllUsers] = useState<UserRisk[]>([])  // All users from API
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
   const pageSize = 15
 
-  // Reset to page 1 when search query changes
+  // Fetch ALL users once on mount (no pagination for client-side filtering)
   useEffect(() => {
-    setPage(1)
-  }, [searchQuery])
+    fetchAllUsers()
+  }, [])
 
-  useEffect(() => {
-    fetchUsers()
-  }, [page, searchQuery])  // Re-fetch when search or page changes
-
-  const fetchUsers = async () => {
+  const fetchAllUsers = async () => {
     setLoading(true)
     try {
+      // Fetch large page to get all users
       const response = await apiClient.get('/api/risk/user-list', {
         params: {
-          page,
-          page_size: pageSize,
-          search: searchQuery || undefined  // Server-side search
+          page: 1,
+          page_size: 5000  // Get all users at once
         }
       })
-      // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)
       const usersData = (response.data.users || []).map((user: any) => {
         const rawScore = user.risk_score || user.maxRiskScore || 0
-        // Normalize: if score > 100, it's on 1000-scale, divide by 10
         const normalizedScore = rawScore > 100 ? Math.round(rawScore / 10) : rawScore
         return {
           user_email: user.user_email || user.userEmail || '',
@@ -58,18 +51,47 @@ export default function InvestigationUsersList({
           total_incidents: user.total_incidents || user.totalIncidents || 0
         }
       })
-
-      // Set users from API response - no sample data fallback (causes search issues)
-      setUsers(usersData)
-      setTotal(response.data.total || usersData.length)
+      setAllUsers(usersData)
     } catch (error) {
       console.error('Error fetching users:', error)
-      setUsers([])
-      setTotal(0)
+      setAllUsers([])
     } finally {
       setLoading(false)
     }
   }
+
+  // CLIENT-SIDE filtering with useMemo (like ActionIncidentsModal)
+  const filteredUsers = useMemo(() => {
+    return allUsers.filter(user => {
+      // Search filter
+      const matchSearch = !searchQuery ||
+        user.user_email.toLowerCase().includes(searchQuery.toLowerCase())
+
+      // Risk filter  
+      let matchRisk = true
+      if (filterRisk === 'critical' && user.risk_score < 80) matchRisk = false
+      if (filterRisk === 'high' && (user.risk_score < 50 || user.risk_score >= 80)) matchRisk = false
+      if (filterRisk === 'medium' && (user.risk_score < 30 || user.risk_score >= 50)) matchRisk = false
+      if (filterRisk === 'low' && user.risk_score >= 30) matchRisk = false
+
+      return matchSearch && matchRisk
+    })
+  }, [allUsers, searchQuery, filterRisk])
+
+  // Reset to page 1 when search or filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, filterRisk])
+
+  // Paginate the filtered results
+  const paginatedUsers = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  }, [filteredUsers, page, pageSize])
+
+  const total = filteredUsers.length
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const endItem = Math.min(page * pageSize, total)
 
   const getRiskColor = (score: number): string => {
     if (score >= 80) return '#ef4444' // Red - Critical
@@ -77,19 +99,6 @@ export default function InvestigationUsersList({
     if (score >= 30) return '#fbbf24' // Yellow - Medium
     return '#10b981' // Green - Low
   }
-
-  // Filter users - only by risk level (search is now server-side)
-  const filteredUsers = users.filter(user => {
-    // Risk filter
-    if (filterRisk === 'critical' && user.risk_score < 80) return false
-    if (filterRisk === 'high' && (user.risk_score < 50 || user.risk_score >= 80)) return false
-    if (filterRisk === 'medium' && (user.risk_score < 30 || user.risk_score >= 50)) return false
-    if (filterRisk === 'low' && user.risk_score >= 30) return false
-    return true
-  })
-
-  const startItem = (page - 1) * pageSize + 1
-  const endItem = Math.min(page * pageSize, total)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, flex: 1 }}>
@@ -105,12 +114,12 @@ export default function InvestigationUsersList({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             Loading users...
           </div>
-        ) : filteredUsers.length === 0 ? (
+        ) : paginatedUsers.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
             No users found
           </div>
         ) : (
-          filteredUsers.map((user, idx) => (
+          paginatedUsers.map((user, idx) => (
             <div
               key={idx}
               onClick={() => onUserSelect(user.user_email, user.risk_score)}
