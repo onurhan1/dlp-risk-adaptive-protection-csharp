@@ -147,8 +147,9 @@ public class DLPCollectorService : IDisposable
 
             // Step 2: Build request body according to Forcepoint DLP API format
             // Format dates as "dd/MM/yyyy HH:mm:ss" (Forcepoint DLP API format)
-            var fromDate = startTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
-            var toDate = endTime.ToUniversalTime().ToString("dd/MM/yyyy HH:mm:ss");
+            // NOTE: Sending local time (not UTC) as Forcepoint may expect local time
+            var fromDate = startTime.ToString("dd/MM/yyyy HH:mm:ss");
+            var toDate = endTime.ToString("dd/MM/yyyy HH:mm:ss");
 
             var incidentsUrl = "/dlp/rest/v1/incidents/";
             var requestBody = new
