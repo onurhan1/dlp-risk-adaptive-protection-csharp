@@ -36,12 +36,14 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                 params: { date }
             })
             // Normalize scores: if > 100, it's on 1000-scale, divide by 10
-            const normalizedUsers = response.data.map((user: any) => ({
-                ...user,
-                max_risk_score: user.max_risk_score > 100
-                    ? Math.round(user.max_risk_score / 10)
-                    : user.max_risk_score
-            }))
+            const normalizedUsers = response.data
+                .map((user: any) => ({
+                    ...user,
+                    max_risk_score: user.max_risk_score > 100
+                        ? Math.round(user.max_risk_score / 10)
+                        : user.max_risk_score
+                }))
+                .sort((a: any, b: any) => b.max_risk_score - a.max_risk_score)  // Sort by score descending
             setUsers(normalizedUsers)
         } catch (error) {
             console.error('Error fetching high-risk users:', error)
@@ -196,7 +198,6 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</th>
                                     <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk Score</th>
-                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk Level</th>
                                     <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Incidents</th>
                                 </tr>
                             </thead>
@@ -233,19 +234,6 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                                 backgroundColor: getRiskColor(user.max_risk_score)
                                             }}>
                                                 {user.max_risk_score}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center' }}>
-                                            <span style={{
-                                                padding: '4px 10px',
-                                                borderRadius: '4px',
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                textTransform: 'uppercase',
-                                                color: 'white',
-                                                backgroundColor: user.risk_level === 'Critical' ? '#ef4444' : '#f59e0b'
-                                            }}>
-                                                {user.risk_level}
                                             </span>
                                         </td>
                                         <td style={{ padding: '12px', textAlign: 'right', fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>

@@ -156,20 +156,25 @@ export default function Home() {
       incidentsLast24hRes.data.forEach((incident: any) => {
         const user = incident.userEmail || incident.user_email || ''
         if (!user) return // Skip if no user email
+        const rawScore = incident.riskScore || incident.risk_score || 0
         const existing = usersMap.get(user) || { alerts: 0, risk: 0 }
         usersMap.set(user, {
           alerts: existing.alerts + 1,
-          risk: Math.max(existing.risk, incident.riskScore || incident.risk_score || 0)
+          risk: Math.max(existing.risk, rawScore)
         })
       })
       const topUsersData = Array.from(usersMap.entries())
         .filter(([email]) => email && email.length > 0) // Filter out empty emails
-        .map(([user_email, data]) => ({
-          user_email,
-          total_alerts: data.alerts,
-          risk_score: data.risk
-        }))
-        .sort((a, b) => b.total_alerts - a.total_alerts)
+        .map(([user_email, data]) => {
+          // Normalize: if score > 100, it's on 1000-scale, divide by 10
+          const normalizedScore = data.risk > 100 ? Math.round(data.risk / 10) : data.risk
+          return {
+            user_email,
+            total_alerts: data.alerts,
+            risk_score: normalizedScore
+          }
+        })
+        .sort((a, b) => b.risk_score - a.risk_score)  // Sort by risk score descending
         .slice(0, 10)
       setTopUsers(topUsersData)
 
