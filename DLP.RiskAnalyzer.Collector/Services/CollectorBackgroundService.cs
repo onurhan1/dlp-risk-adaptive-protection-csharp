@@ -59,51 +59,94 @@ public class CollectorBackgroundService : BackgroundService
 
     private async Task CollectIncidentsAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1...");
+        _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1 with TIME CHUNKING...");
 
         var endTime = DateTime.UtcNow;
         var startTime = endTime.AddHours(-_lookbackHours);
         
-        _logger.LogInformation("Fetching incidents from {StartTime} to {EndTime} ({LookbackHours} hour lookback)", 
-            startTime, endTime, _lookbackHours);
+        // Time chunk size in hours (smaller chunks = less chance of missing incidents)
+        var chunkSizeHours = 4;
+        var totalChunks = (int)Math.Ceiling((double)_lookbackHours / chunkSizeHours);
+        
+        _logger.LogInformation("Fetching incidents from {StartTime} to {EndTime} ({LookbackHours}h lookback) in {TotalChunks} chunks of {ChunkSize}h each", 
+            startTime, endTime, _lookbackHours, totalChunks, chunkSizeHours);
 
         try
         {
-            // IMPORTANT: Forcepoint DLP API ignores pagination parameters (start/limit)
-            // It returns ALL incidents in the date range in a single response
-            // Therefore, we only make one request
             List<DLPIncident> allIncidents = new();
-            int maxRetries = 3;
+            int successfulChunks = 0;
+            int failedChunks = 0;
             
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            // Process each time chunk sequentially
+            var chunkStart = startTime;
+            int chunkIndex = 0;
+            
+            while (chunkStart < endTime)
             {
-                try
+                chunkIndex++;
+                var chunkEnd = chunkStart.AddHours(chunkSizeHours);
+                if (chunkEnd > endTime) chunkEnd = endTime;
+                
+                _logger.LogInformation("Fetching chunk {ChunkIndex}/{TotalChunks}: {ChunkStart} to {ChunkEnd}", 
+                    chunkIndex, totalChunks, chunkStart, chunkEnd);
+                
+                int maxRetries = 3;
+                List<DLPIncident> chunkIncidents = new();
+                bool chunkSuccess = false;
+                
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    _logger.LogInformation("Fetching incidents from DLP API (Attempt {Attempt}/{MaxRetries})", 
-                        attempt, maxRetries);
-                    
-                    allIncidents = await _collectorService.FetchIncidentsAsync(startTime, endTime, 1, _pageSize);
-                    
-                    _logger.LogInformation("Successfully fetched {Count} incidents from Forcepoint DLP API", 
-                        allIncidents.Count);
-                    break; // Success, exit retry loop
+                    try
+                    {
+                        chunkIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, 1, _pageSize);
+                        _logger.LogInformation("Chunk {ChunkIndex}: Fetched {Count} incidents", chunkIndex, chunkIncidents.Count);
+                        chunkSuccess = true;
+                        break;
+                    }
+                    catch (TaskCanceledException) when (attempt < maxRetries)
+                    {
+                        _logger.LogWarning("Chunk {ChunkIndex} timeout on attempt {Attempt}. Retrying in 5 seconds...", 
+                            chunkIndex, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    }
+                    catch (HttpRequestException) when (attempt < maxRetries)
+                    {
+                        _logger.LogWarning("Chunk {ChunkIndex} connection error on attempt {Attempt}. Retrying in 5 seconds...", 
+                            chunkIndex, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    }
+                    catch (Exception ex) when (attempt < maxRetries)
+                    {
+                        _logger.LogWarning(ex, "Chunk {ChunkIndex} error on attempt {Attempt}. Retrying in 5 seconds...", 
+                            chunkIndex, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                    }
                 }
-                catch (TaskCanceledException) when (attempt < maxRetries)
+                
+                if (chunkSuccess)
                 {
-                    _logger.LogWarning("DLP API request timeout on attempt {Attempt}. Retrying in 10 seconds...", 
-                        attempt);
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    allIncidents.AddRange(chunkIncidents);
+                    successfulChunks++;
                 }
-                catch (HttpRequestException) when (attempt < maxRetries)
+                else
                 {
-                    _logger.LogWarning("DLP API connection error on attempt {Attempt}. Retrying in 10 seconds...", 
-                        attempt);
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    _logger.LogError("Failed to fetch chunk {ChunkIndex} after {MaxRetries} attempts. Skipping this chunk.", 
+                        chunkIndex, maxRetries);
+                    failedChunks++;
+                }
+                
+                // Move to next chunk
+                chunkStart = chunkEnd;
+                
+                // Small delay between chunks to avoid overwhelming the API
+                if (chunkStart < endTime)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
                 }
             }
             
-            _logger.LogInformation("Total {Count} incidents retrieved from DLP API for {LookbackHours}h lookback", 
-                allIncidents.Count, _lookbackHours);
+            _logger.LogInformation("Total {Count} incidents retrieved from DLP API for {LookbackHours}h lookback. Successful chunks: {Success}, Failed: {Failed}", 
+                allIncidents.Count, _lookbackHours, successfulChunks, failedChunks);
 
             if (allIncidents.Count == 0)
             {
@@ -111,11 +154,20 @@ public class CollectorBackgroundService : BackgroundService
                 return;
             }
 
+            // Remove duplicates based on incident ID
+            var uniqueIncidents = allIncidents
+                .GroupBy(i => i.Id)
+                .Select(g => g.First())
+                .ToList();
+            
+            _logger.LogInformation("After deduplication: {UniqueCount} unique incidents (removed {DuplicateCount} duplicates)", 
+                uniqueIncidents.Count, allIncidents.Count - uniqueIncidents.Count);
+
             // Push incidents to Redis
             var pushedCount = 0;
             var errorCount = 0;
             
-            foreach (var dlpIncident in allIncidents)
+            foreach (var dlpIncident in uniqueIncidents)
             {
                 try
                 {
@@ -133,7 +185,7 @@ public class CollectorBackgroundService : BackgroundService
                     
                     var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
                     {
-                        Id = dlpIncident.Id,  // DLP API'den gelen orijinal ID
+                        Id = dlpIncident.Id,
                         UserEmail = dlpIncident.User ?? "unknown",
                         Department = dlpIncident.Department,
                         Severity = dlpIncident.Severity,
@@ -141,8 +193,7 @@ public class CollectorBackgroundService : BackgroundService
                         Timestamp = dlpIncident.Timestamp,
                         Policy = dlpIncident.Policy,
                         Channel = dlpIncident.Channel,
-                        MaxMatches = maxMatches,  // New field
-                        // New fields
+                        MaxMatches = maxMatches,
                         Action = dlpIncident.Action,
                         Destination = dlpIncident.Destination,
                         FileName = dlpIncident.FileName,
