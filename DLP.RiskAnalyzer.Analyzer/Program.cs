@@ -109,6 +109,7 @@ builder.Services.AddScoped<EmailConfigurationService>();
 builder.Services.AddScoped<BehaviorEngineService>();
 builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddHttpClient<SplunkService>();
+builder.Services.AddHttpClient<RemediationService>();
 
 // OpenAI Service
 builder.Services.AddHttpClient<OpenAIService>();

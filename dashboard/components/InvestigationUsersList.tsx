@@ -28,9 +28,14 @@ export default function InvestigationUsersList({
   const [total, setTotal] = useState(0)
   const pageSize = 15
 
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery])
+
   useEffect(() => {
     fetchUsers()
-  }, [page, searchQuery])  // Re-fetch when search changes
+  }, [page, searchQuery])  // Re-fetch when search or page changes
 
   const fetchUsers = async () => {
     setLoading(true)
