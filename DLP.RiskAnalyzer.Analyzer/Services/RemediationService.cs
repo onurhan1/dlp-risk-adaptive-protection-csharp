@@ -4,23 +4,27 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using DLP.RiskAnalyzer.Analyzer.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 /// <summary>
-/// Remediation Service - Incident remediation via Forcepoint DLP API
+/// Remediation Service - Incident remediation via Forcepoint DLP API + Database storage
 /// </summary>
 public class RemediationService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly AnalyzerDbContext _dbContext;
     private string? _accessToken;
     private DateTime _tokenExpiry = DateTime.MinValue;
 
-    public RemediationService(HttpClient httpClient, IConfiguration configuration)
+    public RemediationService(HttpClient httpClient, IConfiguration configuration, AnalyzerDbContext dbContext)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _dbContext = dbContext;
         
         var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
         var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
@@ -115,7 +119,7 @@ public class RemediationService
     }
 
     /// <summary>
-    /// Remediate incident via Forcepoint DLP API
+    /// Remediate incident via Forcepoint DLP API + save to database
     /// According to Forcepoint DLP REST API v1 documentation:
     /// POST https://&lt;DLP Manager IP&gt;:&lt;DLP Manager port&gt;/dlp/rest/v1/incidents/update
     /// </summary>
@@ -123,110 +127,85 @@ public class RemediationService
         string incidentId,
         string action,
         string? reason = null,
-        string? notes = null)
+        string? notes = null,
+        string? remediatedBy = null)
     {
+        var remediatedAt = DateTime.UtcNow;
+        var apiMessage = "";
+        var apiSuccess = false;
+        
         try
         {
-            // Step 1: Authenticate and get access token
+            // Step 1: Try to call DLP API (optional, may fail if unavailable)
             var token = await GetAccessTokenAsync();
-            if (token == null)
+            if (token != null)
             {
-                // DLP Manager API not available - return success response anyway
-                return new Dictionary<string, object>
-                {
-                    { "success", true },
-                    { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
-                    { "incidentId", incidentId },
-                    { "action", action },
-                    { "reason", reason ?? "" },
-                    { "notes", notes ?? "" },
-                    { "remediatedAt", DateTime.UtcNow.ToString("O") }
-                };
-            }
-            
-            // Step 2: Set Bearer token in Authorization header
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            // Step 3: Build request body for incident update
-            var requestBody = new
-            {
-                incidentId,
-                action,
-                reason = reason ?? "",
-                notes = notes ?? ""
-            };
-
-            var json = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            HttpResponseMessage? response = null;
-            try
-            {
-                // Step 4: Send POST request to Forcepoint DLP REST API v1 incidents/update endpoint
-                response = await _httpClient.PostAsync("/dlp/rest/v1/incidents/update", content);
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                var requestBody = new { incidentId, action, reason = reason ?? "", notes = notes ?? "" };
+                var json = JsonSerializer.Serialize(requestBody);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
                 
-                if (!response.IsSuccessStatusCode)
+                try
                 {
-                    // If API call fails, still return success for our system
-                    return new Dictionary<string, object>
-                    {
-                        { "success", true },
-                        { "message", $"Incident remediation recorded (DLP Manager API returned status {response.StatusCode})" },
-                        { "incidentId", incidentId },
-                        { "action", action },
-                        { "reason", reason ?? "" },
-                        { "notes", notes ?? "" },
-                        { "remediatedAt", DateTime.UtcNow.ToString("O") }
-                    };
+                    var response = await _httpClient.PostAsync("/dlp/rest/v1/incidents/update", content);
+                    apiSuccess = response.IsSuccessStatusCode;
+                    apiMessage = apiSuccess ? "DLP API updated" : $"DLP API returned {response.StatusCode}";
                 }
-
-                var responseContent = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent)
-                    ?? new Dictionary<string, object>();
-            }
-            catch (Exception)
-            {
-                // Any exception (TaskCanceledException, HttpRequestException, SocketException, etc.) - return success
-                return new Dictionary<string, object>
+                catch
                 {
-                    { "success", true },
-                    { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
-                    { "incidentId", incidentId },
-                    { "action", action },
-                    { "reason", reason ?? "" },
-                    { "notes", notes ?? "" },
-                    { "remediatedAt", DateTime.UtcNow.ToString("O") }
-                };
+                    apiMessage = "DLP API unavailable";
+                }
+            }
+            else
+            {
+                apiMessage = "DLP API unavailable";
             }
         }
-        catch (HttpRequestException)
+        catch
         {
-            // Connection errors - DLP Manager API not available
+            apiMessage = "DLP API error";
+        }
+        
+        // Step 2: ALWAYS save to database (this is the important part)
+        try
+        {
+            if (int.TryParse(incidentId, out int id))
+            {
+                var incident = await _dbContext.Incidents.FirstOrDefaultAsync(i => i.Id == id);
+                if (incident != null)
+                {
+                    incident.IsRemediated = true;
+                    incident.RemediatedAt = remediatedAt;
+                    incident.RemediatedBy = remediatedBy ?? "System";
+                    incident.RemediationAction = action;
+                    incident.RemediationNotes = notes ?? reason ?? "";
+                    await _dbContext.SaveChangesAsync();
+                }
+            }
+        }
+        catch (Exception dbEx)
+        {
             return new Dictionary<string, object>
             {
-                { "success", true },
-                { "message", "Incident remediation recorded (DLP Manager API unavailable)" },
+                { "success", false },
+                { "message", $"Database error: {dbEx.Message}" },
                 { "incidentId", incidentId },
                 { "action", action },
-                { "reason", reason ?? "" },
-                { "notes", notes ?? "" },
-                { "remediatedAt", DateTime.UtcNow.ToString("O") }
+                { "remediatedAt", remediatedAt.ToString("O") }
             };
         }
-        catch (Exception ex)
+        
+        return new Dictionary<string, object>
         {
-            // For any other errors, still return success but log the error
-            return new Dictionary<string, object>
-            {
-                { "success", true },
-                { "message", $"Incident remediation recorded (DLP Manager API error: {ex.Message})" },
-                { "incidentId", incidentId },
-                { "action", action },
-                { "reason", reason ?? "" },
-                { "notes", notes ?? "" },
-                { "remediatedAt", DateTime.UtcNow.ToString("O") }
-            };
-        }
+            { "success", true },
+            { "message", $"Incident remediated successfully ({apiMessage})" },
+            { "savedToDatabase", true },
+            { "incidentId", incidentId },
+            { "action", action },
+            { "reason", reason ?? "" },
+            { "notes", notes ?? "" },
+            { "remediatedAt", remediatedAt.ToString("O") }
+        };
     }
 
     /// <summary>

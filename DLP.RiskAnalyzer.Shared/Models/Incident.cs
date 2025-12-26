@@ -30,6 +30,13 @@ public class Incident
     public string? RiskLevel { get; set; }
     public string? RecommendedAction { get; set; }
     public List<string>? IOBs { get; set; }
+    
+    // Remediation fields
+    public bool IsRemediated { get; set; } = false;
+    public DateTime? RemediatedAt { get; set; }
+    public string? RemediatedBy { get; set; }
+    public string? RemediationAction { get; set; }  // BLOCK, QUARANTINE, PERMIT, etc.
+    public string? RemediationNotes { get; set; }
 }
 
 /// <summary>

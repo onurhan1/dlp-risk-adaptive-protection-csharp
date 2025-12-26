@@ -49,12 +49,20 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.EmailAddress).HasColumnName("email_address");
             entity.Property(e => e.ViolationTriggers).HasColumnName("violation_triggers");
             entity.Property(e => e.MaxMatches).HasColumnName("max_matches").HasDefaultValue(0);
+            
+            // Remediation fields
+            entity.Property(e => e.IsRemediated).HasColumnName("is_remediated").HasDefaultValue(false);
+            entity.Property(e => e.RemediatedAt).HasColumnName("remediated_at");
+            entity.Property(e => e.RemediatedBy).HasColumnName("remediated_by");
+            entity.Property(e => e.RemediationAction).HasColumnName("remediation_action");
+            entity.Property(e => e.RemediationNotes).HasColumnName("remediation_notes");
 
             entity.HasIndex(e => e.UserEmail);
             entity.HasIndex(e => e.Department);
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => e.RiskScore);
             entity.HasIndex(e => e.Action);  // Index for action-based queries
+            entity.HasIndex(e => e.IsRemediated);  // Index for remediation queries
         });
 
         // Configure DailySummary
