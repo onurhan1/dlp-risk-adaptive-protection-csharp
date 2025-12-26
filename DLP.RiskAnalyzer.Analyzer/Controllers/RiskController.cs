@@ -244,12 +244,13 @@ public class RiskController : ControllerBase
     [HttpGet("user-list/{page}/{page_size}")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserList(
         [FromQuery] int page = 1,
-        [FromQuery] int page_size = 15)
+        [FromQuery] int page_size = 15,
+        [FromQuery] string? search = null)
     {
         try
         {
             // Use RiskAnalyzerService which now returns correct format
-            var result = await _riskAnalyzerService.GetUserListAsync(page, page_size);
+            var result = await _riskAnalyzerService.GetUserListAsync(page, page_size, search);
             return Ok(result);
         }
         catch (Exception ex)

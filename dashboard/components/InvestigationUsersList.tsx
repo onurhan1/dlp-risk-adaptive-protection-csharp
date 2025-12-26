@@ -30,13 +30,17 @@ export default function InvestigationUsersList({
 
   useEffect(() => {
     fetchUsers()
-  }, [page])
+  }, [page, searchQuery])  // Re-fetch when search changes
 
   const fetchUsers = async () => {
     setLoading(true)
     try {
       const response = await apiClient.get('/api/risk/user-list', {
-        params: { page, page_size: pageSize }
+        params: {
+          page,
+          page_size: pageSize,
+          search: searchQuery || undefined  // Server-side search
+        }
       })
       // Handle both old format (userEmail, maxRiskScore) and new format (user_email, risk_score)
       const usersData = (response.data.users || []).map((user: any) => {
@@ -90,12 +94,8 @@ export default function InvestigationUsersList({
     return '#10b981' // Green - Low
   }
 
-  // Filter users
+  // Filter users - only by risk level (search is now server-side)
   const filteredUsers = users.filter(user => {
-    // Search filter
-    if (searchQuery && !user.user_email.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false
-    }
     // Risk filter
     if (filterRisk === 'critical' && user.risk_score < 80) return false
     if (filterRisk === 'high' && (user.risk_score < 50 || user.risk_score >= 80)) return false

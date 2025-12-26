@@ -263,10 +263,8 @@ public class RiskAnalyzerService
     /// <summary>
     /// Get paginated user list with risk scores
     /// </summary>
-    public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15)
+    public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null)
     {
-        // This method is deprecated - use the endpoint in RiskController instead
-        // Return format compatible with frontend expectations
         // Get all incidents (no date filter for user list)
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-365); // Last year
@@ -285,6 +283,16 @@ public class RiskAnalyzerService
             })
             .OrderByDescending(u => u.risk_score)
             .ToList();
+
+        // Apply search filter if provided
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            userGroups = userGroups
+                .Where(u => u.user_email.ToLower().Contains(searchLower) ||
+                           (u.department != null && u.department.ToLower().Contains(searchLower)))
+                .ToList();
+        }
 
         var total = userGroups.Count;
         var offset = (page - 1) * pageSize;
