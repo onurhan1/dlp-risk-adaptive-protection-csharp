@@ -458,7 +458,8 @@ public class RiskAnalyzerService
                               .Select(i => i.EmailAddress)
                               .FirstOrDefault() ?? ""
             })
-            .OrderByDescending(u => u.TotalAlerts)
+            .Where(u => u.RiskScore >= 700)  // Only show high-risk users (70+ normalized)
+            .OrderByDescending(u => u.TotalAlerts)  // Sort by incident count
             .Take(limit)
             .ToList();
 
