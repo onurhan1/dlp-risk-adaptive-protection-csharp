@@ -102,6 +102,66 @@ public class RiskController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get high-risk users for a specific date (for Daily Trends popup)
+    /// </summary>
+    [HttpGet("high-risk-users")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetHighRiskUsers(
+        [FromQuery] string date)
+    {
+        try
+        {
+            if (!DateTime.TryParse(date, out var parsedDate))
+            {
+                return BadRequest(new { detail = "Invalid date format. Use yyyy-MM-dd" });
+            }
+
+            var startOfDay = parsedDate.Date;
+            var endOfDay = parsedDate.Date.AddDays(1);
+
+            // Get all incidents for that day
+            var incidents = await _context.Incidents
+                .Where(i => i.Timestamp >= startOfDay && i.Timestamp < endOfDay)
+                .ToListAsync();
+
+            // Group by user and calculate max risk score
+            var highRiskUsers = incidents
+                .GroupBy(i => i.UserEmail)
+                .Select(g => new
+                {
+                    UserEmail = g.Key,
+                    LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
+                                 .Select(i => i.LoginName)
+                                 .FirstOrDefault() ?? g.Key,
+                    Department = g.Where(i => !string.IsNullOrEmpty(i.Department))
+                                  .Select(i => i.Department)
+                                  .FirstOrDefault() ?? "",
+                    MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
+                    IncidentCount = g.Count()
+                })
+                .Where(u => u.MaxRiskScore >= 61)  // Legacy high threshold
+                .OrderByDescending(u => u.MaxRiskScore)
+                .ThenByDescending(u => u.IncidentCount)
+                .ToList();
+
+            var result = highRiskUsers.Select(u => new Dictionary<string, object>
+            {
+                { "user_email", u.UserEmail },
+                { "login_name", u.LoginName },
+                { "department", u.Department },
+                { "max_risk_score", u.MaxRiskScore },
+                { "incident_count", u.IncidentCount },
+                { "risk_level", u.MaxRiskScore >= 91 ? "Critical" : u.MaxRiskScore >= 61 ? "High" : "Medium" }
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
     [HttpGet("department-summary")]
     public async Task<ActionResult<List<DepartmentSummary>>> GetDepartmentSummaries(
         [FromQuery] DateTime? startDate,

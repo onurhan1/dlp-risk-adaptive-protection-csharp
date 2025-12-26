@@ -78,7 +78,8 @@ public class RiskAnalyzerService
             {
                 Department = g.Key!,
                 TotalIncidents = g.Count(),
-                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
+                // Use legacy thresholds for backward compatibility with existing 0-100 scale data
+                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.LegacyHighThreshold),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
                 Date = endDate
@@ -87,7 +88,6 @@ public class RiskAnalyzerService
 
         return summaries;
     }
-
     /// <summary>
     /// Get daily summaries
     /// </summary>
@@ -104,7 +104,9 @@ public class RiskAnalyzerService
             {
                 Date = g.Key,
                 TotalIncidents = g.Count(),
-                HighRiskCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
+                // Count unique HIGH RISK USERS (users whose max risk score >= 61 that day)
+                HighRiskCount = g.GroupBy(i => i.UserEmail)
+                                 .Count(userGroup => userGroup.Max(i => i.RiskScore ?? 0) >= RiskConstants.RiskScores.LegacyHighThreshold),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
                 DepartmentsAffected = g.Where(i => !string.IsNullOrEmpty(i.Department))

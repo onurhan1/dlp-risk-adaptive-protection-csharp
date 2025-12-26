@@ -8,6 +8,7 @@ import RiskTimelineChart from '../components/RiskTimelineChart'
 import ChannelActivity from '../components/ChannelActivity'
 import RiskLevelBadge from '../components/RiskLevelBadge'
 import ActionIncidentsModal from '../components/ActionIncidentsModal'
+import HighRiskUsersModal from '../components/HighRiskUsersModal'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -79,6 +80,10 @@ export default function Home() {
   const [selectedAction, setSelectedAction] = useState<string>('')
   const [actionIncidents, setActionIncidents] = useState<any[]>([])
   const [incidentsLoading, setIncidentsLoading] = useState(false)
+
+  // Modal state for high-risk users
+  const [showHighRiskModal, setShowHighRiskModal] = useState(false)
+  const [selectedHighRiskDate, setSelectedHighRiskDate] = useState<string>('')
 
   useEffect(() => {
     fetchData()
@@ -533,7 +538,7 @@ export default function Home() {
                 <tr>
                   <th>Date</th>
                   <th>Total Incidents</th>
-                  <th>High Risk</th>
+                  <th style={{ cursor: 'help' }} title="High-risk users (max risk score ≥ 61)">High Risk Users</th>
                   <th>Avg Score</th>
                   <th>Unique Users</th>
                   <th style={{ width: '200px' }}>Distribution</th>
@@ -578,14 +583,35 @@ export default function Home() {
                             </span>
                           </td>
                           <td>
-                            <span style={{
-                              backgroundColor: highRisk > 0 ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                              color: highRisk > 0 ? '#ef4444' : '#999',
-                              padding: '2px 8px',
-                              borderRadius: '10px',
-                              fontSize: '12px',
-                              fontWeight: '600'
-                            }}>
+                            <span
+                              onClick={() => {
+                                if (highRisk > 0) {
+                                  setSelectedHighRiskDate(dateStr)
+                                  setShowHighRiskModal(true)
+                                }
+                              }}
+                              style={{
+                                backgroundColor: highRisk > 0 ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+                                color: highRisk > 0 ? '#ef4444' : '#999',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: highRisk > 0 ? 'pointer' : 'default',
+                                transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (highRisk > 0) {
+                                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.4)'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (highRisk > 0) {
+                                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'
+                                }
+                              }}
+                              title={highRisk > 0 ? 'Click to view high-risk users' : ''}
+                            >
                               {highRisk}
                             </span>
                           </td>
@@ -879,6 +905,13 @@ export default function Home() {
         date={`${dateRange.start} - ${dateRange.end}`}
         incidents={actionIncidents}
         loading={incidentsLoading}
+      />
+
+      {/* High Risk Users Modal */}
+      <HighRiskUsersModal
+        isOpen={showHighRiskModal}
+        onClose={() => setShowHighRiskModal(false)}
+        date={selectedHighRiskDate}
       />
     </div >
   )
