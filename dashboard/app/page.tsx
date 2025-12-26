@@ -450,7 +450,6 @@ export default function Home() {
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
-                        <RiskLevelBadge riskScore={user.risk_score} showScore={false} />
                         <span>{user.user_email}</span>
                       </div>
                     </td>
@@ -461,9 +460,9 @@ export default function Home() {
                         fontSize: '12px',
                         fontWeight: '600',
                         color: 'white',
-                        backgroundColor: user.risk_score >= 91 ? '#d32f2f' :
-                          user.risk_score >= 61 ? '#f57c00' :
-                            user.risk_score >= 41 ? '#fbc02d' : '#4caf50'
+                        backgroundColor: user.risk_score >= 75 ? '#d32f2f' :
+                          user.risk_score >= 50 ? '#f57c00' :
+                            user.risk_score >= 25 ? '#fbc02d' : '#4caf50'
                       }}>
                         {user.risk_score}
                       </span>
