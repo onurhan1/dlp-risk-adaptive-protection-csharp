@@ -59,34 +59,13 @@ export default function InvestigationUsersList({
         }
       })
 
-      // If no users found, show sample data for demonstration
-      if (usersData.length === 0) {
-        console.log('No users found in database, showing sample data for demonstration')
-        setUsers([
-          { user_email: 'fabiano.cese@example.com', risk_score: 98, total_incidents: 15 },
-          { user_email: 'william.rodrigues@example.com', risk_score: 84, total_incidents: 12 },
-          { user_email: 'jenny.wilson@example.com', risk_score: 75, total_incidents: 8 },
-          { user_email: 'elizabeth.taylor@example.com', risk_score: 68, total_incidents: 6 },
-          { user_email: 'agustin.moreno@example.com', risk_score: 44, total_incidents: 4 },
-          { user_email: 'becky.goodhair@example.com', risk_score: 20, total_incidents: 2 }
-        ])
-        setTotal(6)
-      } else {
-        setUsers(usersData)
-        setTotal(response.data.total || 0)
-      }
+      // Set users from API response - no sample data fallback (causes search issues)
+      setUsers(usersData)
+      setTotal(response.data.total || usersData.length)
     } catch (error) {
       console.error('Error fetching users:', error)
-      // Fallback sample data on error
-      setUsers([
-        { user_email: 'fabiano.cese@example.com', risk_score: 98, total_incidents: 15 },
-        { user_email: 'william.rodrigues@example.com', risk_score: 84, total_incidents: 12 },
-        { user_email: 'jenny.wilson@example.com', risk_score: 75, total_incidents: 8 },
-        { user_email: 'elizabeth.taylor@example.com', risk_score: 68, total_incidents: 6 },
-        { user_email: 'agustin.moreno@example.com', risk_score: 44, total_incidents: 4 },
-        { user_email: 'becky.goodhair@example.com', risk_score: 20, total_incidents: 2 }
-      ])
-      setTotal(6)
+      setUsers([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
