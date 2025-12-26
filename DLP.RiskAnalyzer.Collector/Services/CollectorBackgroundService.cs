@@ -61,7 +61,8 @@ public class CollectorBackgroundService : BackgroundService
     {
         _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1 with TIME CHUNKING...");
 
-        var endTime = DateTime.UtcNow;
+        // Use local time (not UTC) because Forcepoint API expects local time
+        var endTime = DateTime.Now;
         var startTime = endTime.AddHours(-_lookbackHours);
         
         // Time chunk size in hours (smaller chunks = less chance of missing incidents)
