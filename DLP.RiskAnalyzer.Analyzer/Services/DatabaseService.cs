@@ -102,28 +102,38 @@ public class DatabaseService
         var totalSkippedCount = 0;
         var totalErrorCount = 0;
         var batchNumber = 0;
-        const int batchSize = 500; // Increased from 100 to 500
+        const int batchSize = 500;
         
-        // Loop to process ALL pending messages (not just one batch)
-        while (true)
+        // Process messages in two phases: pending first, then new
+        // Phase 1: "0" = pending messages (already read but not acknowledged)
+        // Phase 2: ">" = new messages (not yet read)
+        string[] phases = { "0", ">" };
+        
+        foreach (var phase in phases)
         {
-            batchNumber++;
+            var phaseName = phase == "0" ? "PENDING" : "NEW";
+            var phaseLimit = phase == "0" ? 3 : 10; // Max batches per phase
+            var phaseBatchCount = 0;
             
-            // Read from stream using consumer group to track position
-            var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, ">", count: batchSize);
-            
-            if (messages.Length == 0)
+            while (phaseBatchCount < phaseLimit)
             {
-                break; // No more messages
-            }
+                phaseBatchCount++;
+                batchNumber++;
+                
+                var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, phase, count: batchSize);
+                
+                if (messages.Length == 0)
+                {
+                    break; // No more messages in this phase
+                }
 
-            _logger.LogInformation("Processing batch {BatchNum}: {Count} messages from Redis stream", batchNumber, messages.Length);
+                _logger.LogInformation("Processing {Phase} batch {BatchNum}: {Count} messages", phaseName, batchNumber, messages.Length);
 
-            var processedCount = 0;
-            var skippedCount = 0;
-            var errorCount = 0;
-            
-            foreach (var message in messages)
+                var processedCount = 0;
+                var skippedCount = 0;
+                var errorCount = 0;
+                
+                foreach (var message in messages)
         {
             try
             {
@@ -269,17 +279,11 @@ public class DatabaseService
 
         if (processedCount > 0 || skippedCount > 0)
         {
-            _logger.LogInformation("Batch {BatchNum} completed: {Saved} saved, {Skipped} duplicates skipped, {Errors} errors", 
-                batchNumber, processedCount, skippedCount, errorCount);
+            _logger.LogInformation("{Phase} batch {BatchNum} completed: {Saved} saved, {Skipped} skipped, {Errors} errors", 
+                phaseName, batchNumber, processedCount, skippedCount, errorCount);
         }
-        
-        // Safety limit: max 10 batches per cycle to prevent infinite loop
-        if (batchNumber >= 10)
-        {
-            _logger.LogWarning("Reached max batch limit (10). Remaining messages will be processed next cycle.");
-            break;
-        }
-        } // end while
+            } // end while (phaseBatchCount < phaseLimit)
+        } // end foreach (phase)
 
         if (totalProcessedCount > 0 || totalSkippedCount > 0)
         {
