@@ -217,12 +217,14 @@ public class DatabaseService
                     {
                         await _context.SaveChangesAsync();
                         processedCount++;
+                        _logger.LogDebug("SAVED incident {Id} for user {User} at {Timestamp}", incidentId, userEmail, timestamp);
                     }
-                    catch (DbUpdateException)
+                    catch (DbUpdateException ex)
                     {
                         // Duplicate key or other constraint violation - skip this one
                         _context.Entry(incident).State = EntityState.Detached;
                         skippedCount++;
+                        _logger.LogWarning("DB ERROR for incident {Id}: {Error}", incidentId, ex.InnerException?.Message ?? ex.Message);
                     }
                 }
                 else if (existingIncident.Action != action && !string.IsNullOrEmpty(action))
@@ -260,6 +262,7 @@ public class DatabaseService
                 {
                     // Duplicate with same action - skip
                     skippedCount++;
+                    _logger.LogDebug("SKIPPED duplicate incident {Id} (same action: {Action})", incidentId, existingIncident.Action);
                 }
 
                 // Acknowledge message

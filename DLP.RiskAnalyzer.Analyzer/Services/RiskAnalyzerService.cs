@@ -567,7 +567,8 @@ public class RiskAnalyzerService
                              .Select(i => i.Department)
                              .FirstOrDefault() ?? "",
                 TotalAlerts = g.Count(),
-                RiskScore = g.Max(i => i.RiskScore ?? 0)
+                // Normalize risk score to max 100
+                RiskScore = Math.Min(g.Max(i => i.RiskScore ?? 0), 100)
             })
             .OrderByDescending(u => u.TotalAlerts)
             .Take(10)
