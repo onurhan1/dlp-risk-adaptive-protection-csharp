@@ -98,21 +98,32 @@ public class DatabaseService
             _logger.LogDebug("Consumer group may already exist: {Error}", ex.Message);
         }
 
-        // Read from stream using consumer group to track position
-        var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, ">", count: 100);
+        var totalProcessedCount = 0;
+        var totalSkippedCount = 0;
+        var totalErrorCount = 0;
+        var batchNumber = 0;
+        const int batchSize = 500; // Increased from 100 to 500
         
-        if (messages.Length == 0)
+        // Loop to process ALL pending messages (not just one batch)
+        while (true)
         {
-            return 0; // No new messages
-        }
+            batchNumber++;
+            
+            // Read from stream using consumer group to track position
+            var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, ">", count: batchSize);
+            
+            if (messages.Length == 0)
+            {
+                break; // No more messages
+            }
 
-        _logger.LogDebug("Read {Count} messages from Redis stream", messages.Length);
+            _logger.LogInformation("Processing batch {BatchNum}: {Count} messages from Redis stream", batchNumber, messages.Length);
 
-        var processedCount = 0;
-        var skippedCount = 0;
-        var errorCount = 0;
-        
-        foreach (var message in messages)
+            var processedCount = 0;
+            var skippedCount = 0;
+            var errorCount = 0;
+            
+            foreach (var message in messages)
         {
             try
             {
@@ -251,12 +262,31 @@ public class DatabaseService
             }
         }
 
+        // Track totals across batches
+        totalProcessedCount += processedCount;
+        totalSkippedCount += skippedCount;
+        totalErrorCount += errorCount;
+
         if (processedCount > 0 || skippedCount > 0)
         {
-            _logger.LogInformation("Processed Redis stream: {Saved} saved, {Skipped} duplicates skipped, {Errors} errors", 
-                processedCount, skippedCount, errorCount);
+            _logger.LogInformation("Batch {BatchNum} completed: {Saved} saved, {Skipped} duplicates skipped, {Errors} errors", 
+                batchNumber, processedCount, skippedCount, errorCount);
+        }
+        
+        // Safety limit: max 10 batches per cycle to prevent infinite loop
+        if (batchNumber >= 10)
+        {
+            _logger.LogWarning("Reached max batch limit (10). Remaining messages will be processed next cycle.");
+            break;
+        }
+        } // end while
+
+        if (totalProcessedCount > 0 || totalSkippedCount > 0)
+        {
+            _logger.LogInformation("Total processed in this cycle: {Saved} saved, {Skipped} skipped, {Errors} errors in {Batches} batches", 
+                totalProcessedCount, totalSkippedCount, totalErrorCount, batchNumber);
         }
 
-        return processedCount;
+        return totalProcessedCount;
     }
 }
