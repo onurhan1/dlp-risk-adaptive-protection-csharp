@@ -170,6 +170,14 @@ public class DatabaseService
                 }
 
                 var userEmail = userEmailValue.Value.ToString();
+                
+                // Domain prefix'i kaldır (örn: "KUVEYTTURK\enesa" -> "enesa")
+                // Network email ve Endpoint kullanıcılarını birleştirmek için
+                if (!string.IsNullOrEmpty(userEmail) && userEmail.Contains("\\"))
+                {
+                    userEmail = userEmail.Split('\\').Last();
+                }
+                
                 var department = departmentValue.Value.HasValue ? departmentValue.Value.ToString() : null;
                 var severity = int.Parse(severityValue.Value.ToString());
                 var dataType = dataTypeValue.Value.HasValue ? dataTypeValue.Value.ToString() : null;
@@ -182,6 +190,13 @@ public class DatabaseService
                 var destination = destinationValue.Value.HasValue ? destinationValue.Value.ToString() : null;
                 var fileName = fileNameValue.Value.HasValue ? fileNameValue.Value.ToString() : null;
                 var loginName = loginNameValue.Value.HasValue ? loginNameValue.Value.ToString() : null;
+                
+                // LoginName için de domain prefix'i kaldır
+                if (!string.IsNullOrEmpty(loginName) && loginName.Contains("\\"))
+                {
+                    loginName = loginName.Split('\\').Last();
+                }
+                
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
 
