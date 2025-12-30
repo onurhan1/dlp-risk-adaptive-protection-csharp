@@ -9,14 +9,17 @@ interface RemediateButtonProps {
   incidentId: number
   currentStatus?: string
   onRemediated?: () => void
+  isRemediated?: boolean
+  currentAction?: string
+  currentNotes?: string
 }
 
-export default function RemediateButton({ incidentId, currentStatus, onRemediated }: RemediateButtonProps) {
+export default function RemediateButton({ incidentId, currentStatus, onRemediated, isRemediated, currentAction, currentNotes }: RemediateButtonProps) {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [action, setAction] = useState('resolved')
+  const [action, setAction] = useState(currentAction || 'resolved')
   const [reason, setReason] = useState('')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState(currentNotes || '')
 
   const handleRemediate = async () => {
     setLoading(true)
@@ -33,12 +36,12 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         }
       )
-      
+
       setShowModal(false)
       if (onRemediated) {
         onRemediated()
       }
-      
+
       // Show success message from API response if available
       const message = response.data?.message || 'Incident remediated successfully'
       alert(message)
@@ -51,29 +54,25 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
     }
   }
 
-  if (currentStatus === 'resolved' || currentStatus === 'false_positive') {
-    return (
-      <span style={{ color: '#4caf50', fontSize: '12px' }}>
-        ✓ {currentStatus === 'resolved' ? 'Resolved' : 'False Positive'}
-      </span>
-    )
-  }
+  // Determine button text based on remediation status
+  const buttonText = isRemediated ? 'Update Status' : 'Remediate'
+  const modalTitle = isRemediated ? `Update Remediation #${incidentId}` : `Remediate Incident #${incidentId}`
 
   return (
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="remediate-btn"
+        className={isRemediated ? "update-status-btn" : "remediate-btn"}
         disabled={loading}
       >
-        {loading ? 'Processing...' : 'Remediate'}
+        {loading ? 'Processing...' : buttonText}
       </button>
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Remediate Incident #{incidentId}</h3>
-            
+            <h3>{modalTitle}</h3>
+
             <div className="form-group">
               <label>Action:</label>
               <select value={action} onChange={(e) => setAction(e.target.value)}>
@@ -132,6 +131,26 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
         }
 
         .remediate-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .update-status-btn {
+          padding: 6px 12px;
+          background: #f59e0b;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .update-status-btn:hover {
+          background: #d97706;
+        }
+
+        .update-status-btn:disabled {
           opacity: 0.6;
           cursor: not-allowed;
         }

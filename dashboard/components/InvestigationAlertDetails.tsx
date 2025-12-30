@@ -385,9 +385,20 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             borderRadius: '8px',
             padding: '12px 16px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '18px' }}>✅</span>
-              <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated #{event.id}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>✅</span>
+                <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated #{event.id}</span>
+              </div>
+              <RemediateButton
+                incidentId={event.id}
+                isRemediated={true}
+                currentAction={event.remediationAction}
+                currentNotes={event.remediationNotes}
+                onRemediated={() => {
+                  window.location.reload()
+                }}
+              />
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
               <div style={{ marginBottom: '4px' }}>
