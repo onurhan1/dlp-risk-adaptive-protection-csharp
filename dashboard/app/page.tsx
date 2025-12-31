@@ -477,7 +477,7 @@ export default function Home() {
 
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
           <h2>Data Movement 30 days</h2>
-          <div style={{ position: 'relative', zIndex: 9999, pointerEvents: 'auto' }}>
+          <div style={{ position: 'relative' }}>
             <ChannelActivity days={30} />
           </div>
         </div>

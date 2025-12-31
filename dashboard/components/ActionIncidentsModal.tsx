@@ -31,7 +31,7 @@ export default function ActionIncidentsModal({
     incidents,
     loading = false
 }: ActionIncidentsModalProps) {
-    // Search filter states - what user types
+    // Search filter states
     const [filters, setFilters] = useState({
         login_name: '',
         destination: '',
@@ -39,33 +39,15 @@ export default function ActionIncidentsModal({
         policy: ''
     })
 
-    // Debounced filters - actual filter values (updates 300ms after typing stops)
-    const [debouncedFilters, setDebouncedFilters] = useState({
-        login_name: '',
-        destination: '',
-        channel: '',
-        policy: ''
-    })
-
-    // Debounce effect - delays filter update by 300ms
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedFilters(filters)
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [filters])
-
     // Reset filters when modal opens
     useEffect(() => {
         if (isOpen) {
-            const emptyFilters = {
+            setFilters({
                 login_name: '',
                 destination: '',
                 channel: '',
                 policy: ''
-            }
-            setFilters(emptyFilters)
-            setDebouncedFilters(emptyFilters)
+            })
         }
     }, [isOpen])
 
@@ -80,22 +62,33 @@ export default function ActionIncidentsModal({
         }
     }, [isOpen, onClose])
 
-    // Filtered incidents based on DEBOUNCED filters (prevents lag while typing)
+    // Filtered incidents based on search filters
     const filteredIncidents = useMemo(() => {
         return incidents.filter(incident => {
-            const matchLoginName = !debouncedFilters.login_name ||
-                incident.login_name?.toLowerCase().includes(debouncedFilters.login_name.toLowerCase())
-            const matchDestination = !debouncedFilters.destination ||
-                incident.destination?.toLowerCase().includes(debouncedFilters.destination.toLowerCase())
-            const matchChannel = !debouncedFilters.channel ||
-                incident.channel?.toLowerCase().includes(debouncedFilters.channel.toLowerCase())
-            const matchPolicy = !debouncedFilters.policy ||
-                incident.policy?.toLowerCase().includes(debouncedFilters.policy.toLowerCase()) ||
-                incident.rule_name?.toLowerCase().includes(debouncedFilters.policy.toLowerCase())
+            const matchLoginName = !filters.login_name ||
+                incident.login_name?.toLowerCase().includes(filters.login_name.toLowerCase())
+            const matchDestination = !filters.destination ||
+                incident.destination?.toLowerCase().includes(filters.destination.toLowerCase())
+            const matchChannel = !filters.channel ||
+                incident.channel?.toLowerCase().includes(filters.channel.toLowerCase())
+            const matchPolicy = !filters.policy ||
+                incident.policy?.toLowerCase().includes(filters.policy.toLowerCase()) ||
+                incident.rule_name?.toLowerCase().includes(filters.policy.toLowerCase())
 
             return matchLoginName && matchDestination && matchChannel && matchPolicy
         })
-    }, [incidents, debouncedFilters])
+    }, [incidents, filters])
+
+    // Get unique values for autocomplete suggestions
+    const uniqueValues = useMemo(() => ({
+        login_names: Array.from(new Set(incidents.map(i => i.login_name).filter(Boolean))).sort(),
+        destinations: Array.from(new Set(incidents.map(i => i.destination).filter(Boolean))).sort(),
+        channels: Array.from(new Set(incidents.map(i => i.channel).filter(Boolean))).sort(),
+        policies: Array.from(new Set([
+            ...incidents.map(i => i.policy).filter(Boolean),
+            ...incidents.map(i => i.rule_name).filter(Boolean)
+        ])).sort()
+    }), [incidents])
 
     // Check if any filter is active
     const hasActiveFilters = Object.values(filters).some(f => f.length > 0)
@@ -302,38 +295,62 @@ export default function ActionIncidentsModal({
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Filter login..."
+                                            list="login-names-list"
+                                            placeholder="Search or select login..."
                                             value={filters.login_name}
                                             onChange={(e) => setFilters(f => ({ ...f, login_name: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="login-names-list">
+                                            {uniqueValues.login_names.map((name, i) => (
+                                                <option key={i} value={name} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Filter destination..."
+                                            list="destinations-list"
+                                            placeholder="Search or select destination..."
                                             value={filters.destination}
                                             onChange={(e) => setFilters(f => ({ ...f, destination: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="destinations-list">
+                                            {uniqueValues.destinations.map((dest, i) => (
+                                                <option key={i} value={dest} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Filter channel..."
+                                            list="channels-list"
+                                            placeholder="Search or select channel..."
                                             value={filters.channel}
                                             onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="channels-list">
+                                            {uniqueValues.channels.map((ch, i) => (
+                                                <option key={i} value={ch} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}>
                                         <input
                                             type="text"
-                                            placeholder="Filter policy..."
+                                            list="policies-list"
+                                            placeholder="Search or select policy..."
                                             value={filters.policy}
                                             onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
                                             style={inputStyle}
                                         />
+                                        <datalist id="policies-list">
+                                            {uniqueValues.policies.map((pol, i) => (
+                                                <option key={i} value={pol} />
+                                            ))}
+                                        </datalist>
                                     </td>
                                     <td style={{ padding: '8px 12px' }}></td>
                                     {action === 'TOTAL' && <td style={{ padding: '8px 12px' }}></td>}
