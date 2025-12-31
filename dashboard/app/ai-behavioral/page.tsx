@@ -63,11 +63,11 @@ export default function AIBehavioralPage() {
     }
   }, [lookbackDays])
 
-  const fetchOverview = async () => {
+  const fetchOverview = async (forceRefresh: boolean = false) => {
     setLoading(true)
     try {
       const response = await apiClient.get('/api/ai-behavioral/overview', {
-        params: { lookbackDays }
+        params: { lookbackDays, forceRefresh }
       })
       setOverview(response.data)
     } catch (error: any) {
@@ -220,7 +220,7 @@ export default function AIBehavioralPage() {
             </select>
           </label>
           <button
-            onClick={fetchOverview}
+            onClick={() => fetchOverview(true)}
             disabled={loading}
             style={{
               padding: '8px 16px',

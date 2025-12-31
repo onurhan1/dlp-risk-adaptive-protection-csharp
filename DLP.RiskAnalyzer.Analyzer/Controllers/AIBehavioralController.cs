@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -10,20 +11,29 @@ public class AIBehavioralController : ControllerBase
 {
     private readonly BehaviorEngineService _behaviorEngine;
     private readonly ILogger<AIBehavioralController> _logger;
+    private readonly IMemoryCache _cache;
+    
+    // Cache settings
+    private const string CacheKeyPrefix = "ai-behavioral-overview";
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
     public AIBehavioralController(
         BehaviorEngineService behaviorEngine,
-        ILogger<AIBehavioralController> logger)
+        ILogger<AIBehavioralController> logger,
+        IMemoryCache cache)
     {
         _behaviorEngine = behaviorEngine;
         _logger = logger;
+        _cache = cache;
     }
 
     /// <summary>
-    /// Get AI behavioral analysis overview
+    /// Get AI behavioral analysis overview (cached for 5 minutes)
     /// </summary>
     [HttpGet("overview")]
-    public async Task<ActionResult<AIBehavioralOverviewResponse>> GetOverview([FromQuery] int lookbackDays = 7)
+    public async Task<ActionResult<AIBehavioralOverviewResponse>> GetOverview(
+        [FromQuery] int lookbackDays = 7,
+        [FromQuery] bool forceRefresh = false)
     {
         try
         {
@@ -32,7 +42,34 @@ public class AIBehavioralController : ControllerBase
                 return BadRequest(new { detail = "lookbackDays must be between 1 and 30" });
             }
 
+            var cacheKey = $"{CacheKeyPrefix}-{lookbackDays}";
+            
+            // Check if force refresh is requested
+            if (forceRefresh)
+            {
+                _cache.Remove(cacheKey);
+                _logger.LogInformation("Cache cleared for AI behavioral overview (forceRefresh=true)");
+            }
+
+            // Try to get from cache
+            if (_cache.TryGetValue(cacheKey, out AIBehavioralOverviewResponse? cachedOverview) && cachedOverview != null)
+            {
+                _logger.LogDebug("Returning cached AI behavioral overview for {LookbackDays} days", lookbackDays);
+                return Ok(cachedOverview);
+            }
+
+            // Calculate and cache
+            _logger.LogInformation("Calculating AI behavioral overview for {LookbackDays} days (cache miss)", lookbackDays);
             var overview = await _behaviorEngine.AnalyzeOverviewAsync(lookbackDays);
+            
+            // Cache the result
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(CacheDuration)
+                .SetSlidingExpiration(TimeSpan.FromMinutes(2));
+            
+            _cache.Set(cacheKey, overview, cacheOptions);
+            _logger.LogInformation("AI behavioral overview cached for {Duration} minutes", CacheDuration.TotalMinutes);
+
             return Ok(overview);
         }
         catch (Exception ex)

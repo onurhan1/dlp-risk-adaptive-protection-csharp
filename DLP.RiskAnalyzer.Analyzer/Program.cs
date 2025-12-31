@@ -25,6 +25,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
     });
 builder.Services.AddDataProtection();
+builder.Services.AddMemoryCache(); // For AI Behavioral caching
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
