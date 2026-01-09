@@ -8,8 +8,8 @@ namespace DLP.RiskAnalyzer.Shared.Services;
 public class RiskAnalyzer
 {
     /// <summary>
-    /// Risk skoru hesapla (YENİ FORMÜL - Severity kaldırıldı):
-    /// BaseScore = (WeeklyRepeatCount × 3) + (DataSensitivity × 3) + (MaxMatches × 4)
+    /// Risk skoru hesapla (GÜNCEL FORMÜL):
+    /// BaseScore = (PolicyRepeatCount × 3) + (DataSensitivity × 2) + MaxMatchesTier
     /// FinalScore = BaseScore × ActionMultiplier
     /// 
     /// Action Multipliers:
@@ -18,17 +18,42 @@ public class RiskAnalyzer
     /// 
     /// Dashboard'da /10 olarak gösterilir (0-100 ölçeği)
     /// </summary>
-    public int CalculateRiskScore(int weeklyRepeatCount, int dataSensitivity, int maxMatches, string? action)
+    public int CalculateRiskScore(int policyRepeatCount, int dataSensitivity, int maxMatches, string? action)
     {
-        // Base score without Severity
-        var baseScore = (weeklyRepeatCount * 3.0) + (dataSensitivity * 3.0) + (maxMatches * 4.0);
+        // Cap repeat count at 20 for formula (max contribution: 60)
+        var cappedRepeatCount = Math.Min(policyRepeatCount, 20);
+        
+        // Base score with tier-based MaxMatches
+        var repeatScore = cappedRepeatCount * 3.0;          // Max: 60
+        var sensitivityScore = dataSensitivity * 2.0;       // Max: 20
+        var maxMatchesScore = GetMaxMatchesTier(maxMatches); // Max: 60
+        
+        var baseScore = repeatScore + sensitivityScore + maxMatchesScore;
         
         // Apply action multiplier
         var actionMultiplier = GetActionMultiplier(action);
         var finalScore = baseScore * actionMultiplier;
         
-        // Cap at 1000
-        return (int)Math.Min(1000, finalScore);
+        // Cap at 1000 (internal scale, displayed as 100)
+        return (int)Math.Min(1000, finalScore * 10); // Scale to 1000
+    }
+    
+    /// <summary>
+    /// Tier-based MaxMatches puanlama
+    /// MaxMatches sayısına göre tier puanı döner
+    /// </summary>
+    public int GetMaxMatchesTier(int maxMatches)
+    {
+        return maxMatches switch
+        {
+            <= 15 => 5,      // 0-15: Düşük
+            <= 30 => 10,     // 16-30: Orta-Düşük
+            <= 50 => 18,     // 31-50: Orta
+            <= 100 => 28,    // 51-100: Yüksek
+            <= 250 => 38,    // 101-250: Çok Yüksek
+            <= 500 => 48,    // 251-500: Kritik
+            _ => 60          // 500+: Maksimum
+        };
     }
     
     /// <summary>
@@ -54,12 +79,11 @@ public class RiskAnalyzer
     }
     
     /// <summary>
-    /// Eski metot - geriye uyumluluk için (severity parametresi artık kullanılmıyor)
+    /// Eski metot - geriye uyumluluk için
     /// </summary>
     [Obsolete("Use CalculateRiskScore with action parameter")]
     public int CalculateRiskScoreLegacy(int severity, int repeatCount, int dataSensitivity, int maxMatches = 0)
     {
-        // Eski formül - geriye uyumluluk için, action null olarak hesapla
         return CalculateRiskScore(repeatCount, dataSensitivity, maxMatches, null);
     }
 

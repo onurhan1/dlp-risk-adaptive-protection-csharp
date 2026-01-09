@@ -79,6 +79,23 @@ public class IncidentRepository : IIncidentRepository
                             i.Timestamp < beforeDate);
     }
 
+    /// <summary>
+    /// Politika bazlı repeat count hesapla
+    /// Her politika için o kullanıcının önceki incident sayısını döner
+    /// </summary>
+    public async Task<Dictionary<string, int>> GetPolicyRepeatCountsAsync(string userEmail, DateTime beforeDate)
+    {
+        var counts = await _context.Incidents
+            .Where(i => i.UserEmail == userEmail && 
+                        i.Timestamp < beforeDate &&
+                        !string.IsNullOrEmpty(i.Policy))
+            .GroupBy(i => i.Policy!)
+            .Select(g => new { Policy = g.Key, Count = g.Count() })
+            .ToListAsync();
+        
+        return counts.ToDictionary(x => x.Policy, x => x.Count);
+    }
+
     public async Task<int> UpdateIncidentsAsync(IEnumerable<Incident> incidents)
     {
         var updatedCount = 0;

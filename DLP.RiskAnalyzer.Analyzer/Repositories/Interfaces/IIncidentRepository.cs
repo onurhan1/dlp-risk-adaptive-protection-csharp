@@ -14,6 +14,7 @@ public interface IIncidentRepository
     Task<List<Incident>> GetIncidentsWithoutRiskScoreAsync();
     Task<int> GetPreviousIncidentsCountAsync(string userEmail, DateTime beforeDate);
     Task<int> GetWeeklyIncidentsCountAsync(string userEmail, DateTime beforeDate);
+    Task<Dictionary<string, int>> GetPolicyRepeatCountsAsync(string userEmail, DateTime beforeDate);
     Task<int> UpdateIncidentsAsync(IEnumerable<Incident> incidents);
     Task<List<Incident>> GetIncidentsByChannelAsync(DateOnly startDate, DateOnly endDate);
     Task<List<Incident>> GetRecentIncidentsAsync(int count);

@@ -204,7 +204,7 @@ public class RiskAnalyzerService
 
     /// <summary>
 /// Calculate risk scores for incidents without scores
-/// YENİ FORMÜL: Severity kaldırıldı, weekly repeat count ve action multiplier eklendi
+/// GÜNCEL FORMÜL: Policy bazlı repeat count, tier-based MaxMatches, action multiplier
 /// </summary>
 public async Task<int> CalculateRiskScoresAsync()
 {
@@ -213,23 +213,66 @@ public async Task<int> CalculateRiskScoresAsync()
     var updatedCount = 0;
     foreach (var incident in incidentsWithoutScores)
     {
-        // Calculate WEEKLY repeat count (son 7 gün içindeki incident sayısı)
-        var weeklyRepeatCount = await _incidentRepository.GetWeeklyIncidentsCountAsync(
+        // Get policy repeat counts (her politika için ayrı count)
+        var policyRepeatCounts = await _incidentRepository.GetPolicyRepeatCountsAsync(
             incident.UserEmail, incident.Timestamp);
+        
+        // Incident'ın politikası için repeat count al
+        // Birden fazla politika varsa en yüksek repeat count kullanılır
+        var policyRepeatCount = 0;
+        if (!string.IsNullOrEmpty(incident.Policy))
+        {
+            // Mevcut incident'ın politikası için count
+            policyRepeatCount = policyRepeatCounts.GetValueOrDefault(incident.Policy, 0);
+            
+            // ViolationTriggers içinde başka politikalar varsa onları da kontrol et
+            if (!string.IsNullOrEmpty(incident.ViolationTriggers))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(incident.ViolationTriggers);
+                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var trigger in doc.RootElement.EnumerateArray())
+                        {
+                            string? policyName = null;
+                            if (trigger.TryGetProperty("PolicyName", out var policyNameEl))
+                                policyName = policyNameEl.GetString();
+                            else if (trigger.TryGetProperty("policy_name", out var policyNameEl2))
+                                policyName = policyNameEl2.GetString();
+                            
+                            if (!string.IsNullOrEmpty(policyName))
+                            {
+                                var count = policyRepeatCounts.GetValueOrDefault(policyName, 0);
+                                if (count > policyRepeatCount)
+                                    policyRepeatCount = count;
+                            }
+                        }
+                    }
+                }
+                catch { /* JSON parse hatası - mevcut değeri kullan */ }
+            }
+        }
+        else
+        {
+            // Politika yoksa tüm repeat count'ların en yükseği
+            policyRepeatCount = policyRepeatCounts.Values.DefaultIfEmpty(0).Max();
+        }
 
         // Calculate data sensitivity (based on data type and severity)
         var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
 
         // Calculate risk score with new formula:
-        // - Severity kaldırıldı
-        // - Action multiplier eklendi (BLOCK/QUARANTINE=100%, AUTHORIZED/RELEASED=20%)
+        // - Tier-based MaxMatches
+        // - Policy-based repeat count
+        // - Action multiplier (BLOCK/QUARANTINE=100%, AUTHORIZED/RELEASED=20%)
         incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
-            weeklyRepeatCount,
+            policyRepeatCount,
             dataSensitivity,
             incident.MaxMatches,
-            incident.Action);  // Action parameter for multiplier
+            incident.Action);
         
-        incident.RepeatCount = weeklyRepeatCount;  // Artık weekly count kaydediliyor
+        incident.RepeatCount = policyRepeatCount;  // Policy bazlı repeat count
         incident.DataSensitivity = dataSensitivity;
         incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
 
