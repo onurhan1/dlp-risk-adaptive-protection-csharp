@@ -253,6 +253,10 @@ public class DatabaseService
                     existingIncident.Action = action;
                     existingIncident.Timestamp = timestamp;  // Update timestamp to latest
                     
+                    // IMPORTANT: Reset risk_score so it gets recalculated with new action multiplier
+                    // QUARANTINE (100%) -> RELEASED (20%) gibi değişikliklerde skor yeniden hesaplanmalı
+                    existingIncident.RiskScore = null;
+                    
                     // Update other fields that might have changed
                     if (!string.IsNullOrEmpty(destination))
                         existingIncident.Destination = destination;
