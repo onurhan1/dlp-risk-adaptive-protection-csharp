@@ -203,42 +203,46 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
-    /// Calculate risk scores for incidents without scores
-    /// </summary>
-    public async Task<int> CalculateRiskScoresAsync()
+/// Calculate risk scores for incidents without scores
+/// YENİ FORMÜL: Severity kaldırıldı, weekly repeat count ve action multiplier eklendi
+/// </summary>
+public async Task<int> CalculateRiskScoresAsync()
+{
+    var incidentsWithoutScores = await _incidentRepository.GetIncidentsWithoutRiskScoreAsync();
+
+    var updatedCount = 0;
+    foreach (var incident in incidentsWithoutScores)
     {
-        var incidentsWithoutScores = await _incidentRepository.GetIncidentsWithoutRiskScoreAsync();
+        // Calculate WEEKLY repeat count (son 7 gün içindeki incident sayısı)
+        var weeklyRepeatCount = await _incidentRepository.GetWeeklyIncidentsCountAsync(
+            incident.UserEmail, incident.Timestamp);
 
-        var updatedCount = 0;
-        foreach (var incident in incidentsWithoutScores)
-        {
-            // Calculate repeat count (how many times this user had similar incidents)
-            var repeatCount = await _incidentRepository.GetPreviousIncidentsCountAsync(
-                incident.UserEmail, incident.Timestamp);
+        // Calculate data sensitivity (based on data type and severity)
+        var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
 
-            // Calculate data sensitivity (based on data type and severity)
-            var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
+        // Calculate risk score with new formula:
+        // - Severity kaldırıldı
+        // - Action multiplier eklendi (BLOCK/QUARANTINE=100%, AUTHORIZED/RELEASED=20%)
+        incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
+            weeklyRepeatCount,
+            dataSensitivity,
+            incident.MaxMatches,
+            incident.Action);  // Action parameter for multiplier
+        
+        incident.RepeatCount = weeklyRepeatCount;  // Artık weekly count kaydediliyor
+        incident.DataSensitivity = dataSensitivity;
+        incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
 
-            // Calculate risk score with new formula including MaxMatches
-            incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
-                incident.Severity,
-                repeatCount,
-                dataSensitivity,
-                incident.MaxMatches);  // New parameter
-            incident.RepeatCount = repeatCount;
-            incident.DataSensitivity = dataSensitivity;
-            incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
-
-            updatedCount++;
-        }
-
-        if (updatedCount > 0)
-        {
-            await _incidentRepository.UpdateIncidentsAsync(incidentsWithoutScores);
-        }
-
-        return updatedCount;
+        updatedCount++;
     }
+
+    if (updatedCount > 0)
+    {
+        await _incidentRepository.UpdateIncidentsAsync(incidentsWithoutScores);
+    }
+
+    return updatedCount;
+}
 
     private int CalculateDataSensitivity(string? dataType, int severity)
     {

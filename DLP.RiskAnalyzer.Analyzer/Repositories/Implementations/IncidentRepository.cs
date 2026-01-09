@@ -67,6 +67,18 @@ public class IncidentRepository : IIncidentRepository
             .CountAsync(i => i.UserEmail == userEmail && i.Timestamp < beforeDate);
     }
 
+    /// <summary>
+    /// Son 7 gün içindeki incident sayısını hesapla (Weekly Repeat Count)
+    /// </summary>
+    public async Task<int> GetWeeklyIncidentsCountAsync(string userEmail, DateTime beforeDate)
+    {
+        var weekAgo = beforeDate.AddDays(-7);
+        return await _context.Incidents
+            .CountAsync(i => i.UserEmail == userEmail && 
+                            i.Timestamp >= weekAgo && 
+                            i.Timestamp < beforeDate);
+    }
+
     public async Task<int> UpdateIncidentsAsync(IEnumerable<Incident> incidents)
     {
         var updatedCount = 0;

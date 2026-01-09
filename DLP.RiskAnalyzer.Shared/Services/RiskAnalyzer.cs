@@ -8,24 +8,59 @@ namespace DLP.RiskAnalyzer.Shared.Services;
 public class RiskAnalyzer
 {
     /// <summary>
-    /// Risk skoru hesapla: 
-    /// RiskScore = (Severity × 2.5) + (RepeatCount × 1.5) + (DataSensitivity × 2) + (MaxMatches × 4)
-    /// Dashboard'da /10 olarak gösterilir
+    /// Risk skoru hesapla (YENİ FORMÜL - Severity kaldırıldı):
+    /// BaseScore = (WeeklyRepeatCount × 3) + (DataSensitivity × 3) + (MaxMatches × 4)
+    /// FinalScore = BaseScore × ActionMultiplier
+    /// 
+    /// Action Multipliers:
+    /// - BLOCK/BLOCKED/QUARANTINE/QUARANTINED: 1.0 (100%)
+    /// - AUTHORIZED/RELEASED/PERMIT/null: 0.2 (20%)
+    /// 
+    /// Dashboard'da /10 olarak gösterilir (0-100 ölçeği)
     /// </summary>
-    public int CalculateRiskScore(int severity, int repeatCount, int dataSensitivity, int maxMatches = 0)
+    public int CalculateRiskScore(int weeklyRepeatCount, int dataSensitivity, int maxMatches, string? action)
     {
-        var baseScore = (severity * 2.5) + (repeatCount * 1.5) + (dataSensitivity * 2) + (maxMatches * 4);
+        // Base score without Severity
+        var baseScore = (weeklyRepeatCount * 3.0) + (dataSensitivity * 3.0) + (maxMatches * 4.0);
+        
+        // Apply action multiplier
+        var actionMultiplier = GetActionMultiplier(action);
+        var finalScore = baseScore * actionMultiplier;
+        
         // Cap at 1000
-        return (int)Math.Min(1000, baseScore);
+        return (int)Math.Min(1000, finalScore);
     }
     
     /// <summary>
-    /// Eski metot - geriye uyumluluk için
+    /// Get action multiplier for risk calculation
+    /// BLOCK/QUARANTINE = 100%, AUTHORIZED/RELEASED/PERMIT = 20%
     /// </summary>
-    [Obsolete("Use CalculateRiskScore with maxMatches parameter")]
-    public int CalculateRiskScoreLegacy(int severity, int repeatCount, int dataSensitivity)
+    public double GetActionMultiplier(string? action)
     {
-        return CalculateRiskScore(severity, repeatCount, dataSensitivity, 0);
+        if (string.IsNullOrEmpty(action))
+            return 0.2; // Default to 20% for unknown/null actions
+            
+        var normalizedAction = action.ToUpperInvariant();
+        
+        return normalizedAction switch
+        {
+            "BLOCK" or "BLOCKED" => 1.0,           // 100%
+            "QUARANTINE" or "QUARANTINED" => 1.0,  // 100%
+            "AUTHORIZED" => 0.2,                    // 20% (false positive azaltma)
+            "RELEASED" => 0.2,                      // 20% (karantinadan çıkarılan)
+            "PERMIT" => 0.2,                        // 20%
+            _ => 0.2                                // Default 20%
+        };
+    }
+    
+    /// <summary>
+    /// Eski metot - geriye uyumluluk için (severity parametresi artık kullanılmıyor)
+    /// </summary>
+    [Obsolete("Use CalculateRiskScore with action parameter")]
+    public int CalculateRiskScoreLegacy(int severity, int repeatCount, int dataSensitivity, int maxMatches = 0)
+    {
+        // Eski formül - geriye uyumluluk için, action null olarak hesapla
+        return CalculateRiskScore(repeatCount, dataSensitivity, maxMatches, null);
     }
 
     /// <summary>
