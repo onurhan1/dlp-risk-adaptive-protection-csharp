@@ -11,15 +11,15 @@ export default function Sidebar() {
   return (
     <div className="sidebar">
       <div className="sidebar-logo">
-        <div style={{ 
+        <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '12px'
         }}>
-          <div style={{ 
-            width: '36px', 
-            height: '36px', 
-            background: 'linear-gradient(135deg, #00a8e8 0%, #0066cc 100%)', 
+          <div style={{
+            width: '36px',
+            height: '36px',
+            background: 'linear-gradient(135deg, #00a8e8 0%, #0066cc 100%)',
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
@@ -36,7 +36,7 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-      
+
       <div style={{ padding: '8px 0', flex: 1 }}>
         <Link href="/" className={`sidebar-icon ${pathname === '/' ? 'active' : ''}`}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -128,4 +128,3 @@ export default function Sidebar() {
     </div>
   )
 }
-
