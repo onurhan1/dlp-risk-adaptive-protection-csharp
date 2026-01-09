@@ -41,8 +41,29 @@ Write-Host ""
 try {
     $env:PGPASSWORD = "postgres"  # Şifre gerekiyorsa buraya yazın veya pgpass.conf kullanın
     
-    # pg_dump komutunu çalıştır
-    $pgDumpPath = "pg_dump"  # PATH'te olmalı, yoksa tam yolu yazın
+    # pg_dump komutunu bul
+    $pgDumpPath = $null
+    
+    # PostgreSQL kurulum dizinlerini kontrol et
+    $possiblePaths = @(
+        "C:\Program Files\PostgreSQL\16\bin\pg_dump.exe",
+        "C:\Program Files\PostgreSQL\16\pgAdmin 4\runtime\pg_dump.exe"
+    )
+    
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $pgDumpPath = $path
+            Write-Host "    pg_dump bulundu: $path" -ForegroundColor $Green
+            break
+        }
+    }
+    
+    if (-not $pgDumpPath) {
+        Write-Host "[HATA] pg_dump bulunamadi! PostgreSQL kurulu mu?" -ForegroundColor $Red
+        Write-Host "Kontrol edilen yollar:" -ForegroundColor $Yellow
+        $possiblePaths | ForEach-Object { Write-Host "  - $_" }
+        exit 1
+    }
     
     & $pgDumpPath -U $PostgresUser -d $DatabaseName -f $BackupFile -F p --verbose 2>&1 | ForEach-Object {
         if ($_ -match "error|fatal") {
