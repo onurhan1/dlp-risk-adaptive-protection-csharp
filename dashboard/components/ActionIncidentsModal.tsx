@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
@@ -17,10 +17,37 @@ interface ActionIncident {
     violation_triggers?: string
 }
 
+interface PaginatedResponse {
+    items: ActionIncident[]
+    page: number
+    pageSize: number
+    totalCount: number
+    totalPages: number
+    hasNextPage: boolean
+    hasPreviousPage: boolean
+}
+
 interface ActionIncidentsModalProps {
     isOpen: boolean
     onClose: () => void
     action: string
+}
+
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value)
+        }, delay)
+
+        return () => {
+            clearTimeout(handler)
+        }
+    }, [value, delay])
+
+    return debouncedValue
 }
 
 export default function ActionIncidentsModal({
@@ -28,39 +55,50 @@ export default function ActionIncidentsModal({
     onClose,
     action
 }: ActionIncidentsModalProps) {
-    // Date range state - inside modal
+    // Date range state
     const [dateRange, setDateRange] = useState({
         start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
         end: format(new Date(), 'yyyy-MM-dd')
     })
 
-    const [incidents, setIncidents] = useState<ActionIncident[]>([])
-    const [loading, setLoading] = useState(false)
+    // Pagination state
+    const [page, setPage] = useState(1)
+    const [pageSize] = useState(100)
+    const [totalCount, setTotalCount] = useState(0)
+    const [totalPages, setTotalPages] = useState(0)
 
-    // Search filter states
+    // Filter states
     const [filters, setFilters] = useState({
-        login_name: '',
-        destination: '',
+        search: '',
         channel: '',
         policy: ''
     })
 
-    // Fetch incidents when modal opens or date range changes
+    // Debounced filters for server-side search
+    const debouncedSearch = useDebounce(filters.search, 500)
+    const debouncedChannel = useDebounce(filters.channel, 500)
+    const debouncedPolicy = useDebounce(filters.policy, 500)
+
+    const [incidents, setIncidents] = useState<ActionIncident[]>([])
+    const [loading, setLoading] = useState(false)
+
+    // Fetch incidents when modal opens or filters/pagination change
     useEffect(() => {
         if (isOpen) {
             fetchIncidents()
         }
-    }, [isOpen, dateRange.start, dateRange.end, action])
+    }, [isOpen, dateRange.start, dateRange.end, action, page, debouncedSearch, debouncedChannel, debouncedPolicy])
 
-    // Reset filters when modal opens
+    // Reset page when filters change
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch, debouncedChannel, debouncedPolicy, dateRange.start, dateRange.end])
+
+    // Reset all when modal opens
     useEffect(() => {
         if (isOpen) {
-            setFilters({
-                login_name: '',
-                destination: '',
-                channel: '',
-                policy: ''
-            })
+            setFilters({ search: '', channel: '', policy: '' })
+            setPage(1)
         }
     }, [isOpen])
 
@@ -68,17 +106,26 @@ export default function ActionIncidentsModal({
         setLoading(true)
         try {
             const apiUrl = getApiUrlDynamic()
-            const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
+            const response = await axios.get<PaginatedResponse>(`${apiUrl}/api/risk/incidents/by-action`, {
                 params: {
                     action: action,
                     start_date: dateRange.start,
-                    end_date: dateRange.end
+                    end_date: dateRange.end,
+                    page: page,
+                    pageSize: pageSize,
+                    search: debouncedSearch || undefined,
+                    channel: debouncedChannel || undefined,
+                    policy: debouncedPolicy || undefined
                 }
             })
-            setIncidents(response.data || [])
+            setIncidents(response.data.items || [])
+            setTotalCount(response.data.totalCount || 0)
+            setTotalPages(response.data.totalPages || 0)
         } catch (error) {
             console.error('Error fetching action incidents:', error)
             setIncidents([])
+            setTotalCount(0)
+            setTotalPages(0)
         } finally {
             setLoading(false)
         }
@@ -95,45 +142,13 @@ export default function ActionIncidentsModal({
         }
     }, [isOpen, onClose])
 
-    // Filtered incidents based on search filters
-    const filteredIncidents = useMemo(() => {
-        return incidents.filter(incident => {
-            const matchLoginName = !filters.login_name ||
-                incident.login_name?.toLowerCase().includes(filters.login_name.toLowerCase())
-            const matchDestination = !filters.destination ||
-                incident.destination?.toLowerCase().includes(filters.destination.toLowerCase())
-            const matchChannel = !filters.channel ||
-                incident.channel?.toLowerCase().includes(filters.channel.toLowerCase())
-            const matchPolicy = !filters.policy ||
-                incident.policy?.toLowerCase().includes(filters.policy.toLowerCase()) ||
-                incident.rule_name?.toLowerCase().includes(filters.policy.toLowerCase())
-
-            return matchLoginName && matchDestination && matchChannel && matchPolicy
-        })
-    }, [incidents, filters])
-
-    // Get unique values for autocomplete suggestions
-    const uniqueValues = useMemo(() => ({
-        login_names: Array.from(new Set(incidents.map(i => i.login_name).filter(Boolean))).sort(),
-        destinations: Array.from(new Set(incidents.map(i => i.destination).filter(Boolean))).sort(),
-        channels: Array.from(new Set(incidents.map(i => i.channel).filter(Boolean))).sort(),
-        policies: Array.from(new Set([
-            ...incidents.map(i => i.policy).filter(Boolean),
-            ...incidents.map(i => i.rule_name).filter(Boolean)
-        ])).sort()
-    }), [incidents])
-
     // Check if any filter is active
-    const hasActiveFilters = Object.values(filters).some(f => f.length > 0)
+    const hasActiveFilters = filters.search || filters.channel || filters.policy
 
     // Clear all filters
     const clearFilters = () => {
-        setFilters({
-            login_name: '',
-            destination: '',
-            channel: '',
-            policy: ''
-        })
+        setFilters({ search: '', channel: '', policy: '' })
+        setPage(1)
     }
 
     if (!isOpen) return null
@@ -150,10 +165,10 @@ export default function ActionIncidentsModal({
 
     const inputStyle = {
         width: '100%',
-        padding: '6px 10px',
-        fontSize: '12px',
+        padding: '8px 12px',
+        fontSize: '13px',
         border: '1px solid var(--border)',
-        borderRadius: '4px',
+        borderRadius: '6px',
         backgroundColor: 'var(--background)',
         color: 'var(--text-primary)',
         outline: 'none',
@@ -169,6 +184,17 @@ export default function ActionIncidentsModal({
         color: 'var(--text-primary)',
         outline: 'none'
     }
+
+    const pageButtonStyle = (disabled: boolean) => ({
+        padding: '8px 16px',
+        fontSize: '13px',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        backgroundColor: disabled ? 'var(--background-secondary)' : 'var(--surface)',
+        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontWeight: '500'
+    })
 
     return (
         <>
@@ -211,41 +237,56 @@ export default function ActionIncidentsModal({
                 <div style={{
                     padding: '20px 24px',
                     borderBottom: '1px solid var(--border)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
                     flexShrink: 0
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                        <div>
-                            <h2 style={{
-                                margin: 0,
-                                fontSize: '20px',
-                                fontWeight: '600',
-                                color: 'var(--text-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px'
-                            }}>
-                                <span style={{
-                                    width: '8px',
-                                    height: '8px',
-                                    borderRadius: '50%',
-                                    backgroundColor: actionColor
-                                }} />
-                                {action} Incidents
-                            </h2>
-                        </div>
-
-                        {/* Date Range Picker */}
-                        <div style={{
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h2 style={{
+                            margin: 0,
+                            fontSize: '20px',
+                            fontWeight: '600',
+                            color: 'var(--text-primary)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            backgroundColor: 'var(--background-secondary)',
-                            padding: '8px 12px',
-                            borderRadius: '8px'
+                            gap: '12px'
                         }}>
+                            <span style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: actionColor
+                            }} />
+                            {action} Incidents
+                            <span style={{
+                                fontSize: '14px',
+                                fontWeight: '400',
+                                color: 'var(--text-muted)',
+                                backgroundColor: 'var(--background-secondary)',
+                                padding: '4px 12px',
+                                borderRadius: '20px'
+                            }}>
+                                {totalCount.toLocaleString()} total
+                            </span>
+                        </h2>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                fontSize: '24px',
+                                cursor: 'pointer',
+                                color: 'var(--text-secondary)',
+                                padding: '4px 8px',
+                                borderRadius: '6px'
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    {/* Filters Row */}
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {/* Date Range */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅</span>
                             <input
                                 type="date"
@@ -261,62 +302,64 @@ export default function ActionIncidentsModal({
                                 style={dateInputStyle}
                             />
                         </div>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <p style={{
-                            margin: 0,
-                            fontSize: '13px',
-                            color: 'var(--text-muted)'
-                        }}>
-                            Showing {filteredIncidents.length} of {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
-                            {hasActiveFilters && (
-                                <button
-                                    onClick={clearFilters}
-                                    style={{
-                                        marginLeft: '12px',
-                                        padding: '2px 8px',
-                                        fontSize: '11px',
-                                        backgroundColor: 'var(--warning)',
-                                        color: '#000',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        fontWeight: '600'
-                                    }}
-                                >
-                                    Clear Filters
-                                </button>
-                            )}
-                        </p>
-                        <button
-                            onClick={onClose}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                fontSize: '24px',
-                                cursor: 'pointer',
-                                color: 'var(--text-secondary)',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)'
-                                e.currentTarget.style.color = 'var(--text-primary)'
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent'
-                                e.currentTarget.style.color = 'var(--text-secondary)'
-                            }}
-                        >
-                            ×
-                        </button>
+                        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)' }} />
+
+                        {/* Search */}
+                        <div style={{ flex: 1, minWidth: '200px', maxWidth: '300px' }}>
+                            <input
+                                type="text"
+                                placeholder="🔍 Search user, destination..."
+                                value={filters.search}
+                                onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+                                style={inputStyle}
+                            />
+                        </div>
+
+                        {/* Channel */}
+                        <div style={{ minWidth: '150px' }}>
+                            <input
+                                type="text"
+                                placeholder="Channel"
+                                value={filters.channel}
+                                onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
+                                style={inputStyle}
+                            />
+                        </div>
+
+                        {/* Policy */}
+                        <div style={{ minWidth: '150px' }}>
+                            <input
+                                type="text"
+                                placeholder="Policy"
+                                value={filters.policy}
+                                onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
+                                style={inputStyle}
+                            />
+                        </div>
+
+                        {hasActiveFilters && (
+                            <button
+                                onClick={clearFilters}
+                                style={{
+                                    padding: '8px 16px',
+                                    fontSize: '12px',
+                                    backgroundColor: 'var(--warning)',
+                                    color: '#000',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Clear Filters
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Content */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
                     {loading ? (
                         <div style={{
                             display: 'flex',
@@ -325,7 +368,10 @@ export default function ActionIncidentsModal({
                             padding: '60px',
                             color: 'var(--text-muted)'
                         }}>
-                            Loading incidents...
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
+                                Loading incidents...
+                            </div>
                         </div>
                     ) : incidents.length === 0 ? (
                         <div style={{
@@ -337,8 +383,8 @@ export default function ActionIncidentsModal({
                             color: 'var(--text-muted)'
                         }}>
                             <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
-                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No {action.toLowerCase()} incidents</div>
-                            <div style={{ fontSize: '13px', marginTop: '4px' }}>in selected date range</div>
+                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No {action.toLowerCase()} incidents found</div>
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>Try adjusting your filters or date range</div>
                         </div>
                     ) : (
                         <table style={{
@@ -346,10 +392,11 @@ export default function ActionIncidentsModal({
                             borderCollapse: 'collapse'
                         }}>
                             <thead>
-                                {/* Column Headers */}
                                 <tr style={{
                                     backgroundColor: 'var(--background-secondary)',
-                                    borderBottom: '1px solid var(--border)'
+                                    borderBottom: '1px solid var(--border)',
+                                    position: 'sticky',
+                                    top: 0
                                 }}>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', width: '40px' }}>#</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Login Name</th>
@@ -360,177 +407,156 @@ export default function ActionIncidentsModal({
                                     {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>}
                                     <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
                                 </tr>
-                                {/* Search Filter Row */}
-                                <tr style={{
-                                    backgroundColor: 'var(--surface)',
-                                    borderBottom: '2px solid var(--border)'
-                                }}>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>🔍</span>
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="text"
-                                            list="login-names-list"
-                                            placeholder="Search or select login..."
-                                            value={filters.login_name}
-                                            onChange={(e) => setFilters(f => ({ ...f, login_name: e.target.value }))}
-                                            style={inputStyle}
-                                        />
-                                        <datalist id="login-names-list">
-                                            {uniqueValues.login_names.map((name, i) => (
-                                                <option key={i} value={name} />
-                                            ))}
-                                        </datalist>
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="text"
-                                            list="destinations-list"
-                                            placeholder="Search or select destination..."
-                                            value={filters.destination}
-                                            onChange={(e) => setFilters(f => ({ ...f, destination: e.target.value }))}
-                                            style={inputStyle}
-                                        />
-                                        <datalist id="destinations-list">
-                                            {uniqueValues.destinations.map((dest, i) => (
-                                                <option key={i} value={dest} />
-                                            ))}
-                                        </datalist>
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="text"
-                                            list="channels-list"
-                                            placeholder="Search or select channel..."
-                                            value={filters.channel}
-                                            onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
-                                            style={inputStyle}
-                                        />
-                                        <datalist id="channels-list">
-                                            {uniqueValues.channels.map((ch, i) => (
-                                                <option key={i} value={ch} />
-                                            ))}
-                                        </datalist>
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                        <input
-                                            type="text"
-                                            list="policies-list"
-                                            placeholder="Search or select policy..."
-                                            value={filters.policy}
-                                            onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
-                                            style={inputStyle}
-                                        />
-                                        <datalist id="policies-list">
-                                            {uniqueValues.policies.map((pol, i) => (
-                                                <option key={i} value={pol} />
-                                            ))}
-                                        </datalist>
-                                    </td>
-                                    <td style={{ padding: '8px 12px' }}></td>
-                                    {action === 'TOTAL' && <td style={{ padding: '8px 12px' }}></td>}
-                                    <td style={{ padding: '8px 12px' }}></td>
-                                </tr>
                             </thead>
                             <tbody>
-                                {filteredIncidents.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={action === 'TOTAL' ? 8 : 7} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                            No incidents match your filter criteria
+                                {incidents.map((incident, idx) => (
+                                    <tr
+                                        key={idx}
+                                        style={{
+                                            borderBottom: '1px solid var(--border)',
+                                            transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                        <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                                            {(page - 1) * pageSize + idx + 1}
                                         </td>
-                                    </tr>
-                                ) : (
-                                    filteredIncidents.map((incident, idx) => (
-                                        <tr
-                                            key={idx}
-                                            style={{
-                                                borderBottom: '1px solid var(--border)',
-                                                transition: 'background 0.2s'
-                                            }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-hover)'}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>{idx + 1}</td>
-                                            <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                                {incident.login_name}
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                                <div style={{
-                                                    maxWidth: '250px',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                }} title={incident.destination}>
-                                                    {incident.destination}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                        <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                            {incident.login_name}
+                                        </td>
+                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                            <div style={{
+                                                maxWidth: '250px',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }} title={incident.destination}>
+                                                {incident.destination}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                            <span style={{
+                                                padding: '4px 8px',
+                                                backgroundColor: 'var(--background-secondary)',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                textTransform: 'uppercase'
+                                            }}>
+                                                {incident.channel}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{incident.policy}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginTop: '2px' }}>
+                                                {incident.rule_name}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'center' }}>
+                                            {(incident.max_matches ?? 0) > 0 ? (
                                                 <span style={{
-                                                    padding: '4px 8px',
-                                                    backgroundColor: 'var(--background-secondary)',
-                                                    borderRadius: '4px',
-                                                    fontSize: '11px',
+                                                    padding: '4px 10px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '12px',
                                                     fontWeight: '600',
-                                                    textTransform: 'uppercase'
+                                                    color: 'white',
+                                                    backgroundColor: (incident.max_matches ?? 0) >= 10 ? '#dc2626' : (incident.max_matches ?? 0) >= 5 ? '#f59e0b' : '#10b981'
                                                 }}>
-                                                    {incident.channel}
+                                                    {incident.max_matches}
+                                                </span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                            )}
+                                        </td>
+                                        {action === 'TOTAL' && (
+                                            <td style={{ padding: '12px', textAlign: 'center' }}>
+                                                <span style={{
+                                                    padding: '4px 10px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    fontWeight: '700',
+                                                    textTransform: 'uppercase',
+                                                    color: 'white',
+                                                    backgroundColor:
+                                                        incident.action?.toUpperCase() === 'BLOCK' || incident.action?.toUpperCase() === 'BLOCKED' ? '#ef4444' :
+                                                            incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#9013ff' :
+                                                                incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' :
+                                                                    incident.action?.toUpperCase() === 'RELEASED' ? '#f59e0b' : '#6b7280'
+                                                }}>
+                                                    {incident.action || 'N/A'}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
-                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{incident.policy}</div>
-                                                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '500', marginTop: '2px' }}>
-                                                    {incident.rule_name}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '12px', textAlign: 'center' }}>
-                                                {(incident.max_matches ?? 0) > 0 ? (
-                                                    <span style={{
-                                                        padding: '4px 10px',
-                                                        borderRadius: '12px',
-                                                        fontSize: '12px',
-                                                        fontWeight: '600',
-                                                        color: 'white',
-                                                        backgroundColor: (incident.max_matches ?? 0) >= 10 ? '#dc2626' : (incident.max_matches ?? 0) >= 5 ? '#f59e0b' : '#10b981'
-                                                    }}>
-                                                        {incident.max_matches}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ color: 'var(--text-muted)' }}>—</span>
-                                                )}
-                                            </td>
-                                            {action === 'TOTAL' && (
-                                                <td style={{ padding: '12px', textAlign: 'center' }}>
-                                                    <span style={{
-                                                        padding: '4px 10px',
-                                                        borderRadius: '4px',
-                                                        fontSize: '10px',
-                                                        fontWeight: '700',
-                                                        textTransform: 'uppercase',
-                                                        color: 'white',
-                                                        backgroundColor:
-                                                            incident.action?.toUpperCase() === 'BLOCK' || incident.action?.toUpperCase() === 'BLOCKED' ? '#ef4444' :
-                                                                incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#9013ff' :
-                                                                    incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' :
-                                                                        incident.action?.toUpperCase() === 'RELEASED' ? '#f59e0b' : '#6b7280'
-                                                    }}>
-                                                        {incident.action || 'N/A'}
-                                                    </span>
-                                                </td>
-                                            )}
-                                            <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
-                                                <div>{incident.timestamp.split(' ')[0]}</div>
-                                                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                                                    {incident.timestamp.split(' ')[1] || incident.timestamp}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
+                                        )}
+                                        <td style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                                            <div>{incident.timestamp.split(' ')[0]}</div>
+                                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                                {incident.timestamp.split(' ')[1] || incident.timestamp}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     )}
                 </div>
+
+                {/* Pagination Footer */}
+                {totalPages > 1 && (
+                    <div style={{
+                        padding: '16px 24px',
+                        borderTop: '1px solid var(--border)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        backgroundColor: 'var(--background-secondary)'
+                    }}>
+                        <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, totalCount)} of {totalCount.toLocaleString()}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                                onClick={() => setPage(1)}
+                                disabled={page === 1}
+                                style={pageButtonStyle(page === 1)}
+                            >
+                                ⏮ First
+                            </button>
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                style={pageButtonStyle(page === 1)}
+                            >
+                                ← Prev
+                            </button>
+                            <span style={{
+                                padding: '8px 16px',
+                                backgroundColor: 'var(--primary)',
+                                color: 'white',
+                                borderRadius: '6px',
+                                fontWeight: '600',
+                                fontSize: '13px'
+                            }}>
+                                {page} / {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                style={pageButtonStyle(page === totalPages)}
+                            >
+                                Next →
+                            </button>
+                            <button
+                                onClick={() => setPage(totalPages)}
+                                disabled={page === totalPages}
+                                style={pageButtonStyle(page === totalPages)}
+                            >
+                                Last ⏭
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     )

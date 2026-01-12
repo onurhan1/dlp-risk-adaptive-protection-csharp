@@ -362,13 +362,19 @@ public class RiskController : ControllerBase
 
     /// <summary>
     /// Get incidents filtered by action type for Action Summary modal
+    /// Supports pagination and server-side filtering for performance
     /// </summary>
     [HttpGet("incidents/by-action")]
-    public async Task<ActionResult<List<Dictionary<string, object>>>> GetIncidentsByAction(
+    public async Task<ActionResult<object>> GetIncidentsByAction(
         [FromQuery] string action,
         [FromQuery] string? date = null,
         [FromQuery] string? start_date = null,
-        [FromQuery] string? end_date = null)
+        [FromQuery] string? end_date = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        [FromQuery] string? search = null,
+        [FromQuery] string? channel = null,
+        [FromQuery] string? policy = null)
     {
         try
         {
@@ -380,6 +386,11 @@ public class RiskController : ControllerBase
             {
                 return BadRequest(new { detail = "Invalid action parameter. Must be one of: BLOCK, QUARANTINE, AUTHORIZED, RELEASED, TOTAL" });
             }
+
+            // Ensure valid pagination
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 100;
+            if (pageSize > 500) pageSize = 500; // Max limit
 
             // Parse date range - support both single date and date range
             DateTime startOfRange;
@@ -413,37 +424,59 @@ public class RiskController : ControllerBase
             }
             else
             {
-                // Default to today
-                startOfRange = DateTime.UtcNow.Date;
-                endOfRange = startOfRange.AddDays(1);
+                // Default to last 30 days
+                startOfRange = DateTime.UtcNow.Date.AddDays(-30);
+                endOfRange = DateTime.UtcNow.Date.AddDays(1);
             }
 
-            // Query incidents - TOTAL returns all incidents, others filter by action
-            List<Incident> incidents;
-            
-            if (normalizedAction == "TOTAL")
+            // Build query
+            var query = _context.Incidents
+                .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange);
+
+            // Action filter
+            if (normalizedAction != "TOTAL")
             {
-                // Return all incidents for the date range
-                incidents = await _context.Incidents
-                    .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
-                    .OrderByDescending(i => i.Timestamp)
-                    .ToListAsync();
+                query = query.Where(i => i.Action != null && 
+                           (i.Action.ToUpper() == normalizedAction || 
+                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
+                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")));
             }
-            else
+
+            // Server-side search filter
+            if (!string.IsNullOrEmpty(search))
             {
-                // Filter by specific action
-                incidents = await _context.Incidents
-                    .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange)
-                    .Where(i => i.Action != null && 
-                               (i.Action.ToUpper() == normalizedAction || 
-                                (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
-                                (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")))
-                    .OrderByDescending(i => i.Timestamp)
-                    .ToListAsync();
+                var searchLower = search.ToLower();
+                query = query.Where(i => 
+                    (i.LoginName != null && i.LoginName.ToLower().Contains(searchLower)) ||
+                    (i.UserEmail != null && i.UserEmail.ToLower().Contains(searchLower)) ||
+                    (i.Destination != null && i.Destination.ToLower().Contains(searchLower)));
             }
+
+            // Channel filter
+            if (!string.IsNullOrEmpty(channel))
+            {
+                query = query.Where(i => i.Channel != null && i.Channel.ToLower().Contains(channel.ToLower()));
+            }
+
+            // Policy filter
+            if (!string.IsNullOrEmpty(policy))
+            {
+                query = query.Where(i => i.Policy != null && i.Policy.ToLower().Contains(policy.ToLower()));
+            }
+
+            // Get total count before pagination
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            // Apply pagination
+            var incidents = await query
+                .OrderByDescending(i => i.Timestamp)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
 
             // Format response
-            var result = incidents.Select(i =>
+            var items = incidents.Select(i =>
             {
                 // Extract rule name and max matches from ViolationTriggers
                 string ruleName = "N/A";
@@ -505,7 +538,16 @@ public class RiskController : ControllerBase
                 };
             }).ToList();
 
-            return Ok(result);
+            // Return paginated response
+            return Ok(new {
+                items = items,
+                page = page,
+                pageSize = pageSize,
+                totalCount = totalCount,
+                totalPages = totalPages,
+                hasNextPage = page < totalPages,
+                hasPreviousPage = page > 1
+            });
         }
         catch (Exception ex)
         {
