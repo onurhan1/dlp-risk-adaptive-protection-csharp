@@ -78,8 +78,6 @@ export default function Home() {
   // Modal state for action incidents
   const [showModal, setShowModal] = useState(false)
   const [selectedAction, setSelectedAction] = useState<string>('')
-  const [actionIncidents, setActionIncidents] = useState<any[]>([])
-  const [incidentsLoading, setIncidentsLoading] = useState(false)
 
   // Modal state for high-risk users
   const [showHighRiskModal, setShowHighRiskModal] = useState(false)
@@ -185,28 +183,9 @@ export default function Home() {
     }
   }
 
-  const fetchActionIncidents = async (action: string) => {
-    setIncidentsLoading(true)
+  const fetchActionIncidents = (action: string) => {
     setShowModal(true)
     setSelectedAction(action)
-    setActionIncidents([])
-
-    try {
-      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5001`
-      const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
-        params: {
-          action: action,
-          start_date: dateRange.start,
-          end_date: dateRange.end
-        }
-      })
-      setActionIncidents(response.data)
-    } catch (error: any) {
-      console.error('Error fetching action incidents:', error)
-      setActionIncidents([])
-    } finally {
-      setIncidentsLoading(false)
-    }
   }
 
   const downloadReport = async () => {
@@ -906,9 +885,6 @@ export default function Home() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         action={selectedAction}
-        date={`${dateRange.start} - ${dateRange.end}`}
-        incidents={actionIncidents}
-        loading={incidentsLoading}
       />
 
       {/* High Risk Users Modal */}

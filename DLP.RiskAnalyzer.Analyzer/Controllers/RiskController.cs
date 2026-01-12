@@ -32,11 +32,9 @@ public class RiskController : ControllerBase
         {
             var query = _context.Incidents.AsQueryable();
             
-            // Apply date filters
+            // Apply date filters only if explicitly provided
             if (startDate.HasValue)
                 query = query.Where(i => i.Timestamp >= startDate.Value);
-            else if (!endDate.HasValue)
-                query = query.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-days));
             
             if (endDate.HasValue)
                 query = query.Where(i => i.Timestamp <= endDate.Value);

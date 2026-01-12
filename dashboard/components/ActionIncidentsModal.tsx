@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import axios from 'axios'
+import { format, subDays } from 'date-fns'
+import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface ActionIncident {
     login_name: string
@@ -18,19 +21,22 @@ interface ActionIncidentsModalProps {
     isOpen: boolean
     onClose: () => void
     action: string
-    date: string
-    incidents: ActionIncident[]
-    loading?: boolean
 }
 
 export default function ActionIncidentsModal({
     isOpen,
     onClose,
-    action,
-    date,
-    incidents,
-    loading = false
+    action
 }: ActionIncidentsModalProps) {
+    // Date range state - inside modal
+    const [dateRange, setDateRange] = useState({
+        start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+        end: format(new Date(), 'yyyy-MM-dd')
+    })
+
+    const [incidents, setIncidents] = useState<ActionIncident[]>([])
+    const [loading, setLoading] = useState(false)
+
     // Search filter states
     const [filters, setFilters] = useState({
         login_name: '',
@@ -38,6 +44,13 @@ export default function ActionIncidentsModal({
         channel: '',
         policy: ''
     })
+
+    // Fetch incidents when modal opens or date range changes
+    useEffect(() => {
+        if (isOpen) {
+            fetchIncidents()
+        }
+    }, [isOpen, dateRange.start, dateRange.end, action])
 
     // Reset filters when modal opens
     useEffect(() => {
@@ -50,6 +63,26 @@ export default function ActionIncidentsModal({
             })
         }
     }, [isOpen])
+
+    const fetchIncidents = async () => {
+        setLoading(true)
+        try {
+            const apiUrl = getApiUrlDynamic()
+            const response = await axios.get(`${apiUrl}/api/risk/incidents/by-action`, {
+                params: {
+                    action: action,
+                    start_date: dateRange.start,
+                    end_date: dateRange.end
+                }
+            })
+            setIncidents(response.data || [])
+        } catch (error) {
+            console.error('Error fetching action incidents:', error)
+            setIncidents([])
+        } finally {
+            setLoading(false)
+        }
+    }
 
     // Close modal on ESC key
     useEffect(() => {
@@ -105,12 +138,15 @@ export default function ActionIncidentsModal({
 
     if (!isOpen) return null
 
-    const actionColors = {
+    const actionColors: Record<string, string> = {
         BLOCK: '#ef4444',
-        QUARANTINE: '#9013ff'
+        QUARANTINE: '#9013ff',
+        AUTHORIZED: '#10b981',
+        RELEASED: '#f59e0b',
+        TOTAL: '#3b82f6'
     }
 
-    const actionColor = actionColors[action as keyof typeof actionColors] || '#3b82f6'
+    const actionColor = actionColors[action] || '#3b82f6'
 
     const inputStyle = {
         width: '100%',
@@ -122,6 +158,16 @@ export default function ActionIncidentsModal({
         color: 'var(--text-primary)',
         outline: 'none',
         transition: 'border-color 0.2s'
+    }
+
+    const dateInputStyle = {
+        padding: '8px 12px',
+        fontSize: '13px',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        backgroundColor: 'var(--background)',
+        color: 'var(--text-primary)',
+        outline: 'none'
     }
 
     return (
@@ -163,37 +209,67 @@ export default function ActionIncidentsModal({
             >
                 {/* Header */}
                 <div style={{
-                    padding: '24px',
+                    padding: '20px 24px',
                     borderBottom: '1px solid var(--border)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     flexShrink: 0
                 }}>
-                    <div>
-                        <h2 style={{
-                            margin: 0,
-                            fontSize: '20px',
-                            fontWeight: '600',
-                            color: 'var(--text-primary)',
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                        <div>
+                            <h2 style={{
+                                margin: 0,
+                                fontSize: '20px',
+                                fontWeight: '600',
+                                color: 'var(--text-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px'
+                            }}>
+                                <span style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: actionColor
+                                }} />
+                                {action} Incidents
+                            </h2>
+                        </div>
+
+                        {/* Date Range Picker */}
+                        <div style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '12px'
+                            gap: '8px',
+                            backgroundColor: 'var(--background-secondary)',
+                            padding: '8px 12px',
+                            borderRadius: '8px'
                         }}>
-                            <span style={{
-                                width: '8px',
-                                height: '8px',
-                                borderRadius: '50%',
-                                backgroundColor: actionColor
-                            }} />
-                            {action} Incidents
-                        </h2>
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅</span>
+                            <input
+                                type="date"
+                                value={dateRange.start}
+                                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                style={dateInputStyle}
+                            />
+                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>to</span>
+                            <input
+                                type="date"
+                                value={dateRange.end}
+                                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                style={dateInputStyle}
+                            />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <p style={{
-                            margin: '4px 0 0 0',
+                            margin: 0,
                             fontSize: '13px',
                             color: 'var(--text-muted)'
                         }}>
-                            {date} • Showing {filteredIncidents.length} of {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
+                            Showing {filteredIncidents.length} of {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
                             {hasActiveFilters && (
                                 <button
                                     onClick={clearFilters}
@@ -213,30 +289,30 @@ export default function ActionIncidentsModal({
                                 </button>
                             )}
                         </p>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                fontSize: '24px',
+                                cursor: 'pointer',
+                                color: 'var(--text-secondary)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--surface-hover)'
+                                e.currentTarget.style.color = 'var(--text-primary)'
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                                e.currentTarget.style.color = 'var(--text-secondary)'
+                            }}
+                        >
+                            ×
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            fontSize: '24px',
-                            cursor: 'pointer',
-                            color: 'var(--text-secondary)',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--surface-hover)'
-                            e.currentTarget.style.color = 'var(--text-primary)'
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                            e.currentTarget.style.color = 'var(--text-secondary)'
-                        }}
-                    >
-                        ×
-                    </button>
                 </div>
 
                 {/* Content */}
@@ -262,7 +338,7 @@ export default function ActionIncidentsModal({
                         }}>
                             <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
                             <div style={{ fontSize: '16px', fontWeight: '500' }}>No {action.toLowerCase()} incidents</div>
-                            <div style={{ fontSize: '13px', marginTop: '4px' }}>on {date}</div>
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>in selected date range</div>
                         </div>
                     ) : (
                         <table style={{
