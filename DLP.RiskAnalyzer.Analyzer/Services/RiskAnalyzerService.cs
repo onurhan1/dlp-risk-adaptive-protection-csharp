@@ -518,7 +518,8 @@ public async Task<int> CalculateRiskScoresAsync()
                               .FirstOrDefault() ?? ""
             })
             .Where(u => u.RiskScore >= 700)  // Only show high-risk users (70+ normalized)
-            .OrderByDescending(u => u.TotalAlerts)  // Sort by incident count
+            .OrderByDescending(u => u.RiskScore)  // Sort by risk score first
+            .ThenByDescending(u => u.TotalAlerts)  // Then by incident count
             .Take(limit)
             .ToList();
 
