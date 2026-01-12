@@ -31,6 +31,7 @@ interface ActionIncidentsModalProps {
     isOpen: boolean
     onClose: () => void
     action: string
+    initialDate?: string  // For single-day mode (Reports page)
 }
 
 // Debounce hook
@@ -53,13 +54,24 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function ActionIncidentsModal({
     isOpen,
     onClose,
-    action
+    action,
+    initialDate  // Single day mode for Reports page
 }: ActionIncidentsModalProps) {
+    // Single day mode when initialDate is provided
+    const isSingleDayMode = !!initialDate
+
     // Date range state
     const [dateRange, setDateRange] = useState({
-        start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-        end: format(new Date(), 'yyyy-MM-dd')
+        start: initialDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+        end: initialDate || format(new Date(), 'yyyy-MM-dd')
     })
+
+    // Update date range when initialDate changes
+    useEffect(() => {
+        if (initialDate) {
+            setDateRange({ start: initialDate, end: initialDate })
+        }
+    }, [initialDate])
 
     // Pagination state
     const [page, setPage] = useState(1)
@@ -285,23 +297,44 @@ export default function ActionIncidentsModal({
 
                     {/* Filters Row */}
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {/* Date Range */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅</span>
-                            <input
-                                type="date"
-                                value={dateRange.start}
-                                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                style={dateInputStyle}
-                            />
-                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>to</span>
-                            <input
-                                type="date"
-                                value={dateRange.end}
-                                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                style={dateInputStyle}
-                            />
-                        </div>
+                        {/* Date - Single day mode shows label, otherwise shows date range picker */}
+                        {isSingleDayMode ? (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                backgroundColor: 'var(--background-secondary)',
+                                padding: '8px 16px',
+                                borderRadius: '8px'
+                            }}>
+                                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>📅</span>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                    {new Date(dateRange.start).toLocaleDateString('en-US', {
+                                        weekday: 'long',
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}
+                                </span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅</span>
+                                <input
+                                    type="date"
+                                    value={dateRange.start}
+                                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                    style={dateInputStyle}
+                                />
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>to</span>
+                                <input
+                                    type="date"
+                                    value={dateRange.end}
+                                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                    style={dateInputStyle}
+                                />
+                            </div>
+                        )}
 
                         <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)' }} />
 
