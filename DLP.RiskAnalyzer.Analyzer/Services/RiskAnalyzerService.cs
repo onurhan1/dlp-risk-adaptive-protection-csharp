@@ -615,8 +615,8 @@ public async Task<int> CalculateRiskScoresAsync()
                              .Select(i => i.Department)
                              .FirstOrDefault() ?? "",
                 TotalAlerts = g.Count(),
-                // Normalize risk score to max 100
-                RiskScore = Math.Min(g.Max(i => i.RiskScore ?? 0), 100)
+                // Convert 1000-scale risk score to 100-scale for display
+                RiskScore = (int)Math.Round(g.Max(i => i.RiskScore ?? 0) / 10.0)
             })
             .OrderByDescending(u => u.TotalAlerts)
             .Take(10)
@@ -627,7 +627,7 @@ public async Task<int> CalculateRiskScoresAsync()
                 { "department", u.Department },
                 { "total_alerts", u.TotalAlerts },
                 { "risk_score", u.RiskScore },
-                { "risk_level", GetRiskLevelFromScore(u.RiskScore) }
+                { "risk_level", GetRiskLevelFromScore(u.RiskScore * 10) } // Convert back to 1000 scale for level
             })
             .ToList();
 

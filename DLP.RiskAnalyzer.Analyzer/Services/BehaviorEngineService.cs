@@ -405,9 +405,9 @@ public class BehaviorEngineService
             
             // Unique values for autocomplete (sorted alphabetically)
             UniqueUsers = users.Where(u => !string.IsNullOrEmpty(u)).OrderBy(u => u).ToList()!,
-            UniqueChannels = channels.OrderBy(c => c).ToList(),
-            UniqueDepartments = departments.OrderBy(d => d).ToList(),
-            UniqueDestinations = destinations.OrderBy(d => d).ToList(),
+            UniqueChannels = channels.Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).OrderBy(c => c).ToList(),
+            UniqueDepartments = departments.Where(d => !string.IsNullOrEmpty(d)).Select(d => d!).OrderBy(d => d).ToList(),
+            UniqueDestinations = destinations.Where(d => !string.IsNullOrEmpty(d)).Select(d => d!).OrderBy(d => d).ToList(),
             UniqueRules = ruleNames.OrderBy(r => r).ToList(),
             
             // Backward compatibility
@@ -740,11 +740,12 @@ public class BehaviorEngineService
         var currentCount = current.ChannelCounts.GetValueOrDefault(channel, 0);
         var baselineCount = baseline.ChannelCounts.GetValueOrDefault(channel, 0);
         
-        // If no baseline data for this channel, can't calculate meaningful z-score
+        // If no baseline data for this channel, return 0 (can't determine anomaly without baseline)
         if (baselineCount == 0)
         {
-            // If current has activity but baseline doesn't, this is notable
-            return currentCount > 0 ? 2.0 : 0; // Default anomaly score for new activity
+            // Only flag as anomaly if current has significant activity AND baseline has no data at all
+            // This prevents false positives for new channels
+            return 0; // Changed from 2.0 - don't assume anomaly without baseline
         }
         
         // Calculate std dev from all channels as a measure of typical variation
@@ -778,11 +779,15 @@ public class BehaviorEngineService
         );
 
         // Convert z-score to risk score (0-100)
-        // Z > 3: 100, Z > 2: 80, Z > 1: 50, Z <= 1: 30
-        if (maxZ >= 3) return 100;
-        if (maxZ >= 2) return 80;
-        if (maxZ >= 1) return 50;
-        return 30;
+        // Use more granular scoring based on actual z-score values
+        if (maxZ >= 4) return 100;
+        if (maxZ >= 3) return 85;
+        if (maxZ >= 2.5) return 75;
+        if (maxZ >= 2) return 65;
+        if (maxZ >= 1.5) return 50;
+        if (maxZ >= 1) return 40;
+        if (maxZ >= 0.5) return 30;
+        return 20; // Minimum score for entities with activity
     }
 
     private string DetermineAnomalyLevel(int riskScore)
