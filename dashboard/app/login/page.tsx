@@ -33,7 +33,7 @@ export default function LoginPage() {
       // Get API URL dynamically at runtime to ensure correct hostname detection
       const apiUrl = getApiUrlDynamic()
       console.log('Login - Using API URL:', apiUrl)
-      
+
       // Normalize password: trim whitespace and remove any control characters
       // Also normalize for Windows Server compatibility (remove line endings)
       const normalizedPassword = password.trim()
@@ -41,7 +41,7 @@ export default function LoginPage() {
         .replace(/\r\n/g, '') // Remove Windows line endings
         .replace(/\r/g, '')   // Remove carriage returns
         .replace(/\n/g, '');  // Remove line feeds
-      
+
       const response = await axios.post(`${apiUrl}/api/auth/login`, {
         username: username.trim(),
         password: normalizedPassword
@@ -60,12 +60,12 @@ export default function LoginPage() {
           // Fallback: if username is admin and no role in response, set to admin
           role = username.trim().toLowerCase() === 'admin' ? 'admin' : 'standard'
         }
-        
+
         console.log('Login - Role:', role, 'Response:', response.data)
-        
+
         // Use AuthProvider login function
         login(response.data.token, response.data.username || username.trim(), role)
-        
+
         if (rememberMe) {
           localStorage.setItem('rememberMe', 'true')
         } else {
@@ -103,12 +103,12 @@ export default function LoginPage() {
         <div className="login-header">
           <div className="login-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 17L12 22L22 17" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 12L12 17L22 12" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <h1>Forcepoint DLP</h1>
+          <h1>RADAR</h1>
           <p className="login-subtitle">Risk Adaptive Protection</p>
         </div>
 

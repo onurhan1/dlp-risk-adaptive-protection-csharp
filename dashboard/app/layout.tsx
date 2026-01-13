@@ -4,7 +4,7 @@ import { Providers } from '@/components/Providers'
 import AuthLayoutClient from '@/components/AuthLayoutClient'
 
 export const metadata: Metadata = {
-  title: 'Forcepoint RAP - Risk Adaptive Protection',
+  title: 'RADAR - Risk Adaptive Data Analysis & Reporting',
   description: 'Real-time DLP risk analysis and reporting dashboard',
 }
 

@@ -14,25 +14,17 @@ export default function Sidebar() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px'
+          justifyContent: 'center'
         }}>
           <img
-            src="/logo-radar.png"
+            src="/radar-icon.png"
             alt="RADAR"
             style={{
-              width: '36px',
-              height: '36px',
+              width: '48px',
+              height: '48px',
               objectFit: 'contain'
             }}
           />
-          <span style={{
-            color: 'var(--text-primary)',
-            fontSize: '16px',
-            fontWeight: '700',
-            letterSpacing: '1px'
-          }}>
-            RADAR
-          </span>
         </div>
       </div>
 

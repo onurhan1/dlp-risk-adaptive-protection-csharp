@@ -269,7 +269,7 @@ export default function Home() {
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
-        <h1>Forcepoint DLP Risk Analyzer Dashboard</h1>
+        <h1>RADAR - Risk Adaptive Data Analysis Dashboard</h1>
         <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
       </div>
 

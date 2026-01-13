@@ -22,7 +22,7 @@ export default function Navigation() {
     <nav className="main-header">
       <div className="header-content">
         <div className="header-brand">
-          Forcepoint RAP
+          RADAR
         </div>
         <div className="header-nav">
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
