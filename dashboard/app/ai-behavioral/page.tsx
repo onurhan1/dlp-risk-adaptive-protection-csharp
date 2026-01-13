@@ -46,6 +46,8 @@ export default function AIBehavioralPage() {
   const [activeTab, setActiveTab] = useState<EntityTab>('users')
   const [filterText, setFilterText] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 100
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -145,6 +147,18 @@ export default function AIBehavioralPage() {
       a.entityId.toLowerCase().includes(filterText.toLowerCase())
     )
   }, [currentTabData.anomalies, filterText])
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAnomalies.length / itemsPerPage)
+  const paginatedAnomalies = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    return filteredAnomalies.slice(startIndex, startIndex + itemsPerPage)
+  }, [filteredAnomalies, currentPage, itemsPerPage])
+
+  // Reset page when filter or tab changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterText, activeTab])
 
   // Filter dropdown suggestions - show analyzed entities from anomalies
   const filteredSuggestions = useMemo(() => {
@@ -359,13 +373,58 @@ export default function AIBehavioralPage() {
 
             {/* Anomalies List */}
             <div style={{ padding: '16px' }}>
-              {filteredAnomalies.length === 0 ? (
+              {/* Pagination Info */}
+              {filteredAnomalies.length > 0 && (
+                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredAnomalies.length)} of {filteredAnomalies.length}
+                  </span>
+                  {totalPages > 1 && (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                          padding: '6px 12px',
+                          background: currentPage === 1 ? 'var(--border)' : 'var(--primary)',
+                          color: currentPage === 1 ? 'var(--text-muted)' : 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                          fontSize: '13px'
+                        }}
+                      >
+                        ← Prev
+                      </button>
+                      <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
+                        Page {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: '6px 12px',
+                          background: currentPage === totalPages ? 'var(--border)' : 'var(--primary)',
+                          color: currentPage === totalPages ? 'var(--text-muted)' : 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                          fontSize: '13px'
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {paginatedAnomalies.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                   No anomalies found for this entity type
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {filteredAnomalies.map((anomaly, idx) => (
+                  {paginatedAnomalies.map((anomaly, idx) => (
                     <div
                       key={idx}
                       style={{
