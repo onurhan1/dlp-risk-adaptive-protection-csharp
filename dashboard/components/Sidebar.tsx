@@ -20,9 +20,10 @@ export default function Sidebar() {
             src="/radar-icon.png"
             alt="RADAR"
             style={{
-              width: '48px',
-              height: '48px',
-              objectFit: 'contain'
+              width: '64px',
+              height: '64px',
+              objectFit: 'contain',
+              mixBlendMode: 'lighten'
             }}
           />
         </div>
