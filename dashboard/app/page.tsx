@@ -164,8 +164,8 @@ export default function Home() {
       const topUsersData = Array.from(usersMap.entries())
         .filter(([email]) => email && email.length > 0) // Filter out empty emails
         .map(([user_email, data]) => {
-          // Normalize: if score > 100, it's on 1000-scale, divide by 10
-          const normalizedScore = data.risk > 100 ? Math.round(data.risk / 10) : data.risk
+          // All DB scores are in 1000-scale, always divide by 10 for display
+          const normalizedScore = Math.round(data.risk / 10)
           return {
             user_email,
             total_alerts: data.alerts,

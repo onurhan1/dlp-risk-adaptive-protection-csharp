@@ -1,0 +1,90 @@
+﻿f01bac2 fix: Reports Top 10 Users skor hesaplama (1000->100 donusum) ve AI Behavioral Z-score duzeltmesi
+a1cd20a feat: RADAR logo sidebar entegrasyonu - shield ikonu + RADAR yazisi
+11a417f perf: AI Behavioral 3A Hibrit Model - paralel isleme ve batch query optimizasyonu
+058040a Add single-day mode to ActionIncidentsModal for Reports page
+a1a8eb4 Add pagination and server-side filtering to Action Incidents Modal
+95f76e1 Add date filter to Action Modal, show all incidents in summary
+bdf4dda Fix: Sort Top Users by Risk Score instead of Incident Count
+223fc7c Risk Score Update: Tier-based MaxMatches, Policy-based RepeatCount, Action Multipliers
+a6d4788 Fix: Recalculate risk score when action changes (QUARANTINE -> RELEASED)
+4c821ec Risk Score Algorithm Update: Remove Severity, Add Weekly Repeat Count & Action Multipliers
+a989210 Sidebar ayn─▒ kald─▒
+698ee43 Sidebar ayn─▒ kald─▒
+5ba8243 fix: ChannelActivity z-index causing modal backdrop blur issue
+8f0fefb perf: AI Behavioral caching (5min TTL) ve modal filter debounce (300ms)
+1c5afd4 feat: Domain prefix normalization - KUVEYTTURK\\user -> user
+82c3a5b feat: Remediate durumu guncellenebilir yapildi - Update Status butonu eklendi
+5b2d132 Fix: Normalize risk score to max 100 in Reports Top Users - Use Math.Min(score, 100) to cap risk scores - Prevents display of scores like 877 from raw calculation
+8dd7aec Fix: Process pending Redis messages before new ones - Two-phase processing: pending (0) then new (>) - Pending messages are actually processed not just acknowledged - Max 3 batches for pending, 10 for new per cycle - Better logging shows PENDING vs NEW phase
+4533524 Fix: Analyzer processes ALL pending Redis messages - Batch size 100 -> 500 - Added while loop to process multiple batches per cycle - Max 10 batches (5000 incidents) per cycle - Detailed logging per batch and totals
+d80ac8a Feature: Detect incident action changes (QUARANTINE->RELEASE) - Update existing records when action changes instead of skipping as duplicate - Log action change updates for visibility
+c2a0971 Fix: User search - Implement client-side filtering with useMemo (like ActionIncidentsModal) - Load all users once, filter with useMemo, paginate filtered results
+98463cf Fix: User search - Remove sample data fallback that breaks search filtering
+db03ddb Fix: User list sort by risk+recent, Remediation logging - Added last_incident_date field and ThenByDescending sort - Added ILogger and detailed DB save logging to RemediationService
+73cb5e6 Fix: Remediation DI registration + Search page reset - Added RemediationService to DI container - Reset page to 1 when search query changes
+177e4c5 Fix: Remediation - pass remediatedBy param, show incident ID in status badge
+b6529c0 Fix: Use DateTime.Now instead of DateTime.UtcNow for Forcepoint API local time
+69f4795 Feature: Remediation status display - Shows green badge with details if incident is remediated - Backend returns remediation fields in incidents API
+dcad0b3 Fix: Remove UTC conversion for Forcepoint API - send local time to get recent incidents
+7dc0241 Feature: Remediation database storage - Fields: IsRemediated, RemediatedAt, RemediatedBy, RemediationAction, RemediationNotes - Saves to DB even if DLP API unavailable
+d02351a Feature: Server-side user search in Investigation page - Backend: Added search param to user-list endpoint - Frontend: useEffect triggers on searchQuery change
+519ea5a Fix: Remove duplicate score badge from Top Users, update color thresholds
+9e5e3e4 Feature: Time chunking for collector - 4h chunks, 3-day lookback, deduplication
+d48baf7 Fix: Filter Risky Users to score >= 70, sort by incident count
+b7f3764 Fix: Normalize Investigation Risky Users table and update color thresholds
+b08ce1f Fix: Update high risk threshold from 61 to 500 (50 normalized) for new scoring system
+fee493f Fix: Normalize Top Users scores, remove Risk Level column, fix sorting
+44dfbb7 Feature: Risk score normalization for consistent 0-100 display - Created recalculate-risk-scores.sql for batch update - InvestigationUsersList normalizes scores > 100 by dividing by 10 - HighRiskUsersModal normalizes scores for consistent display
+1799e9c Feature: High Risk Users column with clickable popup in Daily Trends - Renamed column to 'High Risk Users' (counts users not incidents) - Added /api/risk/high-risk-users endpoint for date-specific user list - Created HighRiskUsersModal component - Made High Risk column clickable with hover effects
+9f2f685 Fix: Add MaxMatches column mapping to EF Core model
+ab3e92f Fix: Update CriticalThreshold references for new 1000-scale scoring
+e3f30b6 Feature: Add MaxMatches display to Investigation and Action Analysis modal
+4400751 Feature: Add MaxMatches to risk score calculation - new 1000-point scale
+6f87b88 Fix: Channel Z-score now compares each channel against its own baseline
+6ed63c3 Remove entity analysis limits - now analyzes all users, destinations, and rules
+f3aca10 Fix: Rules detection JSON parsing and dropdown filter showing analyzed entities
+3e87476 Feature: Entity-based tabs and filtering for AI Behavioral Analysis
+c7ad1da Fix: Add Npgsql legacy timestamp behavior for DateTime UTC compatibility
+52aeca2 Fix: Remove pagination loop - Forcepoint API returns all incidents in single response
+6702d5e Fix: Add appsettings.json copy to output in Collector csproj
+59046c1 Fix: Add pagination to Collector to fetch ALL incidents, increase lookback to 72h, add Redis password to Analyzer
+b95b939 PDF rapora RELEASED basligi eklendi
+331dc48 Reports action summary released sayisi duzeltildi
+ee0e55e Modal filtrelere autocomplete eklendi - hem yazilabilir hem secilebilir
+0633eae Last 24 hours saat bazli duzeltildi - ISO timestamp format kullaniliyor
+b401fc5 Investigation tarih filtresi duzeltildi - backend API startDate/endDate destegi eklendi
+6c04752 Investigation sayfasi guncellendi - tarih filtresi eklendi, gereksiz filtreler kaldirildi
+efc991c Top users son 24 saate gore filtrelendi - ayri API cagrisi
+3c12cdf RELEASED action eklendi - dashboard ve reports sayfalarinda turuncu kart
+3e6febc TOTAL modal'a Status kolonu eklendi - renkli badge ile action gosterimi
+7e3b7f7 AUTHORIZED ve TOTAL kartlari tiklanabilir yapildi - modal ile detay gosterimi
+1488236 ActionIncidentsModal'a arama filtreleri eklendi - Login Destination Channel Policy
+2d072e9 Duplicate kontrolu ID bazli yapildi
+5747b75 Update setup-backup-schedule.ps1
+e528aa0 Update backup-database.ps1
+acc9c8c Duplicate kontrolu ve dashboard filtre parametreleri duzeltildi
+db87a1e Backup dizini D diskine tasindi
+f4728fb PostgreSQL backup scriptleri eklendi - gunluk otomatik backup
+c5a336d Redis auto-start eklendi, ID storage fix - 22.12.2025
+a741787 Incident ID storage fix - DLP API'den gelen ID artik kaydediliyor - 22.12.2025
+4a92775 Auto-start script ve dashboard parametre d├╝zeltmeleri - 22.12.2025
+1a15ebb UI: Added Last 24 Hours badge to Top Users table header
+5686cbe UI: Fixed Date/Time column width to prevent text wrapping
+dc8f2f1 UI: Action Modal - Added date to Date/Time column for clarity - Documentation updated with new feature section
+cca68db FIX: Dashboard modal API port - changed from 5000 to 5001 to match backend
+970de35 FIX: Dashboard modal date range - Backend supports start_date/end_date - Dashboard sends 30-day range - Modal shows date range in header
+3e513ee FEAT: Action Summary clickable cards with incident details modal - Backend endpoint for filtering incidents by action type (BLOCK/QUARANTINE) - ActionIncidentsModal component with table layout - Reports and Dashboard page integration with onClick handlers
+83e917f FIX: GetDailyReportDataAsync - eksik department field eklendi. PDF ve Reports sayfasinda department artik gorunecek.
+f191932 Reports Channel Breakdown hizalama duzeltildi - percentage text eklendi, duplicate kaldirildi
+3b4dbea Reports page Top Users - login_name ve department gosteriliyor, email_address kaldirildi
+f29d21e PDF Department field - camelCase/snake_case fallback eklendi
+ddc8af8 PDF Top 10 Users kolon degisikligi: User=login_name, Department=department
+4df280a Fix: Daily Incident Trends - camelCase field deste─şi eklendi (totalIncidents, highRiskCount, uniqueUsers). Console logging eklendi debug icin.
+c6c0a32 PDF Top 10 Users email_address eklendi - User/Login Name duplicate duzeltildi
+400a8e8 Daily Incident Trends: Plotly grafik yerine tablo gorunumu eklendi - mini progress bar ile
+5de32d0 Fix: Daily Incident Trends - frontend PascalCase/snake_case uyumlulugu eklendi
+5ac9bf3 Fix: Daily Summary PDF - ViolationTriggers parsing duzeltildi, gercek rule_name degerleri gosteriliyor
+7b20c89 Fix: Daily Incident Trends grafigi duzeltildi - dailySummary verisi ile calisir hale getirildi
+71a92a2 Fix: RiskTimelineChart plotly grafigi kaldirildi, Top Users veri mapping duzeltildi
+eee4b3e Dashboard ve Reports sayfasi guncellemeleri - Daily Summary, Top Users, RiskTimelineChart tabs, PDF generation
+8f71457 12.12.2025 itibariyle yap─▒lan son de─şi┼şiklikler
