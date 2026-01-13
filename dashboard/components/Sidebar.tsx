@@ -16,24 +16,23 @@ export default function Sidebar() {
           alignItems: 'center',
           gap: '12px'
         }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            background: 'linear-gradient(135deg, #00a8e8 0%, #0066cc 100%)',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-            color: 'white',
-            fontSize: '18px',
-            boxShadow: '0 2px 8px rgba(0, 168, 232, 0.3)'
+          <img
+            src="/logo-radar.png"
+            alt="RADAR"
+            style={{
+              width: '36px',
+              height: '36px',
+              objectFit: 'contain'
+            }}
+          />
+          <span style={{
+            color: 'var(--text-primary)',
+            fontSize: '16px',
+            fontWeight: '700',
+            letterSpacing: '1px'
           }}>
-            F
-          </div>
-          <div style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600' }}>
-            Forcepoint RAP
-          </div>
+            RADAR
+          </span>
         </div>
       </div>
 
