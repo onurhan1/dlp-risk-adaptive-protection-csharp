@@ -112,6 +112,7 @@ export default function AIBehavioralPage() {
 
   const getAnomalyColor = (level: string): string => {
     switch (level.toLowerCase()) {
+      case 'critical': return '#7c2d12' // dark red for critical
       case 'high': return '#dc2626'
       case 'medium': return '#f59e0b'
       case 'low': return '#10b981'
@@ -120,9 +121,10 @@ export default function AIBehavioralPage() {
   }
 
   const getRiskColor = (score: number): string => {
-    if (score >= 80) return '#dc2626'
-    if (score >= 50) return '#f59e0b'
-    return '#10b981'
+    if (score >= 85) return '#7c2d12' // critical
+    if (score >= 65) return '#dc2626' // high
+    if (score >= 40) return '#f59e0b' // medium
+    return '#10b981' // low
   }
 
   // Get current tab's anomalies and unique values

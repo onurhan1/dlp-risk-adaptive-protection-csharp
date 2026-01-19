@@ -794,8 +794,9 @@ public class BehaviorEngineService
     {
         return riskScore switch
         {
-            >= 80 => "high",
-            >= 50 => "medium",
+            >= 85 => "critical",
+            >= 65 => "high",
+            >= 40 => "medium",
             _ => "low"
         };
     }
@@ -1273,39 +1274,156 @@ public class BehaviorEngineService
 
     private double CalculateWeeklyTrendZScore(List<Incident> incidents)
     {
-        if (incidents.Count < 14) return 0;
+        if (incidents.Count < 7) return 0;
 
         var lastWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-7)).Count();
         var prevWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-14) && i.Timestamp < DateTime.UtcNow.AddDays(-7)).Count();
 
-        if (prevWeek == 0) return lastWeek > 5 ? 2.0 : 0;
-
-        var growthRate = (double)(lastWeek - prevWeek) / prevWeek;
-        // Typical growth of 10% with std 20%
-        return Math.Round((growthRate - 0.1) / 0.2, 2);
-    }
-
-    private int CalculateEnhancedRiskScore(Dictionary<string, double> zScores)
-    {
-        // Weight: Action-based scores are more important
-        var weightedScores = new List<double>();
-        
-        foreach (var kvp in zScores)
+        // No previous week data - can't calculate trend
+        if (prevWeek == 0)
         {
-            var weight = kvp.Key.StartsWith("action_") ? 1.5 : 1.0;
-            weightedScores.Add(Math.Abs(kvp.Value) * weight);
+            // New activity: moderate signal based on volume
+            if (lastWeek >= 20) return 2.5;     // High new activity
+            if (lastWeek >= 10) return 1.5;     // Moderate new activity
+            if (lastWeek >= 5) return 1.0;      // Some new activity
+            return 0;
         }
 
-        var maxZ = weightedScores.Count > 0 ? weightedScores.Max() : 0;
+        // Calculate growth rate with log-scale for large changes
+        var rawGrowthRate = (double)(lastWeek - prevWeek) / prevWeek;
+        
+        // Use logarithmic scaling to prevent extreme Z-scores
+        // log(1 + x) compresses large values: 650% -> ~2.0, 100% -> ~0.7
+        double scaledGrowth;
+        if (rawGrowthRate > 0)
+        {
+            scaledGrowth = Math.Log(1 + rawGrowthRate); // Compress positive growth
+        }
+        else
+        {
+            scaledGrowth = rawGrowthRate; // Keep negative as-is (decreasing incidents)
+        }
 
-        if (maxZ >= 4) return 100;
-        if (maxZ >= 3) return 85;
-        if (maxZ >= 2.5) return 75;
-        if (maxZ >= 2) return 65;
-        if (maxZ >= 1.5) return 50;
-        if (maxZ >= 1) return 40;
-        if (maxZ >= 0.5) return 30;
-        return 20;
+        // Expected growth = 0 (stable), std = 0.5 (50% variation is normal)
+        var zScore = scaledGrowth / 0.5;
+
+        // Cap Z-score to reasonable range [-5, 5]
+        return Math.Round(Math.Clamp(zScore, -5.0, 5.0), 2);
+    }
+
+    /// <summary>
+    /// Enhanced risk scoring with tier-based thresholds
+    /// LOW: 0-39, MEDIUM: 40-64, HIGH: 65-84, CRITICAL: 85-100
+    /// 
+    /// To reach CRITICAL (85+):
+    /// - Must have at least 2 high Z-scores (>= 2.5) OR
+    /// - One extremely high Z-score (>= 4.0) with another >= 1.5 OR
+    /// - Multiple moderate signals adding up
+    /// 
+    /// To reach 100:
+    /// - Must have 3+ high Z-scores (>= 3.0) OR
+    /// - At least 2 Z-scores >= 4.0
+    /// </summary>
+    private int CalculateEnhancedRiskScore(Dictionary<string, double> zScores)
+    {
+        var absScores = zScores.Values.Select(Math.Abs).OrderByDescending(x => x).ToList();
+        
+        if (absScores.Count == 0) return 10;
+
+        // Count significant anomalies at different thresholds
+        var extremeCount = absScores.Count(z => z >= 4.0);    // Extreme anomaly
+        var highCount = absScores.Count(z => z >= 3.0);       // High anomaly
+        var mediumCount = absScores.Count(z => z >= 2.0);     // Medium anomaly
+        var lowCount = absScores.Count(z => z >= 1.5);        // Low anomaly
+
+        var maxZ = absScores.First();
+        var secondZ = absScores.Count > 1 ? absScores[1] : 0;
+        var thirdZ = absScores.Count > 2 ? absScores[2] : 0;
+
+        // CRITICAL TIER (85-100): Requires strong evidence
+        // Score 100: Multiple extreme anomalies
+        if (extremeCount >= 2 || (highCount >= 3 && mediumCount >= 4))
+        {
+            return 100;
+        }
+        
+        // Score 95: One extreme + one high
+        if (extremeCount >= 1 && highCount >= 2)
+        {
+            return 95;
+        }
+        
+        // Score 90: Multiple high anomalies
+        if (highCount >= 2 && mediumCount >= 3)
+        {
+            return 90;
+        }
+        
+        // Score 85: Strong pattern
+        if (maxZ >= 4.0 || (highCount >= 2))
+        {
+            return 85;
+        }
+
+        // HIGH TIER (65-84): Clear anomaly signals
+        if (maxZ >= 3.0 && secondZ >= 1.5)
+        {
+            return 80;
+        }
+        
+        if (maxZ >= 3.0 || (mediumCount >= 3))
+        {
+            return 75;
+        }
+        
+        if (maxZ >= 2.5 && mediumCount >= 2)
+        {
+            return 70;
+        }
+        
+        if (maxZ >= 2.5 || (mediumCount >= 2 && lowCount >= 3))
+        {
+            return 65;
+        }
+
+        // MEDIUM TIER (40-64): Some anomaly signals
+        if (maxZ >= 2.0 && secondZ >= 1.0)
+        {
+            return 60;
+        }
+        
+        if (maxZ >= 2.0 || lowCount >= 3)
+        {
+            return 55;
+        }
+        
+        if (mediumCount >= 1 && lowCount >= 2)
+        {
+            return 50;
+        }
+        
+        if (maxZ >= 1.5)
+        {
+            return 45;
+        }
+        
+        if (lowCount >= 2)
+        {
+            return 40;
+        }
+
+        // LOW TIER (0-39): Normal or minor variations
+        if (maxZ >= 1.0)
+        {
+            return 35;
+        }
+        
+        if (maxZ >= 0.5)
+        {
+            return 25;
+        }
+
+        return 15; // Baseline for entities with activity
     }
 
     private List<TrendDataPoint> GenerateWeeklyTrends(List<Incident> incidents, int lookbackDays)
