@@ -204,5 +204,44 @@ public class AIBehavioralController : ControllerBase
             return StatusCode(500, new { detail = "Failed to get top anomalies" });
         }
     }
+
+    /// <summary>
+    /// Get detailed entity analysis including trends and action breakdown
+    /// </summary>
+    [HttpGet("entity/{entityType}/{entityId}/detail")]
+    public async Task<ActionResult<AIBehavioralDetailResponse>> GetEntityDetail(
+        string entityType,
+        string entityId,
+        [FromQuery] int lookbackDays = 30)
+    {
+        try
+        {
+            if (lookbackDays < 1 || lookbackDays > 90)
+            {
+                return BadRequest(new { detail = "lookbackDays must be between 1 and 90" });
+            }
+
+            var validEntityTypes = new[] { "user", "channel", "department", "destination", "rule" };
+            if (!validEntityTypes.Contains(entityType.ToLower()))
+            {
+                return BadRequest(new { detail = $"EntityType must be one of: {string.Join(", ", validEntityTypes)}" });
+            }
+
+            // Decode entityId in case it contains encoded characters
+            var decodedEntityId = Uri.UnescapeDataString(entityId);
+
+            var detail = await _behaviorEngine.AnalyzeEntityDetailAsync(
+                entityType.ToLower(),
+                decodedEntityId,
+                lookbackDays);
+
+            return Ok(detail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting entity detail {EntityType}:{EntityId}", entityType, entityId);
+            return StatusCode(500, new { detail = $"Failed to get entity detail: {ex.Message}" });
+        }
+    }
 }
 

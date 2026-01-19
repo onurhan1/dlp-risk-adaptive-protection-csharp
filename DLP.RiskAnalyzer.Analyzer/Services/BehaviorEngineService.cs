@@ -1001,6 +1001,11 @@ public class BehaviorEngineService
         public double AvgSeverity { get; set; }
         public double StdDevSeverity { get; set; }
         public Dictionary<string, int> ChannelCounts { get; set; } = new();
+        // New metrics
+        public Dictionary<string, int> ActionCounts { get; set; } = new();
+        public int TotalMatches { get; set; }
+        public double AvgMatchesPerIncident { get; set; }
+        public double StdDevMatches { get; set; }
     }
 
     private class AnomalyResults
@@ -1010,6 +1015,367 @@ public class BehaviorEngineService
         public double ChannelEmailZScore { get; set; }
         public double ChannelWebZScore { get; set; }
         public double ChannelEndpointZScore { get; set; }
+        // New action-based Z-scores
+        public double ActionBlockZScore { get; set; }
+        public double ActionQuarantineZScore { get; set; }
+        public double ActionAuthorizedZScore { get; set; }
+        public double ActionReleasedZScore { get; set; }
+        public double MaxMatchesZScore { get; set; }
+        public double WeeklyTrendZScore { get; set; }
+    }
+
+    #endregion
+
+    #region Detailed Analysis
+
+    /// <summary>
+    /// Analyze entity with full detail including trends and action breakdown
+    /// </summary>
+    public async Task<AIBehavioralDetailResponse> AnalyzeEntityDetailAsync(
+        string entityType,
+        string entityId,
+        int lookbackDays = 30)
+    {
+        _logger.LogInformation("Starting detailed analysis for {EntityType}: {EntityId}", entityType, entityId);
+
+        var endDate = DateTime.UtcNow;
+        var startDate = endDate.AddDays(-lookbackDays);
+        var baselineStartDate = startDate.AddDays(-lookbackDays * 2);
+
+        // Get all incidents for this entity
+        var allIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, endDate);
+        var currentIncidents = allIncidents.Where(i => i.Timestamp >= startDate).ToList();
+        var baselineIncidents = allIncidents.Where(i => i.Timestamp < startDate).ToList();
+
+        if (currentIncidents.Count == 0)
+        {
+            return new AIBehavioralDetailResponse
+            {
+                EntityType = entityType,
+                EntityId = entityId,
+                RiskScore = 0,
+                AnomalyLevel = "low",
+                AIExplanation = $"No incidents found for {entityType} '{entityId}' in the analyzed period.",
+                AIRecommendation = "No action required.",
+                AnalysisDate = endDate
+            };
+        }
+
+        // Calculate enhanced metrics
+        var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
+        var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
+
+        // Calculate all Z-scores
+        var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
+
+        // Calculate risk score from all Z-scores
+        var riskScore = CalculateEnhancedRiskScore(zScores);
+        var anomalyLevel = DetermineAnomalyLevel(riskScore);
+
+        // Generate weekly trends
+        var weeklyTrends = GenerateWeeklyTrends(allIncidents, lookbackDays);
+
+        // Generate monthly trends
+        var monthlyTrends = GenerateMonthlyTrends(allIncidents);
+
+        // Get destination patterns (for users)
+        var destinationPatterns = GetDestinationPatterns(currentIncidents, baselineIncidents);
+
+        // Calculate destination diversity
+        var uniqueDestinations = currentIncidents.Where(i => !string.IsNullOrEmpty(i.Destination))
+            .Select(i => i.Destination).Distinct().Count();
+        var destinationDiversity = currentIncidents.Count > 0 
+            ? (double)uniqueDestinations / currentIncidents.Count 
+            : 0;
+
+        // Get top incidents
+        var topIncidents = currentIncidents
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Severity)
+            .Take(20)
+            .Select(i => new IncidentSummary
+            {
+                Id = i.Id,
+                LoginName = i.LoginName ?? i.UserEmail ?? "N/A",
+                Destination = i.Destination ?? "N/A",
+                Channel = i.Channel ?? "N/A",
+                Action = i.Action ?? "N/A",
+                MaxMatches = i.MaxMatches,
+                Timestamp = i.Timestamp
+            })
+            .ToList();
+
+        // Generate AI explanation
+        string explanation, recommendation;
+        try
+        {
+            var metadata = new Dictionary<string, object>
+            {
+                { "current_incident_count", currentMetrics.TotalIncidents },
+                { "baseline_incident_count", baselineMetrics.TotalIncidents },
+                { "z_score_incident_count", zScores["incident_count"] },
+                { "z_score_action_block", zScores["action_block"] },
+                { "z_score_max_matches", zScores["max_matches"] }
+            };
+            var anomalyResults = new AnomalyResults
+            {
+                IncidentCountZScore = zScores["incident_count"],
+                ActionBlockZScore = zScores["action_block"],
+                MaxMatchesZScore = zScores["max_matches"]
+            };
+            (explanation, recommendation) = await GenerateAIAnalysisAsync(entityType, entityId, metadata, anomalyResults);
+        }
+        catch
+        {
+            explanation = $"Analysis shows {anomalyLevel} risk level with {currentMetrics.TotalIncidents} incidents.";
+            recommendation = anomalyLevel == "high" 
+                ? "Immediate investigation recommended." 
+                : "Continue monitoring.";
+        }
+
+        return new AIBehavioralDetailResponse
+        {
+            EntityType = entityType,
+            EntityId = entityId,
+            RiskScore = riskScore,
+            AnomalyLevel = anomalyLevel,
+            AIExplanation = explanation,
+            AIRecommendation = recommendation,
+            ReferenceIncidentIds = currentIncidents.Take(10).Select(i => i.Id).ToList(),
+            AnalysisDate = endDate,
+            ZScores = zScores,
+            WeeklyTrends = weeklyTrends,
+            MonthlyTrends = monthlyTrends,
+            ActionCounts = currentMetrics.ActionCounts,
+            ActionZScores = new Dictionary<string, double>
+            {
+                { "BLOCK", zScores.GetValueOrDefault("action_block", 0) },
+                { "QUARANTINE", zScores.GetValueOrDefault("action_quarantine", 0) },
+                { "AUTHORIZED", zScores.GetValueOrDefault("action_authorized", 0) },
+                { "RELEASED", zScores.GetValueOrDefault("action_released", 0) }
+            },
+            TotalIncidents = currentMetrics.TotalIncidents,
+            TotalMatches = currentMetrics.TotalMatches,
+            AvgMatchesPerIncident = currentMetrics.AvgMatchesPerIncident,
+            DestinationPatterns = destinationPatterns,
+            DestinationDiversity = Math.Round(destinationDiversity, 2),
+            TopIncidents = topIncidents
+        };
+    }
+
+    private BehaviorMetrics CalculateEnhancedMetrics(List<Incident> incidents)
+    {
+        if (incidents.Count == 0)
+        {
+            return new BehaviorMetrics();
+        }
+
+        var incidentsPerDay = incidents
+            .GroupBy(i => i.Timestamp.Date)
+            .Select(g => g.Count())
+            .ToList();
+
+        var mean = incidentsPerDay.Count > 0 ? incidentsPerDay.Average() : 0;
+        var stdDev = incidentsPerDay.Count > 1
+            ? Math.Sqrt(incidentsPerDay.Sum(x => Math.Pow(x - mean, 2)) / (incidentsPerDay.Count - 1))
+            : 0;
+
+        var avgSeverity = incidents.Average(i => i.Severity);
+        var severityStdDev = incidents.Count > 1
+            ? Math.Sqrt(incidents.Sum(i => Math.Pow(i.Severity - avgSeverity, 2)) / (incidents.Count - 1))
+            : 0;
+
+        var channelCounts = incidents
+            .Where(i => !string.IsNullOrEmpty(i.Channel))
+            .GroupBy(i => i.Channel)
+            .ToDictionary(g => g.Key!, g => g.Count());
+
+        // Action counts
+        var actionCounts = incidents
+            .Where(i => !string.IsNullOrEmpty(i.Action))
+            .GroupBy(i => i.Action!.ToUpper())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Max matches stats
+        var totalMatches = incidents.Sum(i => i.MaxMatches);
+        var avgMatches = incidents.Average(i => (double)i.MaxMatches);
+        var stdDevMatches = incidents.Count > 1
+            ? Math.Sqrt(incidents.Sum(i => Math.Pow(i.MaxMatches - avgMatches, 2)) / (incidents.Count - 1))
+            : 0;
+
+        return new BehaviorMetrics
+        {
+            TotalIncidents = incidents.Count,
+            MeanIncidentsPerDay = mean,
+            StdDevIncidentsPerDay = stdDev,
+            AvgSeverity = avgSeverity,
+            StdDevSeverity = severityStdDev,
+            ChannelCounts = channelCounts,
+            ActionCounts = actionCounts,
+            TotalMatches = totalMatches,
+            AvgMatchesPerIncident = avgMatches,
+            StdDevMatches = stdDevMatches
+        };
+    }
+
+    private Dictionary<string, double> CalculateAllZScores(
+        BehaviorMetrics current, 
+        BehaviorMetrics baseline,
+        List<Incident> currentIncidents,
+        List<Incident> baselineIncidents)
+    {
+        var zScores = new Dictionary<string, double>();
+
+        // Incident count Z-score
+        zScores["incident_count"] = baseline.StdDevIncidentsPerDay > 0
+            ? Math.Round((current.MeanIncidentsPerDay - baseline.MeanIncidentsPerDay) / baseline.StdDevIncidentsPerDay, 2)
+            : 0;
+
+        // Severity Z-score
+        zScores["severity"] = baseline.StdDevSeverity > 0
+            ? Math.Round((current.AvgSeverity - baseline.AvgSeverity) / baseline.StdDevSeverity, 2)
+            : 0;
+
+        // Channel Z-scores
+        zScores["channel_email"] = CalculateChannelZScore("Email", current, baseline);
+        zScores["channel_web"] = CalculateChannelZScore("Web", current, baseline);
+        zScores["channel_endpoint"] = CalculateChannelZScore("Endpoint", current, baseline);
+
+        // Action Z-scores
+        zScores["action_block"] = CalculateActionZScore("BLOCK", current, baseline);
+        zScores["action_quarantine"] = CalculateActionZScore("QUARANTINE", current, baseline);
+        zScores["action_authorized"] = CalculateActionZScore("AUTHORIZED", current, baseline);
+        zScores["action_released"] = CalculateActionZScore("RELEASED", current, baseline);
+
+        // MaxMatches Z-score
+        zScores["max_matches"] = baseline.StdDevMatches > 0
+            ? Math.Round((current.AvgMatchesPerIncident - baseline.AvgMatchesPerIncident) / baseline.StdDevMatches, 2)
+            : 0;
+
+        // Weekly trend Z-score
+        zScores["weekly_trend"] = CalculateWeeklyTrendZScore(currentIncidents);
+
+        return zScores;
+    }
+
+    private double CalculateActionZScore(string action, BehaviorMetrics current, BehaviorMetrics baseline)
+    {
+        var currentCount = current.ActionCounts.GetValueOrDefault(action, 0) +
+                          current.ActionCounts.GetValueOrDefault(action + "ED", 0); // BLOCK/BLOCKED
+        var baselineCount = baseline.ActionCounts.GetValueOrDefault(action, 0) +
+                           baseline.ActionCounts.GetValueOrDefault(action + "ED", 0);
+
+        if (baselineCount == 0) return currentCount > 0 ? 2.0 : 0;
+
+        var baselineStd = Math.Max(1, baselineCount * 0.3);
+        return Math.Round((currentCount - baselineCount) / baselineStd, 2);
+    }
+
+    private double CalculateWeeklyTrendZScore(List<Incident> incidents)
+    {
+        if (incidents.Count < 14) return 0;
+
+        var lastWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-7)).Count();
+        var prevWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-14) && i.Timestamp < DateTime.UtcNow.AddDays(-7)).Count();
+
+        if (prevWeek == 0) return lastWeek > 5 ? 2.0 : 0;
+
+        var growthRate = (double)(lastWeek - prevWeek) / prevWeek;
+        // Typical growth of 10% with std 20%
+        return Math.Round((growthRate - 0.1) / 0.2, 2);
+    }
+
+    private int CalculateEnhancedRiskScore(Dictionary<string, double> zScores)
+    {
+        // Weight: Action-based scores are more important
+        var weightedScores = new List<double>();
+        
+        foreach (var kvp in zScores)
+        {
+            var weight = kvp.Key.StartsWith("action_") ? 1.5 : 1.0;
+            weightedScores.Add(Math.Abs(kvp.Value) * weight);
+        }
+
+        var maxZ = weightedScores.Count > 0 ? weightedScores.Max() : 0;
+
+        if (maxZ >= 4) return 100;
+        if (maxZ >= 3) return 85;
+        if (maxZ >= 2.5) return 75;
+        if (maxZ >= 2) return 65;
+        if (maxZ >= 1.5) return 50;
+        if (maxZ >= 1) return 40;
+        if (maxZ >= 0.5) return 30;
+        return 20;
+    }
+
+    private List<TrendDataPoint> GenerateWeeklyTrends(List<Incident> incidents, int lookbackDays)
+    {
+        var weeks = new List<TrendDataPoint>();
+        var startDate = DateTime.UtcNow.AddDays(-lookbackDays);
+
+        for (int i = 0; i < (lookbackDays / 7) + 1; i++)
+        {
+            var weekStart = startDate.AddDays(i * 7);
+            var weekEnd = weekStart.AddDays(7);
+            var weekIncidents = incidents.Where(inc => inc.Timestamp >= weekStart && inc.Timestamp < weekEnd).ToList();
+
+            var weekNumber = System.Globalization.CultureInfo.CurrentCulture.Calendar
+                .GetWeekOfYear(weekStart, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+
+            weeks.Add(new TrendDataPoint
+            {
+                Label = $"{weekStart.Year}-W{weekNumber:D2}",
+                Count = weekIncidents.Count,
+                BlockCount = weekIncidents.Count(i => i.Action?.ToUpper() == "BLOCK" || i.Action?.ToUpper() == "BLOCKED"),
+                QuarantineCount = weekIncidents.Count(i => i.Action?.ToUpper() == "QUARANTINE" || i.Action?.ToUpper() == "QUARANTINED"),
+                AuthorizedCount = weekIncidents.Count(i => i.Action?.ToUpper() == "AUTHORIZED"),
+                ReleasedCount = weekIncidents.Count(i => i.Action?.ToUpper() == "RELEASED"),
+                TotalMatches = weekIncidents.Sum(i => i.MaxMatches)
+            });
+        }
+
+        return weeks.Where(w => w.Count > 0).ToList();
+    }
+
+    private List<TrendDataPoint> GenerateMonthlyTrends(List<Incident> incidents)
+    {
+        return incidents
+            .GroupBy(i => new { i.Timestamp.Year, i.Timestamp.Month })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+            .Select(g => new TrendDataPoint
+            {
+                Label = $"{g.Key.Year}-{g.Key.Month:D2}",
+                Count = g.Count(),
+                BlockCount = g.Count(i => i.Action?.ToUpper() == "BLOCK" || i.Action?.ToUpper() == "BLOCKED"),
+                QuarantineCount = g.Count(i => i.Action?.ToUpper() == "QUARANTINE" || i.Action?.ToUpper() == "QUARANTINED"),
+                AuthorizedCount = g.Count(i => i.Action?.ToUpper() == "AUTHORIZED"),
+                ReleasedCount = g.Count(i => i.Action?.ToUpper() == "RELEASED"),
+                TotalMatches = g.Sum(i => i.MaxMatches)
+            })
+            .ToList();
+    }
+
+    private List<DestinationPattern> GetDestinationPatterns(List<Incident> currentIncidents, List<Incident> baselineIncidents)
+    {
+        var baselineDestinations = baselineIncidents
+            .Where(i => !string.IsNullOrEmpty(i.Destination))
+            .Select(i => i.Destination)
+            .Distinct()
+            .ToHashSet();
+
+        return currentIncidents
+            .Where(i => !string.IsNullOrEmpty(i.Destination))
+            .GroupBy(i => i.Destination)
+            .OrderByDescending(g => g.Sum(i => i.MaxMatches))
+            .Take(20)
+            .Select(g => new DestinationPattern
+            {
+                Destination = g.Key!,
+                IncidentCount = g.Count(),
+                TotalMatches = g.Sum(i => i.MaxMatches),
+                IsNew = !baselineDestinations.Contains(g.Key)
+            })
+            .ToList();
     }
 
     #endregion

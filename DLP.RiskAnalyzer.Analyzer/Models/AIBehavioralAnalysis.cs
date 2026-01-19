@@ -68,3 +68,70 @@ public class AIBehavioralOverviewResponse
     public Dictionary<string, int> AnomalyByDepartment { get; set; } = new();
 }
 
+/// <summary>
+/// Detailed analysis response with trends and charts data
+/// </summary>
+public class AIBehavioralDetailResponse
+{
+    public string EntityType { get; set; } = string.Empty;
+    public string EntityId { get; set; } = string.Empty;
+    public int RiskScore { get; set; }
+    public string AnomalyLevel { get; set; } = string.Empty;
+    public string AIExplanation { get; set; } = string.Empty;
+    public string AIRecommendation { get; set; } = string.Empty;
+    public List<int> ReferenceIncidentIds { get; set; } = new();
+    public DateTime AnalysisDate { get; set; }
+    
+    // Z-Score breakdown
+    public Dictionary<string, double> ZScores { get; set; } = new();
+    
+    // Trend data for charts
+    public List<TrendDataPoint> WeeklyTrends { get; set; } = new();
+    public List<TrendDataPoint> MonthlyTrends { get; set; } = new();
+    
+    // Action breakdown for pie chart
+    public Dictionary<string, int> ActionCounts { get; set; } = new();
+    public Dictionary<string, double> ActionZScores { get; set; } = new();
+    
+    // Statistics
+    public int TotalIncidents { get; set; }
+    public int TotalMatches { get; set; }
+    public double AvgMatchesPerIncident { get; set; }
+    
+    // Destination patterns (for users)
+    public List<DestinationPattern> DestinationPatterns { get; set; } = new();
+    public double DestinationDiversity { get; set; }
+    
+    // Top incidents for table
+    public List<IncidentSummary> TopIncidents { get; set; } = new();
+}
+
+public class TrendDataPoint
+{
+    public string Label { get; set; } = string.Empty; // "2024-W01" or "2024-01"
+    public int Count { get; set; }
+    public int BlockCount { get; set; }
+    public int QuarantineCount { get; set; }
+    public int AuthorizedCount { get; set; }
+    public int ReleasedCount { get; set; }
+    public int TotalMatches { get; set; }
+}
+
+public class DestinationPattern
+{
+    public string Destination { get; set; } = string.Empty;
+    public int IncidentCount { get; set; }
+    public int TotalMatches { get; set; }
+    public bool IsNew { get; set; } // Not in baseline
+}
+
+public class IncidentSummary
+{
+    public int Id { get; set; }
+    public string LoginName { get; set; } = string.Empty;
+    public string Destination { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public int MaxMatches { get; set; }
+    public DateTime Timestamp { get; set; }
+}
