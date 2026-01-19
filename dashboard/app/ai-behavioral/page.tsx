@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
+import EntityDetailModal from '@/components/EntityDetailModal'
 
 interface AIBehavioralAnalysis {
   entityType: string
@@ -48,6 +49,10 @@ export default function AIBehavioralPage() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 100
+
+  // Detail modal state
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [detailEntity, setDetailEntity] = useState<{ type: string; id: string } | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -472,23 +477,22 @@ export default function AIBehavioralPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              analyzeEntity(anomaly.entityType, anomaly.entityId)
+                              setDetailEntity({ type: anomaly.entityType, id: anomaly.entityId })
+                              setDetailModalOpen(true)
                             }}
-                            disabled={analyzing}
                             style={{
                               padding: '6px 12px',
-                              background: analyzing ? '#9ca3af' : '#0ea5e9',
+                              background: '#0ea5e9',
                               color: 'white',
                               border: 'none',
                               borderRadius: '6px',
-                              cursor: analyzing ? 'not-allowed' : 'pointer',
+                              cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: '500',
-                              opacity: analyzing ? 0.6 : 1,
                               whiteSpace: 'nowrap'
                             }}
                           >
-                            {analyzing ? '...' : 'Analyze'}
+                            📊 Analyze
                           </button>
                         </div>
                       </div>
@@ -620,6 +624,16 @@ export default function AIBehavioralPage() {
           </div>
         )}
       </div>
+
+      {/* Entity Detail Modal */}
+      {detailEntity && (
+        <EntityDetailModal
+          isOpen={detailModalOpen}
+          onClose={() => setDetailModalOpen(false)}
+          entityType={detailEntity.type}
+          entityId={detailEntity.id}
+        />
+      )}
     </div>
   )
 }
