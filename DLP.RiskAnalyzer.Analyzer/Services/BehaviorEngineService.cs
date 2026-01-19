@@ -1072,9 +1072,9 @@ public class BehaviorEngineService
         // Calculate base risk score from all Z-scores
         var baseRiskScore = CalculateEnhancedRiskScore(zScores);
         
-        // Apply threat profile multiplier based on action distribution
-        // If most actions are AUTHORIZED/RELEASED (non-threatening), reduce the risk score
-        var threatMultiplier = CalculateThreatProfileMultiplier(currentMetrics.ActionCounts);
+        // Apply threat profile multiplier based on per-incident threat analysis
+        // Each incident is weighted by: action_type × severity × log(1 + maxMatches)
+        var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
         var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
         riskScore = Math.Clamp(riskScore, 0, 100); // Ensure within bounds
         
@@ -1439,50 +1439,67 @@ public class BehaviorEngineService
     }
 
     /// <summary>
-    /// Calculate threat profile multiplier based on action distribution.
-    /// If most actions are AUTHORIZED/RELEASED (non-threatening), the multiplier reduces risk score.
-    /// If most actions are BLOCK/QUARANTINE (threatening), multiplier stays at 1.0.
+    /// Calculate threat profile multiplier based on per-incident analysis.
+    /// Each incident contributes a weighted threat score based on:
+    /// - Action type: BLOCK=1.0, QUARANTINE=0.8, AUTHORIZED=0.2, RELEASED=0.2
+    /// - Severity: 1-3 scale (higher = more severe)
+    /// - MaxMatches: log(1 + matches) to prevent extreme values
     /// 
-    /// Examples:
-    /// - 100% BLOCK/QUARANTINE: multiplier = 1.0 (full risk)
-    /// - 100% AUTHORIZED/RELEASED: multiplier = 0.3 (70% reduction)
-    /// - 50/50 mix: multiplier = 0.65
+    /// The multiplier ranges from 0.2 (all low-threat) to 1.0 (all high-threat)
     /// </summary>
-    private double CalculateThreatProfileMultiplier(Dictionary<string, int> actionCounts)
+    private double CalculateThreatProfileMultiplier(List<Incident> incidents)
     {
-        if (actionCounts == null || actionCounts.Count == 0)
+        if (incidents == null || incidents.Count == 0)
             return 1.0;
 
-        // Count high-threat actions (BLOCK, QUARANTINE, BLOCKED, QUARANTINED)
-        var highThreatCount = 
-            actionCounts.GetValueOrDefault("BLOCK", 0) +
-            actionCounts.GetValueOrDefault("BLOCKED", 0) +
-            actionCounts.GetValueOrDefault("QUARANTINE", 0) +
-            actionCounts.GetValueOrDefault("QUARANTINED", 0);
+        // Action weights
+        var actionWeights = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "BLOCK", 1.0 },
+            { "BLOCKED", 1.0 },
+            { "QUARANTINE", 0.8 },
+            { "QUARANTINED", 0.8 },
+            { "AUTHORIZED", 0.2 },
+            { "RELEASED", 0.2 }
+        };
 
-        // Count low-threat actions (AUTHORIZED, RELEASED)
-        var lowThreatCount = 
-            actionCounts.GetValueOrDefault("AUTHORIZED", 0) +
-            actionCounts.GetValueOrDefault("RELEASED", 0);
+        double totalWeightedThreat = 0;
+        double maxPossibleThreat = 0;
 
-        var totalCount = highThreatCount + lowThreatCount;
-        
-        if (totalCount == 0)
+        foreach (var incident in incidents)
+        {
+            // Get action weight (default 0.5 for unknown actions)
+            var actionWeight = actionWeights.GetValueOrDefault(incident.Action ?? "", 0.5);
+            
+            // Normalize severity (1-3) to 0.33-1.0 range
+            var severityFactor = Math.Max(0.33, incident.Severity / 3.0);
+            
+            // MaxMatches factor using log scale (1 match = 0.69, 10 matches = 2.4, 100 matches = 4.6)
+            var matchesFactor = Math.Log(1 + Math.Max(1, incident.MaxMatches));
+            
+            // Calculate weighted threat for this incident
+            var incidentThreat = actionWeight * severityFactor * matchesFactor;
+            totalWeightedThreat += incidentThreat;
+            
+            // Max possible threat (if this were a BLOCK with max severity)
+            maxPossibleThreat += 1.0 * 1.0 * matchesFactor;
+        }
+
+        if (maxPossibleThreat == 0)
             return 1.0;
 
-        // Calculate the ratio of high-threat actions
-        var highThreatRatio = (double)highThreatCount / totalCount;
+        // Calculate threat ratio (0 to 1)
+        var threatRatio = totalWeightedThreat / maxPossibleThreat;
         
-        // Multiplier formula:
-        // - 100% high-threat (ratio=1.0) -> multiplier = 1.0
-        // - 0% high-threat (ratio=0.0) -> multiplier = 0.3 (minimum)
-        // Linear interpolation between these extremes
-        const double MIN_MULTIPLIER = 0.3;
-        const double MAX_MULTIPLIER = 1.0;
+        // Map to multiplier range [0.2, 1.0]
+        // threatRatio 0.0 -> multiplier 0.2
+        // threatRatio 1.0 -> multiplier 1.0
+        const double MIN_MULT = 0.2;
+        const double MAX_MULT = 1.0;
         
-        var multiplier = MIN_MULTIPLIER + (highThreatRatio * (MAX_MULTIPLIER - MIN_MULTIPLIER));
+        var multiplier = MIN_MULT + (threatRatio * (MAX_MULT - MIN_MULT));
         
-        return Math.Round(multiplier, 2);
+        return Math.Round(Math.Clamp(multiplier, MIN_MULT, MAX_MULT), 2);
     }
 
     private List<TrendDataPoint> GenerateWeeklyTrends(List<Incident> incidents, int lookbackDays)
