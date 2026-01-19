@@ -80,10 +80,10 @@ function FilterDropdown({
     const [showDropdown, setShowDropdown] = useState(false)
 
     const filteredOptions = useMemo(() => {
-        if (!value.trim()) return options.slice(0, 50)
+        if (!value.trim()) return options
         return options.filter(opt =>
             opt.toLowerCase().includes(value.toLowerCase())
-        ).slice(0, 50)
+        )
     }, [options, value])
 
     return (

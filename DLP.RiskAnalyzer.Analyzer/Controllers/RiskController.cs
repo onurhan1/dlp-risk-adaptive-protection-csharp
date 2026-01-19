@@ -387,7 +387,6 @@ public class RiskController : ControllerBase
                 .Select(i => i.LoginName!)
                 .Distinct()
                 .OrderBy(x => x)
-                .Take(500)
                 .ToListAsync();
 
             var destinations = await query
@@ -395,7 +394,6 @@ public class RiskController : ControllerBase
                 .Select(i => i.Destination!)
                 .Distinct()
                 .OrderBy(x => x)
-                .Take(500)
                 .ToListAsync();
 
             var channels = await query
@@ -417,7 +415,6 @@ public class RiskController : ControllerBase
                 .Where(i => i.ViolationTriggers != null && i.ViolationTriggers != "")
                 .Select(i => i.ViolationTriggers!)
                 .Distinct()
-                .Take(1000)
                 .ToListAsync();
 
             var rules = new HashSet<string>();
