@@ -1242,11 +1242,16 @@ public class BehaviorEngineService
         zScores["channel_web"] = CalculateChannelZScore("Web", current, baseline);
         zScores["channel_endpoint"] = CalculateChannelZScore("Endpoint", current, baseline);
 
-        // Action Z-scores
-        zScores["action_block"] = CalculateActionZScore("BLOCK", current, baseline);
-        zScores["action_quarantine"] = CalculateActionZScore("QUARANTINE", current, baseline);
-        zScores["action_authorized"] = CalculateActionZScore("AUTHORIZED", current, baseline);
-        zScores["action_released"] = CalculateActionZScore("RELEASED", current, baseline);
+        // Action Z-scores with impact weights
+        // BLOCK and QUARANTINE are high-threat actions (weight: 1.0)
+        // AUTHORIZED and RELEASED are low-threat actions (weight: 0.2)
+        const double HIGH_THREAT_WEIGHT = 1.0;
+        const double LOW_THREAT_WEIGHT = 0.2;
+        
+        zScores["action_block"] = CalculateActionZScore("BLOCK", current, baseline) * HIGH_THREAT_WEIGHT;
+        zScores["action_quarantine"] = CalculateActionZScore("QUARANTINE", current, baseline) * HIGH_THREAT_WEIGHT;
+        zScores["action_authorized"] = CalculateActionZScore("AUTHORIZED", current, baseline) * LOW_THREAT_WEIGHT;
+        zScores["action_released"] = CalculateActionZScore("RELEASED", current, baseline) * LOW_THREAT_WEIGHT;
 
         // MaxMatches Z-score
         zScores["max_matches"] = baseline.StdDevMatches > 0
