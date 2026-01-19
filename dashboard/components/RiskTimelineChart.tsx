@@ -57,21 +57,21 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
             endDate: dateRange.end,
             days: daysDiff
           }
-        }),
+        }).catch(err => { console.error('daily-summary error:', err); return { data: [] }; }),
         axios.get(`${apiUrl}/api/risk/top-users-daily`, {
           params: {
             startDate: dateRange.start,
             endDate: dateRange.end,
             limit: 20
           }
-        }),
+        }).catch(err => { console.error('top-users-daily error:', err); return { data: [] }; }),
         axios.get(`${apiUrl}/api/risk/top-rules-daily`, {
           params: {
             startDate: dateRange.start,
             endDate: dateRange.end,
             limit: 10
           }
-        })
+        }).catch(err => { console.error('top-rules-daily error:', err); return { data: [] }; })
       ])
 
       // Transform daily summary for chart

@@ -361,6 +361,114 @@ public class RiskController : ControllerBase
     }
 
     /// <summary>
+    /// Get filter options for Action Incidents modal (unique values for dropdowns)
+    /// </summary>
+    [HttpGet("incidents/filter-options")]
+    public async Task<ActionResult<object>> GetFilterOptions(
+        [FromQuery] string? action = null)
+    {
+        try
+        {
+            // Get all incidents (optionally filtered by action)
+            var query = _context.Incidents.AsQueryable();
+            
+            if (!string.IsNullOrEmpty(action) && action.ToUpper() != "TOTAL")
+            {
+                var normalizedAction = action.ToUpper();
+                query = query.Where(i => i.Action != null && 
+                           (i.Action.ToUpper() == normalizedAction || 
+                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
+                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")));
+            }
+
+            // Get unique values efficiently
+            var users = await query
+                .Where(i => i.LoginName != null && i.LoginName != "")
+                .Select(i => i.LoginName!)
+                .Distinct()
+                .OrderBy(x => x)
+                .Take(500)
+                .ToListAsync();
+
+            var destinations = await query
+                .Where(i => i.Destination != null && i.Destination != "")
+                .Select(i => i.Destination!)
+                .Distinct()
+                .OrderBy(x => x)
+                .Take(500)
+                .ToListAsync();
+
+            var channels = await query
+                .Where(i => i.Channel != null && i.Channel != "")
+                .Select(i => i.Channel!)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            var policies = await query
+                .Where(i => i.Policy != null && i.Policy != "")
+                .Select(i => i.Policy!)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            // Get rules from ViolationTriggers - this requires in-memory processing
+            var incidentsWithTriggers = await query
+                .Where(i => i.ViolationTriggers != null && i.ViolationTriggers != "")
+                .Select(i => i.ViolationTriggers!)
+                .Distinct()
+                .Take(1000)
+                .ToListAsync();
+
+            var rules = new HashSet<string>();
+            foreach (var triggerJson in incidentsWithTriggers)
+            {
+                try
+                {
+                    var triggers = System.Text.Json.JsonDocument.Parse(triggerJson);
+                    if (triggers.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var trigger in triggers.RootElement.EnumerateArray())
+                        {
+                            if (trigger.TryGetProperty("RuleName", out var ruleNameElement))
+                            {
+                                var ruleName = ruleNameElement.GetString();
+                                if (!string.IsNullOrEmpty(ruleName))
+                                {
+                                    rules.Add(ruleName);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { /* Skip invalid JSON */ }
+            }
+
+            // Get date range
+            var minDate = await _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
+            var maxDate = await _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
+
+            return Ok(new
+            {
+                users = users,
+                destinations = destinations,
+                channels = channels,
+                policies = policies,
+                rules = rules.OrderBy(r => r).ToList(),
+                dateRange = new
+                {
+                    minDate = minDate?.ToString("yyyy-MM-dd") ?? DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd"),
+                    maxDate = maxDate?.ToString("yyyy-MM-dd") ?? DateTime.UtcNow.ToString("yyyy-MM-dd")
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Get incidents filtered by action type for Action Summary modal
     /// Supports pagination and server-side filtering for performance
     /// </summary>
@@ -373,8 +481,11 @@ public class RiskController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100,
         [FromQuery] string? search = null,
+        [FromQuery] string? user = null,
+        [FromQuery] string? destination = null,
         [FromQuery] string? channel = null,
-        [FromQuery] string? policy = null)
+        [FromQuery] string? policy = null,
+        [FromQuery] string? rule = null)
     {
         try
         {
@@ -452,6 +563,20 @@ public class RiskController : ControllerBase
                     (i.Destination != null && i.Destination.ToLower().Contains(searchLower)));
             }
 
+            // User filter
+            if (!string.IsNullOrEmpty(user))
+            {
+                var userLower = user.ToLower();
+                query = query.Where(i => i.LoginName != null && i.LoginName.ToLower().Contains(userLower));
+            }
+
+            // Destination filter
+            if (!string.IsNullOrEmpty(destination))
+            {
+                var destLower = destination.ToLower();
+                query = query.Where(i => i.Destination != null && i.Destination.ToLower().Contains(destLower));
+            }
+
             // Channel filter
             if (!string.IsNullOrEmpty(channel))
             {
@@ -462,6 +587,12 @@ public class RiskController : ControllerBase
             if (!string.IsNullOrEmpty(policy))
             {
                 query = query.Where(i => i.Policy != null && i.Policy.ToLower().Contains(policy.ToLower()));
+            }
+
+            // Rule filter - filter by ViolationTriggers containing the rule name
+            if (!string.IsNullOrEmpty(rule))
+            {
+                query = query.Where(i => i.ViolationTriggers != null && i.ViolationTriggers.Contains(rule));
             }
 
             // Get total count before pagination

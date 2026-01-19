@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
@@ -27,6 +27,18 @@ interface PaginatedResponse {
     hasPreviousPage: boolean
 }
 
+interface FilterOptions {
+    users: string[]
+    destinations: string[]
+    channels: string[]
+    policies: string[]
+    rules: string[]
+    dateRange: {
+        minDate: string
+        maxDate: string
+    }
+}
+
 interface ActionIncidentsModalProps {
     isOpen: boolean
     onClose: () => void
@@ -51,6 +63,96 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue
 }
 
+// Autocomplete Filter Component
+function FilterDropdown({
+    label,
+    value,
+    onChange,
+    options,
+    placeholder
+}: {
+    label: string
+    value: string
+    onChange: (val: string) => void
+    options: string[]
+    placeholder: string
+}) {
+    const [showDropdown, setShowDropdown] = useState(false)
+
+    const filteredOptions = useMemo(() => {
+        if (!value.trim()) return options.slice(0, 50)
+        return options.filter(opt =>
+            opt.toLowerCase().includes(value.toLowerCase())
+        ).slice(0, 50)
+    }, [options, value])
+
+    return (
+        <div style={{ position: 'relative', minWidth: '140px', flex: 1 }}>
+            <label style={{
+                fontSize: '10px',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                display: 'block',
+                marginBottom: '4px'
+            }}>
+                {label}
+            </label>
+            <input
+                type="text"
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '13px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                }}
+            />
+            {showDropdown && filteredOptions.length > 0 && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 100
+                }}>
+                    {filteredOptions.map((option, idx) => (
+                        <div
+                            key={idx}
+                            onClick={() => { onChange(option); setShowDropdown(false) }}
+                            style={{
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                borderBottom: idx < filteredOptions.length - 1 ? '1px solid var(--border)' : 'none',
+                                color: 'var(--text-primary)'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--primary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                            {option}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 export default function ActionIncidentsModal({
     isOpen,
     onClose,
@@ -60,18 +162,14 @@ export default function ActionIncidentsModal({
     // Single day mode when initialDate is provided
     const isSingleDayMode = !!initialDate
 
+    // Filter options from API
+    const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
+
     // Date range state
     const [dateRange, setDateRange] = useState({
         start: initialDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
         end: initialDate || format(new Date(), 'yyyy-MM-dd')
     })
-
-    // Update date range when initialDate changes
-    useEffect(() => {
-        if (initialDate) {
-            setDateRange({ start: initialDate, end: initialDate })
-        }
-    }, [initialDate])
 
     // Pagination state
     const [page, setPage] = useState(1)
@@ -81,35 +179,73 @@ export default function ActionIncidentsModal({
 
     // Filter states
     const [filters, setFilters] = useState({
-        search: '',
+        user: '',
+        destination: '',
         channel: '',
-        policy: ''
+        policy: '',
+        rule: ''
     })
 
     // Debounced filters for server-side search
-    const debouncedSearch = useDebounce(filters.search, 500)
+    const debouncedUser = useDebounce(filters.user, 500)
+    const debouncedDestination = useDebounce(filters.destination, 500)
     const debouncedChannel = useDebounce(filters.channel, 500)
     const debouncedPolicy = useDebounce(filters.policy, 500)
+    const debouncedRule = useDebounce(filters.rule, 500)
 
     const [incidents, setIncidents] = useState<ActionIncident[]>([])
     const [loading, setLoading] = useState(false)
+
+    // Fetch filter options when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            fetchFilterOptions()
+        }
+    }, [isOpen, action])
+
+    const fetchFilterOptions = async () => {
+        try {
+            const apiUrl = getApiUrlDynamic()
+            const response = await axios.get<FilterOptions>(`${apiUrl}/api/risk/incidents/filter-options`, {
+                params: { action }
+            })
+            setFilterOptions(response.data)
+
+            // Set default date range from API if not single day mode
+            if (!isSingleDayMode && response.data.dateRange) {
+                setDateRange({
+                    start: response.data.dateRange.minDate,
+                    end: response.data.dateRange.maxDate
+                })
+            }
+        } catch (error) {
+            console.error('Error fetching filter options:', error)
+        }
+    }
+
+    // Update date range when initialDate changes
+    useEffect(() => {
+        if (initialDate) {
+            setDateRange({ start: initialDate, end: initialDate })
+        }
+    }, [initialDate])
 
     // Fetch incidents when modal opens or filters/pagination change
     useEffect(() => {
         if (isOpen) {
             fetchIncidents()
         }
-    }, [isOpen, dateRange.start, dateRange.end, action, page, debouncedSearch, debouncedChannel, debouncedPolicy])
+    }, [isOpen, dateRange.start, dateRange.end, action, page, debouncedUser, debouncedDestination, debouncedChannel, debouncedPolicy, debouncedRule])
 
     // Reset page when filters change
     useEffect(() => {
         setPage(1)
-    }, [debouncedSearch, debouncedChannel, debouncedPolicy, dateRange.start, dateRange.end])
+    }, [debouncedUser, debouncedDestination, debouncedChannel, debouncedPolicy, debouncedRule, dateRange.start, dateRange.end])
 
     // Reset all when modal opens
     useEffect(() => {
         if (isOpen) {
-            setFilters({ search: '', channel: '', policy: '' })
+            setFilters({ user: '', destination: '', channel: '', policy: '', rule: '' })
             setPage(1)
         }
     }, [isOpen])
@@ -125,9 +261,11 @@ export default function ActionIncidentsModal({
                     end_date: dateRange.end,
                     page: page,
                     pageSize: pageSize,
-                    search: debouncedSearch || undefined,
+                    user: debouncedUser || undefined,
+                    destination: debouncedDestination || undefined,
                     channel: debouncedChannel || undefined,
-                    policy: debouncedPolicy || undefined
+                    policy: debouncedPolicy || undefined,
+                    rule: debouncedRule || undefined
                 }
             })
             setIncidents(response.data.items || [])
@@ -155,11 +293,11 @@ export default function ActionIncidentsModal({
     }, [isOpen, onClose])
 
     // Check if any filter is active
-    const hasActiveFilters = filters.search || filters.channel || filters.policy
+    const hasActiveFilters = filters.user || filters.destination || filters.channel || filters.policy || filters.rule
 
     // Clear all filters
     const clearFilters = () => {
-        setFilters({ search: '', channel: '', policy: '' })
+        setFilters({ user: '', destination: '', channel: '', policy: '', rule: '' })
         setPage(1)
     }
 
@@ -174,18 +312,6 @@ export default function ActionIncidentsModal({
     }
 
     const actionColor = actionColors[action] || '#3b82f6'
-
-    const inputStyle = {
-        width: '100%',
-        padding: '8px 12px',
-        fontSize: '13px',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        backgroundColor: 'var(--background)',
-        color: 'var(--text-primary)',
-        outline: 'none',
-        transition: 'border-color 0.2s'
-    }
 
     const dateInputStyle = {
         padding: '8px 12px',
@@ -205,7 +331,7 @@ export default function ActionIncidentsModal({
         backgroundColor: disabled ? 'var(--background-secondary)' : 'var(--surface)',
         color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontWeight: '500'
+        fontWeight: '500' as const
     })
 
     return (
@@ -251,6 +377,7 @@ export default function ActionIncidentsModal({
                     borderBottom: '1px solid var(--border)',
                     flexShrink: 0
                 }}>
+                    {/* Title Row */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <h2 style={{
                             margin: 0,
@@ -295,31 +422,28 @@ export default function ActionIncidentsModal({
                         </button>
                     </div>
 
-                    {/* Filters Row */}
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {/* Date - Single day mode shows label, otherwise shows date range picker */}
+                    {/* Date Range Row */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        marginBottom: '16px',
+                        padding: '12px 16px',
+                        backgroundColor: 'var(--background-secondary)',
+                        borderRadius: '8px'
+                    }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>📅 Date Range:</span>
                         {isSingleDayMode ? (
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                backgroundColor: 'var(--background-secondary)',
-                                padding: '8px 16px',
-                                borderRadius: '8px'
-                            }}>
-                                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>📅</span>
-                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                                    {new Date(dateRange.start).toLocaleDateString('en-US', {
-                                        weekday: 'long',
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric'
-                                    })}
-                                </span>
-                            </div>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                                {new Date(dateRange.start).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                })}
+                            </span>
                         ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📅</span>
+                            <>
                                 <input
                                     type="date"
                                     value={dateRange.start}
@@ -333,43 +457,47 @@ export default function ActionIncidentsModal({
                                     onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
                                     style={dateInputStyle}
                                 />
-                            </div>
+                            </>
                         )}
+                    </div>
 
-                        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)' }} />
-
-                        {/* Search */}
-                        <div style={{ flex: 1, minWidth: '200px', maxWidth: '300px' }}>
-                            <input
-                                type="text"
-                                placeholder="🔍 Search user, destination..."
-                                value={filters.search}
-                                onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
-                                style={inputStyle}
-                            />
-                        </div>
-
-                        {/* Channel */}
-                        <div style={{ minWidth: '150px' }}>
-                            <input
-                                type="text"
-                                placeholder="Channel"
-                                value={filters.channel}
-                                onChange={(e) => setFilters(f => ({ ...f, channel: e.target.value }))}
-                                style={inputStyle}
-                            />
-                        </div>
-
-                        {/* Policy */}
-                        <div style={{ minWidth: '150px' }}>
-                            <input
-                                type="text"
-                                placeholder="Policy"
-                                value={filters.policy}
-                                onChange={(e) => setFilters(f => ({ ...f, policy: e.target.value }))}
-                                style={inputStyle}
-                            />
-                        </div>
+                    {/* Filters Row */}
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <FilterDropdown
+                            label="User"
+                            value={filters.user}
+                            onChange={(val) => setFilters(f => ({ ...f, user: val }))}
+                            options={filterOptions?.users || []}
+                            placeholder="Filter user..."
+                        />
+                        <FilterDropdown
+                            label="Destination"
+                            value={filters.destination}
+                            onChange={(val) => setFilters(f => ({ ...f, destination: val }))}
+                            options={filterOptions?.destinations || []}
+                            placeholder="Filter destination..."
+                        />
+                        <FilterDropdown
+                            label="Channel"
+                            value={filters.channel}
+                            onChange={(val) => setFilters(f => ({ ...f, channel: val }))}
+                            options={filterOptions?.channels || []}
+                            placeholder="Filter channel..."
+                        />
+                        <FilterDropdown
+                            label="Policy"
+                            value={filters.policy}
+                            onChange={(val) => setFilters(f => ({ ...f, policy: val }))}
+                            options={filterOptions?.policies || []}
+                            placeholder="Filter policy..."
+                        />
+                        <FilterDropdown
+                            label="Rule"
+                            value={filters.rule}
+                            onChange={(val) => setFilters(f => ({ ...f, rule: val }))}
+                            options={filterOptions?.rules || []}
+                            placeholder="Filter rule..."
+                        />
 
                         {hasActiveFilters && (
                             <button
@@ -382,7 +510,8 @@ export default function ActionIncidentsModal({
                                     border: 'none',
                                     borderRadius: '6px',
                                     cursor: 'pointer',
-                                    fontWeight: '600'
+                                    fontWeight: '600',
+                                    marginBottom: '2px'
                                 }}
                             >
                                 Clear Filters
