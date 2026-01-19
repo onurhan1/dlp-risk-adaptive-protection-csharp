@@ -101,41 +101,43 @@ mindmap
 
 ## 4. Risk Score Calculation
 
-### 4.1 Algorithm
+### 4.1 Tier System
+
+| Tier | Score Range | Color | Requirements |
+|------|-------------|-------|--------------|
+| **CRITICAL** | 85-100 | 🟤 Dark Red | Multiple extreme signals |
+| **HIGH** | 65-84 | 🔴 Red | Clear anomaly pattern |
+| **MEDIUM** | 40-64 | 🟡 Yellow | Some anomaly signals |
+| **LOW** | 0-39 | 🟢 Green | Normal behavior |
+
+### 4.2 Scoring Algorithm
 
 ```python
-# Pseudocode
-all_z_scores = [
-    z_incident_count,
-    z_severity,
-    z_channel_email,
-    z_channel_web,
-    z_channel_endpoint,
-    z_action_block,
-    z_action_quarantine,
-    z_max_matches,
-    z_weekly_trend,
-    z_monthly_trend
-]
+# Score 100: Requires MULTIPLE extreme anomalies
+if extreme_count >= 2:  # Z >= 4.0
+    return 100
+if high_count >= 3 and medium_count >= 4:  # Z >= 3.0, Z >= 2.0
+    return 100
 
-max_z = max(abs(z) for z in all_z_scores)
+# Score 95: One extreme + additional highs
+if extreme_count >= 1 and high_count >= 2:
+    return 95
 
-if max_z >= 4.0: risk_score = 100
-elif max_z >= 3.0: risk_score = 85
-elif max_z >= 2.5: risk_score = 75
-elif max_z >= 2.0: risk_score = 65
-elif max_z >= 1.5: risk_score = 50
-elif max_z >= 1.0: risk_score = 40
-else: risk_score = 20
+# Score 85+: Requires pattern, not single spike
+if max_z >= 4.0 or high_count >= 2:
+    return 85
 ```
 
-### 4.2 Anomaly Classification
+### 4.3 Weekly Trend Z-Score (Log-Scale)
 
-| Risk Score | Level | Color |
-|------------|-------|-------|
-| 80-100 | HIGH | 🔴 Red |
-| 50-79 | MEDIUM | 🟡 Yellow |
-| 0-49 | LOW | 🟢 Green |
+```python
+# Prevents extreme values from simple percentage changes
+# Example: 2 -> 15 incidents
+raw_growth = (15 - 2) / 2  # = 6.5 (650%)
+scaled_growth = log(1 + 6.5)  # = 2.01 (compressed)
+z_score = scaled_growth / 0.5  # = 4.02
+final_z = clamp(z_score, -5.0, 5.0)  # Max 5.0
+```
 
 ---
 
