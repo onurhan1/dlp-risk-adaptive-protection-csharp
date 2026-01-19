@@ -6,16 +6,25 @@ namespace DLP.RiskAnalyzer.Collector.Services;
 
 /// <summary>
 /// Background service that collects incidents from DLP API
-/// Now with PAGINATION support to fetch ALL incidents, not just first 1000
+/// DUAL MODE: Regular (every 6h, 6h lookback) + Daily (23:00, 24h lookback)
 /// </summary>
 public class CollectorBackgroundService : BackgroundService
 {
     private readonly DLPCollectorService _collectorService;
     private readonly ILogger<CollectorBackgroundService> _logger;
     private readonly IConfiguration _configuration;
-    private readonly TimeSpan _collectionInterval;
-    private readonly int _lookbackHours;
+    
+    // Regular collection settings
+    private readonly int _regularIntervalHours;
+    private readonly int _regularLookbackHours;
+    
+    // Daily collection settings
+    private readonly TimeSpan _dailyRunTime;
+    private readonly int _dailyLookbackHours;
+    
     private readonly int _pageSize;
+    private DateTime _lastDailyRun = DateTime.MinValue;
+    private DateTime _lastRegularRun = DateTime.MinValue;
 
     public CollectorBackgroundService(
         DLPCollectorService collectorService,
@@ -26,51 +35,104 @@ public class CollectorBackgroundService : BackgroundService
         _logger = logger;
         _configuration = configuration;
         
-        // Read settings from configuration
-        var intervalMinutes = _configuration.GetValue<int>("Collector:IntervalMinutes", 60);
-        _collectionInterval = TimeSpan.FromMinutes(intervalMinutes);
-        _lookbackHours = _configuration.GetValue<int>("Collector:LookbackHours", 24);
+        // Read regular collection settings
+        _regularIntervalHours = _configuration.GetValue<int>("Collector:RegularIntervalHours", 6);
+        _regularLookbackHours = _configuration.GetValue<int>("Collector:RegularLookbackHours", 6);
+        
+        // Read daily collection settings
+        var dailyRunTimeStr = _configuration["Collector:DailyRunTime"] ?? "23:00";
+        _dailyRunTime = TimeSpan.Parse(dailyRunTimeStr);
+        _dailyLookbackHours = _configuration.GetValue<int>("Collector:DailyLookbackHours", 24);
+        
         _pageSize = _configuration.GetValue<int>("Collector:BatchSize", 1000);
         
-        _logger.LogInformation("Collector configured: Interval={Interval}min, Lookback={Lookback}h, PageSize={PageSize}", 
-            intervalMinutes, _lookbackHours, _pageSize);
+        _logger.LogInformation(
+            "Collector DUAL MODE configured:\n" +
+            "  - Regular: Every {RegularInterval}h, {RegularLookback}h lookback\n" +
+            "  - Daily: At {DailyTime}, {DailyLookback}h lookback\n" +
+            "  - PageSize: {PageSize}", 
+            _regularIntervalHours, _regularLookbackHours,
+            _dailyRunTime, _dailyLookbackHours, _pageSize);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("DLP Collector Service started");
+        _logger.LogInformation("DLP Collector Service started (DUAL MODE)");
+
+        // Run initial collection immediately
+        await CollectIncidentsAsync(_regularLookbackHours, "Initial", stoppingToken);
+        _lastRegularRun = DateTime.Now;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await CollectIncidentsAsync(stoppingToken);
-                await Task.Delay(_collectionInterval, stoppingToken);
+                var now = DateTime.Now;
+                
+                // Check for daily run (23:00)
+                if (ShouldRunDaily(now))
+                {
+                    _logger.LogInformation("=== DAILY COLLECTION TRIGGERED (24h lookback) ===");
+                    await CollectIncidentsAsync(_dailyLookbackHours, "Daily", stoppingToken);
+                    _lastDailyRun = now.Date; // Mark that we ran today
+                }
+                
+                // Check for regular run (every 6 hours)
+                if (ShouldRunRegular(now))
+                {
+                    _logger.LogInformation("=== REGULAR COLLECTION TRIGGERED ({LookbackHours}h lookback) ===", _regularLookbackHours);
+                    await CollectIncidentsAsync(_regularLookbackHours, "Regular", stoppingToken);
+                    _lastRegularRun = now;
+                }
+                
+                // Check every minute
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in collector background service");
-                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken); // Retry after 5 minutes
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
         }
 
         _logger.LogInformation("DLP Collector Service stopped");
     }
 
-    private async Task CollectIncidentsAsync(CancellationToken cancellationToken)
+    private bool ShouldRunDaily(DateTime now)
     {
-        _logger.LogInformation("Starting incident collection from Forcepoint DLP REST API v1 with TIME CHUNKING...");
+        // Check if it's time for daily run and we haven't run today
+        var currentTime = now.TimeOfDay;
+        var timeDiff = (currentTime - _dailyRunTime).TotalMinutes;
+        
+        // Run if within 2 minutes of scheduled time and haven't run today
+        return timeDiff >= 0 && timeDiff < 2 && _lastDailyRun.Date != now.Date;
+    }
 
-        // Use local time (not UTC) because Forcepoint API expects local time
+    private bool ShouldRunRegular(DateTime now)
+    {
+        // Run if enough time has passed since last regular run
+        var hoursSinceLastRun = (now - _lastRegularRun).TotalHours;
+        return hoursSinceLastRun >= _regularIntervalHours;
+    }
+
+    private async Task CollectIncidentsAsync(int lookbackHours, string runType, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("[{RunType}] Starting incident collection with {LookbackHours}h lookback...", 
+            runType, lookbackHours);
+
         var endTime = DateTime.Now;
-        var startTime = endTime.AddHours(-_lookbackHours);
+        var startTime = endTime.AddHours(-lookbackHours);
         
-        // Time chunk size in hours (smaller chunks = less chance of missing incidents)
+        // Time chunk size in hours
         var chunkSizeHours = 4;
-        var totalChunks = (int)Math.Ceiling((double)_lookbackHours / chunkSizeHours);
+        var totalChunks = (int)Math.Ceiling((double)lookbackHours / chunkSizeHours);
         
-        _logger.LogInformation("Fetching incidents from {StartTime} to {EndTime} ({LookbackHours}h lookback) in {TotalChunks} chunks of {ChunkSize}h each", 
-            startTime, endTime, _lookbackHours, totalChunks, chunkSizeHours);
+        _logger.LogInformation("[{RunType}] Fetching incidents from {StartTime} to {EndTime} in {TotalChunks} chunks", 
+            runType, startTime, endTime, totalChunks);
 
         try
         {
@@ -78,7 +140,6 @@ public class CollectorBackgroundService : BackgroundService
             int successfulChunks = 0;
             int failedChunks = 0;
             
-            // Process each time chunk sequentially
             var chunkStart = startTime;
             int chunkIndex = 0;
             
@@ -88,8 +149,8 @@ public class CollectorBackgroundService : BackgroundService
                 var chunkEnd = chunkStart.AddHours(chunkSizeHours);
                 if (chunkEnd > endTime) chunkEnd = endTime;
                 
-                _logger.LogInformation("Fetching chunk {ChunkIndex}/{TotalChunks}: {ChunkStart} to {ChunkEnd}", 
-                    chunkIndex, totalChunks, chunkStart, chunkEnd);
+                _logger.LogInformation("[{RunType}] Fetching chunk {ChunkIndex}/{TotalChunks}: {ChunkStart} to {ChunkEnd}", 
+                    runType, chunkIndex, totalChunks, chunkStart, chunkEnd);
                 
                 int maxRetries = 3;
                 List<DLPIncident> chunkIncidents = new();
@@ -100,26 +161,27 @@ public class CollectorBackgroundService : BackgroundService
                     try
                     {
                         chunkIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, 1, _pageSize);
-                        _logger.LogInformation("Chunk {ChunkIndex}: Fetched {Count} incidents", chunkIndex, chunkIncidents.Count);
+                        _logger.LogInformation("[{RunType}] Chunk {ChunkIndex}: Fetched {Count} incidents", 
+                            runType, chunkIndex, chunkIncidents.Count);
                         chunkSuccess = true;
                         break;
                     }
                     catch (TaskCanceledException) when (attempt < maxRetries)
                     {
-                        _logger.LogWarning("Chunk {ChunkIndex} timeout on attempt {Attempt}. Retrying in 5 seconds...", 
-                            chunkIndex, attempt);
+                        _logger.LogWarning("[{RunType}] Chunk {ChunkIndex} timeout on attempt {Attempt}. Retrying...", 
+                            runType, chunkIndex, attempt);
                         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     }
                     catch (HttpRequestException) when (attempt < maxRetries)
                     {
-                        _logger.LogWarning("Chunk {ChunkIndex} connection error on attempt {Attempt}. Retrying in 5 seconds...", 
-                            chunkIndex, attempt);
+                        _logger.LogWarning("[{RunType}] Chunk {ChunkIndex} connection error on attempt {Attempt}. Retrying...", 
+                            runType, chunkIndex, attempt);
                         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     }
                     catch (Exception ex) when (attempt < maxRetries)
                     {
-                        _logger.LogWarning(ex, "Chunk {ChunkIndex} error on attempt {Attempt}. Retrying in 5 seconds...", 
-                            chunkIndex, attempt);
+                        _logger.LogWarning(ex, "[{RunType}] Chunk {ChunkIndex} error on attempt {Attempt}. Retrying...", 
+                            runType, chunkIndex, attempt);
                         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     }
                 }
@@ -131,40 +193,38 @@ public class CollectorBackgroundService : BackgroundService
                 }
                 else
                 {
-                    _logger.LogError("Failed to fetch chunk {ChunkIndex} after {MaxRetries} attempts. Skipping this chunk.", 
-                        chunkIndex, maxRetries);
+                    _logger.LogError("[{RunType}] Failed to fetch chunk {ChunkIndex} after {MaxRetries} attempts. Skipping.", 
+                        runType, chunkIndex, maxRetries);
                     failedChunks++;
                 }
                 
-                // Move to next chunk
                 chunkStart = chunkEnd;
                 
-                // Small delay between chunks to avoid overwhelming the API
                 if (chunkStart < endTime)
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
                 }
             }
             
-            _logger.LogInformation("Total {Count} incidents retrieved from DLP API for {LookbackHours}h lookback. Successful chunks: {Success}, Failed: {Failed}", 
-                allIncidents.Count, _lookbackHours, successfulChunks, failedChunks);
+            _logger.LogInformation("[{RunType}] Total {Count} incidents retrieved ({LookbackHours}h). Success: {Success}, Failed: {Failed}", 
+                runType, allIncidents.Count, lookbackHours, successfulChunks, failedChunks);
 
             if (allIncidents.Count == 0)
             {
-                _logger.LogInformation("No incidents found in the time range {StartTime} to {EndTime}", startTime, endTime);
+                _logger.LogInformation("[{RunType}] No incidents found in the time range", runType);
                 return;
             }
 
-            // Remove duplicates based on incident ID
+            // Remove duplicates
             var uniqueIncidents = allIncidents
                 .GroupBy(i => i.Id)
                 .Select(g => g.First())
                 .ToList();
             
-            _logger.LogInformation("After deduplication: {UniqueCount} unique incidents (removed {DuplicateCount} duplicates)", 
-                uniqueIncidents.Count, allIncidents.Count - uniqueIncidents.Count);
+            _logger.LogInformation("[{RunType}] After deduplication: {UniqueCount} unique incidents", 
+                runType, uniqueIncidents.Count);
 
-            // Push incidents to Redis
+            // Push to Redis
             var pushedCount = 0;
             var errorCount = 0;
             
@@ -172,7 +232,6 @@ public class CollectorBackgroundService : BackgroundService
             {
                 try
                 {
-                    // Calculate MaxMatches from ViolationTriggers
                     var maxMatches = 0;
                     if (dlpIncident.ViolationTriggers != null)
                     {
@@ -211,16 +270,16 @@ public class CollectorBackgroundService : BackgroundService
                 catch (Exception ex)
                 {
                     errorCount++;
-                    _logger.LogError(ex, "Failed to push incident: User={User}", dlpIncident.User);
+                    _logger.LogError(ex, "[{RunType}] Failed to push incident: User={User}", runType, dlpIncident.User);
                 }
             }
 
-            _logger.LogInformation("Successfully pushed {PushedCount} incidents to Redis (Errors: {ErrorCount})", 
-                pushedCount, errorCount);
+            _logger.LogInformation("[{RunType}] Successfully pushed {PushedCount} incidents to Redis (Errors: {ErrorCount})", 
+                runType, pushedCount, errorCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to collect incidents from Forcepoint DLP API");
+            _logger.LogError(ex, "[{RunType}] Failed to collect incidents from Forcepoint DLP API", runType);
             throw;
         }
     }
