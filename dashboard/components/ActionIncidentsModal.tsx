@@ -78,12 +78,20 @@ function FilterDropdown({
     placeholder: string
 }) {
     const [showDropdown, setShowDropdown] = useState(false)
+    const DISPLAY_LIMIT = 100 // Performance optimization
 
-    const filteredOptions = useMemo(() => {
-        if (!value.trim()) return options
-        return options.filter(opt =>
-            opt.toLowerCase().includes(value.toLowerCase())
-        )
+    const { displayOptions, totalCount, hasMore } = useMemo(() => {
+        let filtered = options
+        if (value.trim()) {
+            filtered = options.filter(opt =>
+                opt.toLowerCase().includes(value.toLowerCase())
+            )
+        }
+        return {
+            displayOptions: filtered.slice(0, DISPLAY_LIMIT),
+            totalCount: filtered.length,
+            hasMore: filtered.length > DISPLAY_LIMIT
+        }
     }, [options, value])
 
     return (
@@ -95,7 +103,7 @@ function FilterDropdown({
                 display: 'block',
                 marginBottom: '4px'
             }}>
-                {label}
+                {label} {totalCount > 0 && <span style={{ opacity: 0.7 }}>({totalCount})</span>}
             </label>
             <input
                 type="text"
@@ -116,7 +124,7 @@ function FilterDropdown({
                     transition: 'border-color 0.2s'
                 }}
             />
-            {showDropdown && filteredOptions.length > 0 && (
+            {showDropdown && displayOptions.length > 0 && (
                 <div style={{
                     position: 'absolute',
                     top: '100%',
@@ -130,7 +138,7 @@ function FilterDropdown({
                     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                     zIndex: 100
                 }}>
-                    {filteredOptions.map((option, idx) => (
+                    {displayOptions.map((option, idx) => (
                         <div
                             key={idx}
                             onClick={() => { onChange(option); setShowDropdown(false) }}
@@ -138,7 +146,7 @@ function FilterDropdown({
                                 padding: '8px 12px',
                                 cursor: 'pointer',
                                 fontSize: '12px',
-                                borderBottom: idx < filteredOptions.length - 1 ? '1px solid var(--border)' : 'none',
+                                borderBottom: '1px solid var(--border)',
                                 color: 'var(--text-primary)'
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--primary)'}
@@ -147,6 +155,18 @@ function FilterDropdown({
                             {option}
                         </div>
                     ))}
+                    {hasMore && (
+                        <div style={{
+                            padding: '8px 12px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            textAlign: 'center',
+                            fontStyle: 'italic',
+                            backgroundColor: 'var(--background-secondary)'
+                        }}>
+                            +{totalCount - DISPLAY_LIMIT} more... (type to filter)
+                        </div>
+                    )}
                 </div>
             )}
         </div>
