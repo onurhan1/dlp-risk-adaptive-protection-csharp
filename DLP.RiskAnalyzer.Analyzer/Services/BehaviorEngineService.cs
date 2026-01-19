@@ -1069,8 +1069,15 @@ public class BehaviorEngineService
         // Calculate all Z-scores
         var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
-        // Calculate risk score from all Z-scores
-        var riskScore = CalculateEnhancedRiskScore(zScores);
+        // Calculate base risk score from all Z-scores
+        var baseRiskScore = CalculateEnhancedRiskScore(zScores);
+        
+        // Apply threat profile multiplier based on action distribution
+        // If most actions are AUTHORIZED/RELEASED (non-threatening), reduce the risk score
+        var threatMultiplier = CalculateThreatProfileMultiplier(currentMetrics.ActionCounts);
+        var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
+        riskScore = Math.Clamp(riskScore, 0, 100); // Ensure within bounds
+        
         var anomalyLevel = DetermineAnomalyLevel(riskScore);
 
         // Generate weekly trends
@@ -1429,6 +1436,53 @@ public class BehaviorEngineService
         }
 
         return 15; // Baseline for entities with activity
+    }
+
+    /// <summary>
+    /// Calculate threat profile multiplier based on action distribution.
+    /// If most actions are AUTHORIZED/RELEASED (non-threatening), the multiplier reduces risk score.
+    /// If most actions are BLOCK/QUARANTINE (threatening), multiplier stays at 1.0.
+    /// 
+    /// Examples:
+    /// - 100% BLOCK/QUARANTINE: multiplier = 1.0 (full risk)
+    /// - 100% AUTHORIZED/RELEASED: multiplier = 0.3 (70% reduction)
+    /// - 50/50 mix: multiplier = 0.65
+    /// </summary>
+    private double CalculateThreatProfileMultiplier(Dictionary<string, int> actionCounts)
+    {
+        if (actionCounts == null || actionCounts.Count == 0)
+            return 1.0;
+
+        // Count high-threat actions (BLOCK, QUARANTINE, BLOCKED, QUARANTINED)
+        var highThreatCount = 
+            actionCounts.GetValueOrDefault("BLOCK", 0) +
+            actionCounts.GetValueOrDefault("BLOCKED", 0) +
+            actionCounts.GetValueOrDefault("QUARANTINE", 0) +
+            actionCounts.GetValueOrDefault("QUARANTINED", 0);
+
+        // Count low-threat actions (AUTHORIZED, RELEASED)
+        var lowThreatCount = 
+            actionCounts.GetValueOrDefault("AUTHORIZED", 0) +
+            actionCounts.GetValueOrDefault("RELEASED", 0);
+
+        var totalCount = highThreatCount + lowThreatCount;
+        
+        if (totalCount == 0)
+            return 1.0;
+
+        // Calculate the ratio of high-threat actions
+        var highThreatRatio = (double)highThreatCount / totalCount;
+        
+        // Multiplier formula:
+        // - 100% high-threat (ratio=1.0) -> multiplier = 1.0
+        // - 0% high-threat (ratio=0.0) -> multiplier = 0.3 (minimum)
+        // Linear interpolation between these extremes
+        const double MIN_MULTIPLIER = 0.3;
+        const double MAX_MULTIPLIER = 1.0;
+        
+        var multiplier = MIN_MULTIPLIER + (highThreatRatio * (MAX_MULTIPLIER - MIN_MULTIPLIER));
+        
+        return Math.Round(multiplier, 2);
     }
 
     private List<TrendDataPoint> GenerateWeeklyTrends(List<Incident> incidents, int lookbackDays)
