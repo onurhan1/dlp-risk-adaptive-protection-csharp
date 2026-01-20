@@ -161,16 +161,16 @@ public class BehaviorEngineService
                     currentIncidents.Count, baselineIncidents.Count);
             }
 
-            // Calculate metrics
+            // Calculate enhanced metrics (consistent with all analysis methods)
             _logger.LogDebug("Calculating metrics for {EntityType}: {EntityId}", entityType, entityId);
-            var currentMetrics = CalculateMetrics(currentIncidents);
-            var baselineMetrics = CalculateMetrics(baselineIncidents);
+            var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
+            var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
 
-            // Z-score anomaly detection
-            var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
+            // Calculate ALL Z-scores (consistent with detailed analysis)
+            var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
-            // Calculate risk score with threat profile multiplier (consistent with detailed analysis)
-            var baseRiskScore = CalculateRiskScore(anomalyResults);
+            // Calculate enhanced risk score with threat profile multiplier
+            var baseRiskScore = CalculateEnhancedRiskScore(zScores);
             var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
             var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
             riskScore = Math.Clamp(riskScore, 0, 100);
@@ -186,6 +186,7 @@ public class BehaviorEngineService
                 .Take(10)
                 .ToList();
 
+            // Build metadata with all info
             var metadata = new Dictionary<string, object>
             {
                 { "current_period_days", lookbackDays },
@@ -193,17 +194,31 @@ public class BehaviorEngineService
                 { "baseline_mode", isBaselineInsufficient ? "split_period" : "historical" },
                 { "current_incident_count", currentMetrics.TotalIncidents },
                 { "baseline_incident_count", baselineMetrics.TotalIncidents },
-                { "z_score_incident_count", Math.Round(anomalyResults.IncidentCountZScore, 2) },
-                { "z_score_severity", Math.Round(anomalyResults.SeverityZScore, 2) },
-                { "z_score_channel_email", Math.Round(anomalyResults.ChannelEmailZScore, 2) },
-                { "z_score_channel_web", Math.Round(anomalyResults.ChannelWebZScore, 2) },
-                { "z_score_channel_endpoint", Math.Round(anomalyResults.ChannelEndpointZScore, 2) },
                 { "baseline_mean_incidents", Math.Round(baselineMetrics.MeanIncidentsPerDay, 2) },
                 { "baseline_std_incidents", Math.Round(baselineMetrics.StdDevIncidentsPerDay, 2) },
                 { "current_mean_incidents", Math.Round(currentMetrics.MeanIncidentsPerDay, 2) },
                 { "current_avg_severity", Math.Round(currentMetrics.AvgSeverity, 2) },
                 { "baseline_avg_severity", Math.Round(baselineMetrics.AvgSeverity, 2) },
+                { "threat_multiplier", Math.Round(threatMultiplier, 2) },
                 { "risk_score", riskScore }
+            };
+            
+            // Add all Z-scores to metadata
+            foreach (var zs in zScores)
+            {
+                metadata[$"z_score_{zs.Key}"] = Math.Round(zs.Value, 2);
+            }
+            
+            // Create anomaly results for explanation generation
+            var anomalyResults = new AnomalyResults
+            {
+                IncidentCountZScore = zScores.GetValueOrDefault("incident_count", 0),
+                SeverityZScore = zScores.GetValueOrDefault("severity", 0),
+                ChannelEmailZScore = zScores.GetValueOrDefault("channel_email", 0),
+                ChannelWebZScore = zScores.GetValueOrDefault("channel_web", 0),
+                ChannelEndpointZScore = zScores.GetValueOrDefault("channel_endpoint", 0),
+                ActionBlockZScore = zScores.GetValueOrDefault("action_block", 0),
+                MaxMatchesZScore = zScores.GetValueOrDefault("max_matches", 0)
             };
 
             // Generate AI explanation and recommendation using selected model (or fallback to static)
@@ -422,6 +437,7 @@ public class BehaviorEngineService
 
     /// <summary>
     /// Lightweight entity analysis using pre-loaded in-memory data (no additional DB queries)
+    /// Uses the same enhanced risk calculation as detailed analysis for consistency
     /// </summary>
     private Task<AIBehavioralAnalysisResponse> AnalyzeEntityLightweightAsync(
         string entityType,
@@ -454,15 +470,15 @@ public class BehaviorEngineService
                     };
                 }
 
-                // Calculate metrics
-                var currentMetrics = CalculateMetrics(currentIncidents);
-                var baselineMetrics = CalculateMetrics(baselineIncidents);
+                // Use enhanced metrics calculation (same as detailed analysis)
+                var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
+                var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
 
-                // Detect anomalies
-                var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
+                // Calculate ALL Z-scores (same as detailed analysis)
+                var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
-                // Calculate risk score with threat profile multiplier (consistent with detailed analysis)
-                var baseRiskScore = CalculateRiskScore(anomalyResults);
+                // Calculate enhanced risk score (same as detailed analysis)
+                var baseRiskScore = CalculateEnhancedRiskScore(zScores);
                 var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
                 var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
                 riskScore = Math.Clamp(riskScore, 0, 100);
@@ -476,19 +492,33 @@ public class BehaviorEngineService
                     .Take(10)
                     .ToList();
 
+                // Build metadata with all Z-scores
                 var metadata = new Dictionary<string, object>
                 {
                     { "current_period_days", lookbackDays },
                     { "current_incident_count", currentMetrics.TotalIncidents },
                     { "baseline_incident_count", baselineMetrics.TotalIncidents },
-                    { "z_score_incident_count", Math.Round(anomalyResults.IncidentCountZScore, 2) },
-                    { "z_score_severity", Math.Round(anomalyResults.SeverityZScore, 2) },
-                    { "z_score_channel_email", Math.Round(anomalyResults.ChannelEmailZScore, 2) },
-                    { "z_score_channel_web", Math.Round(anomalyResults.ChannelWebZScore, 2) },
-                    { "z_score_channel_endpoint", Math.Round(anomalyResults.ChannelEndpointZScore, 2) }
+                    { "threat_multiplier", Math.Round(threatMultiplier, 2) }
                 };
+                
+                // Add all Z-scores to metadata
+                foreach (var zs in zScores)
+                {
+                    metadata[$"z_score_{zs.Key}"] = Math.Round(zs.Value, 2);
+                }
 
-                // Generate static explanation (AI will be added later for HIGH/MEDIUM)
+                // Generate explanation based on anomaly results
+                var anomalyResults = new AnomalyResults
+                {
+                    IncidentCountZScore = zScores.GetValueOrDefault("incident_count", 0),
+                    SeverityZScore = zScores.GetValueOrDefault("severity", 0),
+                    ChannelEmailZScore = zScores.GetValueOrDefault("channel_email", 0),
+                    ChannelWebZScore = zScores.GetValueOrDefault("channel_web", 0),
+                    ChannelEndpointZScore = zScores.GetValueOrDefault("channel_endpoint", 0),
+                    ActionBlockZScore = zScores.GetValueOrDefault("action_block", 0),
+                    MaxMatchesZScore = zScores.GetValueOrDefault("max_matches", 0)
+                };
+                
                 var explanation = GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
                 var recommendation = GenerateRecommendation(anomalyResults, entityType);
 
@@ -676,70 +706,6 @@ public class BehaviorEngineService
         PropertyNameCaseInsensitive = true
     };
 
-    private BehaviorMetrics CalculateMetrics(List<Incident> incidents)
-    {
-        if (incidents.Count == 0)
-        {
-            return new BehaviorMetrics();
-        }
-
-        var incidentsPerDay = incidents
-            .GroupBy(i => i.Timestamp.Date)
-            .Select(g => g.Count())
-            .ToList();
-
-        var mean = incidentsPerDay.Count > 0 ? incidentsPerDay.Average() : 0;
-        var stdDev = incidentsPerDay.Count > 1
-            ? Math.Sqrt(incidentsPerDay.Sum(x => Math.Pow(x - mean, 2)) / (incidentsPerDay.Count - 1))
-            : 0;
-
-        var avgSeverity = incidents.Average(i => i.Severity);
-        var severityStdDev = incidents.Count > 1
-            ? Math.Sqrt(incidents.Sum(i => Math.Pow(i.Severity - avgSeverity, 2)) / (incidents.Count - 1))
-            : 0;
-
-        var channelCounts = incidents
-            .Where(i => !string.IsNullOrEmpty(i.Channel))
-            .GroupBy(i => i.Channel)
-            .ToDictionary(g => g.Key!, g => g.Count());
-
-        return new BehaviorMetrics
-        {
-            TotalIncidents = incidents.Count,
-            MeanIncidentsPerDay = mean,
-            StdDevIncidentsPerDay = stdDev,
-            AvgSeverity = avgSeverity,
-            StdDevSeverity = severityStdDev,
-            ChannelCounts = channelCounts
-        };
-    }
-
-    private AnomalyResults DetectAnomalies(BehaviorMetrics current, BehaviorMetrics baseline)
-    {
-        // Z-score calculation: z = (x - μ) / σ
-        var incidentCountZ = baseline.StdDevIncidentsPerDay > 0
-            ? (current.MeanIncidentsPerDay - baseline.MeanIncidentsPerDay) / baseline.StdDevIncidentsPerDay
-            : 0;
-
-        var severityZ = baseline.StdDevSeverity > 0
-            ? (current.AvgSeverity - baseline.AvgSeverity) / baseline.StdDevSeverity
-            : 0;
-
-        // Channel-specific z-scores
-        var emailZ = CalculateChannelZScore("Email", current, baseline);
-        var webZ = CalculateChannelZScore("Web", current, baseline);
-        var endpointZ = CalculateChannelZScore("Endpoint", current, baseline);
-
-        return new AnomalyResults
-        {
-            IncidentCountZScore = incidentCountZ,
-            SeverityZScore = severityZ,
-            ChannelEmailZScore = emailZ,
-            ChannelWebZScore = webZ,
-            ChannelEndpointZScore = endpointZ
-        };
-    }
-
     private double CalculateChannelZScore(string channel, BehaviorMetrics current, BehaviorMetrics baseline)
     {
         // Get current and baseline counts for THIS SPECIFIC channel
@@ -764,36 +730,6 @@ public class BehaviorEngineService
         
         // Z-score: compare current channel against ITS OWN baseline
         return (currentCount - baselineCount) / baselineStd;
-    }
-
-    private int CalculateRiskScore(AnomalyResults results)
-    {
-        // Risk score based on z-scores
-        // Z-score > 2: high anomaly, 1-2: medium, <1: low
-        var maxZ = Math.Max(
-            Math.Abs(results.IncidentCountZScore),
-            Math.Max(
-                Math.Abs(results.SeverityZScore),
-                Math.Max(
-                    Math.Abs(results.ChannelEmailZScore),
-                    Math.Max(
-                        Math.Abs(results.ChannelWebZScore),
-                        Math.Abs(results.ChannelEndpointZScore)
-                    )
-                )
-            )
-        );
-
-        // Convert z-score to risk score (0-100)
-        // Use more granular scoring based on actual z-score values
-        if (maxZ >= 4) return 100;
-        if (maxZ >= 3) return 85;
-        if (maxZ >= 2.5) return 75;
-        if (maxZ >= 2) return 65;
-        if (maxZ >= 1.5) return 50;
-        if (maxZ >= 1) return 40;
-        if (maxZ >= 0.5) return 30;
-        return 20; // Minimum score for entities with activity
     }
 
     private string DetermineAnomalyLevel(int riskScore)
