@@ -29,15 +29,41 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'users' | 'alerts'>('users')
 
-  // Date range state
+  // Date range state - initially null, will be set after fetching min date
   const [dateRange, setDateRange] = useState({
     start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
   })
+  const [dateRangeLoaded, setDateRangeLoaded] = useState(false)
 
+  // Fetch date range from API on mount
   useEffect(() => {
-    fetchData()
-  }, [dateRange.start, dateRange.end])
+    const fetchDateRange = async () => {
+      try {
+        const apiUrl = getApiUrlDynamic()
+        const response = await axios.get(`${apiUrl}/api/risk/incidents/filter-options`)
+        if (response.data?.dateRange) {
+          setDateRange({
+            start: response.data.dateRange.minDate,
+            end: response.data.dateRange.maxDate
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching date range:', error)
+        // Keep default 30 days if API fails
+      } finally {
+        setDateRangeLoaded(true)
+      }
+    }
+    fetchDateRange()
+  }, [])
+
+  // Fetch data when date range changes (and after initial load)
+  useEffect(() => {
+    if (dateRangeLoaded) {
+      fetchData()
+    }
+  }, [dateRange.start, dateRange.end, dateRangeLoaded])
 
   const fetchData = async () => {
     setLoading(true)
