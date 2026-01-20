@@ -115,6 +115,20 @@ public class TrendDataPoint
     public int AuthorizedCount { get; set; }
     public int ReleasedCount { get; set; }
     public int TotalMatches { get; set; }
+    public string StartDate { get; set; } = string.Empty; // For drill-down
+    public string EndDate { get; set; } = string.Empty;   // For drill-down
+    public List<DailyData> DailyBreakdown { get; set; } = new(); // Daily drill-down data
+}
+
+public class DailyData
+{
+    public string Date { get; set; } = string.Empty; // "2024-01-15"
+    public int Count { get; set; }
+    public int BlockCount { get; set; }
+    public int QuarantineCount { get; set; }
+    public int AuthorizedCount { get; set; }
+    public int ReleasedCount { get; set; }
+    public int TotalMatches { get; set; }
 }
 
 public class DestinationPattern

@@ -7,6 +7,16 @@ import dynamic from 'next/dynamic'
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
+interface DailyData {
+    date: string
+    count: number
+    blockCount: number
+    quarantineCount: number
+    authorizedCount: number
+    releasedCount: number
+    totalMatches: number
+}
+
 interface TrendDataPoint {
     label: string
     count: number
@@ -15,6 +25,9 @@ interface TrendDataPoint {
     authorizedCount: number
     releasedCount: number
     totalMatches: number
+    startDate?: string
+    endDate?: string
+    dailyBreakdown?: DailyData[]
 }
 
 interface DestinationPattern {
@@ -82,6 +95,7 @@ export default function EntityDetailModal({
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents'>('overview')
+    const [selectedWeek, setSelectedWeek] = useState<TrendDataPoint | null>(null)
 
     useEffect(() => {
         if (isOpen && entityType && entityId) {
@@ -409,7 +423,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    📊 Weekly Incidents
+                                    📊 Weekly Incidents <span style={{ fontWeight: 'normal', fontSize: '12px' }}>(click week for daily details)</span>
                                 </h3>
                                 {data.weeklyTrends.length > 0 ? (
                                     <Plot
@@ -422,10 +436,74 @@ export default function EntityDetailModal({
                                         layout={{ ...plotlyLayout, height: 300, barmode: 'stack' }}
                                         config={plotlyConfig}
                                         style={{ width: '100%', height: '300px' }}
+                                        onClick={(event: any) => {
+                                            if (event.points && event.points.length > 0) {
+                                                const weekLabel = event.points[0].x
+                                                const selectedWeekData = data.weeklyTrends.find(w => w.label === weekLabel)
+                                                if (selectedWeekData) {
+                                                    setSelectedWeek(selectedWeekData)
+                                                }
+                                            }
+                                        }}
                                     />
                                 ) : (
                                     <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '60px' }}>
                                         No weekly trend data available
+                                    </div>
+                                )}
+
+                                {/* Daily Breakdown Popup */}
+                                {selectedWeek && selectedWeek.dailyBreakdown && (
+                                    <div style={{
+                                        marginTop: '16px',
+                                        background: 'var(--surface)',
+                                        borderRadius: '8px',
+                                        padding: '16px',
+                                        border: '1px solid var(--primary)',
+                                        position: 'relative'
+                                    }}>
+                                        <button
+                                            onClick={() => setSelectedWeek(null)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '8px',
+                                                top: '8px',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                fontSize: '18px'
+                                            }}
+                                        >×</button>
+                                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)' }}>
+                                            📅 Daily Breakdown: {selectedWeek.label} ({selectedWeek.startDate} to {selectedWeek.endDate})
+                                        </h4>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={{ padding: '8px', textAlign: 'left' }}>Date</th>
+                                                    <th style={{ padding: '8px', textAlign: 'center' }}>Total</th>
+                                                    <th style={{ padding: '8px', textAlign: 'center', color: '#ef4444' }}>Block</th>
+                                                    <th style={{ padding: '8px', textAlign: 'center', color: '#8b5cf6' }}>Quarantine</th>
+                                                    <th style={{ padding: '8px', textAlign: 'center', color: '#10b981' }}>Authorized</th>
+                                                    <th style={{ padding: '8px', textAlign: 'center', color: '#f59e0b' }}>Released</th>
+                                                    <th style={{ padding: '8px', textAlign: 'right' }}>Matches</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedWeek.dailyBreakdown.map((day, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '8px' }}>{day.date}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', fontWeight: '600' }}>{day.count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#ef4444' }}>{day.blockCount}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#8b5cf6' }}>{day.quarantineCount}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#10b981' }}>{day.authorizedCount}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#f59e0b' }}>{day.releasedCount}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right' }}>{day.totalMatches}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 )}
                             </div>

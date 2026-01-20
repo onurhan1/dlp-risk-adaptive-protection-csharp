@@ -1207,8 +1207,9 @@ public class BehaviorEngineService
             ? Math.Round((current.AvgMatchesPerIncident - baseline.AvgMatchesPerIncident) / baseline.StdDevMatches, 2)
             : 0;
 
-        // Weekly trend Z-score
-        zScores["weekly_trend"] = CalculateWeeklyTrendZScore(currentIncidents);
+        // Weekly trend Z-score - needs all incidents to compare this week vs last week
+        var allIncidentsForTrend = currentIncidents.Concat(baselineIncidents).ToList();
+        zScores["weekly_trend"] = CalculateWeeklyTrendZScore(allIncidentsForTrend);
 
         return zScores;
     }
@@ -1458,15 +1459,41 @@ public class BehaviorEngineService
             var weekNumber = System.Globalization.CultureInfo.CurrentCulture.Calendar
                 .GetWeekOfYear(weekStart, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
 
+            // Generate daily breakdown for this week
+            var dailyBreakdown = new List<DailyData>();
+            for (int d = 0; d < 7; d++)
+            {
+                var dayStart = weekStart.AddDays(d);
+                var dayEnd = dayStart.AddDays(1);
+                var dayIncidents = weekIncidents.Where(inc => inc.Timestamp >= dayStart && inc.Timestamp < dayEnd).ToList();
+                
+                if (dayIncidents.Count > 0 || dayStart <= DateTime.UtcNow)
+                {
+                    dailyBreakdown.Add(new DailyData
+                    {
+                        Date = dayStart.ToString("yyyy-MM-dd"),
+                        Count = dayIncidents.Count,
+                        BlockCount = dayIncidents.Count(x => x.Action?.ToUpper() == "BLOCK" || x.Action?.ToUpper() == "BLOCKED"),
+                        QuarantineCount = dayIncidents.Count(x => x.Action?.ToUpper() == "QUARANTINE" || x.Action?.ToUpper() == "QUARANTINED"),
+                        AuthorizedCount = dayIncidents.Count(x => x.Action?.ToUpper() == "AUTHORIZED"),
+                        ReleasedCount = dayIncidents.Count(x => x.Action?.ToUpper() == "RELEASED"),
+                        TotalMatches = dayIncidents.Sum(x => x.MaxMatches)
+                    });
+                }
+            }
+
             weeks.Add(new TrendDataPoint
             {
                 Label = $"{weekStart.Year}-W{weekNumber:D2}",
+                StartDate = weekStart.ToString("yyyy-MM-dd"),
+                EndDate = weekEnd.AddDays(-1).ToString("yyyy-MM-dd"),
                 Count = weekIncidents.Count,
-                BlockCount = weekIncidents.Count(i => i.Action?.ToUpper() == "BLOCK" || i.Action?.ToUpper() == "BLOCKED"),
-                QuarantineCount = weekIncidents.Count(i => i.Action?.ToUpper() == "QUARANTINE" || i.Action?.ToUpper() == "QUARANTINED"),
-                AuthorizedCount = weekIncidents.Count(i => i.Action?.ToUpper() == "AUTHORIZED"),
-                ReleasedCount = weekIncidents.Count(i => i.Action?.ToUpper() == "RELEASED"),
-                TotalMatches = weekIncidents.Sum(i => i.MaxMatches)
+                BlockCount = weekIncidents.Count(x => x.Action?.ToUpper() == "BLOCK" || x.Action?.ToUpper() == "BLOCKED"),
+                QuarantineCount = weekIncidents.Count(x => x.Action?.ToUpper() == "QUARANTINE" || x.Action?.ToUpper() == "QUARANTINED"),
+                AuthorizedCount = weekIncidents.Count(x => x.Action?.ToUpper() == "AUTHORIZED"),
+                ReleasedCount = weekIncidents.Count(x => x.Action?.ToUpper() == "RELEASED"),
+                TotalMatches = weekIncidents.Sum(x => x.MaxMatches),
+                DailyBreakdown = dailyBreakdown
             });
         }
 
