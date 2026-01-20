@@ -169,8 +169,11 @@ public class BehaviorEngineService
             // Z-score anomaly detection
             var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
 
-            // Calculate risk score (0-100)
-            var riskScore = CalculateRiskScore(anomalyResults);
+            // Calculate risk score with threat profile multiplier (consistent with detailed analysis)
+            var baseRiskScore = CalculateRiskScore(anomalyResults);
+            var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
+            var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
+            riskScore = Math.Clamp(riskScore, 0, 100);
 
             // Determine anomaly level
             var anomalyLevel = DetermineAnomalyLevel(riskScore);
@@ -458,8 +461,11 @@ public class BehaviorEngineService
                 // Detect anomalies
                 var anomalyResults = DetectAnomalies(currentMetrics, baselineMetrics);
 
-                // Calculate risk score
-                var riskScore = CalculateRiskScore(anomalyResults);
+                // Calculate risk score with threat profile multiplier (consistent with detailed analysis)
+                var baseRiskScore = CalculateRiskScore(anomalyResults);
+                var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
+                var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
+                riskScore = Math.Clamp(riskScore, 0, 100);
                 var anomalyLevel = DetermineAnomalyLevel(riskScore);
 
                 // Get reference incident IDs
