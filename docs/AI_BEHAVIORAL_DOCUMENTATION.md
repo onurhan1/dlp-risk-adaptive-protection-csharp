@@ -101,7 +101,22 @@ mindmap
 
 ## 4. Risk Score Calculation
 
-### 4.1 Tier System
+### 4.1 Unified Calculation (All Views)
+
+Tüm analiz metotları aynı hesaplama mantığını kullanır:
+
+```
+Final_Risk_Score = Base_Risk_Score × Threat_Multiplier
+```
+
+| Component | Method | Description |
+|-----------|--------|--------------|
+| **Metrics** | `CalculateEnhancedMetrics()` | Incident, action, channel, matches istatistikleri |
+| **Z-Scores** | `CalculateAllZScores()` | 11 farklı Z-score metrikleri |
+| **Base Score** | `CalculateEnhancedRiskScore()` | Tier-based skor (0-100) |
+| **Multiplier** | `CalculateThreatProfileMultiplier()` | Action bazlı çarpan (0.2-1.0) |
+
+### 4.2 Tier System
 
 | Tier | Score Range | Color | Requirements |
 |------|-------------|-------|--------------|
@@ -110,7 +125,24 @@ mindmap
 | **MEDIUM** | 40-64 | 🟡 Yellow | Some anomaly signals |
 | **LOW** | 0-39 | 🟢 Green | Normal behavior |
 
-### 4.2 Scoring Algorithm
+### 4.3 Threat Profile Multiplier
+
+Action türlerine göre risk skoru düzeltilir:
+
+| Action | Weight | Risk Impact |
+|--------|--------|-------------|
+| **BLOCK** | 1.0 | Tam risk - ciddi ihlal |
+| **QUARANTINE** | 0.8 | Yüksek risk |
+| **AUTHORIZED** | 0.2 | Düşük risk - onaylı |
+| **RELEASED** | 0.2 | Düşük risk - temizlendi |
+
+**Örnek:**
+- Kullanıcı %100 AUTHORIZED action'a sahip
+- Base Risk Score: 100 (yüksek Z-score nedeniyle)
+- Threat Multiplier: 0.2
+- Final Score: 100 × 0.2 = **20** (LOW)
+
+### 4.4 Enhanced Scoring Algorithm
 
 ```python
 # Score 100: Requires MULTIPLE extreme anomalies
@@ -128,7 +160,7 @@ if max_z >= 4.0 or high_count >= 2:
     return 85
 ```
 
-### 4.3 Weekly Trend Z-Score (Log-Scale)
+### 4.5 Weekly Trend Z-Score (Log-Scale)
 
 ```python
 # Prevents extreme values from simple percentage changes
@@ -168,25 +200,36 @@ Baseline verisi yoksa, current period ikiye bölünür:
 
 ## 6. Action-Based Analysis
 
-### 6.1 Policy Attitudes
+### 6.1 Action Categories
 
-| Action | Interpretation | Z-Score Weight |
-|--------|----------------|----------------|
-| **BLOCK** | Ciddi ihlal, engellendi | 1.5x |
-| **QUARANTINE** | Şüpheli, karantinaya alındı | 1.3x |
-| **AUTHORIZED** | Onaylandı | 0.8x |
-| **RELEASED** | Karantinadan çıkarıldı | 1.0x |
+| Action | Category | Z-Score Weight | Threat Weight |
+|--------|----------|----------------|---------------|
+| **BLOCK** | High Threat | 1.0x | 1.0 |
+| **QUARANTINE** | High Threat | 1.0x | 0.8 |
+| **AUTHORIZED** | Low Threat | 0.2x | 0.2 |
+| **RELEASED** | Low Threat | 0.2x | 0.2 |
 
-### 6.2 Calculation
+### 6.2 Dual Impact System
+
+**Z-Score Weight**: Z-score hesaplamasında ağırlık
+- High threat action'ların Z-score'ları tam değerde kullanılır
+- Low threat action'ların Z-score'ları 0.2 ile çarpılır
+
+**Threat Weight**: Final risk skorunda çarpan
+- Kullanıcının action profile'ına göre risk skoru düzeltilir
+- %100 AUTHORIZED = 0.2 multiplier → risk %80 azalır
+
+### 6.3 Z-Score Calculation
 
 ```
-Z_block = (current_block_count - baseline_block_mean) / baseline_block_std
+Z_block = (current_block_count - baseline_block_mean) / baseline_block_std × HIGH_THREAT_WEIGHT
+Z_authorized = (current_auth_count - baseline_auth_mean) / baseline_auth_std × LOW_THREAT_WEIGHT
 ```
 
 **Örnek:**
 - Baseline: Günlük 2 BLOCK (std: 1.5)
 - Current: Günlük 8 BLOCK
-- Z = (8 - 2) / 1.5 = **4.0** → 🔴 CRITICAL
+- Z = (8 - 2) / 1.5 × 1.0 = **4.0** → 🔴 CRITICAL
 
 ---
 
