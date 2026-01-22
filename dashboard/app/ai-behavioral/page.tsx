@@ -42,7 +42,7 @@ export default function AIBehavioralPage() {
   const [overview, setOverview] = useState<AIBehavioralOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedEntity, setSelectedEntity] = useState<AIBehavioralAnalysis | null>(null)
-  const [lookbackDays, setLookbackDays] = useState(7)
+  const [lookbackDays, setLookbackDays] = useState(30)
   const [analyzing, setAnalyzing] = useState(false)
   const [activeTab, setActiveTab] = useState<EntityTab>('users')
   const [filterText, setFilterText] = useState('')

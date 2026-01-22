@@ -13,9 +13,9 @@ public class AIBehavioralController : ControllerBase
     private readonly ILogger<AIBehavioralController> _logger;
     private readonly IMemoryCache _cache;
     
-    // Cache settings
+    // Cache settings - 2 minutes for better freshness while maintaining performance
     private const string CacheKeyPrefix = "ai-behavioral-overview";
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
 
     public AIBehavioralController(
         BehaviorEngineService behaviorEngine,

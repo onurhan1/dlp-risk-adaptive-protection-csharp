@@ -47,6 +47,15 @@ interface IncidentSummary {
     timestamp: string
 }
 
+interface ZScoreDetail {
+    zScore: number
+    mean: number
+    stdDev: number
+    currentValue: number
+    baselineValue: number
+    formula: string
+}
+
 interface EntityDetailData {
     entityType: string
     entityId: string
@@ -57,6 +66,7 @@ interface EntityDetailData {
     referenceIncidentIds: number[]
     analysisDate: string
     zScores: Record<string, number>
+    zScoreDetails?: Record<string, ZScoreDetail>
     weeklyTrends: TrendDataPoint[]
     monthlyTrends: TrendDataPoint[]
     actionCounts: Record<string, number>
@@ -96,6 +106,9 @@ export default function EntityDetailModal({
     const [error, setError] = useState<string | null>(null)
     const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents'>('overview')
     const [selectedWeek, setSelectedWeek] = useState<TrendDataPoint | null>(null)
+    const [selectedZScore, setSelectedZScore] = useState<{ key: string; detail: ZScoreDetail } | null>(null)
+    const [showAllReferenceIncidents, setShowAllReferenceIncidents] = useState(false)
+    const [hoveredIncident, setHoveredIncident] = useState<IncidentSummary | null>(null)
 
     useEffect(() => {
         if (isOpen && entityType && entityId) {
@@ -103,15 +116,26 @@ export default function EntityDetailModal({
         }
     }, [isOpen, entityType, entityId])
 
+    // State for 7-day comparison analysis
+    const [weeklyData, setWeeklyData] = useState<EntityDetailData | null>(null)
+
     const fetchDetail = async () => {
         setLoading(true)
         setError(null)
         try {
-            const response = await apiClient.get(
-                `/api/ai-behavioral/entity/${entityType}/${encodeURIComponent(entityId)}/detail`,
-                { params: { lookbackDays: 30 } }
-            )
-            setData(response.data)
+            // Fetch both 30-day (main) and 7-day (comparison) data in parallel
+            const [response30, response7] = await Promise.all([
+                apiClient.get(
+                    `/api/ai-behavioral/entity/${entityType}/${encodeURIComponent(entityId)}/detail`,
+                    { params: { lookbackDays: 30 } }
+                ),
+                apiClient.get(
+                    `/api/ai-behavioral/entity/${entityType}/${encodeURIComponent(entityId)}/detail`,
+                    { params: { lookbackDays: 7 } }
+                )
+            ])
+            setData(response30.data)
+            setWeeklyData(response7.data)
         } catch (err: any) {
             setError(err.response?.data?.detail || 'Failed to load detail')
         } finally {
@@ -315,6 +339,88 @@ export default function EntityDetailModal({
                                 </div>
                             </div>
 
+                            {/* 7-Day Weekly Analysis Comparison */}
+                            {weeklyData && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, var(--background) 0%, var(--surface) 100%)',
+                                    borderRadius: '12px',
+                                    padding: '20px',
+                                    border: '2px solid var(--primary)',
+                                    position: 'relative'
+                                }}>
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '-10px',
+                                        left: '16px',
+                                        background: 'var(--primary)',
+                                        color: 'white',
+                                        padding: '2px 12px',
+                                        borderRadius: '12px',
+                                        fontSize: '11px',
+                                        fontWeight: '700'
+                                    }}>
+                                        7-DAY ANALYSIS
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '8px' }}>
+                                        {/* Weekly Score */}
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                                                Weekly Risk Score
+                                            </div>
+                                            <div style={{
+                                                fontSize: '28px',
+                                                fontWeight: '800',
+                                                color: getRiskColor(weeklyData.riskScore)
+                                            }}>
+                                                {weeklyData.riskScore}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '12px',
+                                                fontWeight: '600',
+                                                color: getRiskColor(weeklyData.riskScore),
+                                                textTransform: 'uppercase'
+                                            }}>
+                                                {weeklyData.anomalyLevel}
+                                            </div>
+                                        </div>
+                                        {/* Trend Comparison */}
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                                                vs 30-Day Score
+                                            </div>
+                                            {(() => {
+                                                const diff = weeklyData.riskScore - data.riskScore
+                                                const trendIcon = diff > 5 ? '📈' : diff < -5 ? '📉' : '➡️'
+                                                const trendColor = diff > 5 ? '#ef4444' : diff < -5 ? '#10b981' : '#6b7280'
+                                                const trendText = diff > 5 ? 'Rising' : diff < -5 ? 'Declining' : 'Stable'
+                                                return (
+                                                    <>
+                                                        <div style={{ fontSize: '24px' }}>{trendIcon}</div>
+                                                        <div style={{ fontSize: '14px', fontWeight: '700', color: trendColor }}>
+                                                            {diff > 0 ? '+' : ''}{diff} ({trendText})
+                                                        </div>
+                                                    </>
+                                                )
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        marginTop: '12px',
+                                        padding: '8px',
+                                        background: 'var(--background)',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        color: 'var(--text-secondary)',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr 1fr',
+                                        gap: '8px'
+                                    }}>
+                                        <div>📊 Weekly Incidents: <strong>{weeklyData.totalIncidents}</strong></div>
+                                        <div>📊 Monthly Incidents: <strong>{data.totalIncidents}</strong></div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Action Breakdown - Plotly Pie Chart */}
                             <div style={{
                                 background: 'var(--background)',
@@ -358,21 +464,42 @@ export default function EntityDetailModal({
                                 gridColumn: 'span 2'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    Z-Score Analysis
+                                    Z-Score Analysis <span style={{ fontSize: '11px', fontWeight: 'normal' }}>(click for details)</span>
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
                                     {Object.entries(data.zScores).map(([key, value]) => {
                                         const status = getZScoreStatus(value)
+                                        const detail = data.zScoreDetails?.[key]
                                         return (
-                                            <div key={key} style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                padding: '12px',
-                                                background: 'var(--surface)',
-                                                borderRadius: '8px',
-                                                border: '1px solid var(--border)'
-                                            }}>
+                                            <div
+                                                key={key}
+                                                onClick={() => {
+                                                    if (detail) {
+                                                        setSelectedZScore({ key, detail })
+                                                    }
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    padding: '12px',
+                                                    background: 'var(--surface)',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid var(--border)',
+                                                    cursor: detail ? 'pointer' : 'default',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (detail) {
+                                                        e.currentTarget.style.borderColor = 'var(--primary)'
+                                                        e.currentTarget.style.background = 'var(--background-secondary)'
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.borderColor = 'var(--border)'
+                                                    e.currentTarget.style.background = 'var(--surface)'
+                                                }}
+                                            >
                                                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
                                                     {key.replace(/_/g, ' ')}
                                                 </span>
@@ -386,6 +513,64 @@ export default function EntityDetailModal({
                                         )
                                     })}
                                 </div>
+
+                                {/* Z-Score Detail Popup */}
+                                {selectedZScore && (
+                                    <div style={{
+                                        marginTop: '16px',
+                                        background: 'var(--surface)',
+                                        borderRadius: '8px',
+                                        padding: '16px',
+                                        border: '2px solid var(--primary)',
+                                        position: 'relative'
+                                    }}>
+                                        <button
+                                            onClick={() => setSelectedZScore(null)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '8px',
+                                                top: '8px',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                fontSize: '18px'
+                                            }}
+                                        >×</button>
+                                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)', textTransform: 'capitalize' }}>
+                                            📊 {selectedZScore.key.replace(/_/g, ' ')} Calculation Details
+                                        </h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                                            <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Current Value</div>
+                                                <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                                    {selectedZScore.detail.currentValue?.toFixed(2) ?? 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Baseline (Mean)</div>
+                                                <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                                    {selectedZScore.detail.mean?.toFixed(2) ?? 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Standard Deviation</div>
+                                                <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                                                    {selectedZScore.detail.stdDev?.toFixed(2) ?? 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Z-Score Result</div>
+                                                <div style={{ fontSize: '16px', fontWeight: '700', color: getZScoreStatus(selectedZScore.detail.zScore).color }}>
+                                                    {selectedZScore.detail.zScore?.toFixed(2) ?? 'N/A'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                            <strong>Formula:</strong> {selectedZScore.detail.formula}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* AI Analysis */}
@@ -412,6 +597,130 @@ export default function EntityDetailModal({
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Reference Incidents */}
+                            {data.topIncidents && data.topIncidents.length > 0 && (
+                                <div style={{
+                                    background: 'var(--background)',
+                                    borderRadius: '12px',
+                                    padding: '24px',
+                                    border: '1px solid var(--border)',
+                                    gridColumn: 'span 2'
+                                }}>
+                                    <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                        📋 Reference Incidents ({data.topIncidents.length})
+                                    </h3>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', position: 'relative' }}>
+                                        {(showAllReferenceIncidents ? data.topIncidents : data.topIncidents.slice(0, 5)).map((inc, idx) => (
+                                            <div
+                                                key={inc.id}
+                                                onMouseEnter={() => setHoveredIncident(inc)}
+                                                onMouseLeave={() => setHoveredIncident(null)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: 'var(--surface)',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid var(--border)',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    position: 'relative'
+                                                }}
+                                                onMouseOver={(e) => {
+                                                    e.currentTarget.style.borderColor = 'var(--primary)'
+                                                    e.currentTarget.style.background = 'var(--background-secondary)'
+                                                }}
+                                                onMouseOut={(e) => {
+                                                    e.currentTarget.style.borderColor = 'var(--border)'
+                                                    e.currentTarget.style.background = 'var(--surface)'
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>#{inc.id}</span>
+                                                <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>• {inc.action}</span>
+                                            </div>
+                                        ))}
+                                        {data.topIncidents.length > 5 && !showAllReferenceIncidents && (
+                                            <button
+                                                onClick={() => setShowAllReferenceIncidents(true)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: 'var(--primary)',
+                                                    color: 'white',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: '600'
+                                                }}
+                                            >
+                                                +{data.topIncidents.length - 5} more...
+                                            </button>
+                                        )}
+                                        {showAllReferenceIncidents && data.topIncidents.length > 5 && (
+                                            <button
+                                                onClick={() => setShowAllReferenceIncidents(false)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: 'var(--text-muted)',
+                                                    color: 'white',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    fontSize: '12px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: '600'
+                                                }}
+                                            >
+                                                Show less
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Hover Tooltip */}
+                                    {hoveredIncident && (
+                                        <div style={{
+                                            marginTop: '12px',
+                                            padding: '12px',
+                                            background: 'var(--surface)',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--primary)',
+                                            fontSize: '12px'
+                                        }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>ID</div>
+                                                    <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>#{hoveredIncident.id}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Login</div>
+                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.loginName}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Channel</div>
+                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.channel}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Action</div>
+                                                    <div style={{
+                                                        fontWeight: '700',
+                                                        color: ACTION_COLORS[hoveredIncident.action] || 'var(--text-primary)'
+                                                    }}>{hoveredIncident.action}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Destination</div>
+                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{hoveredIncident.destination}</div>
+                                                </div>
+                                                <div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Max Matches</div>
+                                                    <div style={{ fontWeight: '700', color: hoveredIncident.maxMatches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{hoveredIncident.maxMatches.toLocaleString()}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ marginTop: '8px', color: 'var(--text-muted)' }}>
+                                                🕐 {new Date(hoveredIncident.timestamp).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ) : data && activeView === 'trends' ? (
                         <div style={{ display: 'grid', gap: '24px' }}>

@@ -65,8 +65,9 @@ export default function InvestigationPage() {
   const fetchAIAnalysis = async (userEmail: string) => {
     setLoadingAI(true)
     try {
-      const response = await apiClient.get(`/api/ai-behavioral/entity/user/${encodeURIComponent(userEmail)}`, {
-        params: { lookbackDays: 7 }
+      // Use /detail endpoint for consistency with EntityDetailModal scores
+      const response = await apiClient.get(`/api/ai-behavioral/entity/user/${encodeURIComponent(userEmail)}/detail`, {
+        params: { lookbackDays: 30 }
       })
       setAiAnalysis(response.data)
     } catch (error: any) {

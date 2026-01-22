@@ -1094,6 +1094,90 @@ public class BehaviorEngineService
             ReferenceIncidentIds = currentIncidents.Take(10).Select(i => i.Id).ToList(),
             AnalysisDate = endDate,
             ZScores = zScores,
+            ZScoreDetails = new Dictionary<string, ZScoreDetail>
+            {
+                ["incident_count"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("incident_count", 0),
+                    CurrentValue = currentMetrics.MeanIncidentsPerDay,
+                    Mean = baselineMetrics.MeanIncidentsPerDay,
+                    StdDev = baselineMetrics.StdDevIncidentsPerDay,
+                    BaselineValue = baselineMetrics.MeanIncidentsPerDay,
+                    Formula = "Z = (Current - Mean) / StdDev"
+                },
+                ["severity"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("severity", 0),
+                    CurrentValue = currentMetrics.AvgSeverity,
+                    Mean = baselineMetrics.AvgSeverity,
+                    StdDev = baselineMetrics.StdDevSeverity,
+                    BaselineValue = baselineMetrics.AvgSeverity,
+                    Formula = "Z = (Current - Mean) / StdDev"
+                },
+                ["channel_email"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("channel_email", 0),
+                    CurrentValue = currentMetrics.ChannelCounts.GetValueOrDefault("Email", 0),
+                    Mean = baselineMetrics.ChannelCounts.GetValueOrDefault("Email", 0),
+                    StdDev = baselineMetrics.ChannelCounts.Count > 1 ? Math.Sqrt(baselineMetrics.ChannelCounts.Values.Sum(x => Math.Pow(x - baselineMetrics.ChannelCounts.Values.Average(), 2)) / (baselineMetrics.ChannelCounts.Count - 1)) : 1,
+                    BaselineValue = baselineMetrics.ChannelCounts.GetValueOrDefault("Email", 0),
+                    Formula = "Z = (Current - Baseline) / StdDev"
+                },
+                ["channel_web"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("channel_web", 0),
+                    CurrentValue = currentMetrics.ChannelCounts.GetValueOrDefault("Web", 0),
+                    Mean = baselineMetrics.ChannelCounts.GetValueOrDefault("Web", 0),
+                    StdDev = baselineMetrics.ChannelCounts.Count > 1 ? Math.Sqrt(baselineMetrics.ChannelCounts.Values.Sum(x => Math.Pow(x - baselineMetrics.ChannelCounts.Values.Average(), 2)) / (baselineMetrics.ChannelCounts.Count - 1)) : 1,
+                    BaselineValue = baselineMetrics.ChannelCounts.GetValueOrDefault("Web", 0),
+                    Formula = "Z = (Current - Baseline) / StdDev"
+                },
+                ["channel_endpoint"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("channel_endpoint", 0),
+                    CurrentValue = currentMetrics.ChannelCounts.GetValueOrDefault("Endpoint", 0),
+                    Mean = baselineMetrics.ChannelCounts.GetValueOrDefault("Endpoint", 0),
+                    StdDev = baselineMetrics.ChannelCounts.Count > 1 ? Math.Sqrt(baselineMetrics.ChannelCounts.Values.Sum(x => Math.Pow(x - baselineMetrics.ChannelCounts.Values.Average(), 2)) / (baselineMetrics.ChannelCounts.Count - 1)) : 1,
+                    BaselineValue = baselineMetrics.ChannelCounts.GetValueOrDefault("Endpoint", 0),
+                    Formula = "Z = (Current - Baseline) / StdDev"
+                },
+                ["action_block"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("action_block", 0),
+                    CurrentValue = currentMetrics.ActionCounts.GetValueOrDefault("BLOCK", 0) + currentMetrics.ActionCounts.GetValueOrDefault("BLOCKED", 0),
+                    Mean = baselineMetrics.ActionCounts.GetValueOrDefault("BLOCK", 0) + baselineMetrics.ActionCounts.GetValueOrDefault("BLOCKED", 0),
+                    StdDev = Math.Max(1, (baselineMetrics.ActionCounts.GetValueOrDefault("BLOCK", 0) + baselineMetrics.ActionCounts.GetValueOrDefault("BLOCKED", 0)) * 0.3),
+                    BaselineValue = baselineMetrics.ActionCounts.GetValueOrDefault("BLOCK", 0) + baselineMetrics.ActionCounts.GetValueOrDefault("BLOCKED", 0),
+                    Formula = "Z = (Current - Baseline) / StdDev × 1.0 (high-threat weight)"
+                },
+                ["action_authorized"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("action_authorized", 0),
+                    CurrentValue = currentMetrics.ActionCounts.GetValueOrDefault("AUTHORIZED", 0),
+                    Mean = baselineMetrics.ActionCounts.GetValueOrDefault("AUTHORIZED", 0),
+                    StdDev = Math.Max(1, baselineMetrics.ActionCounts.GetValueOrDefault("AUTHORIZED", 0) * 0.3),
+                    BaselineValue = baselineMetrics.ActionCounts.GetValueOrDefault("AUTHORIZED", 0),
+                    Formula = "Z = (Current - Baseline) / StdDev × 0.2 (low-threat weight)"
+                },
+                ["max_matches"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("max_matches", 0),
+                    CurrentValue = currentMetrics.AvgMatchesPerIncident,
+                    Mean = baselineMetrics.AvgMatchesPerIncident,
+                    StdDev = baselineMetrics.StdDevMatches,
+                    BaselineValue = baselineMetrics.AvgMatchesPerIncident,
+                    Formula = "Z = (Current - Mean) / StdDev"
+                },
+                ["weekly_trend"] = new ZScoreDetail
+                {
+                    ZScore = zScores.GetValueOrDefault("weekly_trend", 0),
+                    CurrentValue = currentIncidents.Count(i => i.Timestamp >= DateTime.UtcNow.AddDays(-7)),
+                    Mean = currentIncidents.Count(i => i.Timestamp >= DateTime.UtcNow.AddDays(-14) && i.Timestamp < DateTime.UtcNow.AddDays(-7)),
+                    StdDev = 0.5,
+                    BaselineValue = currentIncidents.Count(i => i.Timestamp >= DateTime.UtcNow.AddDays(-14) && i.Timestamp < DateTime.UtcNow.AddDays(-7)),
+                    Formula = "Z = log(1 + growthRate) / 0.5 (weekly comparison)"
+                }
+            },
             WeeklyTrends = weeklyTrends,
             MonthlyTrends = monthlyTrends,
             ActionCounts = currentMetrics.ActionCounts,

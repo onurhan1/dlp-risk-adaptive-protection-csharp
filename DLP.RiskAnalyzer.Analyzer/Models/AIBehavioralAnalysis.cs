@@ -85,6 +85,9 @@ public class AIBehavioralDetailResponse
     // Z-Score breakdown
     public Dictionary<string, double> ZScores { get; set; } = new();
     
+    // Z-Score calculation details for clickable items
+    public Dictionary<string, ZScoreDetail> ZScoreDetails { get; set; } = new();
+    
     // Trend data for charts
     public List<TrendDataPoint> WeeklyTrends { get; set; } = new();
     public List<TrendDataPoint> MonthlyTrends { get; set; } = new();
@@ -148,4 +151,17 @@ public class IncidentSummary
     public string Action { get; set; } = string.Empty;
     public int MaxMatches { get; set; }
     public DateTime Timestamp { get; set; }
+}
+
+/// <summary>
+/// Z-Score calculation detail for clickable breakdown
+/// </summary>
+public class ZScoreDetail
+{
+    public double ZScore { get; set; }
+    public double Mean { get; set; }
+    public double StdDev { get; set; }
+    public double CurrentValue { get; set; }
+    public double BaselineValue { get; set; }
+    public string Formula { get; set; } = "Z = (Current - Mean) / StdDev";
 }
