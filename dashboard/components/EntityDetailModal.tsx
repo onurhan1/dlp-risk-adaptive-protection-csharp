@@ -675,47 +675,62 @@ export default function EntityDetailModal({
                                         )}
                                     </div>
 
-                                    {/* Hover Tooltip */}
+                                    {/* Floating Hover Tooltip - doesn't affect layout */}
                                     {hoveredIncident && (
                                         <div style={{
-                                            marginTop: '12px',
-                                            padding: '12px',
+                                            position: 'fixed',
+                                            top: '50%',
+                                            left: '50%',
+                                            transform: 'translate(-50%, -50%)',
+                                            padding: '16px',
                                             background: 'var(--surface)',
-                                            borderRadius: '8px',
-                                            border: '1px solid var(--primary)',
-                                            fontSize: '12px'
+                                            borderRadius: '12px',
+                                            border: '2px solid var(--primary)',
+                                            fontSize: '12px',
+                                            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                                            zIndex: 10000,
+                                            minWidth: '350px',
+                                            maxWidth: '450px'
                                         }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginBottom: '12px',
+                                                paddingBottom: '8px',
+                                                borderBottom: '1px solid var(--border)'
+                                            }}>
+                                                <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '14px' }}>
+                                                    📋 Incident #{hoveredIncident.id}
+                                                </span>
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                                                    🕐 {new Date(hoveredIncident.timestamp).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>ID</div>
-                                                    <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>#{hoveredIncident.id}</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Login</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Login</div>
                                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.loginName}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Channel</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Channel</div>
                                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.channel}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Action</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Action</div>
                                                     <div style={{
                                                         fontWeight: '700',
                                                         color: ACTION_COLORS[hoveredIncident.action] || 'var(--text-primary)'
                                                     }}>{hoveredIncident.action}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Destination</div>
-                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{hoveredIncident.destination}</div>
-                                                </div>
-                                                <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px' }}>Max Matches</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Max Matches</div>
                                                     <div style={{ fontWeight: '700', color: hoveredIncident.maxMatches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{hoveredIncident.maxMatches.toLocaleString()}</div>
                                                 </div>
                                             </div>
-                                            <div style={{ marginTop: '8px', color: 'var(--text-muted)' }}>
-                                                🕐 {new Date(hoveredIncident.timestamp).toLocaleString()}
+                                            <div style={{ marginTop: '12px' }}>
+                                                <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Destination</div>
+                                                <div style={{ fontWeight: '600', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{hoveredIncident.destination}</div>
                                             </div>
                                         </div>
                                     )}
