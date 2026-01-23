@@ -321,7 +321,6 @@ public class DomainFeaturesController : ControllerBase
         if (definition == null)
             return NotFound();
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             // 1. Delete all values associated with this feature
@@ -335,13 +334,11 @@ public class DomainFeaturesController : ControllerBase
             _context.DomainFeatureDefinitions.Remove(definition);
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             return Ok(new { success = true });
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "Error deleting column {Id}", id);
             return StatusCode(500, new { error = ex.Message });
         }
@@ -356,7 +353,6 @@ public class DomainFeaturesController : ControllerBase
         if (updates == null || !updates.Any())
             return BadRequest("No updates provided");
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             var domainIds = updates.Select(u => u.Id).ToList();
@@ -366,6 +362,15 @@ public class DomainFeaturesController : ControllerBase
 
             // Cache feature definitions
             var featureDefs = await _context.DomainFeatureDefinitions.ToDictionaryAsync(f => f.KeyName, f => f.Id);
+
+            // Fetch ALL existing values for these domains to avoid DB calls in loop
+            var existingValues = await _context.DomainFeatureValues
+                .Where(v => domainIds.Contains(v.DomainId))
+                .ToListAsync();
+
+            // Create a lookup for performance: (DomainId, FeatureId) -> DomainFeatureValue
+            var valueLookup = existingValues
+                .ToDictionary(v => (v.DomainId, v.FeatureId), v => v);
 
             foreach (var update in updates)
             {
@@ -391,26 +396,29 @@ public class DomainFeaturesController : ControllerBase
                     {
                         if (featureDefs.TryGetValue(kvp.Key, out int featureId))
                         {
-                            // Check if value exists
-                            var val = await _context.DomainFeatureValues
-                                .FirstOrDefaultAsync(v => v.DomainId == domain.Id && v.FeatureId == featureId);
-
-                            if (val == null)
+                            // Check in memory lookup
+                            if (valueLookup.TryGetValue((domain.Id, featureId), out var val))
                             {
-                                if (kvp.Value) // Only insert if true to save space
+                                // Update existing
+                                if (val.IsEnabled != kvp.Value)
                                 {
-                                    _context.DomainFeatureValues.Add(new DomainFeatureValue
-                                    {
-                                        DomainId = domain.Id,
-                                        FeatureId = featureId,
-                                        IsEnabled = true
-                                    });
+                                    val.IsEnabled = kvp.Value;
+                                    val.UpdatedAt = DateTime.UtcNow;
                                 }
                             }
-                            else
+                            else if (kvp.Value) // Only insert if true and not exists
                             {
-                                val.IsEnabled = kvp.Value;
-                                val.UpdatedAt = DateTime.UtcNow;
+                                // Create new
+                                var newVal = new DomainFeatureValue
+                                {
+                                    DomainId = domain.Id,
+                                    FeatureId = featureId,
+                                    IsEnabled = true
+                                };
+                                _context.DomainFeatureValues.Add(newVal);
+                                
+                                // Add to lookup to prevent duplicates if key repeats (unlikely)
+                                valueLookup[(domain.Id, featureId)] = newVal;
                             }
                         }
                     }
@@ -418,7 +426,6 @@ public class DomainFeaturesController : ControllerBase
             }
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
             
             _logger.LogInformation("Bulk saved {Count} domain features", updates.Count);
 
@@ -426,7 +433,6 @@ public class DomainFeaturesController : ControllerBase
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             _logger.LogError(ex, "Error bulk saving domain features");
             return StatusCode(500, new { error = ex.Message });
         }
