@@ -67,8 +67,8 @@ public class DomainFeaturesController : ControllerBase
         var result = domains.Select(d =>
         {
             var features = dynamicValues
-                .Where(v => v.DomainId == d.Id)
-                .ToDictionary(v => v.Feature.KeyName, v => v.IsEnabled);
+                .Where(v => v.DomainId == d.Id && v.Feature != null)
+                .ToDictionary(v => v.Feature!.KeyName, v => v.IsEnabled);
 
             return new
             {
@@ -90,14 +90,16 @@ public class DomainFeaturesController : ControllerBase
         // 4. Get all column definitions (Static + Dynamic)
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "HasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "IsPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "IstirakDomain", isStatic = true },
-            new { name = "egitim", displayName = "Eğitim", key = "Egitim", isStatic = true },
-            new { name = "noter", displayName = "Noter", key = "Noter", isStatic = true },
-            new { name = "hukuk", displayName = "Hukuk", key = "Hukuk", isStatic = true },
-            new { name = "denetim", displayName = "Denetim", key = "Denetim", isStatic = true },
-            new { name = "banka", displayName = "Banka", key = "Banka", isStatic = true }
+        var staticColumns = new List<object>
+        {
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
+            new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
+            new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },
+            new { name = "denetim", displayName = "Denetim", key = "denetim", isStatic = true },
+            new { name = "banka", displayName = "Banka", key = "banka", isStatic = true }
         };
 
         var dynamicColumns = await _context.DomainFeatureDefinitions
@@ -177,8 +179,8 @@ public class DomainFeaturesController : ControllerBase
         var result = domains.Select(d =>
         {
             var features = dynamicValues
-                .Where(v => v.DomainId == d.Id)
-                .ToDictionary(v => v.Feature.KeyName, v => v.IsEnabled);
+                .Where(v => v.DomainId == d.Id && v.Feature != null)
+                .ToDictionary(v => v.Feature!.KeyName, v => v.IsEnabled);
 
             return new
             {
@@ -209,14 +211,14 @@ public class DomainFeaturesController : ControllerBase
     {
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "HasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "IsPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "IstirakDomain", isStatic = true },
-            new { name = "egitim", displayName = "Eğitim", key = "Egitim", isStatic = true },
-            new { name = "noter", displayName = "Noter", key = "Noter", isStatic = true },
-            new { name = "hukuk", displayName = "Hukuk", key = "Hukuk", isStatic = true },
-            new { name = "denetim", displayName = "Denetim", key = "Denetim", isStatic = true },
-            new { name = "banka", displayName = "Banka", key = "Banka", isStatic = true }
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
+            new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
+            new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },
+            new { name = "denetim", displayName = "Denetim", key = "denetim", isStatic = true },
+            new { name = "banka", displayName = "Banka", key = "banka", isStatic = true }
         };
 
         var dynamicColumns = await _context.DomainFeatureDefinitions

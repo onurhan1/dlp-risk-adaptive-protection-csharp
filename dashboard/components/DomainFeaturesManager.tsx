@@ -303,9 +303,18 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <button
                         onClick={() => {
-                            setViewMode('top')
-                            setSearch('')
-                            setOnlyFlagged(false)
+                            if (viewMode === 'top') {
+                                // Toggle OFF: Go back to standard flagged view
+                                setViewMode('standard')
+                                setOnlyFlagged(true)
+                                setSearch('')
+                                setPage(1)
+                            } else {
+                                // Toggle ON
+                                setViewMode('top')
+                                setSearch('')
+                                setOnlyFlagged(false)
+                            }
                         }}
                         style={{
                             padding: '10px 16px',
