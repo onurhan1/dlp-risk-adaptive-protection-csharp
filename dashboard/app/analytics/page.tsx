@@ -585,7 +585,7 @@ export default function AnalyticsPage() {
 
                   {/* Data Rows */}
                   {heatmapData.domains.map(domain => (
-                    <>
+                    <React.Fragment key={domain}>
                       {/* Row Header */}
                       <div key={`row-${domain}`} style={{
                         padding: '8px',
@@ -633,7 +633,7 @@ export default function AnalyticsPage() {
                           </div>
                         )
                       })}
-                    </>
+                    </React.Fragment>
                   ))}
                 </div>
               </div>

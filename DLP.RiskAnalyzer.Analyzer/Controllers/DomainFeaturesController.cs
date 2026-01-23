@@ -281,6 +281,42 @@ public class DomainFeaturesController : ControllerBase
     }
 
     /// <summary>
+    /// Delete dynamic column
+    /// </summary>
+    [HttpDelete("columns/{id}")]
+    public async Task<IActionResult> DeleteColumn(int id)
+    {
+        var definition = await _context.DomainFeatureDefinitions.FindAsync(id);
+        if (definition == null)
+            return NotFound();
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            // 1. Delete all values associated with this feature
+            var values = await _context.DomainFeatureValues
+                .Where(v => v.FeatureId == id)
+                .ToListAsync();
+            
+            _context.DomainFeatureValues.RemoveRange(values);
+
+            // 2. Delete the definition
+            _context.DomainFeatureDefinitions.Remove(definition);
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Error deleting column {Id}", id);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Bulk save domain features (Static + Dynamic)
     /// </summary>
     [HttpPost("bulk-save")]

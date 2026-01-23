@@ -57,6 +57,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const [editingColumn, setEditingColumn] = useState<ColumnDef | null>(null)
     const [columnNameInput, setColumnNameInput] = useState('')
     const [submittingColumn, setSubmittingColumn] = useState(false)
+    const [deletingColumn, setDeletingColumn] = useState(false)
 
     const fetchColumns = async () => {
         try {
@@ -219,6 +220,34 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             setSubmittingColumn(false)
         }
     }
+
+    const handleDeleteColumn = async () => {
+        if (!editingColumn || !editingColumn.id) return
+
+        if (!window.confirm(`"${editingColumn.displayName}" özelliğini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
+            return
+        }
+
+        setDeletingColumn(true)
+        try {
+            await apiClient.delete(`/api/domain-features/columns/${editingColumn.id}`)
+
+            setColumns(prev => prev.filter(c => c.id !== editingColumn.id))
+            setColumnNameInput('')
+            setEditingColumn(null)
+            setShowEditModal(false)
+            setMessage({ type: 'success', text: 'Özellik silindi' })
+
+            // Refresh domains to clear deleted feature data from UI
+            fetchDomains()
+        } catch (err) {
+            console.error('Failed to delete column', err)
+            setMessage({ type: 'error', text: 'Silme işlemi başarısız' })
+        } finally {
+            setDeletingColumn(false)
+        }
+    }
+
 
     const openEditModal = (col: ColumnDef) => {
         if (col.isStatic) return
@@ -431,7 +460,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                         </h3>
                         <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                             {showEditModal
-                                ? 'Sınıflandırma ismini güncelleyebilirsiniz.'
+                                ? 'Sınıflandırma ismini güncelleyebilir veya silebilirsiniz.'
                                 : 'Yeni özellik ekleyin. Varsayılan olarak "Hayır" olacaktır.'}
                         </p>
                         <input
@@ -444,30 +473,47 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                 background: 'var(--background)', color: 'var(--text-primary)', marginBottom: '16px'
                             }}
                         />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                            <button
-                                onClick={() => {
-                                    setShowAddModal(false)
-                                    setShowEditModal(false)
-                                    setEditingColumn(null)
-                                }}
-                                style={{
-                                    padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)',
-                                    background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer'
-                                }}
-                            >
-                                İptal
-                            </button>
-                            <button
-                                onClick={showEditModal ? handleUpdateColumn : handleAddColumn}
-                                disabled={submittingColumn || !columnNameInput}
-                                style={{
-                                    padding: '8px 16px', borderRadius: '6px', border: 'none',
-                                    background: '#3b82f6', color: 'white', cursor: 'pointer', opacity: submittingColumn ? 0.7 : 1
-                                }}
-                            >
-                                {submittingColumn ? 'Kaydediliyor...' : 'Kaydet'}
-                            </button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                {showEditModal && (
+                                    <button
+                                        onClick={handleDeleteColumn}
+                                        disabled={deletingColumn}
+                                        style={{
+                                            padding: '8px 16px', borderRadius: '6px', border: '1px solid #ef4444',
+                                            background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', cursor: 'pointer',
+                                            fontSize: '13px', fontWeight: '500'
+                                        }}
+                                    >
+                                        {deletingColumn ? 'Siliniyor...' : '🗑️ Sil'}
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={() => {
+                                        setShowAddModal(false)
+                                        setShowEditModal(false)
+                                        setEditingColumn(null)
+                                    }}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)',
+                                        background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer'
+                                    }}
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    onClick={showEditModal ? handleUpdateColumn : handleAddColumn}
+                                    disabled={submittingColumn || !columnNameInput}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: '6px', border: 'none',
+                                        background: '#3b82f6', color: 'white', cursor: 'pointer', opacity: submittingColumn ? 0.7 : 1
+                                    }}
+                                >
+                                    {submittingColumn ? 'Kaydediliyor...' : 'Kaydet'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
