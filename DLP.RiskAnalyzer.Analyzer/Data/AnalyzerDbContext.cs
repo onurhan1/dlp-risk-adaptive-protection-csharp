@@ -18,6 +18,8 @@ public class AnalyzerDbContext : DbContext
     public DbSet<AIBehavioralAnalysis> AIBehavioralAnalyses { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
     public DbSet<AnomalyDetection> AnomalyDetections { get; set; }
+    public DbSet<NdaDomain> NdaDomains { get; set; }
+    public DbSet<UserDailyRiskScore> UserDailyRiskScores { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -187,6 +189,46 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.Timestamp);
             entity.HasIndex(e => e.Severity);
             entity.HasIndex(e => new { e.UserEmail, e.Timestamp });
+        });
+
+        // Configure NdaDomain
+        modelBuilder.Entity<NdaDomain>(entity =>
+        {
+            entity.ToTable("nda_domains");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Domain).HasColumnName("domain").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.HasNda).HasColumnName("has_nda").HasDefaultValue(false);
+            entity.Property(e => e.IsUnknown).HasColumnName("is_unknown").HasDefaultValue(false);
+            entity.Property(e => e.IsPersonal).HasColumnName("is_personal").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.Domain).IsUnique();
+            entity.HasIndex(e => e.HasNda);
+            entity.HasIndex(e => e.IsUnknown);
+            entity.HasIndex(e => e.IsPersonal);
+        });
+
+        // Configure UserDailyRiskScore
+        modelBuilder.Entity<UserDailyRiskScore>(entity =>
+        {
+            entity.ToTable("user_daily_risk_scores");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserEmail).HasColumnName("user_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Date).HasColumnName("date").IsRequired();
+            entity.Property(e => e.DailyRiskScore).HasColumnName("daily_risk_score").HasDefaultValue(0);
+            entity.Property(e => e.IncidentCount).HasColumnName("incident_count").HasDefaultValue(0);
+            entity.Property(e => e.MaxRiskScore).HasColumnName("max_risk_score").HasDefaultValue(0);
+            entity.Property(e => e.AvgRiskScore).HasColumnName("avg_risk_score").HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.UserEmail);
+            entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => new { e.UserEmail, e.Date }).IsUnique();
         });
     }
 }

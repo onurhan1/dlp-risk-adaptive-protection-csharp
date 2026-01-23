@@ -51,6 +51,23 @@ public static class RiskConstants
         public const int ConfidentialThreshold = 7;
     }
     
+    public static class ChannelMultipliers
+    {
+        public const double EndpointLan = 0.2;
+        public const double EndpointPrinting = 0.4;
+        public const double Default = 1.0;
+    }
+
+    public static class DestinationScores
+    {
+        public const int Spl = 1;
+        public const int Printer = 3;
+        public const int NdaPresent = 1;
+        public const int NdaAbsent = 5;
+        public const int Unknown = 5;
+        public const int Personal = 10;
+    }
+
     public static class Defaults
     {
         public const string RedisHost = "localhost";

@@ -18,24 +18,62 @@ public class RiskAnalyzer
     /// 
     /// Dashboard'da /10 olarak gösterilir (0-100 ölçeği)
     /// </summary>
-    public int CalculateRiskScore(int policyRepeatCount, int dataSensitivity, int maxMatches, string? action)
+    /// <summary>
+    /// Risk skoru hesapla (YENİ FORMÜL):
+    /// BaseScore = (MaxMatchesTier * ChannelMultiplier) + DestinationScore
+    /// FinalScore = BaseScore * ActionMultiplier
+    /// 
+    /// Destination Scores:
+    /// - SPL / NDA Var: 1
+    /// - Printer: 3
+    /// - NDA Yok / Unknown / Default: 5
+    /// - Personal: 10
+    /// 
+    /// Channel Multipliers:
+    /// - ENDPOINT_LAN: 0.2
+    /// - ENDPOINT_PRINTING: 0.4
+    /// - Others (Email, Cloud etc): 1.0
+    /// 
+    /// Action Multipliers:
+    /// - BLOCK/QUARANTINE: 1.0
+    /// - AUTHORIZED/PERMIT: 0.2
+    /// - RELEASED: 0.0 (Sıfırlanır)
+    /// </summary>
+    public int CalculateRiskScore(int maxMatches, string? channel, int destinationScore, string? action)
     {
-        // Cap repeat count at 20 for formula (max contribution: 60)
-        var cappedRepeatCount = Math.Min(policyRepeatCount, 20);
+        // 1. MaxMatches Tier Score
+        var maxMatchesScore = GetMaxMatchesTier(maxMatches);
         
-        // Base score with tier-based MaxMatches
-        var repeatScore = cappedRepeatCount * 3.0;          // Max: 60
-        var sensitivityScore = dataSensitivity * 2.0;       // Max: 20
-        var maxMatchesScore = GetMaxMatchesTier(maxMatches); // Max: 60
+        // 2. Channel Multiplier
+        var channelMultiplier = GetChannelMultiplier(channel);
+
+        // 3. Base Score Calculation
+        // DOĞRU FORMÜL: (MaxMatchesTier * ChannelMultiplier) + DestinationScore
+        var baseScore = (maxMatchesScore * channelMultiplier) + destinationScore;
         
-        var baseScore = repeatScore + sensitivityScore + maxMatchesScore;
-        
-        // Apply action multiplier
+        // 4. Action Multiplier
         var actionMultiplier = GetActionMultiplier(action);
+        
+        // Final Score
         var finalScore = baseScore * actionMultiplier;
         
-        // Cap at 1000 (internal scale, displayed as 100)
-        return (int)Math.Min(1000, finalScore * 10); // Scale to 1000
+        // Scale to 1000 (Internal scale)
+        // Max possible raw: (60 * 1.0) + 10 = 70, with block = 70
+        // We multiply by ~14.3 to map 70 -> ~1000
+        double scaledScore = finalScore * 14.3;
+
+        return (int)Math.Min(1000, scaledScore);
+    }
+    
+    public double GetChannelMultiplier(string? channel)
+    {
+        if (string.IsNullOrEmpty(channel)) return RiskConstants.ChannelMultipliers.Default;
+        
+        var uChannel = channel.ToUpperInvariant();
+        if (uChannel.Contains("ENDPOINT_LAN")) return RiskConstants.ChannelMultipliers.EndpointLan;
+        if (uChannel.Contains("ENDPOINT_PRINTING") || uChannel.Contains("PRINTER")) return RiskConstants.ChannelMultipliers.EndpointPrinting;
+        
+        return RiskConstants.ChannelMultipliers.Default;
     }
     
     /// <summary>
@@ -58,7 +96,7 @@ public class RiskAnalyzer
     
     /// <summary>
     /// Get action multiplier for risk calculation
-    /// BLOCK/QUARANTINE = 100%, AUTHORIZED/RELEASED/PERMIT = 20%
+    /// BLOCK/QUARANTINE = 100%, AUTHORIZED/PERMIT = 20%, RELEASED = 0%
     /// </summary>
     public double GetActionMultiplier(string? action)
     {
@@ -71,11 +109,21 @@ public class RiskAnalyzer
         {
             "BLOCK" or "BLOCKED" => 1.0,           // 100%
             "QUARANTINE" or "QUARANTINED" => 1.0,  // 100%
-            "AUTHORIZED" => 0.2,                    // 20% (false positive azaltma)
-            "RELEASED" => 0.2,                      // 20% (karantinadan çıkarılan)
+            "AUTHORIZED" => 0.2,                    // 20%
+            "RELEASED" => 0.0,                      // 0% (Sıfırla)
             "PERMIT" => 0.2,                        // 20%
             _ => 0.2                                // Default 20%
         };
+    }
+    
+    /// <summary>
+    /// Wrapper for backward compatibility if needed, but prefer the new one.
+    /// </summary>
+    [Obsolete("Use CalculateRiskScore(int maxMatches, string? channel, int destinationScore, string? action)")]
+    public int CalculateRiskScore(int policyRepeatCount, int dataSensitivity, int maxMatches, string? action)
+    {
+        // Backward compatibility hack: Assume default destination score (Average=5) and default channel
+        return CalculateRiskScore(maxMatches, null, 5, action);
     }
     
     /// <summary>

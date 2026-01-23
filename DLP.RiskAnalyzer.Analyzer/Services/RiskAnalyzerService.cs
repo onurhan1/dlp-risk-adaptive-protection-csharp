@@ -203,89 +203,124 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
-/// Calculate risk scores for incidents without scores
-/// GÜNCEL FORMÜL: Policy bazlı repeat count, tier-based MaxMatches, action multiplier
-/// </summary>
-public async Task<int> CalculateRiskScoresAsync()
-{
-    var incidentsWithoutScores = await _incidentRepository.GetIncidentsWithoutRiskScoreAsync();
-
-    var updatedCount = 0;
-    foreach (var incident in incidentsWithoutScores)
+    /// Calculate risk scores for incidents without scores
+    /// GÜNCEL FORMÜL: MaxMatchesTier * ChannelMultiplier * DestinationScore
+    /// </summary>
+    public async Task<int> CalculateRiskScoresAsync()
     {
-        // Get policy repeat counts (her politika için ayrı count)
-        var policyRepeatCounts = await _incidentRepository.GetPolicyRepeatCountsAsync(
-            incident.UserEmail, incident.Timestamp);
-        
-        // Incident'ın politikası için repeat count al
-        // Birden fazla politika varsa en yüksek repeat count kullanılır
-        var policyRepeatCount = 0;
-        if (!string.IsNullOrEmpty(incident.Policy))
+        var incidentsWithoutScores = await _incidentRepository.GetIncidentsWithoutRiskScoreAsync();
+        if (!incidentsWithoutScores.Any())
+            return 0;
+
+        // Load NDA domains for fast lookup
+        var ndaDomains = await _context.NdaDomains
+            .ToDictionaryAsync(d => d.Domain.ToLower(), d => d);
+
+        var updatedCount = 0;
+        foreach (var incident in incidentsWithoutScores)
         {
-            // Mevcut incident'ın politikası için count
-            policyRepeatCount = policyRepeatCounts.GetValueOrDefault(incident.Policy, 0);
+            // 1. Calculate Destination Score
+            int destinationScore = RiskConstants.DestinationScores.Unknown; // Default 5
             
-            // ViolationTriggers içinde başka politikalar varsa onları da kontrol et
-            if (!string.IsNullOrEmpty(incident.ViolationTriggers))
+            if (!string.IsNullOrEmpty(incident.Destination))
             {
-                try
+                var dest = incident.Destination.Trim();
+                
+                // SPL Check (Hardcoded for now as per request)
+                // "SPL bizim ortamımız 1 olsun"
+                if (dest.Contains("SPL", StringComparison.OrdinalIgnoreCase))
                 {
-                    using var doc = System.Text.Json.JsonDocument.Parse(incident.ViolationTriggers);
-                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    destinationScore = RiskConstants.DestinationScores.Spl; // 1
+                }
+                // Printer Check
+                else if (incident.Channel?.Contains("Printer", StringComparison.OrdinalIgnoreCase) == true || 
+                         incident.Channel?.Contains("Printing", StringComparison.OrdinalIgnoreCase) == true ||
+                         dest.Contains("Print", StringComparison.OrdinalIgnoreCase))
+                {
+                    destinationScore = RiskConstants.DestinationScores.Printer; // 3
+                }
+                else 
+                {
+                    // Domain extraction logic could be complex (URL vs Email vs IP)
+                    // Simplified: Assume destination is somewhat domain-like or contains domain
+                    
+                    var lowerDest = dest.ToLowerInvariant();
+                    
+                    // Try exact match first
+                    if (ndaDomains.TryGetValue(lowerDest, out var domainInfo))
                     {
-                        foreach (var trigger in doc.RootElement.EnumerateArray())
+                        if (domainInfo.IsPersonal) destinationScore = RiskConstants.DestinationScores.Personal; // 10
+                        else if (domainInfo.HasNda) destinationScore = RiskConstants.DestinationScores.NdaPresent; // 1
+                        else destinationScore = RiskConstants.DestinationScores.NdaAbsent; // 5
+                    }
+                    else
+                    {
+                        // Partial match check (e.g. user@gmail.com contains gmail.com)
+                        // This is computationally expensive O(N*M), but N (domains) is small (~900)
+                        
+                        // Check explicit personal domains first (optimization)
+                        if (lowerDest.Contains("gmail.com") || lowerDest.Contains("hotmail.com") || 
+                            lowerDest.Contains("outlook.com") || lowerDest.Contains("windowslive.com") || 
+                            lowerDest.Contains("icloud.com") || lowerDest.Contains("yahoo.com") ||
+                            lowerDest.Contains("mynet.com"))
                         {
-                            string? policyName = null;
-                            if (trigger.TryGetProperty("PolicyName", out var policyNameEl))
-                                policyName = policyNameEl.GetString();
-                            else if (trigger.TryGetProperty("policy_name", out var policyNameEl2))
-                                policyName = policyNameEl2.GetString();
-                            
-                            if (!string.IsNullOrEmpty(policyName))
+                            destinationScore = RiskConstants.DestinationScores.Personal; // 10
+                        }
+                        else
+                        {
+                            // Check DB domains
+                            var matchedDomain = ndaDomains.Values
+                                .FirstOrDefault(d => lowerDest.Contains(d.Domain));
+                                
+                            if (matchedDomain != null)
                             {
-                                var count = policyRepeatCounts.GetValueOrDefault(policyName, 0);
-                                if (count > policyRepeatCount)
-                                    policyRepeatCount = count;
+                                if (matchedDomain.IsPersonal) destinationScore = RiskConstants.DestinationScores.Personal; // 10
+                                else if (matchedDomain.HasNda) destinationScore = RiskConstants.DestinationScores.NdaPresent; // 1
+                                else destinationScore = RiskConstants.DestinationScores.NdaAbsent; // 5
+                            }
+                            else
+                            {
+                                // Unknown/New domain
+                                // Automatically add to DB as Unknown if it looks like a domain (contains dot)
+                                // But don't block the thread
+                                // Future improvement: Queue for addition
+                                destinationScore = RiskConstants.DestinationScores.Unknown; // 5
                             }
                         }
                     }
                 }
-                catch { /* JSON parse hatası - mevcut değeri kullan */ }
             }
+            
+            // Channel is already in incident.Channel
+            // MaxMatches is in incident.MaxMatches
+
+            // Calculate risk score with new formula
+            incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
+                incident.MaxMatches,
+                incident.Channel,
+                destinationScore,
+                incident.Action);
+            
+            // We still keep other fields populated for reference, even if not used in formula
+            // Calculate data sensitivity (based on data type and severity)
+            incident.DataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
+
+            // Policy Repeat Count (keeping legacy logic for population)
+            var policyRepeatCounts = await _incidentRepository.GetPolicyRepeatCountsAsync(incident.UserEmail, incident.Timestamp);
+            incident.RepeatCount = policyRepeatCounts.Values.DefaultIfEmpty(0).Max();
+
+            incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
+
+            updatedCount++;
         }
-        else
+
+        if (updatedCount > 0)
         {
-            // Politika yoksa tüm repeat count'ların en yükseği
-            policyRepeatCount = policyRepeatCounts.Values.DefaultIfEmpty(0).Max();
+            await _incidentRepository.UpdateIncidentsAsync(incidentsWithoutScores);
         }
 
-        // Calculate data sensitivity (based on data type and severity)
-        var dataSensitivity = CalculateDataSensitivity(incident.DataType, incident.Severity);
-
-        // Calculate risk score with new formula:
-        // - Tier-based MaxMatches
-        // - Policy-based repeat count
-        // - Action multiplier (BLOCK/QUARANTINE=100%, AUTHORIZED/RELEASED=20%)
-        incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
-            policyRepeatCount,
-            dataSensitivity,
-            incident.MaxMatches,
-            incident.Action);
-        
-        incident.RepeatCount = policyRepeatCount;  // Policy bazlı repeat count
-        incident.DataSensitivity = dataSensitivity;
-        incident.RiskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore.Value);
-
-        updatedCount++;
+        return updatedCount;
     }
-
-    if (updatedCount > 0)
-    {
-        await _incidentRepository.UpdateIncidentsAsync(incidentsWithoutScores);
-    }
-
-    return updatedCount;
-}
 
     private int CalculateDataSensitivity(string? dataType, int severity)
     {
@@ -794,5 +829,259 @@ public async Task<int> CalculateRiskScoresAsync()
     public double GetDisplayScore(int riskScore)
     {
         return _riskAnalyzer.GetDisplayScore(riskScore);
+    }
+
+    /// <summary>
+    /// Calculate and store daily risk scores for all users for a specific date
+    /// Should be run at the end of the day (e.g. 23:59)
+    /// </summary>
+    public async Task<int> CalculateDailyScoresAsync(DateOnly? date = null)
+    {
+        var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        
+        // Convert DateOnly to UTC DateTime range for the full day
+        var startDateTime = targetDate.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
+        var endDateTime = targetDate.ToDateTime(TimeOnly.MaxValue).ToUniversalTime();
+
+        // Get incidents for the day
+        var incidents = await _incidentRepository.GetIncidentsAsync(targetDate, targetDate);
+        if (!incidents.Any()) return 0;
+
+        var userGroups = incidents
+            .GroupBy(i => i.UserEmail)
+            .ToList();
+
+        var updatedCount = 0;
+
+        foreach (var group in userGroups)
+        {
+            var userEmail = group.Key;
+            var dailyIncidents = group.ToList();
+            
+            var totalRiskScore = dailyIncidents.Sum(i => (double)(i.RiskScore ?? 0));
+            var maxRiskScore = dailyIncidents.Max(i => i.RiskScore ?? 0);
+            var incidentCount = dailyIncidents.Count;
+            var avgRiskScore = incidentCount > 0 ? totalRiskScore / incidentCount : 0;
+
+            // Check if record exists
+            var existingRecord = await _context.UserDailyRiskScores
+                .FirstOrDefaultAsync(r => r.UserEmail == userEmail && r.Date == targetDate);
+
+            if (existingRecord != null)
+            {
+                existingRecord.DailyRiskScore = totalRiskScore;
+                existingRecord.IncidentCount = incidentCount;
+                existingRecord.MaxRiskScore = maxRiskScore;
+                existingRecord.AvgRiskScore = avgRiskScore;
+                // CreatedAt remains original
+            }
+            else
+            {
+                var newRecord = new UserDailyRiskScore
+                {
+                    UserEmail = userEmail,
+                    Date = targetDate,
+                    DailyRiskScore = totalRiskScore,
+                    IncidentCount = incidentCount,
+                    MaxRiskScore = maxRiskScore,
+                    AvgRiskScore = avgRiskScore,
+                    CreatedAt = DateTime.UtcNow
+                };
+                
+                await _context.UserDailyRiskScores.AddAsync(newRecord);
+            }
+            
+            updatedCount++;
+        }
+
+        await _context.SaveChangesAsync();
+        return updatedCount;
+    }
+
+    /// <summary>
+    /// Get user daily scores for a date range
+    /// </summary>
+    public async Task<List<UserDailyRiskScore>> GetUserDailyScoresAsync(string userEmail, DateOnly startDate, DateOnly endDate)
+    {
+        return await _context.UserDailyRiskScores
+            .Where(r => r.UserEmail == userEmail && r.Date >= startDate && r.Date <= endDate)
+            .OrderBy(r => r.Date)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get weekly trend metrics
+    /// </summary>
+    public async Task<Dictionary<string, object>> GetUserWeeklyTrendAsync(string userEmail)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-7);
+        
+        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
+        
+        return new Dictionary<string, object>
+        {
+            { "period", "weekly" },
+            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
+            { "total_score", scores.Sum(s => s.DailyRiskScore) },
+            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
+            { "incident_count", scores.Sum(s => s.IncidentCount) },
+            { "scores", scores }
+        };
+    }
+
+    /// <summary>
+    /// Get monthly trend metrics
+    /// </summary>
+    public async Task<Dictionary<string, object>> GetUserMonthlyTrendAsync(string userEmail)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-30);
+        
+        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
+        
+        return new Dictionary<string, object>
+        {
+            { "period", "monthly" },
+            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
+            { "total_score", scores.Sum(s => s.DailyRiskScore) },
+            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
+            { "incident_count", scores.Sum(s => s.IncidentCount) },
+            { "scores", scores }
+        };
+    }
+
+    /// <summary>
+    /// Get quarterly (3-month) trend metrics
+    /// </summary>
+    public async Task<Dictionary<string, object>> GetUserQuarterlyTrendAsync(string userEmail)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-90);
+        
+        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
+        
+        return new Dictionary<string, object>
+        {
+            { "period", "quarterly" },
+            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
+            { "total_score", scores.Sum(s => s.DailyRiskScore) },
+            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
+            { "incident_count", scores.Sum(s => s.IncidentCount) },
+            { "scores", scores }
+        };
+    }
+
+    /// <summary>
+    /// Detect anomalies for a user based on their history
+    /// </summary>
+    public async Task<List<string>> DetectUserAnomaliesAsync(string userEmail)
+    {
+        var anomalies = new List<string>();
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-30);
+        
+        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
+        if (scores.Count < 5) return anomalies; // Not enough data
+        
+        // Calculate baseline stats (excluding today)
+        var history = scores.Where(s => s.Date < endDate).ToList();
+        if (!history.Any()) return anomalies;
+        
+        var avgScore = history.Average(s => s.DailyRiskScore);
+        var stdDev = CalculateStdDev(history.Select(s => s.DailyRiskScore));
+        
+        // Check recent scores (last 3 days)
+        var recent = scores.Where(s => s.Date >= endDate.AddDays(-3)).ToList();
+        
+        foreach (var score in recent)
+        {
+            // If score is > Mean + 3*StdDev => Anomaly
+            if (score.DailyRiskScore > avgScore + (3 * stdDev) && score.DailyRiskScore > 100) // Minimum threshold
+            {
+                anomalies.Add($"High Risk Score Anomaly on {score.Date}: {score.DailyRiskScore} (Baseline: {avgScore:F1})");
+            }
+        }
+        
+        return anomalies;
+    }
+    
+    private double CalculateStdDev(IEnumerable<double> values)
+    {
+        double ret = 0;
+        if (values.Any())
+        {
+            int count = values.Count();
+            if (count > 1)
+            {
+                double avg = values.Average();
+                double sum = values.Sum(d => Math.Pow(d - avg, 2));
+                ret = Math.Sqrt((sum) / (count - 1));
+            }
+        }
+        return ret;
+    }
+
+    /// <summary>
+    /// Get risky users report with trend analysis
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetRiskyUsersReportAsync(string period)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly startDate;
+        
+        switch (period.ToLower())
+        {
+            case "weekly": startDate = endDate.AddDays(-7); break;
+            case "monthly": startDate = endDate.AddDays(-30); break;
+            case "quarterly": startDate = endDate.AddDays(-90); break;
+            default: startDate = endDate.AddDays(-30); break;
+        }
+
+        // Get all scores in range
+        var scores = await _context.UserDailyRiskScores
+            .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .ToListAsync();
+
+        var userGroups = scores.GroupBy(s => s.UserEmail);
+        var result = new List<Dictionary<string, object>>();
+
+        foreach (var group in userGroups)
+        {
+            var userScores = group.OrderBy(s => s.Date).ToList();
+            if (!userScores.Any()) continue;
+
+            var latest = userScores.Last();
+            var first = userScores.First();
+            
+            // Calculate trend (Simple difference for now)
+            var trendChange = latest.DailyRiskScore - first.DailyRiskScore;
+            
+            // Calculate average score over the period
+            var avgScore = userScores.Average(s => s.DailyRiskScore);
+            
+            // Max score in period
+            var maxScore = userScores.Max(s => s.MaxRiskScore);
+            
+            // Total incidents
+            var totalIncidents = userScores.Sum(s => s.IncidentCount);
+            
+            // Filter out low risk users (noise reduction) - keep if significant activity or risk
+            if (maxScore < 20 && userScores.Count < 3) continue; 
+
+            result.Add(new Dictionary<string, object>
+            {
+                { "user_email", group.Key },
+                { "current_score", latest.DailyRiskScore },
+                { "avg_score", avgScore },
+                { "max_score", maxScore },
+                { "incident_count", totalIncidents },
+                { "trend_change", trendChange },
+                { "trend_direction", trendChange > 0 ? "increasing" : trendChange < 0 ? "decreasing" : "stable" },
+                { "period", period }
+            });
+        }
+
+        return result.OrderByDescending(r => (double)r["current_score"]).ToList();
     }
 }
