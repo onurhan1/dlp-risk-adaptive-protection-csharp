@@ -42,10 +42,10 @@ const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeat
             {showTooltip && (
                 <div style={{
                     position: 'absolute',
-                    bottom: '100%',
+                    top: '100%', // Show below
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    marginBottom: '8px',
+                    marginTop: '8px', // Margin from top
                     background: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px',
@@ -56,15 +56,15 @@ const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeat
                     maxWidth: '300px',
                     textAlign: 'left'
                 }}>
-                    {/* Arrow */}
+                    {/* Arrow (Pointing Up) */}
                     <div style={{
                         position: 'absolute',
-                        top: '100%',
+                        bottom: '100%', // Arrow at top of tooltip
                         left: '50%',
                         marginLeft: '-6px',
                         borderWidth: '6px',
                         borderStyle: 'solid',
-                        borderColor: 'white transparent transparent transparent'
+                        borderColor: 'transparent transparent white transparent' // Point Up
                     }}></div>
 
                     <div style={{ display: 'flex', gap: '16px' }}>
