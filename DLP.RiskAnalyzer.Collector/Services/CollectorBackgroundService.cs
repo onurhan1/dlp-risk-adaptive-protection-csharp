@@ -233,14 +233,32 @@ public class CollectorBackgroundService : BackgroundService
                 try
                 {
                     var maxMatches = 0;
-                    if (dlpIncident.ViolationTriggers != null)
+                    if (dlpIncident.ViolationTriggers != null && dlpIncident.ViolationTriggers.Count > 0)
                     {
-                        maxMatches = dlpIncident.ViolationTriggers
-                            .Where(t => t.Classifiers != null)
+                        var classifiersWithMatches = dlpIncident.ViolationTriggers
+                            .Where(t => t.Classifiers != null && t.Classifiers.Count > 0)
                             .SelectMany(t => t.Classifiers!)
-                            .Select(c => c.NumberMatches)
-                            .DefaultIfEmpty(0)
-                            .Max();
+                            .Where(c => c.NumberMatches > 0)
+                            .ToList();
+                        
+                        if (classifiersWithMatches.Count > 0)
+                        {
+                            maxMatches = classifiersWithMatches.Max(c => c.NumberMatches);
+                        }
+                        
+                        // Debug logging for troubleshooting
+                        if (maxMatches == 0 && dlpIncident.ViolationTriggers.Count > 0)
+                        {
+                            _logger.LogWarning("[{RunType}] Incident {Id}: ViolationTriggers has {TriggerCount} triggers but maxMatches=0. First trigger: PolicyName={PolicyName}, ClassifierCount={ClassifierCount}",
+                                runType, dlpIncident.Id, 
+                                dlpIncident.ViolationTriggers.Count,
+                                dlpIncident.ViolationTriggers[0]?.PolicyName ?? "null",
+                                dlpIncident.ViolationTriggers[0]?.Classifiers?.Count ?? 0);
+                        }
+                    }
+                    else if (dlpIncident.ViolationTriggers == null)
+                    {
+                        _logger.LogDebug("[{RunType}] Incident {Id}: ViolationTriggers is null", runType, dlpIncident.Id);
                     }
                     
                     var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
