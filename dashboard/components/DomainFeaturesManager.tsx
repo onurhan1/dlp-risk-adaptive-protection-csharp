@@ -47,6 +47,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const [search, setSearch] = useState('')
     const [onlyFlagged, setOnlyFlagged] = useState(true)
     const [viewMode, setViewMode] = useState<'standard' | 'top'>('standard')
+    const [selectedFilters, setSelectedFilters] = useState<string[]>([])
 
     const [modifiedIds, setModifiedIds] = useState<Set<number>>(new Set())
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -81,7 +82,13 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 params.page = page
                 params.pageSize = pageSize
                 params.search = search || undefined
-                params.onlyFlagged = onlyFlagged && !search // Search varsa flag filtresini kaldır
+
+                // Column-based filtering takes priority
+                if (selectedFilters.length > 0) {
+                    params.filterColumns = selectedFilters.join(',')
+                } else if (!search) {
+                    params.onlyFlagged = onlyFlagged
+                }
             }
 
             const res = await apiClient.get(endpoint, { params })
@@ -102,7 +109,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         } finally {
             setLoading(false)
         }
-    }, [page, pageSize, search, onlyFlagged, viewMode])
+    }, [page, pageSize, search, onlyFlagged, viewMode, selectedFilters])
 
     useEffect(() => {
         fetchColumns()
@@ -116,7 +123,29 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value
         setSearch(val)
-        if (val && viewMode === 'top') setViewMode('standard')
+        if (val) {
+            setViewMode('standard')
+            setSelectedFilters([]) // Clear column filters when searching
+        }
+    }
+
+    // Toggle column filter
+    const toggleColumnFilter = (colKey: string) => {
+        setSelectedFilters(prev => {
+            if (prev.includes(colKey)) {
+                return prev.filter(k => k !== colKey)
+            } else {
+                return [...prev, colKey]
+            }
+        })
+        setPage(1) // Reset to first page
+        setViewMode('standard')
+    }
+
+    // Clear all column filters
+    const clearColumnFilters = () => {
+        setSelectedFilters([])
+        setPage(1)
     }
 
     const handleToggle = (domainId: number, col: ColumnDef) => {
@@ -126,7 +155,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     if (col.isStatic) {
                         return { ...d, [col.key]: !d[col.key as keyof DomainFeature] }
                     } else {
-                        const customFeatures = { ...d.customFeatures } || {}
+                        const customFeatures = d.customFeatures ? { ...d.customFeatures } : {}
                         customFeatures[col.key] = !customFeatures[col.key]
                         return { ...d, customFeatures }
                     }
@@ -206,7 +235,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
         setSubmittingColumn(true)
         try {
-            const res = await apiClient.put(`/api/domain-features/columns/${editingColumn.id}`, { displayName: columnNameInput })
+            await apiClient.put(`/api/domain-features/columns/${editingColumn.id}`, { displayName: columnNameInput })
 
             setColumns(prev => prev.map(c => c.id === editingColumn.id ? { ...c, displayName: columnNameInput } : c))
             setColumnNameInput('')
@@ -233,12 +262,12 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             await apiClient.delete(`/api/domain-features/columns/${editingColumn.id}`)
 
             setColumns(prev => prev.filter(c => c.id !== editingColumn.id))
+            setSelectedFilters(prev => prev.filter(k => k !== editingColumn.key))
             setColumnNameInput('')
             setEditingColumn(null)
             setShowEditModal(false)
             setMessage({ type: 'success', text: 'Özellik silindi' })
 
-            // Refresh domains to clear deleted feature data from UI
             fetchDomains()
         } catch (err) {
             console.error('Failed to delete column', err)
@@ -249,7 +278,8 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     }
 
 
-    const openEditModal = (col: ColumnDef) => {
+    const openEditModal = (col: ColumnDef, e: React.MouseEvent) => {
+        e.stopPropagation() // Prevent triggering column filter
         if (col.isStatic) return
         setEditingColumn(col)
         setColumnNameInput(col.displayName)
@@ -291,20 +321,21 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                         Domain Features Manager
                     </h2>
-                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px', alignItems: 'center' }}>
                         <button
                             onClick={() => {
                                 setViewMode('standard')
                                 setOnlyFlagged(true)
                                 setSearch('')
+                                setSelectedFilters([])
                                 setPage(1)
                             }}
                             style={{
                                 fontSize: '13px',
-                                color: viewMode === 'standard' && onlyFlagged ? '#2563eb' : 'var(--text-muted)',
-                                fontWeight: viewMode === 'standard' && onlyFlagged ? '600' : '400',
+                                color: viewMode === 'standard' && onlyFlagged && selectedFilters.length === 0 ? '#2563eb' : 'var(--text-muted)',
+                                fontWeight: viewMode === 'standard' && onlyFlagged && selectedFilters.length === 0 ? '600' : '400',
                                 background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                                textDecoration: viewMode === 'standard' && onlyFlagged ? 'underline' : 'none'
+                                textDecoration: viewMode === 'standard' && onlyFlagged && selectedFilters.length === 0 ? 'underline' : 'none'
                             }}
                         >
                             İşaretliler
@@ -314,18 +345,43 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                 setViewMode('standard')
                                 setOnlyFlagged(false)
                                 setSearch('')
+                                setSelectedFilters([])
                                 setPage(1)
                             }}
                             style={{
                                 fontSize: '13px',
-                                color: viewMode === 'standard' && !onlyFlagged ? '#2563eb' : 'var(--text-muted)',
-                                fontWeight: viewMode === 'standard' && !onlyFlagged ? '600' : '400',
+                                color: viewMode === 'standard' && !onlyFlagged && selectedFilters.length === 0 ? '#2563eb' : 'var(--text-muted)',
+                                fontWeight: viewMode === 'standard' && !onlyFlagged && selectedFilters.length === 0 ? '600' : '400',
                                 background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                                textDecoration: viewMode === 'standard' && !onlyFlagged ? 'underline' : 'none'
+                                textDecoration: viewMode === 'standard' && !onlyFlagged && selectedFilters.length === 0 ? 'underline' : 'none'
                             }}
                         >
                             Tüm Liste
                         </button>
+                        {selectedFilters.length > 0 && (
+                            <span style={{
+                                fontSize: '12px',
+                                color: '#2563eb',
+                                background: 'rgba(37, 99, 235, 0.1)',
+                                padding: '4px 8px',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}>
+                                🔍 {selectedFilters.length} filtre aktif
+                                <button
+                                    onClick={clearColumnFilters}
+                                    style={{
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        color: '#2563eb', fontSize: '14px', padding: 0
+                                    }}
+                                    title="Filtreleri Temizle"
+                                >
+                                    ×
+                                </button>
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -333,16 +389,16 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     <button
                         onClick={() => {
                             if (viewMode === 'top') {
-                                // Toggle OFF: Go back to standard flagged view
                                 setViewMode('standard')
                                 setOnlyFlagged(true)
                                 setSearch('')
+                                setSelectedFilters([])
                                 setPage(1)
                             } else {
-                                // Toggle ON
                                 setViewMode('top')
                                 setSearch('')
                                 setOnlyFlagged(false)
+                                setSelectedFilters([])
                             }
                         }}
                         style={{
@@ -540,13 +596,15 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     <span style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'block' }}>
                         {viewMode === 'top'
                             ? `🔥 En çok kullanılan ${total} domain listeleniyor`
-                            : onlyFlagged && !search
-                                ? `Filtrelenmiş ${total} domain (Sadece işaretliler)`
-                                : `Toplam ${total} domain`}
+                            : selectedFilters.length > 0
+                                ? `🔍 ${total} domain (${selectedFilters.length} filtre aktif)`
+                                : onlyFlagged && !search
+                                    ? `Filtrelenmiş ${total} domain (Sadece işaretliler)`
+                                    : `Toplam ${total} domain`}
                     </span>
-                    {onlyFlagged && !search && viewMode === 'standard' && (
+                    {selectedFilters.length === 0 && onlyFlagged && !search && viewMode === 'standard' && (
                         <span style={{ fontSize: '11px', color: '#f59e0b' }}>
-                            * Diğerlerini görmek için arama yapın veya "Tüm Liste"ye tıklayın
+                            * Sütun başlığına tıklayarak filtreleyebilirsiniz
                         </span>
                     )}
                 </div>
@@ -565,25 +623,45 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                     Incident #
                                 </th>
                             )}
-                            {columns.map(col => (
-                                <th key={col.key} style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '100px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                        {col.displayName}
-                                        {!col.isStatic && (
-                                            <button
-                                                onClick={() => openEditModal(col)}
-                                                style={{
-                                                    background: 'none', border: 'none', cursor: 'pointer',
-                                                    color: 'var(--text-muted)', fontSize: '14px', padding: '2px'
-                                                }}
-                                                title="Düzenle"
-                                            >
-                                                ✎
-                                            </button>
-                                        )}
-                                    </div>
-                                </th>
-                            ))}
+                            {columns.map(col => {
+                                const isFiltered = selectedFilters.includes(col.key)
+                                return (
+                                    <th
+                                        key={col.key}
+                                        onClick={() => toggleColumnFilter(col.key)}
+                                        style={{
+                                            padding: '12px',
+                                            textAlign: 'center',
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            color: isFiltered ? '#2563eb' : 'var(--text-secondary)',
+                                            minWidth: '100px',
+                                            cursor: 'pointer',
+                                            background: isFiltered ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
+                                            borderRadius: '4px',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        title={`Tıklayarak "${col.displayName}" sütununda Evet olanları filtreleyin`}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                            {isFiltered && <span style={{ fontSize: '10px' }}>✓</span>}
+                                            {col.displayName}
+                                            {!col.isStatic && (
+                                                <button
+                                                    onClick={(e) => openEditModal(col, e)}
+                                                    style={{
+                                                        background: 'none', border: 'none', cursor: 'pointer',
+                                                        color: 'var(--text-muted)', fontSize: '14px', padding: '2px'
+                                                    }}
+                                                    title="Düzenle"
+                                                >
+                                                    ✎
+                                                </button>
+                                            )}
+                                        </div>
+                                    </th>
+                                )
+                            })}
                         </tr>
                     </thead>
                     <tbody>

@@ -29,13 +29,44 @@ public class DomainFeaturesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 150,
         [FromQuery] string? search = null,
-        [FromQuery] bool onlyFlagged = false)
+        [FromQuery] bool onlyFlagged = false,
+        [FromQuery] string? filterColumns = null)
     {
         var query = _context.NdaDomains.AsQueryable();
 
         if (!string.IsNullOrEmpty(search))
         {
             query = query.Where(d => d.Domain.Contains(search.ToLower()));
+        }
+        else if (!string.IsNullOrEmpty(filterColumns))
+        {
+            // Filter by specific columns (AND logic - all selected columns must be true)
+            var columns = filterColumns.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            
+            foreach (var col in columns)
+            {
+                var colKey = col.Trim().ToLower();
+                
+                // Static columns
+                if (colKey == "hasnda") query = query.Where(d => d.HasNda);
+                else if (colKey == "ispersonal") query = query.Where(d => d.IsPersonal);
+                else if (colKey == "istirakdomain") query = query.Where(d => d.IstirakDomain);
+                else if (colKey == "egitim") query = query.Where(d => d.Egitim);
+                else if (colKey == "noter") query = query.Where(d => d.Noter);
+                else if (colKey == "hukuk") query = query.Where(d => d.Hukuk);
+                else if (colKey == "denetim") query = query.Where(d => d.Denetim);
+                else if (colKey == "banka") query = query.Where(d => d.Banka);
+                else
+                {
+                    // Dynamic column - check in DomainFeatureValues
+                    var dynamicKey = colKey;
+                    query = query.Where(d => 
+                        _context.DomainFeatureValues.Any(v => 
+                            v.DomainId == d.Id && 
+                            v.Feature.KeyName == dynamicKey && 
+                            v.IsEnabled));
+                }
+            }
         }
         else if (onlyFlagged)
         {
