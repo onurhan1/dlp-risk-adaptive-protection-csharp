@@ -20,6 +20,8 @@ public class AnalyzerDbContext : DbContext
     public DbSet<AnomalyDetection> AnomalyDetections { get; set; }
     public DbSet<NdaDomain> NdaDomains { get; set; }
     public DbSet<UserDailyRiskScore> UserDailyRiskScores { get; set; }
+    public DbSet<DomainFeatureDefinition> DomainFeatureDefinitions { get; set; }
+    public DbSet<DomainFeatureValue> DomainFeatureValues { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -218,6 +220,46 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.HasNda);
             entity.HasIndex(e => e.IsUnknown);
             entity.HasIndex(e => e.IsPersonal);
+        });
+
+        // Configure DomainFeatureDefinition
+        modelBuilder.Entity<DomainFeatureDefinition>(entity =>
+        {
+            entity.ToTable("domain_feature_definitions");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.KeyName).HasColumnName("key_name").IsRequired().HasMaxLength(50);
+            entity.Property(e => e.DisplayName).HasColumnName("display_name").IsRequired().HasMaxLength(100);
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.KeyName).IsUnique();
+        });
+
+        // Configure DomainFeatureValue
+        modelBuilder.Entity<DomainFeatureValue>(entity =>
+        {
+            entity.ToTable("domain_feature_values");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.DomainId).HasColumnName("domain_id");
+            entity.Property(e => e.FeatureId).HasColumnName("feature_id");
+            entity.Property(e => e.IsEnabled).HasColumnName("is_enabled").HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.DomainId, e.FeatureId }).IsUnique();
+            
+            entity.HasOne(d => d.Domain)
+                .WithMany()
+                .HasForeignKey(d => d.DomainId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(f => f.Feature)
+                .WithMany(p => p.Values)
+                .HasForeignKey(d => d.FeatureId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Configure UserDailyRiskScore

@@ -15,12 +15,16 @@ interface DomainFeature {
     hukuk: boolean
     denetim: boolean
     banka: boolean
+    customFeatures: Record<string, boolean>
+    incidentCount?: number
 }
 
 interface ColumnDef {
     name: string
     displayName: string
-    key: keyof DomainFeature
+    key: string
+    isStatic: boolean
+    id?: number
 }
 
 interface DomainFeaturesManagerProps {
@@ -32,30 +36,27 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const [columns, setColumns] = useState<ColumnDef[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+
+    // Pagination
     const [page, setPage] = useState(1)
     const [pageSize] = useState(150)
     const [total, setTotal] = useState(0)
     const [totalPages, setTotalPages] = useState(0)
+
+    // State
     const [search, setSearch] = useState('')
+    const [onlyFlagged, setOnlyFlagged] = useState(true)
+    const [viewMode, setViewMode] = useState<'standard' | 'top'>('standard')
+
     const [modifiedIds, setModifiedIds] = useState<Set<number>>(new Set())
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-    const fetchDomains = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await apiClient.get('/api/domain-features', {
-                params: { page, pageSize, search: search || undefined }
-            })
-            setDomains(res.data.domains)
-            setTotal(res.data.pagination.total)
-            setTotalPages(res.data.pagination.totalPages)
-        } catch (err) {
-            console.error('Failed to fetch domains', err)
-            setMessage({ type: 'error', text: 'Domain verileri yüklenemedi' })
-        } finally {
-            setLoading(false)
-        }
-    }, [page, pageSize, search])
+    // Add/Edit Column State
+    const [showAddModal, setShowAddModal] = useState(false)
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [editingColumn, setEditingColumn] = useState<ColumnDef | null>(null)
+    const [columnNameInput, setColumnNameInput] = useState('')
+    const [submittingColumn, setSubmittingColumn] = useState(false)
 
     const fetchColumns = async () => {
         try {
@@ -66,6 +67,42 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         }
     }
 
+    const fetchDomains = useCallback(async () => {
+        setLoading(true)
+        try {
+            let endpoint = '/api/domain-features'
+            const params: any = {}
+
+            if (viewMode === 'top') {
+                endpoint = '/api/domain-features/top'
+                params.limit = pageSize
+            } else {
+                params.page = page
+                params.pageSize = pageSize
+                params.search = search || undefined
+                params.onlyFlagged = onlyFlagged && !search // Search varsa flag filtresini kaldır
+            }
+
+            const res = await apiClient.get(endpoint, { params })
+
+            if (viewMode === 'top') {
+                setDomains(res.data.domains)
+                setTotal(res.data.domains.length)
+                setTotalPages(1)
+            } else {
+                setDomains(res.data.domains)
+                setTotal(res.data.pagination.total)
+                setTotalPages(res.data.pagination.totalPages)
+            }
+
+        } catch (err) {
+            console.error('Failed to fetch domains', err)
+            setMessage({ type: 'error', text: 'Domain verileri yüklenemedi' })
+        } finally {
+            setLoading(false)
+        }
+    }, [page, pageSize, search, onlyFlagged, viewMode])
+
     useEffect(() => {
         fetchColumns()
     }, [])
@@ -74,11 +111,24 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         fetchDomains()
     }, [fetchDomains])
 
-    const handleToggle = (domainId: number, columnKey: keyof DomainFeature) => {
+    // Arama yapıldığında otomatik olarak flagged filtresini kaldır ve standard moda geç
+    const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        setSearch(val)
+        if (val && viewMode === 'top') setViewMode('standard')
+    }
+
+    const handleToggle = (domainId: number, col: ColumnDef) => {
         setDomains(prev =>
             prev.map(d => {
                 if (d.id === domainId) {
-                    return { ...d, [columnKey]: !d[columnKey] }
+                    if (col.isStatic) {
+                        return { ...d, [col.key]: !d[col.key as keyof DomainFeature] }
+                    } else {
+                        const customFeatures = { ...d.customFeatures } || {}
+                        customFeatures[col.key] = !customFeatures[col.key]
+                        return { ...d, customFeatures }
+                    }
                 }
                 return d
             })
@@ -105,7 +155,8 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     noter: d.noter,
                     hukuk: d.hukuk,
                     denetim: d.denetim,
-                    banka: d.banka
+                    banka: d.banka,
+                    customFeatures: d.customFeatures
                 }))
 
             await apiClient.post('/api/domain-features/bulk-save', updates)
@@ -130,6 +181,52 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         }
     }
 
+    const handleAddColumn = async () => {
+        if (!columnNameInput.trim()) return
+
+        setSubmittingColumn(true)
+        try {
+            const res = await apiClient.post('/api/domain-features/columns', { displayName: columnNameInput })
+            const newCol = res.data
+            setColumns(prev => [...prev, newCol])
+            setColumnNameInput('')
+            setShowAddModal(false)
+            setMessage({ type: 'success', text: 'Yeni özellik eklendi' })
+        } catch (err) {
+            console.error('Failed to add column', err)
+            setMessage({ type: 'error', text: 'Özellik eklenemedi' })
+        } finally {
+            setSubmittingColumn(false)
+        }
+    }
+
+    const handleUpdateColumn = async () => {
+        if (!columnNameInput.trim() || !editingColumn || !editingColumn.id) return
+
+        setSubmittingColumn(true)
+        try {
+            const res = await apiClient.put(`/api/domain-features/columns/${editingColumn.id}`, { displayName: columnNameInput })
+
+            setColumns(prev => prev.map(c => c.id === editingColumn.id ? { ...c, displayName: columnNameInput } : c))
+            setColumnNameInput('')
+            setEditingColumn(null)
+            setShowEditModal(false)
+            setMessage({ type: 'success', text: 'Özellik ismi güncellendi' })
+        } catch (err) {
+            console.error('Failed to update column', err)
+            setMessage({ type: 'error', text: 'Güncelleme başarısız' })
+        } finally {
+            setSubmittingColumn(false)
+        }
+    }
+
+    const openEditModal = (col: ColumnDef) => {
+        if (col.isStatic) return
+        setEditingColumn(col)
+        setColumnNameInput(col.displayName)
+        setShowEditModal(true)
+    }
+
     const getToggleStyle = (value: boolean) => ({
         padding: '4px 12px',
         borderRadius: '12px',
@@ -139,8 +236,17 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         fontWeight: '600' as const,
         background: value ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
         color: value ? '#10b981' : '#ef4444',
-        transition: 'all 0.2s'
+        transition: 'all 0.2s',
+        minWidth: '60px'
     })
+
+    // Determine value for a cell
+    const getValue = (domain: DomainFeature, col: ColumnDef) => {
+        if (col.isStatic) {
+            return !!domain[col.key as keyof DomainFeature]
+        }
+        return !!domain.customFeatures?.[col.key]
+    }
 
     return (
         <div style={{
@@ -152,10 +258,88 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                    Domain Features Manager
-                </h2>
+                <div>
+                    <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                        Domain Features Manager
+                    </h2>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button
+                            onClick={() => {
+                                setViewMode('standard')
+                                setOnlyFlagged(true)
+                                setSearch('')
+                                setPage(1)
+                            }}
+                            style={{
+                                fontSize: '13px',
+                                color: viewMode === 'standard' && onlyFlagged ? '#2563eb' : 'var(--text-muted)',
+                                fontWeight: viewMode === 'standard' && onlyFlagged ? '600' : '400',
+                                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                textDecoration: viewMode === 'standard' && onlyFlagged ? 'underline' : 'none'
+                            }}
+                        >
+                            İşaretliler
+                        </button>
+                        <button
+                            onClick={() => {
+                                setViewMode('standard')
+                                setOnlyFlagged(false)
+                                setSearch('')
+                                setPage(1)
+                            }}
+                            style={{
+                                fontSize: '13px',
+                                color: viewMode === 'standard' && !onlyFlagged ? '#2563eb' : 'var(--text-muted)',
+                                fontWeight: viewMode === 'standard' && !onlyFlagged ? '600' : '400',
+                                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                textDecoration: viewMode === 'standard' && !onlyFlagged ? 'underline' : 'none'
+                            }}
+                        >
+                            Tüm Liste
+                        </button>
+                    </div>
+                </div>
+
                 <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                        onClick={() => {
+                            setViewMode('top')
+                            setSearch('')
+                            setOnlyFlagged(false)
+                        }}
+                        style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            border: viewMode === 'top' ? '2px solid #f59e0b' : '1px solid var(--border)',
+                            background: viewMode === 'top' ? '#fffbeb' : 'var(--background)',
+                            color: viewMode === 'top' ? '#b45309' : 'var(--text-primary)',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        🔥 Sık Kullanılanlar
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setColumnNameInput('')
+                            setShowAddModal(true)
+                        }}
+                        style={{
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            border: '1px dashed var(--border)',
+                            background: 'var(--surface-hover)',
+                            color: 'var(--text-primary)',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        + Özellik Ekle
+                    </button>
+
                     <button
                         onClick={handleExtractFromIncidents}
                         style={{
@@ -171,6 +355,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     >
                         🔍 Incident'lardan Çıkar
                     </button>
+
                     <button
                         onClick={handleBulkSave}
                         disabled={saving || modifiedIds.size === 0}
@@ -188,6 +373,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                     >
                         {saving ? 'Kaydediliyor...' : `💾 Kaydet (${modifiedIds.size})`}
                     </button>
+
                     {onClose && (
                         <button
                             onClick={onClose}
@@ -221,15 +407,72 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 </div>
             )}
 
-            {/* Search */}
-            <div style={{ marginBottom: '16px' }}>
+            {/* Add/Edit Modal */}
+            {(showAddModal || showEditModal) && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+                }}>
+                    <div style={{
+                        background: 'var(--surface)', padding: '24px', borderRadius: '12px', width: '400px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+                    }}>
+                        <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>
+                            {showEditModal ? 'Özellik Düzenle' : 'Yeni Özellik Ekle'}
+                        </h3>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                            {showEditModal
+                                ? 'Sınıflandırma ismini güncelleyebilirsiniz.'
+                                : 'Yeni özellik ekleyin. Varsayılan olarak "Hayır" olacaktır.'}
+                        </p>
+                        <input
+                            type="text"
+                            placeholder="Özellik Adı"
+                            value={columnNameInput}
+                            onChange={(e) => setColumnNameInput(e.target.value)}
+                            style={{
+                                width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)',
+                                background: 'var(--background)', color: 'var(--text-primary)', marginBottom: '16px'
+                            }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                                onClick={() => {
+                                    setShowAddModal(false)
+                                    setShowEditModal(false)
+                                    setEditingColumn(null)
+                                }}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)',
+                                    background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer'
+                                }}
+                            >
+                                İptal
+                            </button>
+                            <button
+                                onClick={showEditModal ? handleUpdateColumn : handleAddColumn}
+                                disabled={submittingColumn || !columnNameInput}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                                    background: '#3b82f6', color: 'white', cursor: 'pointer', opacity: submittingColumn ? 0.7 : 1
+                                }}
+                            >
+                                {submittingColumn ? 'Kaydediliyor...' : 'Kaydet'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Search & Info */}
+            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <input
                     type="text"
-                    placeholder="Domain ara..."
+                    placeholder="Domain ara (otomatik tüm listede arar)..."
                     value={search}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                    onChange={handleSearchChange}
                     style={{
-                        width: '300px',
+                        width: '350px',
                         padding: '10px 14px',
                         borderRadius: '8px',
                         border: '1px solid var(--border)',
@@ -238,9 +481,20 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                         fontSize: '14px'
                     }}
                 />
-                <span style={{ marginLeft: '16px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                    Toplam: {total} domain
-                </span>
+                <div style={{ textAlign: 'right' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'block' }}>
+                        {viewMode === 'top'
+                            ? `🔥 En çok kullanılan ${total} domain listeleniyor`
+                            : onlyFlagged && !search
+                                ? `Filtrelenmiş ${total} domain (Sadece işaretliler)`
+                                : `Toplam ${total} domain`}
+                    </span>
+                    {onlyFlagged && !search && viewMode === 'standard' && (
+                        <span style={{ fontSize: '11px', color: '#f59e0b' }}>
+                            * Diğerlerini görmek için arama yapın veya "Tüm Liste"ye tıklayın
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Table */}
@@ -251,26 +505,42 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                             <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '200px' }}>
                                 Domain
                             </th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>NDA</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Kişisel</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>İştirak</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Eğitim</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Noter</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Hukuk</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Denetim</th>
-                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Banka</th>
+                            {viewMode === 'top' && (
+                                <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '100px' }}>
+                                    Incident #
+                                </th>
+                            )}
+                            {columns.map(col => (
+                                <th key={col.key} style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '100px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        {col.displayName}
+                                        {!col.isStatic && (
+                                            <button
+                                                onClick={() => openEditModal(col)}
+                                                style={{
+                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                    color: 'var(--text-muted)', fontSize: '14px', padding: '2px'
+                                                }}
+                                                title="Düzenle"
+                                            >
+                                                ✎
+                                            </button>
+                                        )}
+                                    </div>
+                                </th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <td colSpan={columns.length + 2} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     Yükleniyor...
                                 </td>
                             </tr>
                         ) : domains.length === 0 ? (
                             <tr>
-                                <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <td colSpan={columns.length + 2} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     Domain bulunamadı
                                 </td>
                             </tr>
@@ -289,46 +559,21 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                             <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f59e0b', fontWeight: '600' }}>YENİ</span>
                                         )}
                                     </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'hasNda')} style={getToggleStyle(domain.hasNda)}>
-                                            {domain.hasNda ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'isPersonal')} style={getToggleStyle(domain.isPersonal)}>
-                                            {domain.isPersonal ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'istirakDomain')} style={getToggleStyle(domain.istirakDomain)}>
-                                            {domain.istirakDomain ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'egitim')} style={getToggleStyle(domain.egitim)}>
-                                            {domain.egitim ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'noter')} style={getToggleStyle(domain.noter)}>
-                                            {domain.noter ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'hukuk')} style={getToggleStyle(domain.hukuk)}>
-                                            {domain.hukuk ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'denetim')} style={getToggleStyle(domain.denetim)}>
-                                            {domain.denetim ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                        <button onClick={() => handleToggle(domain.id, 'banka')} style={getToggleStyle(domain.banka)}>
-                                            {domain.banka ? 'Evet' : 'Hayır'}
-                                        </button>
-                                    </td>
+                                    {viewMode === 'top' && (
+                                        <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
+                                            {domain.incidentCount || 0}
+                                        </td>
+                                    )}
+                                    {columns.map(col => {
+                                        const val = getValue(domain, col)
+                                        return (
+                                            <td key={col.key} style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                                <button onClick={() => handleToggle(domain.id, col)} style={getToggleStyle(val)}>
+                                                    {val ? 'Evet' : 'Hayır'}
+                                                </button>
+                                            </td>
+                                        )
+                                    })}
                                 </tr>
                             ))
                         )}
@@ -337,43 +582,45 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             </div>
 
             {/* Pagination */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                    Sayfa {page} / {totalPages} ({total} domain)
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: page === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                            cursor: page === 1 ? 'default' : 'pointer',
-                            fontSize: '13px'
-                        }}
-                    >
-                        ← Önceki
-                    </button>
-                    <button
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: page === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                            cursor: page === totalPages ? 'default' : 'pointer',
-                            fontSize: '13px'
-                        }}
-                    >
-                        Sonraki →
-                    </button>
+            {viewMode === 'standard' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                        Sayfa {page} / {totalPages} ({total} domain)
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            style={{
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                background: 'var(--background)',
+                                color: page === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: page === 1 ? 'default' : 'pointer',
+                                fontSize: '13px'
+                            }}
+                        >
+                            ← Önceki
+                        </button>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                            style={{
+                                padding: '8px 16px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                background: 'var(--background)',
+                                color: page === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: page === totalPages ? 'default' : 'pointer',
+                                fontSize: '13px'
+                            }}
+                        >
+                            Sonraki →
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }
