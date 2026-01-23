@@ -1038,9 +1038,9 @@ public class BehaviorEngineService
             ? (double)uniqueDestinations / currentIncidents.Count 
             : 0;
 
-        // Get top incidents
+        // Get top incidents - Calculate MaxMatches from ViolationTriggers if database value is 0
         var topIncidents = currentIncidents
-            .OrderByDescending(i => i.MaxMatches)
+            .OrderByDescending(i => GetEffectiveMaxMatches(i))
             .ThenByDescending(i => i.Severity)
             .Take(20)
             .Select(i => new IncidentSummary
@@ -1050,7 +1050,7 @@ public class BehaviorEngineService
                 Destination = i.Destination ?? "N/A",
                 Channel = i.Channel ?? "N/A",
                 Action = i.Action ?? "N/A",
-                MaxMatches = i.MaxMatches,
+                MaxMatches = GetEffectiveMaxMatches(i),
                 Timestamp = i.Timestamp
             })
             .ToList();
@@ -1623,6 +1623,50 @@ public class BehaviorEngineService
                 IsNew = !baselineDestinations.Contains(g.Key)
             })
             .ToList();
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Get effective MaxMatches value - calculates from ViolationTriggers JSON if database value is 0
+    /// </summary>
+    private int GetEffectiveMaxMatches(Incident incident)
+    {
+        // If database has a value, use it
+        if (incident.MaxMatches > 0)
+            return incident.MaxMatches;
+
+        // Otherwise, calculate from ViolationTriggers JSON
+        if (string.IsNullOrEmpty(incident.ViolationTriggers))
+            return 0;
+
+        try
+        {
+            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(incident.ViolationTriggers, JsonOptions);
+            if (triggers == null || triggers.Count == 0)
+                return 0;
+
+            // Get max NumberMatches from all classifiers in all triggers
+            int maxMatches = 0;
+            foreach (var trigger in triggers)
+            {
+                if (trigger.Classifiers != null)
+                {
+                    foreach (var classifier in trigger.Classifiers)
+                    {
+                        if (classifier.NumberMatches > maxMatches)
+                            maxMatches = classifier.NumberMatches;
+                    }
+                }
+            }
+            return maxMatches;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     #endregion
