@@ -17,6 +17,97 @@ interface DomainFeature {
     banka: boolean
     customFeatures: Record<string, boolean>
     incidentCount?: number
+    incidentStats?: {
+        actions: Record<string, number>
+        teams: Record<string, number>
+    }
+}
+
+// Helper component for Incident Count Tooltip
+const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeature['incidentStats'] }) => {
+    const [showTooltip, setShowTooltip] = useState(false)
+
+    if (!stats || count === 0) return <span style={{ fontWeight: 'bold' }}>{count || 0}</span>
+
+    return (
+        <div
+            style={{ position: 'relative', display: 'inline-block' }}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+        >
+            <span style={{ fontWeight: 'bold', cursor: 'help', textDecoration: 'underline dotted', color: '#2563eb' }}>
+                {count}
+            </span>
+
+            {showTooltip && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    marginBottom: '8px',
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    padding: '12px',
+                    zIndex: 50,
+                    minWidth: '220px',
+                    maxWidth: '300px',
+                    textAlign: 'left'
+                }}>
+                    {/* Arrow */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: '50%',
+                        marginLeft: '-6px',
+                        borderWidth: '6px',
+                        borderStyle: 'solid',
+                        borderColor: 'white transparent transparent transparent'
+                    }}></div>
+
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                        {/* Actions Section */}
+                        <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 'bold' }}>Aksiyonlar</h4>
+                            {Object.entries(stats.actions).sort((a, b) => b[1] - a[1]).map(([action, val]) => (
+                                <div key={action} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                                    <span style={{
+                                        color: action === 'BLOCK' ? '#ef4444' : action === 'PERMIT' || action === 'AUTHORIZED' ? '#10b981' : '#374151'
+                                    }}>
+                                        {action}
+                                    </span>
+                                    <span style={{ fontWeight: '600' }}>{val}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Divider */}
+                        <div style={{ width: '1px', background: '#e5e7eb' }}></div>
+
+                        {/* Teams Section */}
+                        <div style={{ flex: 1 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 'bold' }}>Ekipler</h4>
+                            {Object.entries(stats.teams).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([team, val]) => (
+                                <div key={team} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                                    <span style={{ color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }} title={team}>
+                                        {team || 'Diğer'}
+                                    </span>
+                                    <span style={{ fontWeight: '600' }}>{val}</span>
+                                </div>
+                            ))}
+                            {Object.keys(stats.teams).length > 5 && (
+                                <div style={{ fontSize: '10px', color: '#9ca3af', fontStyle: 'italic', marginTop: '2px' }}>
+                                    + {Object.keys(stats.teams).length - 5} diğer
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
 }
 
 interface ColumnDef {
@@ -693,8 +784,8 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                         )}
                                     </td>
                                     {viewMode === 'top' && (
-                                        <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
-                                            {domain.incidentCount || 0}
+                                        <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>
+                                            <IncidentCountCell count={domain.incidentCount || 0} stats={domain.incidentStats} />
                                         </td>
                                     )}
                                     {columns.map(col => {

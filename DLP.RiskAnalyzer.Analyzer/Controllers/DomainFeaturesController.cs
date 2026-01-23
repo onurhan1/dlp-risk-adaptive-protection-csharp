@@ -152,25 +152,44 @@ public class DomainFeaturesController : ControllerBase
     }
 
     /// <summary>
-    /// Get top used domains based on incident count
+    /// Get top used domains based on incident count with detailed stats
     /// </summary>
     [HttpGet("top")]
     public async Task<IActionResult> GetTopDomains([FromQuery] int limit = 100)
     {
         // 1. Get top domains from Incidents
-        // Note: Destination column might contain multiple emails or just domain
-        // This is a simplified approach assuming clean data or post-processing
         var topDomains = await _context.Incidents
             .Where(i => !string.IsNullOrEmpty(i.Destination))
-            .GroupBy(i => i.Destination) // Group by raw destination for now
+            .GroupBy(i => i.Destination)
             .Select(g => new { Destination = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
-            .Take(limit * 2) // Take more to process
+            .Take(limit * 2) 
             .ToListAsync();
 
-        // Process top domains (extract domain from email)
+        // Process top domains and prepare aggregation containers
         var domainCounts = new Dictionary<string, int>();
-        foreach (var item in topDomains)
+        var domainActions = new Dictionary<string, Dictionary<string, int>>();
+        var domainTeams = new Dictionary<string, Dictionary<string, int>>();
+
+        // Helper to add stats
+        void AddStat(Dictionary<string, Dictionary<string, int>> target, string domain, string? key)
+        {
+            if (string.IsNullOrEmpty(key)) key = "Unknown";
+            if (!target.ContainsKey(domain)) target[domain] = new Dictionary<string, int>();
+            if (!target[domain].ContainsKey(key)) target[domain][key] = 0;
+            target[domain][key]++;
+        }
+
+        // 2. Fetch detailed data for stats (Action, Department)
+        // Since we need to parse destinations (split ;), we need to fetch raw data for these top destinations
+        var destinations = topDomains.Select(x => x.Destination).ToList();
+        
+        var details = await _context.Incidents
+            .Where(i => destinations.Contains(i.Destination))
+            .Select(i => new { i.Destination, i.Action, i.Department })
+            .ToListAsync();
+
+        foreach (var item in details)
         {
             var parts = item.Destination.Split(';', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
@@ -178,8 +197,14 @@ public class DomainFeaturesController : ControllerBase
                 if (part.Contains("@"))
                 {
                     var domain = part.Split('@').Last().Trim().ToLower();
+                    
+                    // Count
                     if (!domainCounts.ContainsKey(domain)) domainCounts[domain] = 0;
-                    domainCounts[domain] += item.Count;
+                    domainCounts[domain]++;
+
+                    // Stats
+                    AddStat(domainActions, domain, item.Action);
+                    AddStat(domainTeams, domain, item.Department);
                 }
             }
         }
@@ -190,7 +215,7 @@ public class DomainFeaturesController : ControllerBase
             .Select(x => x.Key)
             .ToList();
 
-        // 2. Fetch NdaDomain details for these domains
+        // 3. Fetch NdaDomain details for these domains
         var domains = await _context.NdaDomains
             .Where(d => topDomainList.Contains(d.Domain))
             .ToListAsync();
@@ -199,17 +224,25 @@ public class DomainFeaturesController : ControllerBase
         domains = domains.OrderBy(d => topDomainList.IndexOf(d.Domain)).ToList();
         var domainIds = domains.Select(d => d.Id).ToList();
 
-        // 3. Fetch dynamic values
-        var dynamicValues = await _context.DomainFeatureValues
-            .Include(v => v.Feature)
+        // 4. Fetch dynamic values
+        var featureDefs = await _context.DomainFeatureDefinitions.ToDictionaryAsync(f => f.KeyName, f => f.Id);
+        var existingValues = await _context.DomainFeatureValues
             .Where(v => domainIds.Contains(v.DomainId))
             .ToListAsync();
+            
+        var valueLookup = existingValues.ToDictionary(v => (v.DomainId, v.FeatureId), v => v);
 
         var result = domains.Select(d =>
         {
-            var features = dynamicValues
-                .Where(v => v.DomainId == d.Id && v.Feature != null)
-                .ToDictionary(v => v.Feature!.KeyName, v => v.IsEnabled);
+            // Reconstruct features dictionary
+            var features = new Dictionary<string, bool>();
+            foreach(var def in featureDefs)
+            {
+                if (valueLookup.TryGetValue((d.Id, def.Value), out var val) && val.IsEnabled)
+                {
+                    features[def.Key] = true;
+                }
+            }
 
             return new
             {
@@ -225,7 +258,12 @@ public class DomainFeaturesController : ControllerBase
                 d.Denetim,
                 d.Banka,
                 CustomFeatures = features,
-                IncidentCount = domainCounts.ContainsKey(d.Domain) ? domainCounts[d.Domain] : 0
+                IncidentCount = domainCounts.ContainsKey(d.Domain) ? domainCounts[d.Domain] : 0,
+                IncidentStats = new 
+                {
+                    Actions = domainActions.ContainsKey(d.Domain) ? domainActions[d.Domain] : new Dictionary<string, int>(),
+                    Teams = domainTeams.ContainsKey(d.Domain) ? domainTeams[d.Domain] : new Dictionary<string, int>()
+                }
             };
         });
 
