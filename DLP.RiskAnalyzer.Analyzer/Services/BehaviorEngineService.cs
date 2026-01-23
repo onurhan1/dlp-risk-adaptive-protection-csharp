@@ -698,6 +698,13 @@ public class BehaviorEngineService
     {
         public string? PolicyName { get; set; }
         public string? RuleName { get; set; }
+        public List<ClassifierDto>? Classifiers { get; set; }
+    }
+
+    private class ClassifierDto
+    {
+        public string? ClassifierName { get; set; }
+        public int NumberMatches { get; set; }
     }
     
     // JSON options for case-insensitive parsing
