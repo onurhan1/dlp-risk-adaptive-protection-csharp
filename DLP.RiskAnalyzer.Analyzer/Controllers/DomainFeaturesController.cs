@@ -90,8 +90,6 @@ public class DomainFeaturesController : ControllerBase
         // 4. Get all column definitions (Static + Dynamic)
         var staticColumns = new List<object>
         {
-        var staticColumns = new List<object>
-        {
             new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
             new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
             new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
