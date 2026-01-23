@@ -202,6 +202,15 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.HasNda).HasColumnName("has_nda").HasDefaultValue(false);
             entity.Property(e => e.IsUnknown).HasColumnName("is_unknown").HasDefaultValue(false);
             entity.Property(e => e.IsPersonal).HasColumnName("is_personal").HasDefaultValue(false);
+            
+            // New feature columns
+            entity.Property(e => e.IstirakDomain).HasColumnName("istirak_domain").HasDefaultValue(false);
+            entity.Property(e => e.Egitim).HasColumnName("egitim").HasDefaultValue(false);
+            entity.Property(e => e.Noter).HasColumnName("noter").HasDefaultValue(false);
+            entity.Property(e => e.Hukuk).HasColumnName("hukuk").HasDefaultValue(false);
+            entity.Property(e => e.Denetim).HasColumnName("denetim").HasDefaultValue(false);
+            entity.Property(e => e.Banka).HasColumnName("banka").HasDefaultValue(false);
+            
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
