@@ -297,10 +297,10 @@ public class RiskAnalyzerService
             // Calculate risk score with new formula
             // Calculate risk score with new formula
             incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
-                incident.MaxMatches,
-                incident.Channel,
-                destinationScore,
-                incident.Action);
+                maxMatches: incident.MaxMatches,
+                channel: incident.Channel,
+                destinationScore: destinationScore,
+                action: incident.Action);
             
             // We still keep other fields populated for reference, even if not used in formula
             // Calculate data sensitivity (based on data type and severity)
