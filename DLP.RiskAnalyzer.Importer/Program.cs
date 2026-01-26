@@ -298,7 +298,9 @@ public class Program
                                 : apiModel.Source.Manager.Split('/')[1].Trim())
                           : null, 255),
                 MaxMatches = maxMatches,
-                ViolationTriggers = null, // Skip ViolationTriggers to avoid length issues
+                ViolationTriggers = apiModel.ViolationTriggers != null 
+                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers) 
+                    : null,
                 RiskScore = calculatedRiskScore
             };
     }
