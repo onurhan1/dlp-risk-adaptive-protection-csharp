@@ -260,14 +260,21 @@ public class Program
             var wrapper = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
             return wrapper.Incidents ?? new List<DLPIncident>();
         }
-        catch
+        catch (Exception ex)
         {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[ERROR] Deserialization failed (Primary): {ex.Message}");
+            Console.ResetColor();
+
             try
             {
                 return JsonConvert.DeserializeObject<List<DLPIncident>>(content) ?? new List<DLPIncident>();
             }
-            catch
+            catch (Exception ex2)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[ERROR] Deserialization failed (Fallback): {ex2.Message}");
+                Console.ResetColor();
                 return new List<DLPIncident>();
             }
         }
