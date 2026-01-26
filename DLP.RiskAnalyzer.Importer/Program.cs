@@ -255,7 +255,18 @@ public class Program
                 {
                     var vt = incidents[0].ViolationTriggers[0];
                     Console.WriteLine($"  [DEBUG] VT[0]: PolicyName={vt.PolicyName ?? "NULL"}, RuleName={vt.RuleName ?? "NULL"}");
+                    Console.WriteLine($"  [DEBUG] VT[0] RawSnake={vt.RuleNameSnake ?? "NULL"}, RawCamel={vt.RuleNameCamel ?? "NULL"}, RawPascal={vt.RuleNamePascal ?? "NULL"}");
                 }
+                Console.ResetColor();
+            }
+            else if (incidents.Count > 0)
+            {
+                // Log raw JSON for first incident to see ViolationTriggers structure
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                var firstIncidentJson = content.IndexOf("violation_triggers") > 0 
+                    ? content.Substring(content.IndexOf("violation_triggers"), Math.Min(500, content.Length - content.IndexOf("violation_triggers")))
+                    : "NOT FOUND";
+                Console.WriteLine($"  [DEBUG] First 500 chars of violation_triggers: {firstIncidentJson}");
                 Console.ResetColor();
             }
             
