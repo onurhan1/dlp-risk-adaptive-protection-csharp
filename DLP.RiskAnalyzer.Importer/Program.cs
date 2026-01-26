@@ -244,7 +244,22 @@ public class Program
         try 
         {
             var wrapper = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
-            return wrapper.Incidents ?? new List<DLPIncident>();
+            var incidents = wrapper.Incidents ?? new List<DLPIncident>();
+            
+            // Debug: Log first incident's ViolationTriggers
+            if (incidents.Count > 0 && incidents[0].ViolationTriggers != null)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  [DEBUG] First incident VT count: {incidents[0].ViolationTriggers.Count}");
+                if (incidents[0].ViolationTriggers.Count > 0)
+                {
+                    var vt = incidents[0].ViolationTriggers[0];
+                    Console.WriteLine($"  [DEBUG] VT[0]: PolicyName={vt.PolicyName ?? "NULL"}, RuleName={vt.RuleName ?? "NULL"}");
+                }
+                Console.ResetColor();
+            }
+            
+            return incidents;
         }
         catch
         {
@@ -379,7 +394,15 @@ public class DLPIncidentSource
 public class DLPViolationTrigger
 {
     [JsonProperty("policy_name")] public string PolicyName { get; set; }
-    [JsonProperty("rule_name")] public string RuleName { get; set; }
+    
+    // Support multiple formats for rule_name
+    [JsonProperty("rule_name")] public string RuleNameSnake { get; set; }
+    [JsonProperty("ruleName")] public string RuleNameCamel { get; set; }
+    [JsonProperty("RuleName")] public string RuleNamePascal { get; set; }
+    
+    // Return whichever is not null
+    public string RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
+    
     [JsonProperty("classifiers")] public List<DLPClassifier> Classifiers { get; set; }
 }
 public class DLPClassifier
