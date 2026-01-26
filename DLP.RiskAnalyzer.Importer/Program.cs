@@ -378,12 +378,26 @@ public class DLPIncidentSource
 }
 public class DLPViolationTrigger
 {
-    [JsonProperty("PolicyName")] public string PolicyName { get; set; }
-    [JsonProperty("RuleName")] public string RuleName { get; set; }
-    [JsonProperty("Classifiers")] public List<DLPClassifier> Classifiers { get; set; }
+    // Support multiple formats for policy_name
+    [JsonProperty("policy_name")] public string PolicyNameSnake { get; set; }
+    [JsonProperty("PolicyName")] public string PolicyNamePascal { get; set; }
+    public string PolicyName => PolicyNameSnake ?? PolicyNamePascal;
+
+    // Support multiple formats for rule_name
+    [JsonProperty("rule_name")] public string RuleNameSnake { get; set; }
+    [JsonProperty("ruleName")] public string RuleNameCamel { get; set; }
+    [JsonProperty("RuleName")] public string RuleNamePascal { get; set; }
+    public string RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
+
+    [JsonProperty("classifiers")] 
+    public List<DLPClassifier> Classifiers { get; set; }
 }
 public class DLPClassifier
 {
-    [JsonProperty("ClassifierName")] public string ClassifierName { get; set; }
-    [JsonProperty("NumberMatches")] public int NumberMatches { get; set; }
+    // Support multiple formats for classifier_name
+    [JsonProperty("classifier_name")] public string ClassifierNameSnake { get; set; }
+    [JsonProperty("ClassifierName")] public string ClassifierNamePascal { get; set; }
+    public string ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
+
+    [JsonProperty("number_matches")] public int NumberMatches { get; set; }
 }
