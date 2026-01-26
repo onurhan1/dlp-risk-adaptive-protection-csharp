@@ -111,25 +111,61 @@ public class Program
                     // Convert to DB Model
                     var dbIncidents = incidents.Select(i => MapToIncident(i)).ToList();
 
-                    // Check existing to prevent duplicates
+                    // UPSERT Logic: Update existing, Insert new
                     var ids = dbIncidents.Select(x => x.Id).ToList();
-                    var existingIds = await context.Incidents
+                    var timestamps = dbIncidents.Select(x => x.Timestamp).ToList();
+                    
+                    // Find existing incidents (composite key: Id + Timestamp)
+                    var existingIncidents = await context.Incidents
                         .Where(x => ids.Contains(x.Id))
-                        .Select(x => x.Id)
                         .ToListAsync();
 
-                    var newIncidents = dbIncidents.Where(x => !existingIds.Contains(x.Id)).ToList();
+                    int insertedCount = 0;
+                    int updatedCount = 0;
 
-                    if (newIncidents.Count > 0)
+                    foreach (var incident in dbIncidents)
                     {
-                        await context.Incidents.AddRangeAsync(newIncidents);
-                        await context.SaveChangesAsync();
-                        Console.Write($"Inserted {newIncidents.Count} new. ");
-                        totalIncidentsImported += newIncidents.Count;
+                        var existing = existingIncidents.FirstOrDefault(e => e.Id == incident.Id && e.Timestamp == incident.Timestamp);
+                        
+                        if (existing != null)
+                        {
+                            // UPDATE existing record
+                            existing.UserEmail = incident.UserEmail;
+                            existing.Department = incident.Department;
+                            existing.Severity = incident.Severity;
+                            existing.DataType = incident.DataType;
+                            existing.Policy = incident.Policy;
+                            existing.Channel = incident.Channel;
+                            existing.Action = incident.Action;
+                            existing.Destination = incident.Destination;
+                            existing.FileName = incident.FileName;
+                            existing.LoginName = incident.LoginName;
+                            existing.EmailAddress = incident.EmailAddress;
+                            existing.FullName = incident.FullName;
+                            existing.Team = incident.Team;
+                            existing.MaxMatches = incident.MaxMatches;
+                            existing.ViolationTriggers = incident.ViolationTriggers;
+                            existing.RiskScore = incident.RiskScore;
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // INSERT new record
+                            await context.Incidents.AddAsync(incident);
+                            insertedCount++;
+                        }
+                    }
+
+                    await context.SaveChangesAsync();
+                    
+                    if (insertedCount > 0 || updatedCount > 0)
+                    {
+                        Console.Write($"Inserted {insertedCount}, Updated {updatedCount}. ");
+                        totalIncidentsImported += insertedCount;
                     }
                     else
                     {
-                        Console.Write("All skipped (duplicates). ");
+                        Console.Write("No changes. ");
                     }
                 }
                 else
