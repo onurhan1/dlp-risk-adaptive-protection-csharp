@@ -350,17 +350,18 @@ public class Program
             return new Incident
             {
                 Id = apiModel.Id,
-                UserEmail = Truncate(apiModel.User, 255) ?? "unknown",
+                UserEmail = Truncate(apiModel.User?.Split('\\').Last(), 255) ?? "unknown",
                 Department = Truncate(apiModel.Department, 255),
                 Severity = apiModel.Severity,
                 DataType = Truncate(apiModel.DataType, 255),
                 Timestamp = apiModel.Timestamp,
                 Policy = Truncate(apiModel.Policy, 500),
+                RuleName = Truncate(apiModel.ViolationTriggers?.FirstOrDefault()?.RuleName, 255),
                 Channel = Truncate(apiModel.Channel, 255),
                 Action = Truncate(apiModel.Action, 100),
                 Destination = Truncate(apiModel.Destination, 500),
                 FileName = Truncate(apiModel.FileName, 500),
-                LoginName = Truncate(apiModel.LoginName, 255),
+                LoginName = Truncate(apiModel.LoginName?.Split('\\').Last(), 255),
                 EmailAddress = Truncate(apiModel.EmailAddress, 255),
                 // Extract FullName and Team from Manager
                 // Format: "Name / Company - Team"
@@ -374,7 +375,14 @@ public class Program
                           : null, 255),
                 MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 
-                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers) 
+                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers, new JsonSerializerSettings 
+                    { 
+                        ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver 
+                        { 
+                            NamingStrategy = new Newtonsoft.Json.Serialization.SnakeCaseNamingStrategy() 
+                        },
+                        Formatting = Formatting.None
+                    }) 
                     : null,
                 RiskScore = calculatedRiskScore
             };
