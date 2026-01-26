@@ -316,7 +316,9 @@ public class DLPIncident
     public string User => Source?.LoginName;
     public string Department => Source?.Department;
     [JsonProperty("incident_time")] public string IncidentTimeString { get; set; }
-    public DateTime Timestamp => DateTime.TryParse(IncidentTimeString, out var dt) ? dt : DateTime.UtcNow;
+    public DateTime Timestamp => DateTime.TryParse(IncidentTimeString, out var dt) 
+        ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) 
+        : DateTime.UtcNow;
     [JsonProperty("policies")] public string Policy { get; set; }
     [JsonProperty("channel")] public string Channel { get; set; }
     [JsonProperty("data_type")] public string DataType { get; set; }
