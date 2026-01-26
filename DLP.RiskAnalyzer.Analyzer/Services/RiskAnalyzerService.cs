@@ -296,7 +296,7 @@ public class RiskAnalyzerService
 
             // Calculate risk score with new formula
             // Calculate risk score with new formula
-            incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
+            incident.RiskScore = _riskAnalyzer.CalculateRiskScoreV2(
                 maxMatches: incident.MaxMatches,
                 channel: incident.Channel,
                 destinationScore: destinationScore,

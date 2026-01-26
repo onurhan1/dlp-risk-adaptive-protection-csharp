@@ -11,6 +11,7 @@ public class RiskAnalyzer
     /// Risk skoru hesapla (GÜNCEL FORMÜL):
     /// BaseScore = (PolicyRepeatCount × 3) + (DataSensitivity × 2) + MaxMatchesTier
     /// FinalScore = BaseScore × ActionMultiplier
+    /// Note: Ensure Shared project is rebuilt if signatures change.
     /// 
     /// Action Multipliers:
     /// - BLOCK/BLOCKED/QUARANTINE/QUARANTINED: 1.0 (100%)
@@ -39,7 +40,8 @@ public class RiskAnalyzer
     /// - AUTHORIZED/PERMIT: 0.2
     /// - RELEASED: 0.0 (Sıfırlanır)
     /// </summary>
-    public int CalculateRiskScore(int maxMatches, string? channel, int destinationScore, string? action)
+    /// </summary>
+    public int CalculateRiskScoreV2(int maxMatches, string? channel, int destinationScore, string? action)
     {
         // 1. MaxMatches Tier Score
         var maxMatchesScore = GetMaxMatchesTier(maxMatches);

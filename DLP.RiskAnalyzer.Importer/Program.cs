@@ -265,7 +265,7 @@ public class Program
                  }
             }
 
-            var calculatedRiskScore = riskAnalyzer.CalculateRiskScore(maxMatches, apiModel.Channel, destinationScore, apiModel.Action);
+            var calculatedRiskScore = riskAnalyzer.CalculateRiskScoreV2(maxMatches, apiModel.Channel, destinationScore, apiModel.Action);
             
             return new Incident
             {
