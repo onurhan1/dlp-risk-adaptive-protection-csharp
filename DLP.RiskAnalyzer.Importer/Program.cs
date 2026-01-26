@@ -402,12 +402,16 @@ public class DLPViolationTrigger
     // Support multiple formats for policy_name
     [JsonProperty("policy_name")] public string PolicyNameSnake { get; set; }
     [JsonProperty("PolicyName")] public string PolicyNamePascal { get; set; }
+    
+    [JsonIgnore]
     public string PolicyName => PolicyNameSnake ?? PolicyNamePascal;
 
     // Support multiple formats for rule_name
     [JsonProperty("rule_name")] public string RuleNameSnake { get; set; }
     [JsonProperty("ruleName")] public string RuleNameCamel { get; set; }
     [JsonProperty("RuleName")] public string RuleNamePascal { get; set; }
+    
+    [JsonIgnore]
     public string RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
 
     [JsonProperty("classifiers")] 
@@ -418,6 +422,8 @@ public class DLPClassifier
     // Support multiple formats for classifier_name
     [JsonProperty("classifier_name")] public string ClassifierNameSnake { get; set; }
     [JsonProperty("ClassifierName")] public string ClassifierNamePascal { get; set; }
+    
+    [JsonIgnore]
     public string ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
 
     [JsonProperty("number_matches")] public int NumberMatches { get; set; }
