@@ -105,6 +105,20 @@ public class Program
                     Console.Write($"{incidents.Count} found. ");
                     Console.ResetColor();
 
+                    // Debug: Log Manager field for first incident
+                    if (incidents[0].Source != null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine($"  [DEBUG] Manager: '{incidents[0].Source.Manager ?? "NULL"}'");
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine("  [DEBUG] Source field is NULL (Manager cannot be extracted)");
+                        Console.ResetColor();
+                    }
+
                     // Insert to DB
                     using var context = new AnalyzerDbContext(dbOptions);
                     
@@ -181,30 +195,6 @@ public class Program
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"  Inner: {ex.InnerException.Message}");
-                }
-                // Add debug logs here, ensuring 'incidents' is not empty if accessed
-                // This assumes 'incidents' might be populated even if an exception occurs later in the block
-                // However, if the exception is from FetchIncidentsAsync, 'incidents' would be empty or null.
-                // To be safe, these debug logs should ideally be placed in the 'if (incidents.Count > 0)' block.
-                // Following the instruction's placement:
-                if (incidents != null && incidents.Count > 0)
-                {
-                    if (incidents[0].ViolationTriggers != null && incidents[0].ViolationTriggers.Count > 0)
-                    {
-                        var vt = incidents[0].ViolationTriggers[0];
-                        Console.WriteLine($"  [DEBUG] VT[0]: PolicyName={vt.PolicyName ?? "NULL"}, RuleName={vt.RuleName ?? "NULL"}");
-                        Console.WriteLine($"  [DEBUG] VT[0] RawSnake={vt.RuleNameSnake ?? "NULL"}, RawCamel={vt.RuleNameCamel ?? "NULL"}, RawPascal={vt.RuleNamePascal ?? "NULL"}");
-                    }
-                    
-                    // Debug: Log Manager field
-                    if (incidents[0].Source != null)
-                    {
-                        Console.WriteLine($"  [DEBUG] Manager: '{incidents[0].Source.Manager ?? "NULL"}'");
-                    }
-                    else
-                    {
-                        Console.WriteLine("  [DEBUG] Source field is NULL");
-                    }
                 }
                 Console.ResetColor();
                 // Don't stop, try next chunk
