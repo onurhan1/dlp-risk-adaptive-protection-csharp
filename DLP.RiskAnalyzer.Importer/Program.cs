@@ -331,6 +331,21 @@ public class Program
             // Helper to truncate strings safely
             static string? Truncate(string? value, int maxLength = 500) =>
                 string.IsNullOrEmpty(value) ? value : (value.Length <= maxLength ? value : value.Substring(0, maxLength));
+                
+            // Debug: Check ViolationTriggers before serialization
+            if (apiModel.ViolationTriggers != null && apiModel.ViolationTriggers.Count > 0)
+            {
+                var vt = apiModel.ViolationTriggers[0];
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"  [DEBUG-MAP] VT Count: {apiModel.ViolationTriggers.Count}");
+                Console.WriteLine($"  [DEBUG-MAP] VT[0] PolicyName: {vt.PolicyName}");
+                Console.WriteLine($"  [DEBUG-MAP] VT[0] RuleName: {vt.RuleName}");
+                if (string.IsNullOrEmpty(vt.RuleName))
+                {
+                     Console.WriteLine($"  [DEBUG-MAP] VT[0] Raw Properties: Snake={vt.RuleNameSnake}, Camel={vt.RuleNameCamel}, Pascal={vt.RuleNamePascal}");
+                }
+                Console.ResetColor();
+            }
             
             return new Incident
             {
