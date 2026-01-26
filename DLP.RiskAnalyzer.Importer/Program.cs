@@ -282,9 +282,15 @@ public class Program
                 FileName = apiModel.FileName,
                 LoginName = apiModel.LoginName,
                 EmailAddress = apiModel.EmailAddress,
-                // Extract FullName from Manager
+                // Extract FullName and Team from Manager
+                // Format: "Name / Company - Team"
                 FullName = !string.IsNullOrEmpty(apiModel.Source?.Manager) 
                           ? apiModel.Source.Manager.Split('/')[0].Trim() 
+                          : null,
+                Team = !string.IsNullOrEmpty(apiModel.Source?.Manager) && apiModel.Source.Manager.Contains('/')
+                          ? (apiModel.Source.Manager.Split('/')[1].Contains('-') 
+                                ? apiModel.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
+                                : apiModel.Source.Manager.Split('/')[1].Trim())
                           : null,
                 MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 

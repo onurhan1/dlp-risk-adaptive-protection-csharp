@@ -268,8 +268,15 @@ public class DLPCollectorService : IDisposable
                 new("file_name", incident.FileName ?? ""),
                 new("login_name", incident.LoginName ?? ""),
                 // Extract FullName from Manager (e.g., "Mustafa Zeybek / Kuveyt Turk..." -> "Mustafa Zeybek")
+                // FullName: "Mustafa Zeybek"
                 new("full_name", !string.IsNullOrEmpty(incident.Source?.Manager) 
                     ? incident.Source.Manager.Split('/')[0].Trim() 
+                    : ""),
+                // Team: "Architecht-Kurumsal Çözümler" (Skipping "Kuveyt Türk - ")
+                new("team", !string.IsNullOrEmpty(incident.Source?.Manager) && incident.Source.Manager.Contains('/')
+                    ? (incident.Source.Manager.Split('/')[1].Contains('-') 
+                          ? incident.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
+                          : incident.Source.Manager.Split('/')[1].Trim())
                     : ""),
                 new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
