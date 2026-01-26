@@ -262,6 +262,9 @@ public class Program
                  foreach (var domain in personalDomains)
                  {
                      if (apiModel.Destination.Contains(domain, StringComparison.OrdinalIgnoreCase))
+                     {
+                         destinationScore = DLP.RiskAnalyzer.Shared.Constants.RiskConstants.DestinationScores.Personal;
+                         break;
                      }
                  }
             }
