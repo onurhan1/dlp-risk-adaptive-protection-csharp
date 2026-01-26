@@ -267,6 +267,10 @@ public class DLPCollectorService : IDisposable
                 new("destination", incident.Destination ?? ""),
                 new("file_name", incident.FileName ?? ""),
                 new("login_name", incident.LoginName ?? ""),
+                // Extract FullName from Manager (e.g., "Mustafa Zeybek / Kuveyt Turk..." -> "Mustafa Zeybek")
+                new("full_name", !string.IsNullOrEmpty(incident.Source?.Manager) 
+                    ? incident.Source.Manager.Split('/')[0].Trim() 
+                    : ""),
                 new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
             };

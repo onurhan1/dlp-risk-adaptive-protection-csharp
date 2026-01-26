@@ -23,6 +23,7 @@ public class Incident
     public string? Destination { get; set; }  // Target (printer, email, URL, etc.)
     public string? FileName { get; set; }  // File name with size
     public string? LoginName { get; set; }  // User login name (e.g., KUVEYTTURK\nyigit)
+    public string? FullName { get; set; }   // Full user name (taken from Manager field e.g., Mustafa Zeybek)
     public string? EmailAddress { get; set; }  // Email address (if available)
     public string? ViolationTriggers { get; set; }  // JSON: [{policy_name, rule_name, classifiers}]
     
