@@ -70,35 +70,36 @@ const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeat
                     <div style={{ display: 'flex', gap: '16px' }}>
                         {/* Actions Section */}
                         <div style={{ flex: 1 }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 'bold' }}>Aksiyonlar</h4>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#374151', fontWeight: '800' }}>Aksiyonlar</h4>
                             {Object.entries(stats.actions).sort((a, b) => b[1] - a[1]).map(([action, val]) => (
                                 <div key={action} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
                                     <span style={{
-                                        color: action === 'BLOCK' ? '#ef4444' : action === 'PERMIT' || action === 'AUTHORIZED' ? '#10b981' : '#374151'
+                                        fontWeight: '600',
+                                        color: action === 'BLOCK' ? '#dc2626' : action === 'PERMIT' || action === 'AUTHORIZED' ? '#059669' : '#111827'
                                     }}>
                                         {action}
                                     </span>
-                                    <span style={{ fontWeight: '600' }}>{val}</span>
+                                    <span style={{ fontWeight: '700', color: '#000000' }}>{val}</span>
                                 </div>
                             ))}
                         </div>
 
                         {/* Divider */}
-                        <div style={{ width: '1px', background: '#e5e7eb' }}></div>
+                        <div style={{ width: '1px', background: '#d1d5db' }}></div>
 
                         {/* Teams Section */}
                         <div style={{ flex: 1 }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#6b7280', fontWeight: 'bold' }}>Ekipler</h4>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', textTransform: 'uppercase', color: '#374151', fontWeight: '800' }}>Ekipler</h4>
                             {Object.entries(stats.teams).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([team, val]) => (
                                 <div key={team} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                                    <span style={{ color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }} title={team}>
+                                    <span style={{ color: '#111827', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90px' }} title={team}>
                                         {team || 'Diğer'}
                                     </span>
-                                    <span style={{ fontWeight: '600' }}>{val}</span>
+                                    <span style={{ fontWeight: '700', color: '#000000' }}>{val}</span>
                                 </div>
                             ))}
                             {Object.keys(stats.teams).length > 5 && (
-                                <div style={{ fontSize: '10px', color: '#9ca3af', fontStyle: 'italic', marginTop: '2px' }}>
+                                <div style={{ fontSize: '10px', color: '#4b5563', fontWeight: '600', marginTop: '2px' }}>
                                     + {Object.keys(stats.teams).length - 5} diğer
                                 </div>
                             )}
