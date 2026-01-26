@@ -281,7 +281,6 @@ public class Program
                 DataType = Truncate(apiModel.DataType, 255),
                 Timestamp = apiModel.Timestamp,
                 Policy = Truncate(apiModel.Policy, 500),
-                Rule = Truncate(apiModel.ViolationTriggers?.FirstOrDefault()?.RuleName, 500),
                 Channel = Truncate(apiModel.Channel, 255),
                 Action = Truncate(apiModel.Action, 100),
                 Destination = Truncate(apiModel.Destination, 500),

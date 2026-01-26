@@ -12,7 +12,6 @@ public class Incident
     public string? DataType { get; set; }
     public DateTime Timestamp { get; set; }
     public string? Policy { get; set; }
-    public string? Rule { get; set; }  // Rule name from ViolationTriggers
     public string? Channel { get; set; }
     public int? RiskScore { get; set; }
     public int RepeatCount { get; set; }
@@ -54,7 +53,6 @@ public class IncidentResponse
     public string? DataType { get; set; }
     public DateTime Timestamp { get; set; }
     public string? Policy { get; set; }
-    public string? Rule { get; set; }
     public string? Channel { get; set; }
     public int? RiskScore { get; set; }
     public int RepeatCount { get; set; }

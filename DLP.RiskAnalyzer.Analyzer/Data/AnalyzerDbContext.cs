@@ -40,7 +40,6 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.DataType).HasColumnName("data_type");
             entity.Property(e => e.Timestamp).HasColumnName("timestamp").IsRequired();
             entity.Property(e => e.Policy).HasColumnName("policy");
-            entity.Property(e => e.Rule).HasColumnName("rule");
             entity.Property(e => e.Channel).HasColumnName("channel");
             entity.Property(e => e.RiskScore).HasColumnName("risk_score");
             entity.Property(e => e.RepeatCount).HasColumnName("repeat_count").HasDefaultValue(0);
