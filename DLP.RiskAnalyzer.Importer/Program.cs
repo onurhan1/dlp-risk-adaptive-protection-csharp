@@ -244,33 +244,7 @@ public class Program
         try 
         {
             var wrapper = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
-            var incidents = wrapper.Incidents ?? new List<DLPIncident>();
-            
-            // Debug: Log first incident's ViolationTriggers
-            if (incidents.Count > 0 && incidents[0].ViolationTriggers != null)
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"  [DEBUG] First incident VT count: {incidents[0].ViolationTriggers.Count}");
-                if (incidents[0].ViolationTriggers.Count > 0)
-                {
-                    var vt = incidents[0].ViolationTriggers[0];
-                    Console.WriteLine($"  [DEBUG] VT[0]: PolicyName={vt.PolicyName ?? "NULL"}, RuleName={vt.RuleName ?? "NULL"}");
-                    Console.WriteLine($"  [DEBUG] VT[0] RawSnake={vt.RuleNameSnake ?? "NULL"}, RawCamel={vt.RuleNameCamel ?? "NULL"}, RawPascal={vt.RuleNamePascal ?? "NULL"}");
-                }
-                Console.ResetColor();
-            }
-            else if (incidents.Count > 0)
-            {
-                // Log raw JSON for first incident to see ViolationTriggers structure
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                var firstIncidentJson = content.IndexOf("violation_triggers") > 0 
-                    ? content.Substring(content.IndexOf("violation_triggers"), Math.Min(500, content.Length - content.IndexOf("violation_triggers")))
-                    : "NOT FOUND";
-                Console.WriteLine($"  [DEBUG] First 500 chars of violation_triggers: {firstIncidentJson}");
-                Console.ResetColor();
-            }
-            
-            return incidents;
+            return wrapper.Incidents ?? new List<DLPIncident>();
         }
         catch
         {
@@ -404,20 +378,12 @@ public class DLPIncidentSource
 }
 public class DLPViolationTrigger
 {
-    [JsonProperty("policy_name")] public string PolicyName { get; set; }
-    
-    // Support multiple formats for rule_name
-    [JsonProperty("rule_name")] public string RuleNameSnake { get; set; }
-    [JsonProperty("ruleName")] public string RuleNameCamel { get; set; }
-    [JsonProperty("RuleName")] public string RuleNamePascal { get; set; }
-    
-    // Return whichever is not null
-    public string RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
-    
-    [JsonProperty("classifiers")] public List<DLPClassifier> Classifiers { get; set; }
+    [JsonProperty("PolicyName")] public string PolicyName { get; set; }
+    [JsonProperty("RuleName")] public string RuleName { get; set; }
+    [JsonProperty("Classifiers")] public List<DLPClassifier> Classifiers { get; set; }
 }
 public class DLPClassifier
 {
-    [JsonProperty("classifier_name")] public string ClassifierName { get; set; }
-    [JsonProperty("number_matches")] public int NumberMatches { get; set; }
+    [JsonProperty("ClassifierName")] public string ClassifierName { get; set; }
+    [JsonProperty("NumberMatches")] public int NumberMatches { get; set; }
 }
