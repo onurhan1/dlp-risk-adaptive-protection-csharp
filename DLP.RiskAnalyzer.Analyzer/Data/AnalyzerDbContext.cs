@@ -50,6 +50,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Destination).HasColumnName("destination");
             entity.Property(e => e.FileName).HasColumnName("file_name");
             entity.Property(e => e.LoginName).HasColumnName("login_name");
+            entity.Property(e => e.FullName).HasColumnName("full_name");
             entity.Property(e => e.EmailAddress).HasColumnName("email_address");
             entity.Property(e => e.ViolationTriggers).HasColumnName("violation_triggers");
             entity.Property(e => e.MaxMatches).HasColumnName("max_matches").HasDefaultValue(0);
