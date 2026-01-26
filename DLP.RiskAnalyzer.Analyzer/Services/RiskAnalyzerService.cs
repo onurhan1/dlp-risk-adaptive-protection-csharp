@@ -295,6 +295,7 @@ public class RiskAnalyzerService
             // MaxMatches is in incident.MaxMatches
 
             // Calculate risk score with new formula
+            // Calculate risk score with new formula
             incident.RiskScore = _riskAnalyzer.CalculateRiskScore(
                 incident.MaxMatches,
                 incident.Channel,

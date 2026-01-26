@@ -277,6 +277,17 @@ public class CollectorBackgroundService : BackgroundService
                         FileName = dlpIncident.FileName,
                         LoginName = dlpIncident.LoginName,
                         EmailAddress = dlpIncident.EmailAddress,
+                        
+                        // Parse FullName and Team from Manager
+                        FullName = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) 
+                            ? dlpIncident.Source.Manager.Split('/')[0].Trim() 
+                            : null,
+                        Team = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) && dlpIncident.Source.Manager.Contains('/')
+                            ? (dlpIncident.Source.Manager.Split('/')[1].Contains('-') 
+                                ? dlpIncident.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
+                                : dlpIncident.Source.Manager.Split('/')[1].Trim())
+                            : null,
+
                         ViolationTriggers = dlpIncident.ViolationTriggers != null 
                             ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers) 
                             : null
