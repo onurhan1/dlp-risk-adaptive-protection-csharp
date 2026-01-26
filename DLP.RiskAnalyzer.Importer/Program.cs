@@ -378,12 +378,12 @@ public class DLPIncidentSource
 }
 public class DLPViolationTrigger
 {
-    [JsonProperty("PolicyName")] public string PolicyName { get; set; }
-    [JsonProperty("RuleName")] public string RuleName { get; set; }
-    [JsonProperty("Classifiers")] public List<DLPClassifier> Classifiers { get; set; }
+    [JsonProperty("policy_name")] public string PolicyName { get; set; }
+    [JsonProperty("rule_name")] public string RuleName { get; set; }
+    [JsonProperty("classifiers")] public List<DLPClassifier> Classifiers { get; set; }
 }
 public class DLPClassifier
 {
-    [JsonProperty("ClassifierName")] public string ClassifierName { get; set; }
-    [JsonProperty("NumberMatches")] public int NumberMatches { get; set; }
+    [JsonProperty("classifier_name")] public string ClassifierName { get; set; }
+    [JsonProperty("number_matches")] public int NumberMatches { get; set; }
 }
