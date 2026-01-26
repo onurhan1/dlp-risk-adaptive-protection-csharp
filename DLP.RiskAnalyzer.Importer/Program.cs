@@ -142,6 +142,10 @@ public class Program
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"Error: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"  Inner: {ex.InnerException.Message}");
+                }
                 Console.ResetColor();
                 // Don't stop, try next chunk
             }
