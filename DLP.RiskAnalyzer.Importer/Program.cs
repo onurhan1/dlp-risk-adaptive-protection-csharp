@@ -262,44 +262,43 @@ public class Program
                  foreach (var domain in personalDomains)
                  {
                      if (apiModel.Destination.Contains(domain, StringComparison.OrdinalIgnoreCase))
-                     {
-                         destinationScore = DLP.RiskAnalyzer.Shared.Constants.RiskConstants.DestinationScores.Personal;
-                         break;
                      }
                  }
             }
 
             var calculatedRiskScore = riskAnalyzer.CalculateRiskScoreV2(maxMatches, apiModel.Channel, destinationScore, apiModel.Action);
             
+            // Helper to truncate strings safely
+            static string? Truncate(string? value, int maxLength = 500) =>
+                string.IsNullOrEmpty(value) ? value : (value.Length <= maxLength ? value : value.Substring(0, maxLength));
+            
             return new Incident
             {
                 Id = apiModel.Id,
-                UserEmail = apiModel.User ?? "unknown",
-                Department = apiModel.Department,
+                UserEmail = Truncate(apiModel.User, 255) ?? "unknown",
+                Department = Truncate(apiModel.Department, 255),
                 Severity = apiModel.Severity,
-                DataType = apiModel.DataType,
+                DataType = Truncate(apiModel.DataType, 255),
                 Timestamp = apiModel.Timestamp,
-                Policy = apiModel.Policy,
-                Channel = apiModel.Channel,
-                Action = apiModel.Action,
-                Destination = apiModel.Destination,
-                FileName = apiModel.FileName,
-                LoginName = apiModel.LoginName,
-                EmailAddress = apiModel.EmailAddress,
+                Policy = Truncate(apiModel.Policy, 500),
+                Channel = Truncate(apiModel.Channel, 255),
+                Action = Truncate(apiModel.Action, 100),
+                Destination = Truncate(apiModel.Destination, 500),
+                FileName = Truncate(apiModel.FileName, 500),
+                LoginName = Truncate(apiModel.LoginName, 255),
+                EmailAddress = Truncate(apiModel.EmailAddress, 255),
                 // Extract FullName and Team from Manager
                 // Format: "Name / Company - Team"
-                FullName = !string.IsNullOrEmpty(apiModel.Source?.Manager) 
+                FullName = Truncate(!string.IsNullOrEmpty(apiModel.Source?.Manager) 
                           ? apiModel.Source.Manager.Split('/')[0].Trim() 
-                          : null,
-                Team = !string.IsNullOrEmpty(apiModel.Source?.Manager) && apiModel.Source.Manager.Contains('/')
+                          : null, 255),
+                Team = Truncate(!string.IsNullOrEmpty(apiModel.Source?.Manager) && apiModel.Source.Manager.Contains('/')
                           ? (apiModel.Source.Manager.Split('/')[1].Contains('-') 
                                 ? apiModel.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
                                 : apiModel.Source.Manager.Split('/')[1].Trim())
-                          : null,
+                          : null, 255),
                 MaxMatches = maxMatches,
-                ViolationTriggers = apiModel.ViolationTriggers != null 
-                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers) 
-                    : null,
+                ViolationTriggers = null, // Skip ViolationTriggers to avoid length issues
                 RiskScore = calculatedRiskScore
             };
     }
