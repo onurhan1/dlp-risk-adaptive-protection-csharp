@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Shared.Models;
+using DLP.RiskAnalyzer.Shared.Constants;
 
 namespace DLP.RiskAnalyzer.Shared.Services;
 
@@ -125,7 +126,7 @@ public class RiskAnalyzer
     public int CalculateRiskScore(int policyRepeatCount, int dataSensitivity, int maxMatches, string? action)
     {
         // Backward compatibility hack: Assume default destination score (Average=5) and default channel
-        return CalculateRiskScore(maxMatches, null, 5, action);
+        return CalculateRiskScoreV2(maxMatches, null, 5, action);
     }
     
     /// <summary>
@@ -134,7 +135,7 @@ public class RiskAnalyzer
     [Obsolete("Use CalculateRiskScore with action parameter")]
     public int CalculateRiskScoreLegacy(int severity, int repeatCount, int dataSensitivity, int maxMatches = 0)
     {
-        return CalculateRiskScore(repeatCount, dataSensitivity, maxMatches, null);
+        return CalculateRiskScoreV2(maxMatches, null, 5, null);
     }
 
     /// <summary>
