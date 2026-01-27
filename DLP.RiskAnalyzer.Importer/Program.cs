@@ -347,6 +347,17 @@ public class Program
                 Console.ResetColor();
             }
             
+            if (apiModel.Source == null)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  [DEBUG-MAP] Source is NULL for IncidentId: {apiModel.Id}. FullName/Team will be null.");
+                Console.ResetColor();
+            }
+            else if (string.IsNullOrEmpty(apiModel.Source?.Manager))
+            {
+                Console.WriteLine($"  [DEBUG-MAP] Source exists but Manager is empty for IncidentId: {apiModel.Id}");
+            }
+
             return new Incident
             {
                 Id = apiModel.Id,
@@ -365,6 +376,8 @@ public class Program
                 EmailAddress = Truncate(apiModel.EmailAddress, 255),
                 // Extract FullName and Team from Manager
                 // Format: "Name / Company - Team"
+
+
                 FullName = Truncate(!string.IsNullOrEmpty(apiModel.Source?.Manager) 
                           ? apiModel.Source.Manager.Split('/')[0].Trim() 
                           : null, 255),
@@ -381,7 +394,8 @@ public class Program
                         { 
                             NamingStrategy = new Newtonsoft.Json.Serialization.SnakeCaseNamingStrategy() 
                         },
-                        Formatting = Formatting.None
+                        Formatting = Formatting.None,
+                        NullValueHandling = NullValueHandling.Ignore
                     }) 
                     : null,
                 RiskScore = calculatedRiskScore
