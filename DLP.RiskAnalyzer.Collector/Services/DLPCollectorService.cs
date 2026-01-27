@@ -272,6 +272,7 @@ public class DLPCollectorService : IDisposable
                 new("team", incident.Team ?? ""),
                 new("rule_name", incident.RuleName ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
+                new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
             };
 

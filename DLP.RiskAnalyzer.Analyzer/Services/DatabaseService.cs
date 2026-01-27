@@ -236,7 +236,8 @@ public class DatabaseService
                         // FullName, Team, RuleName
                         FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
                         Team = string.IsNullOrEmpty(team) ? null : team,
-                        RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName
+                        RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName,
+                        MaxMatches = CalculateMaxMatches(violationTriggers)
                     };
 
                     _context.Incidents.Add(incident);
@@ -334,5 +335,57 @@ public class DatabaseService
         }
 
         return totalProcessedCount;
+    }
+
+    private int CalculateMaxMatches(string? violationTriggersJson)
+    {
+        if (string.IsNullOrEmpty(violationTriggersJson)) return 0;
+
+        try
+        {
+            var maxMatches = 0;
+            // Parse JSON manually to support multiple casing (snake, Pascal, camel)
+            using var doc = System.Text.Json.JsonDocument.Parse(violationTriggersJson);
+            
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var trigger in doc.RootElement.EnumerateArray())
+                {
+                    // Check for classifiers/Classifiers
+                    System.Text.Json.JsonElement classifiers;
+                    if (trigger.TryGetProperty("classifiers", out classifiers) || 
+                        trigger.TryGetProperty("Classifiers", out classifiers))
+                    {
+                        if (classifiers.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        {
+                            foreach (var classifier in classifiers.EnumerateArray())
+                            {
+                                int matches = 0;
+                                // Check all casing variants for NumberMatches
+                                System.Text.Json.JsonElement m;
+                                if (classifier.TryGetProperty("number_matches", out m) ||
+                                    classifier.TryGetProperty("NumberMatches", out m) ||
+                                    classifier.TryGetProperty("numberMatches", out m))
+                                {
+                                    if (m.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                    {
+                                        matches = m.GetInt32();
+                                    }
+                                }
+                                
+                                if (matches > maxMatches) maxMatches = matches;
+                            }
+                        }
+                    }
+                }
+            }
+            return maxMatches;
+        }
+        catch (Exception ex)
+        {
+            // Fallback to 0 if parsing fails
+            _logger.LogWarning("Failed to parse violation triggers for max matches: {Error}", ex.Message);
+            return 0;
+        }
     }
 }
