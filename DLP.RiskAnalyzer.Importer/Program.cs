@@ -149,6 +149,7 @@ public class Program
                             existing.Severity = incident.Severity;
                             existing.DataType = incident.DataType;
                             existing.Policy = incident.Policy;
+                            existing.RuleName = incident.RuleName;
                             existing.Channel = incident.Channel;
                             existing.Action = incident.Action;
                             existing.Destination = incident.Destination;
