@@ -399,7 +399,10 @@ public class Program
                     DataType = Truncate(apiModel.DataType, 255),
                     Timestamp = apiModel.Timestamp,
                     Policy = Truncate(apiModel.Policy, 500),
-                    RuleName = Truncate(apiModel.ViolationTriggers?.FirstOrDefault()?.RuleName, 255),
+                    RuleName = Truncate(string.Join("; ", apiModel.ViolationTriggers?
+                        .Select(vt => vt.RuleName)
+                        .Where(rn => !string.IsNullOrEmpty(rn))
+                        .Distinct() ?? Array.Empty<string>()), 255),
                     Channel = Truncate(apiModel.Channel, 255),
                     Action = Truncate(apiModel.Action, 100),
                     Destination = Truncate(apiModel.Destination, 500),

@@ -288,8 +288,13 @@ public class CollectorBackgroundService : BackgroundService
                                 : dlpIncident.Source.Manager.Split('/')[1].Trim())
                             : null,
 
-                        // Extract RuleName from first ViolationTrigger
-                        RuleName = dlpIncident.ViolationTriggers?.FirstOrDefault()?.RuleName,
+                        // Extract RuleName from ViolationTriggers (join multiple rules with ;)
+                        RuleName = dlpIncident.ViolationTriggers != null 
+                            ? string.Join("; ", dlpIncident.ViolationTriggers
+                                .Select(vt => vt.RuleName)
+                                .Where(rn => !string.IsNullOrEmpty(rn))
+                                .Distinct())
+                            : null,
 
                         ViolationTriggers = dlpIncident.ViolationTriggers != null 
                             ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers) 
