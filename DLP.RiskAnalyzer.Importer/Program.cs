@@ -491,5 +491,10 @@ public class DLPClassifier
     [JsonIgnore]
     public string ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
 
-    [JsonProperty("number_matches")] public int NumberMatches { get; set; }
+    [JsonProperty("number_matches")] public int NumberMatchesSnake { get; set; }
+    [JsonProperty("NumberMatches")] public int NumberMatchesPascal { get; set; }
+    [JsonProperty("numberMatches")] public int NumberMatchesCamel { get; set; }
+
+    [JsonIgnore]
+    public int NumberMatches => NumberMatchesSnake != 0 ? NumberMatchesSnake : (NumberMatchesPascal != 0 ? NumberMatchesPascal : NumberMatchesCamel);
 }

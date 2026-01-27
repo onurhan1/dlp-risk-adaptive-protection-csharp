@@ -696,15 +696,32 @@ public class BehaviorEngineService
     // DTO for parsing ViolationTriggers JSON (supports PascalCase from DB)
     private class ViolationTriggerDto
     {
-        public string? PolicyName { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("policy_name")]
+        public string? PolicyNameSnake { get; set; }
+        public string? PolicyName { get; set; } // Matches PascalCase or camelCase with options
+        
+        public string? EffectivePolicyName => PolicyNameSnake ?? PolicyName;
+
+        [System.Text.Json.Serialization.JsonPropertyName("rule_name")]
+        public string? RuleNameSnake { get; set; }
         public string? RuleName { get; set; }
+        
+        public string? EffectiveRuleName => RuleNameSnake ?? RuleName;
+
         public List<ClassifierDto>? Classifiers { get; set; }
     }
 
     private class ClassifierDto
     {
+        [System.Text.Json.Serialization.JsonPropertyName("classifier_name")]
+        public string? ClassifierNameSnake { get; set; }
         public string? ClassifierName { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("number_matches")]
+        public int NumberMatchesSnake { get; set; }
         public int NumberMatches { get; set; }
+        
+        public int EffectiveNumberMatches => NumberMatchesSnake > 0 ? NumberMatchesSnake : NumberMatches;
     }
     
     // JSON options for case-insensitive parsing
@@ -1663,8 +1680,8 @@ public class BehaviorEngineService
                 {
                     foreach (var classifier in trigger.Classifiers)
                     {
-                        if (classifier.NumberMatches > maxMatches)
-                            maxMatches = classifier.NumberMatches;
+                        if (classifier.EffectiveNumberMatches > maxMatches)
+                            maxMatches = classifier.EffectiveNumberMatches;
                     }
                 }
             }

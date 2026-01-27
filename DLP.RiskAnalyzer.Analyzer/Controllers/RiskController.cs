@@ -638,11 +638,18 @@ public class RiskController : ControllerBase
                                     {
                                         foreach (var classifier in classifiers.EnumerateArray())
                                         {
-                                            if (classifier.TryGetProperty("NumberMatches", out var matchesElement))
+                                            int matches = 0;
+                                            if (classifier.TryGetProperty("NumberMatches", out var matchesElement) ||
+                                                classifier.TryGetProperty("number_matches", out matchesElement) ||
+                                                classifier.TryGetProperty("numberMatches", out matchesElement))
                                             {
-                                                var matches = matchesElement.GetInt32();
-                                                if (matches > maxMatches) maxMatches = matches;
+                                                if (matchesElement.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                                {
+                                                    matches = matchesElement.GetInt32();
+                                                }
                                             }
+                                            
+                                            if (matches > maxMatches) maxMatches = matches;
                                         }
                                     }
                                 }
