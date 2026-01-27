@@ -270,6 +270,7 @@ public class DLPCollectorService : IDisposable
                 // FullName and Team are already populated in Incident object
                 new("full_name", incident.FullName ?? ""),
                 new("team", incident.Team ?? ""),
+                new("rule_name", incident.RuleName ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
             };

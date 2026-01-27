@@ -154,6 +154,11 @@ public class DatabaseService
                 var loginNameValue = message.Values.FirstOrDefault(v => v.Name == "login_name");
                 var emailAddressValue = message.Values.FirstOrDefault(v => v.Name == "email_address");
                 var violationTriggersValue = message.Values.FirstOrDefault(v => v.Name == "violation_triggers");
+                
+                // New fields for missing data
+                var fullNameValue = message.Values.FirstOrDefault(v => v.Name == "full_name");
+                var teamValue = message.Values.FirstOrDefault(v => v.Name == "team");
+                var ruleNameValue = message.Values.FirstOrDefault(v => v.Name == "rule_name");
 
                 if (userEmailValue.Value.IsNull || severityValue.Value.IsNull || timestampValue.Value.IsNull)
                 {
@@ -199,6 +204,11 @@ public class DatabaseService
                 
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
+                
+                // Parse new fields (FullName, Team, RuleName)
+                var fullName = fullNameValue.Value.HasValue ? fullNameValue.Value.ToString() : null;
+                var team = teamValue.Value.HasValue ? teamValue.Value.ToString() : null;
+                var ruleName = ruleNameValue.Value.HasValue ? ruleNameValue.Value.ToString() : null;
 
                 // Check if incident already exists by ID (ID is unique in DLP API)
                 var existingIncident = await _context.Incidents.FirstOrDefaultAsync(i => i.Id == incidentId);
@@ -222,7 +232,11 @@ public class DatabaseService
                         FileName = string.IsNullOrEmpty(fileName) ? null : fileName,
                         LoginName = string.IsNullOrEmpty(loginName) ? null : loginName,
                         EmailAddress = string.IsNullOrEmpty(emailAddress) ? null : emailAddress,
-                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : violationTriggers
+                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : violationTriggers,
+                        // FullName, Team, RuleName
+                        FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
+                        Team = string.IsNullOrEmpty(team) ? null : team,
+                        RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName
                     };
 
                     _context.Incidents.Add(incident);
@@ -264,6 +278,12 @@ public class DatabaseService
                         existingIncident.FileName = fileName;
                     if (!string.IsNullOrEmpty(violationTriggers))
                         existingIncident.ViolationTriggers = violationTriggers;
+                    if (!string.IsNullOrEmpty(fullName))
+                        existingIncident.FullName = fullName;
+                    if (!string.IsNullOrEmpty(team))
+                        existingIncident.Team = team;
+                    if (!string.IsNullOrEmpty(ruleName))
+                        existingIncident.RuleName = ruleName;
                     
                     try
                     {
