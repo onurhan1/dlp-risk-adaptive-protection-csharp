@@ -359,34 +359,56 @@ public class Program
                 Console.WriteLine($"  [DEBUG-MAP] Source exists but Manager is empty for IncidentId: {apiModel.Id}");
             }
 
-            return new Incident
-            {
-                Id = apiModel.Id,
-                UserEmail = Truncate(apiModel.User?.Split('\\').Last(), 255) ?? "unknown",
-                Department = Truncate(apiModel.Department, 255),
-                Severity = apiModel.Severity,
-                DataType = Truncate(apiModel.DataType, 255),
-                Timestamp = apiModel.Timestamp,
-                Policy = Truncate(apiModel.Policy, 500),
-                RuleName = Truncate(apiModel.ViolationTriggers?.FirstOrDefault()?.RuleName, 255),
-                Channel = Truncate(apiModel.Channel, 255),
-                Action = Truncate(apiModel.Action, 100),
-                Destination = Truncate(apiModel.Destination, 500),
-                FileName = Truncate(apiModel.FileName, 500),
-                LoginName = Truncate(apiModel.LoginName?.Split('\\').Last(), 255),
-                EmailAddress = Truncate(apiModel.EmailAddress, 255),
-                // Extract FullName and Team from Manager
-                // Format: "Name / Company - Team"
+                // Extract FullName and Team with Fallback logic
+                string fullName = null;
+                string team = null;
 
+                if (!string.IsNullOrEmpty(apiModel.Source?.Manager))
+                {
+                    fullName = apiModel.Source.Manager.Split('/')[0].Trim();
+                    if (apiModel.Source.Manager.Contains('/'))
+                    {
+                        var parts = apiModel.Source.Manager.Split('/')[1];
+                        team = parts.Contains('-') ? parts.Split(new[]{'-'}, 2)[1].Trim() : parts.Trim();
+                    }
+                }
+                
+                // Fallbacks
+                if (string.IsNullOrEmpty(fullName))
+                {
+                    if (!string.IsNullOrEmpty(apiModel.Source?.LoginName))
+                        fullName = apiModel.Source.LoginName.Split('\\').Last();
+                    else if (!string.IsNullOrEmpty(apiModel.Source?.EmailAddress))
+                        fullName = apiModel.Source.EmailAddress.Split('@')[0];
+                }
 
-                FullName = Truncate(!string.IsNullOrEmpty(apiModel.Source?.Manager) 
-                          ? apiModel.Source.Manager.Split('/')[0].Trim() 
-                          : null, 255),
-                Team = Truncate(!string.IsNullOrEmpty(apiModel.Source?.Manager) && apiModel.Source.Manager.Contains('/')
-                          ? (apiModel.Source.Manager.Split('/')[1].Contains('-') 
-                                ? apiModel.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
-                                : apiModel.Source.Manager.Split('/')[1].Trim())
-                          : null, 255),
+                if (string.IsNullOrEmpty(team))
+                {
+                    if (!string.IsNullOrEmpty(apiModel.Source?.Department))
+                        team = apiModel.Source.Department;
+                    else if (!string.IsNullOrEmpty(apiModel.Source?.BusinessUnit))
+                        team = apiModel.Source.BusinessUnit;
+                }
+
+                return new Incident
+                {
+                    Id = apiModel.Id,
+                    UserEmail = Truncate(apiModel.User?.Split('\\').Last(), 255) ?? "unknown",
+                    Department = Truncate(apiModel.Department, 255),
+                    Severity = apiModel.Severity,
+                    DataType = Truncate(apiModel.DataType, 255),
+                    Timestamp = apiModel.Timestamp,
+                    Policy = Truncate(apiModel.Policy, 500),
+                    RuleName = Truncate(apiModel.ViolationTriggers?.FirstOrDefault()?.RuleName, 255),
+                    Channel = Truncate(apiModel.Channel, 255),
+                    Action = Truncate(apiModel.Action, 100),
+                    Destination = Truncate(apiModel.Destination, 500),
+                    FileName = Truncate(apiModel.FileName, 500),
+                    LoginName = Truncate(apiModel.LoginName?.Split('\\').Last(), 255),
+                    EmailAddress = Truncate(apiModel.EmailAddress, 255),
+                    
+                    FullName = Truncate(fullName, 255),
+                    Team = Truncate(team, 255),
                 MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 
                     ? JsonConvert.SerializeObject(apiModel.ViolationTriggers, new JsonSerializerSettings 
@@ -426,14 +448,15 @@ public class DLPIncident
     [JsonProperty("file_name")] public string FileName { get; set; }
     [JsonProperty("violation_triggers")] public List<DLPViolationTrigger> ViolationTriggers { get; set; }
     public string LoginName => Source?.LoginName;
-    public string EmailAddress => Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null;
+    public string EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
 }
 public class DLPIncidentSource
 {
     [JsonProperty("manager")] public string Manager { get; set; }
     [JsonProperty("department")] public string Department { get; set; }
     [JsonProperty("login_name")] public string LoginName { get; set; }
-    [JsonProperty("business_unit")] public string BusinessUnit { get; set; }
+    [JsonProperty("email_address")] public string EmailAddress { get; set; }
+    [JsonProperty("dn")] public string Dn { get; set; }
 }
 public class DLPViolationTrigger
 {

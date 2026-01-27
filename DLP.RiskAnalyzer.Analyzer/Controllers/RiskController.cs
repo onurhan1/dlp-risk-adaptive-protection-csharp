@@ -607,10 +607,11 @@ public class RiskController : ControllerBase
             var items = incidents.Select(i =>
             {
                 // Extract rule name and max matches from ViolationTriggers
-                string ruleName = "N/A";
+                // Extract rule name and max matches from ViolationTriggers
+                string ruleName = i.RuleName ?? "N/A"; // Use the dedicated column first
                 int maxMatches = i.MaxMatches;
                 
-                if (!string.IsNullOrEmpty(i.ViolationTriggers))
+                if (ruleName == "N/A" && !string.IsNullOrEmpty(i.ViolationTriggers))
                 {
                     try
                     {
@@ -619,7 +620,10 @@ public class RiskController : ControllerBase
                             triggers.RootElement.GetArrayLength() > 0)
                         {
                             var firstTrigger = triggers.RootElement[0];
-                            if (firstTrigger.TryGetProperty("RuleName", out var ruleNameElement))
+                            // Try multiple casing formats
+                            if (firstTrigger.TryGetProperty("RuleName", out var ruleNameElement) ||
+                                firstTrigger.TryGetProperty("rule_name", out ruleNameElement) ||
+                                firstTrigger.TryGetProperty("ruleName", out ruleNameElement))
                             {
                                 ruleName = ruleNameElement.GetString() ?? "N/A";
                             }
