@@ -460,6 +460,7 @@ public class DLPIncidentSource
     [JsonProperty("login_name")] public string LoginName { get; set; }
     [JsonProperty("email_address")] public string EmailAddress { get; set; }
     [JsonProperty("dn")] public string Dn { get; set; }
+    [JsonProperty("business_unit")] public string BusinessUnit { get; set; }
 }
 public class DLPViolationTrigger
 {

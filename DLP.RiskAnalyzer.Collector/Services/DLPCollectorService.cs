@@ -530,13 +530,28 @@ public class DLPIncident
 /// <summary>
 /// DLP Classifier model (from violation_triggers)
 /// </summary>
+/// <summary>
+/// DLP Classifier model (from violation_triggers)
+/// </summary>
 public class DLPClassifier
 {
     [JsonProperty("classifier_name")]
-    public string? ClassifierName { get; set; }
+    public string? ClassifierNameSnake { get; set; }
+    [JsonProperty("ClassifierName")]
+    public string? ClassifierNamePascal { get; set; }
+    
+    [JsonIgnore]
+    public string? ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
     
     [JsonProperty("number_matches")]
-    public int NumberMatches { get; set; }
+    public int NumberMatchesSnake { get; set; }
+    [JsonProperty("NumberMatches")]
+    public int NumberMatchesPascal { get; set; }
+    [JsonProperty("numberMatches")]
+    public int NumberMatchesCamel { get; set; }
+
+    [JsonIgnore]
+    public int NumberMatches => NumberMatchesSnake != 0 ? NumberMatchesSnake : (NumberMatchesPascal != 0 ? NumberMatchesPascal : NumberMatchesCamel);
 }
 
 /// <summary>
@@ -545,10 +560,22 @@ public class DLPClassifier
 public class DLPViolationTrigger
 {
     [JsonProperty("policy_name")]
-    public string? PolicyName { get; set; }
+    public string? PolicyNameSnake { get; set; }
+    [JsonProperty("PolicyName")]
+    public string? PolicyNamePascal { get; set; }
+    
+    [JsonIgnore]
+    public string? PolicyName => PolicyNameSnake ?? PolicyNamePascal;
     
     [JsonProperty("rule_name")]
-    public string? RuleName { get; set; }
+    public string? RuleNameSnake { get; set; }
+    [JsonProperty("ruleName")]
+    public string? RuleNameCamel { get; set; }
+    [JsonProperty("RuleName")]
+    public string? RuleNamePascal { get; set; }
+    
+    [JsonIgnore]
+    public string? RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
     
     [JsonProperty("classifiers")]
     public List<DLPClassifier>? Classifiers { get; set; }
