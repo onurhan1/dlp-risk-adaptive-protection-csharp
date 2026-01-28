@@ -267,11 +267,11 @@ public class DLPCollectorService : IDisposable
                 new("destination", incident.Destination ?? ""),
                 new("file_name", incident.FileName ?? ""),
                 new("login_name", incident.LoginName ?? ""),
-                new("host_name", incident.HostName ?? ""),
                 // FullName and Team are already populated in Incident object
                 new("full_name", incident.FullName ?? ""),
                 new("team", incident.Team ?? ""),
                 new("rule_name", incident.RuleName ?? ""),
+                new("email_address", incident.EmailAddress ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
             };
@@ -385,11 +385,11 @@ public class DLPIncidentSource
     [JsonProperty("host_name")]
     public string? HostName { get; set; }
     
-    [JsonProperty("email_address")]
-    public string? EmailAddress { get; set; }
-
     [JsonProperty("business_unit")]
     public string? BusinessUnit { get; set; }
+    
+    [JsonProperty("email_address")]
+    public string? EmailAddress { get; set; }
 }
 
 /// <summary>
@@ -426,7 +426,7 @@ public class DLPIncident
     public DLPIncidentSource? Source { get; set; }
     
     [JsonIgnore]
-    public string? User => Source?.LoginName;
+    public string User => Source?.LoginName ?? string.Empty;
     
     [JsonIgnore]
     public string? Department => Source?.Department;
@@ -528,7 +528,7 @@ public class DLPIncident
     public string? LoginName => Source?.LoginName;
     
     [JsonIgnore]
-    public string? EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
+    public string? EmailAddress => Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null;
 }
 
 /// <summary>

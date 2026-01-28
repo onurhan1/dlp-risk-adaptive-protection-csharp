@@ -261,28 +261,45 @@ public class CollectorBackgroundService : BackgroundService
                         _logger.LogDebug("[{RunType}] Incident {Id}: ViolationTriggers is null", runType, dlpIncident.Id);
                     }
                     
-                    var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
-                    {
-                        Id = dlpIncident.Id,
-                        UserEmail = dlpIncident.User ?? dlpIncident.Source?.HostName ?? "unknown",
-                        Department = dlpIncident.Department,
-                        Severity = dlpIncident.Severity,
-                        DataType = dlpIncident.DataType,
-                        Timestamp = dlpIncident.Timestamp,
-                        Policy = dlpIncident.Policy,
-                        Channel = dlpIncident.Channel,
-                        MaxMatches = maxMatches,
-                        Action = dlpIncident.Action,
-                        Destination = dlpIncident.Destination,
-                        FileName = dlpIncident.FileName,
-                        LoginName = dlpIncident.LoginName ?? dlpIncident.Source?.HostName,
-                        HostName = dlpIncident.Source?.HostName,
-                        EmailAddress = dlpIncident.EmailAddress,
+                        // Determine effective UserEmail with fallbacks
+                        // Priority: 1. dlpIncident.User (usually login name) 2. Source.LoginName 3. Source.EmailAddress (Fallback)
+                        var rawUserEmail = dlpIncident.User ?? "unknown";
                         
-                        // Parse FullName and Team from Manager with Fallback
-                        FullName = null,
-                        Team = null,
+                        if (rawUserEmail == "unknown" || rawUserEmail == "null" || string.IsNullOrEmpty(rawUserEmail))
+                        {
+                            if (!string.IsNullOrEmpty(dlpIncident.Source?.LoginName))
+                                rawUserEmail = dlpIncident.Source.LoginName;
+                            else if (!string.IsNullOrEmpty(dlpIncident.Source?.EmailAddress))
+                                rawUserEmail = dlpIncident.Source.EmailAddress;
+                        }
+
+                        var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
+                        {
+                            Id = dlpIncident.Id,
+                            UserEmail = rawUserEmail,
+                            Department = dlpIncident.Department,
+                            Severity = dlpIncident.Severity,
+                            DataType = dlpIncident.DataType,
+                            Timestamp = dlpIncident.Timestamp,
+                            Policy = dlpIncident.Policy,
+                            Channel = dlpIncident.Channel,
+                            MaxMatches = maxMatches,
+                            Action = dlpIncident.Action,
+                            Destination = dlpIncident.Destination,
+                            FileName = dlpIncident.FileName,
+                            LoginName = dlpIncident.Source?.LoginName ?? dlpIncident.LoginName, // Prefer source or local property
+                            EmailAddress = dlpIncident.Source?.EmailAddress ?? dlpIncident.EmailAddress, // Explicit mapping
                         
+                        // Parse FullName and Team from Manager
+                        FullName = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) 
+                            ? dlpIncident.Source.Manager.Split('/')[0].Trim() 
+                            : null,
+                        Team = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) && dlpIncident.Source.Manager.Contains('/')
+                            ? (dlpIncident.Source.Manager.Split('/')[1].Contains('-') 
+                                ? dlpIncident.Source.Manager.Split('/')[1].Split(new[]{'-'}, 2)[1].Trim() 
+                                : dlpIncident.Source.Manager.Split('/')[1].Trim())
+                            : null,
+
                         // Extract RuleName from ViolationTriggers (join multiple rules with ;)
                         RuleName = dlpIncident.ViolationTriggers != null 
                             ? string.Join("; ", dlpIncident.ViolationTriggers
@@ -292,65 +309,9 @@ public class CollectorBackgroundService : BackgroundService
                             : null,
 
                         ViolationTriggers = dlpIncident.ViolationTriggers != null 
-                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers.Select(vt => new 
-                            {
-                                policy_name = vt.PolicyName,
-                                rule_name = vt.RuleName,
-                                classifiers = vt.Classifiers?.Select(c => new 
-                                {
-                                    classifier_name = c.ClassifierName,
-                                    number_matches = c.NumberMatches
-                                }).ToList()
-                            }), new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }) 
+                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }) 
                             : null
                     };
-
-                    // Calculate UserEmail with robust fallback
-                    // Priority: LoginName (User) -> EmailAddress -> HostName -> "unknown"
-                    string userIdentifier = !string.IsNullOrEmpty(dlpIncident.User) ? dlpIncident.User : null;
-                    
-                    if (string.IsNullOrEmpty(userIdentifier) && !string.IsNullOrEmpty(dlpIncident.EmailAddress))
-                    {
-                        userIdentifier = dlpIncident.EmailAddress;
-                    }
-                    
-                    if (string.IsNullOrEmpty(userIdentifier) && !string.IsNullOrEmpty(dlpIncident.Source?.HostName))
-                    {
-                        userIdentifier = dlpIncident.Source.HostName;
-                    }
-                    
-                    incident.UserEmail = userIdentifier ?? "unknown";
-                    
-                    // Logic for FullName/Team
-                    if (!string.IsNullOrEmpty(dlpIncident.Source?.Manager))
-                    {
-                        incident.FullName = dlpIncident.Source.Manager.Split('/')[0].Trim();
-                        if (dlpIncident.Source.Manager.Contains('/'))
-                        {
-                            var parts = dlpIncident.Source.Manager.Split('/')[1];
-                            incident.Team = parts.Contains('-') ? parts.Split(new[]{'-'}, 2)[1].Trim() : parts.Trim();
-                        }
-                    }
-                    
-                    // Fallbacks for FullName
-                    if (string.IsNullOrEmpty(incident.FullName))
-                    {
-                         if (!string.IsNullOrEmpty(dlpIncident.Source?.LoginName))
-                             incident.FullName = dlpIncident.Source.LoginName.Split('\\').Last();
-                         else if (!string.IsNullOrEmpty(dlpIncident.EmailAddress))
-                             incident.FullName = dlpIncident.EmailAddress.Split('@')[0];
-                         else if (!string.IsNullOrEmpty(dlpIncident.Source?.HostName))
-                             incident.FullName = dlpIncident.Source.HostName;
-                    }
-                    
-                    // Fallbacks for Team
-                    if (string.IsNullOrEmpty(incident.Team))
-                    {
-                        if (!string.IsNullOrEmpty(dlpIncident.Source?.Department))
-                            incident.Team = dlpIncident.Source.Department;
-                        else if (!string.IsNullOrEmpty(dlpIncident.Source?.BusinessUnit))
-                            incident.Team = dlpIncident.Source.BusinessUnit;
-                    }
 
                     await _collectorService.PushToRedisStreamAsync(incident);
                     pushedCount++;
