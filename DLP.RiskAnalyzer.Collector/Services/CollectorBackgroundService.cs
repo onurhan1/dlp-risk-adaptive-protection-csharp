@@ -297,7 +297,7 @@ public class CollectorBackgroundService : BackgroundService
                             : null,
 
                         ViolationTriggers = dlpIncident.ViolationTriggers != null 
-                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers) 
+                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }) 
                             : null
                     };
 

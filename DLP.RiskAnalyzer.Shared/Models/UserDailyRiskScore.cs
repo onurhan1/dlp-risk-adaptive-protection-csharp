@@ -38,5 +38,15 @@ public class UserDailyRiskScore
     /// </summary>
     public double AvgRiskScore { get; set; } = 0;
     
+    /// <summary>
+    /// Kullanıcı takımı/departmanı
+    /// </summary>
+    public string? Team { get; set; }
+
+    /// <summary>
+    /// Kullanıcı tam adı
+    /// </summary>
+    public string? FullName { get; set; }
+    
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
