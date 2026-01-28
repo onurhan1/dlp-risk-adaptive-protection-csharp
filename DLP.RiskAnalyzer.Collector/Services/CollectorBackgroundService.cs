@@ -262,21 +262,25 @@ public class CollectorBackgroundService : BackgroundService
                     }
                     
                         // Determine effective UserEmail with fallbacks
-                        // Priority: 1. dlpIncident.User (usually login name) 2. Source.LoginName 3. Source.EmailAddress (Fallback)
-                        var rawUserEmail = dlpIncident.User ?? "unknown";
+                        // Priority: 1. LoginName (User) -> 2. EmailAddress -> 3. HostName -> "unknown"
+                        string? userIdentifier = dlpIncident.User;
                         
-                        if (rawUserEmail == "unknown" || rawUserEmail == "null" || string.IsNullOrEmpty(rawUserEmail))
-                        {
-                            if (!string.IsNullOrEmpty(dlpIncident.Source?.LoginName))
-                                rawUserEmail = dlpIncident.Source.LoginName;
-                            else if (!string.IsNullOrEmpty(dlpIncident.Source?.EmailAddress))
-                                rawUserEmail = dlpIncident.Source.EmailAddress;
-                        }
+                        if (string.IsNullOrEmpty(userIdentifier))
+                            userIdentifier = dlpIncident.Source?.LoginName;
+                            
+                        if (string.IsNullOrEmpty(userIdentifier))
+                            userIdentifier = dlpIncident.Source?.EmailAddress; // or dlpIncident.EmailAddress helper
+                            
+                        if (string.IsNullOrEmpty(userIdentifier))
+                            userIdentifier = dlpIncident.Source?.HostName; // Fallback to HostName
+                            
+                        if (string.IsNullOrEmpty(userIdentifier))
+                            userIdentifier = "unknown";
 
                         var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
                         {
                             Id = dlpIncident.Id,
-                            UserEmail = rawUserEmail,
+                            UserEmail = userIdentifier,
                             Department = dlpIncident.Department,
                             Severity = dlpIncident.Severity,
                             DataType = dlpIncident.DataType,
@@ -287,9 +291,10 @@ public class CollectorBackgroundService : BackgroundService
                             Action = dlpIncident.Action,
                             Destination = dlpIncident.Destination,
                             FileName = dlpIncident.FileName,
-                            LoginName = dlpIncident.Source?.LoginName ?? dlpIncident.LoginName, // Prefer source or local property
-                            EmailAddress = dlpIncident.Source?.EmailAddress ?? dlpIncident.EmailAddress, // Explicit mapping
-                        
+                            LoginName = dlpIncident.Source?.LoginName ?? dlpIncident.LoginName, 
+                            EmailAddress = dlpIncident.Source?.EmailAddress ?? dlpIncident.EmailAddress,
+                            HostName = dlpIncident.Source?.HostName ?? dlpIncident.HostName, // Map HostName
+
                         // Parse FullName and Team from Manager
                         FullName = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) 
                             ? dlpIncident.Source.Manager.Split('/')[0].Trim() 

@@ -272,8 +272,8 @@ public class DLPCollectorService : IDisposable
                 new("team", incident.Team ?? ""),
                 new("rule_name", incident.RuleName ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
-                new("email_address", incident.EmailAddress ?? ""),
-                new("violation_triggers", incident.ViolationTriggers ?? "")
+                new("host_name", incident.HostName ?? ""),
+                new("violation_triggers", incident.ViolationTriggers != null ? JsonConvert.SerializeObject(incident.ViolationTriggers) : "")
             };
 
             var messageId = await db.StreamAddAsync(streamName, fields);
@@ -426,7 +426,7 @@ public class DLPIncident
     public DLPIncidentSource? Source { get; set; }
     
     [JsonIgnore]
-    public string User => Source?.LoginName ?? string.Empty;
+    public string? User => Source?.LoginName;
     
     [JsonIgnore]
     public string? Department => Source?.Department;
@@ -526,6 +526,9 @@ public class DLPIncident
     // Computed properties from Source
     [JsonIgnore]
     public string? LoginName => Source?.LoginName;
+    
+    [JsonIgnore]
+    public string? HostName => Source?.HostName;
     
     [JsonIgnore]
     public string? EmailAddress => Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null;
