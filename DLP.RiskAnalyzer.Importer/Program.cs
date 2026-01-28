@@ -416,13 +416,19 @@ public class Program
                     FullName = Truncate(fullName, 255),
                     Team = Truncate(team, 255),
                 MaxMatches = maxMatches,
+                MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 
-                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers, new JsonSerializerSettings 
+                    ? JsonConvert.SerializeObject(apiModel.ViolationTriggers.Select(vt => new 
+                    {
+                        policy_name = vt.PolicyName,
+                        rule_name = vt.RuleName,
+                        classifiers = vt.Classifiers?.Select(c => new 
+                        {
+                            classifier_name = c.ClassifierName,
+                            number_matches = c.NumberMatches
+                        }).ToList()
+                    }), new JsonSerializerSettings 
                     { 
-                        ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver 
-                        { 
-                            NamingStrategy = new Newtonsoft.Json.Serialization.SnakeCaseNamingStrategy() 
-                        },
                         Formatting = Formatting.None,
                         NullValueHandling = NullValueHandling.Ignore
                     }) 
