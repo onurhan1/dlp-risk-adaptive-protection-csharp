@@ -44,7 +44,6 @@ interface ActionIncidentsModalProps {
     onClose: () => void
     action: string
     initialDate?: string  // For single-day mode (Reports page)
-    defaultDateRange?: { start: string, end: string } // For preserving dashboard context
 }
 
 // ... (existing code)
@@ -53,8 +52,7 @@ export default function ActionIncidentsModal({
     isOpen,
     onClose,
     action,
-    initialDate,
-    defaultDateRange
+    initialDate  // Single day mode for Reports page
 }: ActionIncidentsModalProps) {
     // Single day mode when initialDate is provided
     const isSingleDayMode = !!initialDate
@@ -64,8 +62,8 @@ export default function ActionIncidentsModal({
 
     // Date range state
     const [dateRange, setDateRange] = useState({
-        start: initialDate || defaultDateRange?.start || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-        end: initialDate || defaultDateRange?.end || format(new Date(), 'yyyy-MM-dd')
+        start: initialDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+        end: initialDate || format(new Date(), 'yyyy-MM-dd')
     })
 
     // (existing code) ...
@@ -85,9 +83,8 @@ export default function ActionIncidentsModal({
             })
             setFilterOptions(response.data)
 
-            // Set default date range from API if not single day mode AND no default range provided
-            // Only use API's min/max if we don't have a context from the parent
-            if (!isSingleDayMode && !defaultDateRange && response.data.dateRange) {
+            // Set default date range from API if not single day mode
+            if (!isSingleDayMode && response.data.dateRange) {
                 setDateRange({
                     start: response.data.dateRange.minDate,
                     end: response.data.dateRange.maxDate
@@ -102,11 +99,8 @@ export default function ActionIncidentsModal({
     useEffect(() => {
         if (initialDate) {
             setDateRange({ start: initialDate, end: initialDate })
-        } else if (defaultDateRange && isOpen) {
-            // Reset to default range when opening if provided
-            setDateRange(defaultDateRange)
         }
-    }, [initialDate, defaultDateRange, isOpen])
+    }, [initialDate])
 
     // (existing fetchIncidents useEffect...)
 
