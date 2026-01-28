@@ -261,34 +261,22 @@ public class CollectorBackgroundService : BackgroundService
                         _logger.LogDebug("[{RunType}] Incident {Id}: ViolationTriggers is null", runType, dlpIncident.Id);
                     }
                     
-                        // Determine effective UserEmail with fallbacks
-                        // Priority: 1. dlpIncident.User (usually login name) 2. Source.LoginName 3. Source.EmailAddress (Fallback)
-                        var rawUserEmail = dlpIncident.User ?? "unknown";
-                        
-                        if (rawUserEmail == "unknown" || rawUserEmail == "null" || string.IsNullOrEmpty(rawUserEmail))
-                        {
-                            if (!string.IsNullOrEmpty(dlpIncident.Source?.LoginName))
-                                rawUserEmail = dlpIncident.Source.LoginName;
-                            else if (!string.IsNullOrEmpty(dlpIncident.Source?.EmailAddress))
-                                rawUserEmail = dlpIncident.Source.EmailAddress;
-                        }
-
-                        var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
-                        {
-                            Id = dlpIncident.Id,
-                            UserEmail = rawUserEmail,
-                            Department = dlpIncident.Department,
-                            Severity = dlpIncident.Severity,
-                            DataType = dlpIncident.DataType,
-                            Timestamp = dlpIncident.Timestamp,
-                            Policy = dlpIncident.Policy,
-                            Channel = dlpIncident.Channel,
-                            MaxMatches = maxMatches,
-                            Action = dlpIncident.Action,
-                            Destination = dlpIncident.Destination,
-                            FileName = dlpIncident.FileName,
-                            LoginName = dlpIncident.Source?.LoginName ?? dlpIncident.LoginName, // Prefer source or local property
-                            EmailAddress = dlpIncident.Source?.EmailAddress ?? dlpIncident.EmailAddress, // Explicit mapping
+                    var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
+                    {
+                        Id = dlpIncident.Id,
+                        UserEmail = dlpIncident.User ?? "unknown",
+                        Department = dlpIncident.Department,
+                        Severity = dlpIncident.Severity,
+                        DataType = dlpIncident.DataType,
+                        Timestamp = dlpIncident.Timestamp,
+                        Policy = dlpIncident.Policy,
+                        Channel = dlpIncident.Channel,
+                        MaxMatches = maxMatches,
+                        Action = dlpIncident.Action,
+                        Destination = dlpIncident.Destination,
+                        FileName = dlpIncident.FileName,
+                        LoginName = dlpIncident.LoginName,
+                        EmailAddress = dlpIncident.EmailAddress,
                         
                         // Parse FullName and Team from Manager
                         FullName = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) 

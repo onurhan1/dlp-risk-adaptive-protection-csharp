@@ -390,21 +390,10 @@ public class Program
                         team = apiModel.Source.BusinessUnit;
                 }
 
-                // Determine effective UserEmail
-                // Priority: 1. User field (usually Source.LoginName) 2. Source.EmailAddress (NEW Fallback)
-                var rawUserEmail = apiModel.User?.Split('\\').Last();
-                if (string.IsNullOrEmpty(rawUserEmail) || rawUserEmail == "unknown" || rawUserEmail == "null")
-                {
-                    if (!string.IsNullOrEmpty(apiModel.Source?.EmailAddress))
-                    {
-                        rawUserEmail = apiModel.Source.EmailAddress;
-                    }
-                }
-
                 return new Incident
                 {
                     Id = apiModel.Id,
-                    UserEmail = Truncate(rawUserEmail, 255) ?? "unknown",
+                    UserEmail = Truncate(apiModel.User?.Split('\\').Last(), 255) ?? "unknown",
                     Department = Truncate(apiModel.Department, 255),
                     Severity = apiModel.Severity,
                     DataType = Truncate(apiModel.DataType, 255),
@@ -419,7 +408,7 @@ public class Program
                     Destination = Truncate(apiModel.Destination, 500),
                     FileName = Truncate(apiModel.FileName, 500),
                     LoginName = Truncate(apiModel.LoginName?.Split('\\').Last(), 255),
-                    EmailAddress = Truncate(apiModel.Source?.EmailAddress, 255),
+                    EmailAddress = Truncate(apiModel.EmailAddress, 255),
                     
                     FullName = Truncate(fullName, 255),
                     Team = Truncate(team, 255),

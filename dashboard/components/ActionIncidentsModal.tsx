@@ -44,140 +44,17 @@ interface ActionIncidentsModalProps {
     onClose: () => void
     action: string
     initialDate?: string  // For single-day mode (Reports page)
+    defaultDateRange?: { start: string, end: string } // For preserving dashboard context
 }
 
-// Debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value)
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value)
-        }, delay)
-
-        return () => {
-            clearTimeout(handler)
-        }
-    }, [value, delay])
-
-    return debouncedValue
-}
-
-// Autocomplete Filter Component
-function FilterDropdown({
-    label,
-    value,
-    onChange,
-    options,
-    placeholder
-}: {
-    label: string
-    value: string
-    onChange: (val: string) => void
-    options: string[]
-    placeholder: string
-}) {
-    const [showDropdown, setShowDropdown] = useState(false)
-    const DISPLAY_LIMIT = 100 // Performance optimization
-
-    const { displayOptions, totalCount, hasMore } = useMemo(() => {
-        let filtered = options
-        if (value.trim()) {
-            filtered = options.filter(opt =>
-                opt.toLowerCase().includes(value.toLowerCase())
-            )
-        }
-        return {
-            displayOptions: filtered.slice(0, DISPLAY_LIMIT),
-            totalCount: filtered.length,
-            hasMore: filtered.length > DISPLAY_LIMIT
-        }
-    }, [options, value])
-
-    return (
-        <div style={{ position: 'relative', minWidth: '140px', flex: 1 }}>
-            <label style={{
-                fontSize: '10px',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                display: 'block',
-                marginBottom: '4px'
-            }}>
-                {label} {totalCount > 0 && <span style={{ opacity: 0.7 }}>({totalCount})</span>}
-            </label>
-            <input
-                type="text"
-                placeholder={placeholder}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '13px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--background)',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                }}
-            />
-            {showDropdown && displayOptions.length > 0 && (
-                <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                    zIndex: 100
-                }}>
-                    {displayOptions.map((option, idx) => (
-                        <div
-                            key={idx}
-                            onClick={() => { onChange(option); setShowDropdown(false) }}
-                            style={{
-                                padding: '8px 12px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                borderBottom: '1px solid var(--border)',
-                                color: 'var(--text-primary)'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--primary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                            {option}
-                        </div>
-                    ))}
-                    {hasMore && (
-                        <div style={{
-                            padding: '8px 12px',
-                            fontSize: '11px',
-                            color: 'var(--text-muted)',
-                            textAlign: 'center',
-                            fontStyle: 'italic',
-                            backgroundColor: 'var(--background-secondary)'
-                        }}>
-                            +{totalCount - DISPLAY_LIMIT} more... (type to filter)
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
+// ... (existing code)
 
 export default function ActionIncidentsModal({
     isOpen,
     onClose,
     action,
-    initialDate  // Single day mode for Reports page
+    initialDate,
+    defaultDateRange
 }: ActionIncidentsModalProps) {
     // Single day mode when initialDate is provided
     const isSingleDayMode = !!initialDate
@@ -187,34 +64,11 @@ export default function ActionIncidentsModal({
 
     // Date range state
     const [dateRange, setDateRange] = useState({
-        start: initialDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-        end: initialDate || format(new Date(), 'yyyy-MM-dd')
+        start: initialDate || defaultDateRange?.start || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+        end: initialDate || defaultDateRange?.end || format(new Date(), 'yyyy-MM-dd')
     })
 
-    // Pagination state
-    const [page, setPage] = useState(1)
-    const [pageSize] = useState(100)
-    const [totalCount, setTotalCount] = useState(0)
-    const [totalPages, setTotalPages] = useState(0)
-
-    // Filter states
-    const [filters, setFilters] = useState({
-        user: '',
-        destination: '',
-        channel: '',
-        policy: '',
-        rule: ''
-    })
-
-    // Debounced filters for server-side search
-    const debouncedUser = useDebounce(filters.user, 500)
-    const debouncedDestination = useDebounce(filters.destination, 500)
-    const debouncedChannel = useDebounce(filters.channel, 500)
-    const debouncedPolicy = useDebounce(filters.policy, 500)
-    const debouncedRule = useDebounce(filters.rule, 500)
-
-    const [incidents, setIncidents] = useState<ActionIncident[]>([])
-    const [loading, setLoading] = useState(false)
+    // (existing code) ...
 
     // Fetch filter options when modal opens
     useEffect(() => {
@@ -231,8 +85,9 @@ export default function ActionIncidentsModal({
             })
             setFilterOptions(response.data)
 
-            // Set default date range from API if not single day mode
-            if (!isSingleDayMode && response.data.dateRange) {
+            // Set default date range from API if not single day mode AND no default range provided
+            // Only use API's min/max if we don't have a context from the parent
+            if (!isSingleDayMode && !defaultDateRange && response.data.dateRange) {
                 setDateRange({
                     start: response.data.dateRange.minDate,
                     end: response.data.dateRange.maxDate
@@ -247,20 +102,13 @@ export default function ActionIncidentsModal({
     useEffect(() => {
         if (initialDate) {
             setDateRange({ start: initialDate, end: initialDate })
+        } else if (defaultDateRange && isOpen) {
+            // Reset to default range when opening if provided
+            setDateRange(defaultDateRange)
         }
-    }, [initialDate])
+    }, [initialDate, defaultDateRange, isOpen])
 
-    // Fetch incidents when modal opens or filters/pagination change
-    useEffect(() => {
-        if (isOpen) {
-            fetchIncidents()
-        }
-    }, [isOpen, dateRange.start, dateRange.end, action, page, debouncedUser, debouncedDestination, debouncedChannel, debouncedPolicy, debouncedRule])
-
-    // Reset page when filters change
-    useEffect(() => {
-        setPage(1)
-    }, [debouncedUser, debouncedDestination, debouncedChannel, debouncedPolicy, debouncedRule, dateRange.start, dateRange.end])
+    // (existing fetchIncidents useEffect...)
 
     // Reset all when modal opens
     useEffect(() => {

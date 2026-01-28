@@ -936,6 +936,7 @@ export default function Home() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         action={selectedAction}
+        defaultDateRange={dateRange}
       />
 
       {/* High Risk Users Modal */}
