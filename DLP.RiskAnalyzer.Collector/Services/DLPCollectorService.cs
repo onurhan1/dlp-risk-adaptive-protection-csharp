@@ -273,7 +273,6 @@ public class DLPCollectorService : IDisposable
                 new("team", incident.Team ?? ""),
                 new("rule_name", incident.RuleName ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
-                new("email_address", incident.EmailAddress ?? ""),
                 new("violation_triggers", incident.ViolationTriggers ?? "")
             };
 
@@ -386,6 +385,9 @@ public class DLPIncidentSource
     [JsonProperty("host_name")]
     public string? HostName { get; set; }
     
+    [JsonProperty("email_address")]
+    public string? EmailAddress { get; set; }
+
     [JsonProperty("business_unit")]
     public string? BusinessUnit { get; set; }
 }
@@ -526,7 +528,7 @@ public class DLPIncident
     public string? LoginName => Source?.LoginName;
     
     [JsonIgnore]
-    public string? EmailAddress => Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null;
+    public string? EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
 }
 
 /// <summary>
