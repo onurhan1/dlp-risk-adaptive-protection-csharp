@@ -387,6 +387,9 @@ public class DLPIncidentSource
     
     [JsonProperty("business_unit")]
     public string? BusinessUnit { get; set; }
+    
+    [JsonProperty("email_address")]
+    public string? EmailAddress { get; set; }
 }
 
 /// <summary>
