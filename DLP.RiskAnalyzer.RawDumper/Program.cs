@@ -104,26 +104,52 @@ public class Program
         Console.WriteLine("Dump complete.");
     }
 
-    private static Task<string?> GetAccessTokenAsync()
+    private static async Task<string?> GetAccessTokenAsync()
     {
-        var authString = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authString);
+        try 
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "auth/access-token");
+            request.Headers.Add("username", _username);
+            request.Headers.Add("password", _password);
 
-        // Return completed task with result to satisfy async/task requirement without compiler warning
-        return Task.FromResult<string?>("ready");
+            // Removing default auth headers if any
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+
+            Console.WriteLine("Requesting Access Token...");
+            var response = await _httpClient.SendAsync(request);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Auth Failed ({response.StatusCode}): {error}");
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            dynamic json = JsonConvert.DeserializeObject(content)!;
+            // Handle snake_case or camelCase token field
+            string token = json.access_token ?? json.accessToken ?? json.token;
+            
+            return token;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Auth Exception: {ex.Message}");
+            return null;
+        }
     }
 
     private static async Task<JArray> FetchRawIncidentsAsync(string token, DateTime start, DateTime end)
     {
-        // Re-apply Basic Auth header just in case
-        var authString = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_username}:{_password}"));
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authString);
+        // Use Bearer Token for this request
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var requestBody = new
         {
-            // Standard incident request body
-            start_date = start.ToString("yyyy-MM-dd HH:mm:ss"),
-            end_date = end.ToString("yyyy-MM-dd HH:mm:ss")
+            type = "INCIDENTS", // Required field based on Importer logic
+            from_date = start.ToString("dd/MM/yyyy HH:mm:ss"), // Forcepoint format
+            to_date = end.ToString("dd/MM/yyyy HH:mm:ss"),     // Forcepoint format
+            limit = 10000 
         };
 
         var content = new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
@@ -148,6 +174,10 @@ public class Program
             
             return new JArray();
         }
-        catch { return new JArray(); }
+        catch (Exception ex)
+        { 
+            Console.WriteLine($"Parse Error: {ex.Message}");
+            return new JArray(); 
+        }
     }
 }
