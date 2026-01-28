@@ -300,7 +300,7 @@ public class DLPCollectorService : IDisposable
         return new HttpClient(handler)
         {
             BaseAddress = new Uri(baseUrl),
-            Timeout = TimeSpan.FromSeconds(config.Timeout <= 0 ? 30 : config.Timeout)
+            Timeout = TimeSpan.FromSeconds(config.Timeout <= 0 ? 300 : config.Timeout)
         };
     }
 
