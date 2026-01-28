@@ -5,6 +5,7 @@ using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using System.Globalization;
 
 namespace DLP.RiskAnalyzer.Importer;
 
@@ -440,9 +441,41 @@ public class DLPIncident
     public string User => Source?.LoginName;
     public string Department => Source?.Department;
     [JsonProperty("incident_time")] public string IncidentTimeString { get; set; }
-    public DateTime Timestamp => DateTime.TryParse(IncidentTimeString, out var dt) 
-        ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) 
-        : DateTime.UtcNow;
+    public DateTime Timestamp
+    {
+        get
+        {
+            // Try to parse incident_time first
+            if (!string.IsNullOrEmpty(IncidentTimeString))
+            {
+                // Try multiple date formats
+                var formats = new[] { 
+                    "dd/MM/yyyy HH:mm:ss",
+                    "MM/dd/yyyy HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "dd-MM-yyyy HH:mm:ss"
+                };
+                
+                foreach (var format in formats)
+                {
+                    if (DateTime.TryParseExact(IncidentTimeString, format, CultureInfo.InvariantCulture, 
+                        DateTimeStyles.None, out var incidentTime))
+                    {
+                        return DateTime.SpecifyKind(incidentTime, DateTimeKind.Utc);
+                    }
+                }
+                
+                // Fallback to standard parse
+                if (DateTime.TryParse(IncidentTimeString, CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, out var parsedTime))
+                {
+                    return DateTime.SpecifyKind(parsedTime, DateTimeKind.Utc);
+                }
+            }
+            
+            return DateTime.UtcNow;
+        }
+    }
     [JsonProperty("policies")] public string Policy { get; set; }
     [JsonProperty("channel")] public string Channel { get; set; }
     [JsonProperty("data_type")] public string DataType { get; set; }
