@@ -22,24 +22,37 @@ public class Program
         Console.WriteLine("   DLP RAW DATA DUMPER (DEBUG TOOL)");
         Console.WriteLine("===============================================");
 
-        // 1. Load Configuration (Parent directory's appsettings or local)
-        var configPath = Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "", "DLP.RiskAnalyzer.Collector", "appsettings.json");
-        if (!File.Exists(configPath))
-        {
-             configPath = "appsettings.json"; // Fallback to local
-        }
+        // 1. Load Configuration (Combine from Collector and Analyzer)
+        var parentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
         
-        Console.WriteLine($"Loading config from: {configPath}");
+        var collectorConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Collector", "appsettings.json");
+        var analyzerConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Analyzer", "appsettings.json");
+        var localConfigPath = "appsettings.json";
+
+        Console.WriteLine($"Loading DLP config from: {collectorConfigPath}");
+        Console.WriteLine($"Loading DB config from: {analyzerConfigPath}");
 
         var config = new ConfigurationBuilder()
-            .AddJsonFile(configPath, optional: true, reloadOnChange: true)
+            .AddJsonFile(localConfigPath, optional: true, reloadOnChange: true)
+            .AddJsonFile(analyzerConfigPath, optional: true, reloadOnChange: true) // Loads DB connection
+            .AddJsonFile(collectorConfigPath, optional: true, reloadOnChange: true) // Loads DLP settings (wins if same keys)
             .Build();
 
         _managerIp = config["DLP:ManagerIP"] ?? throw new Exception("DLP:ManagerIP not configured");
         _managerPort = config.GetValue<int>("DLP:ManagerPort", 8443);
         _username = config["DLP:Username"] ?? throw new Exception("DLP:Username not configured");
         _password = config["DLP:Password"] ?? throw new Exception("DLP:Password not configured");
-        _dbConnection = config.GetConnectionString("DefaultConnection") ?? throw new Exception("ConnectionStrings:DefaultConnection not configured");
+        
+        // Connection string usually in Analyzer appsettings
+        _dbConnection = config.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrEmpty(_dbConnection))
+        {
+             // Fallback: try to read directly from Analyzer config if the merge didn't work as expected 
+             // (though it should). Or maybe it's in a different section?
+             // In Analyzer appsettings it is under "ConnectionStrings": { "DefaultConnection": ... }
+             // Let's print what we found if missing.
+             throw new Exception($"ConnectionStrings:DefaultConnection not configured. Loaded keys: {string.Join(", ", config.GetChildren().Select(k => k.Key))}");
+        }
 
         // 2. Setup HttpClient
         var handler = new HttpClientHandler
