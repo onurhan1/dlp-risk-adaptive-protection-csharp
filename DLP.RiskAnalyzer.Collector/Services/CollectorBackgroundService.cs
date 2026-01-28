@@ -306,7 +306,20 @@ public class CollectorBackgroundService : BackgroundService
                     };
 
                     // Calculate UserEmail with robust fallback
-                    incident.UserEmail = dlpIncident.User ?? dlpIncident.EmailAddress ?? dlpIncident.Source?.HostName ?? "unknown";
+                    // Priority: LoginName (User) -> EmailAddress -> HostName -> "unknown"
+                    string userIdentifier = !string.IsNullOrEmpty(dlpIncident.User) ? dlpIncident.User : null;
+                    
+                    if (string.IsNullOrEmpty(userIdentifier) && !string.IsNullOrEmpty(dlpIncident.EmailAddress))
+                    {
+                        userIdentifier = dlpIncident.EmailAddress;
+                    }
+                    
+                    if (string.IsNullOrEmpty(userIdentifier) && !string.IsNullOrEmpty(dlpIncident.Source?.HostName))
+                    {
+                        userIdentifier = dlpIncident.Source.HostName;
+                    }
+                    
+                    incident.UserEmail = userIdentifier ?? "unknown";
                     
                     // Logic for FullName/Team
                     if (!string.IsNullOrEmpty(dlpIncident.Source?.Manager))

@@ -426,7 +426,7 @@ public class DLPIncident
     public DLPIncidentSource? Source { get; set; }
     
     [JsonIgnore]
-    public string User => Source?.LoginName ?? string.Empty;
+    public string? User => Source?.LoginName;
     
     [JsonIgnore]
     public string? Department => Source?.Department;
