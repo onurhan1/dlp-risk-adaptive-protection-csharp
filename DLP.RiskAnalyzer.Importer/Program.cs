@@ -381,6 +381,8 @@ public class Program
                         fullName = apiModel.Source.LoginName.Split('\\').Last();
                     else if (!string.IsNullOrEmpty(apiModel.Source?.EmailAddress))
                         fullName = apiModel.Source.EmailAddress.Split('@')[0];
+                    else if (!string.IsNullOrEmpty(apiModel.Source?.HostName))
+                        fullName = apiModel.Source.HostName;
                 }
 
                 if (string.IsNullOrEmpty(team))
@@ -394,7 +396,7 @@ public class Program
                 return new Incident
                 {
                     Id = apiModel.Id,
-                    UserEmail = Truncate(apiModel.User?.Split('\\').Last(), 255) ?? "unknown",
+                    UserEmail = Truncate(apiModel.User?.Split('\\').Last() ?? apiModel.Source?.HostName, 255) ?? "unknown",
                     Department = Truncate(apiModel.Department, 255),
                     Severity = apiModel.Severity,
                     DataType = Truncate(apiModel.DataType, 255),
@@ -408,7 +410,7 @@ public class Program
                     Action = Truncate(apiModel.Action, 100),
                     Destination = Truncate(apiModel.Destination, 500),
                     FileName = Truncate(apiModel.FileName, 500),
-                    LoginName = Truncate(apiModel.LoginName?.Split('\\').Last(), 255),
+                    LoginName = Truncate(apiModel.LoginName?.Split('\\').Last() ?? apiModel.Source?.HostName, 255),
                     EmailAddress = Truncate(apiModel.EmailAddress, 255),
                     
                     FullName = Truncate(fullName, 255),
@@ -491,6 +493,7 @@ public class DLPIncidentSource
     [JsonProperty("manager")] public string Manager { get; set; }
     [JsonProperty("department")] public string Department { get; set; }
     [JsonProperty("login_name")] public string LoginName { get; set; }
+    [JsonProperty("host_name")] public string HostName { get; set; }
     [JsonProperty("email_address")] public string EmailAddress { get; set; }
     [JsonProperty("dn")] public string Dn { get; set; }
     [JsonProperty("business_unit")] public string BusinessUnit { get; set; }
