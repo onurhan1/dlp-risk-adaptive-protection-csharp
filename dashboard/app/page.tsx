@@ -69,9 +69,16 @@ export default function Home() {
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
   const [selectedDimension, setSelectedDimension] = useState('department')
   const [dateRange, setDateRange] = useState({
     start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  })
+
+  // Independent date range for Daily Trends Chart - defaulted to roughly "All Time" (from 2023)
+  const [trendsDateRange, setTrendsDateRange] = useState({
+    start: '2023-01-01',
     end: format(new Date(), 'yyyy-MM-dd')
   })
 
@@ -86,6 +93,32 @@ export default function Home() {
   useEffect(() => {
     fetchData()
   }, [selectedDimension, dateRange.start, dateRange.end])
+
+  // Separate effect for Daily Trends
+  useEffect(() => {
+    fetchDailyTrends()
+  }, [trendsDateRange.start, trendsDateRange.end])
+
+  const fetchDailyTrends = async () => {
+    setDailySummaryLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      // Use new optional parameters logic
+      const response = await axios.get(`${apiUrl}/api/risk/daily-summary`, {
+        params: {
+          startDate: trendsDateRange.start,
+          endDate: trendsDateRange.end
+        }
+      })
+      setDailySummary(response.data)
+      console.log('Daily Trends Data:', response.data)
+    } catch (error) {
+      console.error('Error fetching daily trends:', error)
+      setDailySummary([])
+    } finally {
+      setDailySummaryLoading(false)
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -103,8 +136,8 @@ export default function Home() {
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
 
-      const [dailyRes, deptRes, incidentsRes, incidentsLast24hRes, actionRes] = await Promise.all([
-        axios.get(`${apiUrl}/api/risk/daily-summary?days=${days}`).catch(() => ({ data: [] })),
+      // Removed daily-summary call from here as it is now handled independently
+      const [deptRes, incidentsRes, incidentsLast24hRes, actionRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -131,9 +164,7 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null }))
       ])
 
-      setDailySummary(dailyRes.data)
-      console.log('Daily Summary Data:', dailyRes.data)
-      console.log('Sample day data:', dailyRes.data[0])
+      // setDailySummary(dailyRes.data)  <-- Handled by fetchDailyTrends
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
 
@@ -502,22 +533,43 @@ export default function Home() {
 
       {/* Daily Incident Trends - Full Width */}
       <div className="card">
-        <div className="chart-header">
-          <h2>📈 Daily Incident Trends</h2>
-          <p className="chart-subtitle">Last {dailySummary.length} days overview</p>
+        <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>📈 Daily Incident Trends</h2>
+            <p className="chart-subtitle" style={{ margin: '4px 0 0 0' }}>
+              Showing {dailySummary.length} days • {trendsDateRange.start} to {trendsDateRange.end}
+            </p>
+          </div>
+          <div className="filter-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="date"
+              className="filter-input"
+              value={trendsDateRange.start}
+              onChange={(e) => setTrendsDateRange(prev => ({ ...prev, start: e.target.value }))}
+              style={{ padding: '6px 10px', minWidth: '130px' }}
+            />
+            <span style={{ color: '#666' }}>to</span>
+            <input
+              type="date"
+              className="filter-input"
+              value={trendsDateRange.end}
+              onChange={(e) => setTrendsDateRange(prev => ({ ...prev, end: e.target.value }))}
+              style={{ padding: '6px 10px', minWidth: '130px' }}
+            />
+          </div>
         </div>
-        {loading ? (
+        {dailySummaryLoading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
-            Loading...
+            Loading trends...
           </div>
         ) : dailySummary.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
             No data available for selected date range
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', maxHeight: '500px' }}>
             <table className="data-table">
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 <tr>
                   <th>Date</th>
                   <th>Total Incidents</th>
@@ -531,13 +583,13 @@ export default function Home() {
                 {(() => {
                   const maxIncidents = Math.max(...dailySummary.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0));
                   return dailySummary
-                    .slice()
+                    .slice() // Create a shallow copy to sort
                     .sort((a, b) => {
                       const dateA = a.date || a.Date || '';
                       const dateB = b.date || b.Date || '';
-                      return dateB.localeCompare(dateA);
+                      return dateB.localeCompare(dateA); // Newest first
                     })
-                    .slice(0, 14) // Show last 14 days
+                    // REMOVED: .slice(0, 14) limitation - now shows all data matching filter
                     .map((day, idx) => {
                       const total = day.total_incidents ?? day.totalIncidents ?? day.TotalIncidents ?? 0;
                       const highRisk = day.high_risk_count ?? day.highRiskCount ?? day.HighRiskCount ?? 0;
@@ -545,13 +597,12 @@ export default function Home() {
                       const uniqueUsers = day.unique_users ?? day.uniqueUsers ?? day.UniqueUsers ?? 0;
                       const dateStr = day.date || day.Date || '';
                       const percentage = maxIncidents > 0 ? (total / maxIncidents) * 100 : 0;
-                      const highRiskPercentage = total > 0 ? (highRisk / total) * 100 : 0;
 
                       // Format date
                       let formattedDate = dateStr;
                       try {
                         const d = new Date(dateStr);
-                        formattedDate = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', weekday: 'short' });
+                        formattedDate = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', weekday: 'short', year: 'numeric' });
                       } catch { }
 
                       return (

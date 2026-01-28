@@ -91,12 +91,20 @@ public class RiskAnalyzerService
     /// <summary>
     /// Get daily summaries
     /// </summary>
-    public async Task<List<DailySummary>> GetDailySummariesAsync(int days = 7)
+    public async Task<List<DailySummary>> GetDailySummariesAsync(DateOnly? startDate = null, DateOnly? endDate = null)
     {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-days);
+        if (!endDate.HasValue)
+        {
+            endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        }
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
+        if (!startDate.HasValue)
+        {
+            // Default to "All Time" (starting from project inception/2023)
+            startDate = new DateOnly(2023, 1, 1);
+        }
+
+        var incidents = await _incidentRepository.GetIncidentsAsync(startDate.Value, endDate.Value);
         
         var summaries = incidents
             .GroupBy(i => DateOnly.FromDateTime(i.Timestamp.Date))

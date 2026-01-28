@@ -87,11 +87,22 @@ public class RiskController : ControllerBase
 
     [HttpGet("daily-summary")]
     public async Task<ActionResult<List<DailySummary>>> GetDailySummaries(
-        [FromQuery] int days = 7)
+        [FromQuery] int? days = null,
+        [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null)
     {
         try
         {
-            var summaries = await _riskAnalyzerService.GetDailySummariesAsync(days);
+            // Backward compatibility for 'days'
+            if (days.HasValue && !startDate.HasValue)
+            {
+                var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                startDate = end.AddDays(-days.Value);
+                if (!endDate.HasValue) endDate = end;
+            }
+
+            // If neither provided, service defaults to "All Time"
+            var summaries = await _riskAnalyzerService.GetDailySummariesAsync(startDate, endDate);
             return Ok(summaries);
         }
         catch (Exception ex)
