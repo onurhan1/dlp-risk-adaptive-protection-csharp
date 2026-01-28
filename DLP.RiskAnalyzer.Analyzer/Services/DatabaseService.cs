@@ -202,6 +202,9 @@ public class DatabaseService
                     loginName = loginName.Split('\\').Last();
                 }
                 
+                var hostNameValue = message.Values.FirstOrDefault(v => v.Name == "host_name");
+                var hostName = hostNameValue.Value.HasValue ? hostNameValue.Value.ToString() : null;
+
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
                 
@@ -231,6 +234,7 @@ public class DatabaseService
                         Destination = string.IsNullOrEmpty(destination) ? null : destination,
                         FileName = string.IsNullOrEmpty(fileName) ? null : fileName,
                         LoginName = string.IsNullOrEmpty(loginName) ? null : loginName,
+                        HostName = string.IsNullOrEmpty(hostName) ? null : hostName,
                         EmailAddress = string.IsNullOrEmpty(emailAddress) ? null : emailAddress,
                         ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : violationTriggers,
                         // FullName, Team, RuleName

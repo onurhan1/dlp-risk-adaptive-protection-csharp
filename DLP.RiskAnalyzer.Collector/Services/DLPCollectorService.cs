@@ -267,6 +267,7 @@ public class DLPCollectorService : IDisposable
                 new("destination", incident.Destination ?? ""),
                 new("file_name", incident.FileName ?? ""),
                 new("login_name", incident.LoginName ?? ""),
+                new("host_name", incident.HostName ?? ""),
                 // FullName and Team are already populated in Incident object
                 new("full_name", incident.FullName ?? ""),
                 new("team", incident.Team ?? ""),

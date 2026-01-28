@@ -24,6 +24,7 @@ public class Incident
     public string? Destination { get; set; }  // Target (printer, email, URL, etc.)
     public string? FileName { get; set; }  // File name with size
     public string? LoginName { get; set; }  // User login name (e.g., KUVEYTTURK\nyigit)
+    public string? HostName { get; set; }   // Hostname (e.g., TRIST-L-1234)
     public string? FullName { get; set; }   // Full user name (taken from Manager field e.g., Mustafa Zeybek)
     public string? Team { get; set; }       // Team/Department name (taken from Manager field e.g., Kuveyt Turk...)
     public string? EmailAddress { get; set; }  // Email address (if available)
@@ -66,6 +67,7 @@ public class IncidentResponse
     public string? Destination { get; set; }
     public string? FileName { get; set; }
     public string? LoginName { get; set; }
+    public string? HostName { get; set; }
     public string? EmailAddress { get; set; }
     public string? ViolationTriggers { get; set; }
     

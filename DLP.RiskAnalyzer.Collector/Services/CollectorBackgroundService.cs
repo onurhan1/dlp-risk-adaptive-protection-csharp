@@ -264,7 +264,7 @@ public class CollectorBackgroundService : BackgroundService
                     var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
                     {
                         Id = dlpIncident.Id,
-                        UserEmail = dlpIncident.User ?? "unknown",
+                        UserEmail = dlpIncident.User ?? dlpIncident.Source?.HostName ?? "unknown",
                         Department = dlpIncident.Department,
                         Severity = dlpIncident.Severity,
                         DataType = dlpIncident.DataType,
@@ -275,7 +275,8 @@ public class CollectorBackgroundService : BackgroundService
                         Action = dlpIncident.Action,
                         Destination = dlpIncident.Destination,
                         FileName = dlpIncident.FileName,
-                        LoginName = dlpIncident.LoginName,
+                        LoginName = dlpIncident.LoginName ?? dlpIncident.Source?.HostName,
+                        HostName = dlpIncident.Source?.HostName,
                         EmailAddress = dlpIncident.EmailAddress,
                         
                         // Parse FullName and Team from Manager
