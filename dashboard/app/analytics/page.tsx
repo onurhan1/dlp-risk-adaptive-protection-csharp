@@ -203,7 +203,8 @@ export default function AnalyticsPage() {
     const domainTotalCounts: Record<string, number> = {}
 
     filteredIncidents.forEach(incident => {
-      const team = incident.team || 'Unknown'
+      // Use team, fallback to department if team is missing
+      const team = incident.team || incident.department || 'Unknown'
       const domain = incident.domain || 'Unknown'
       const action = incident.action?.toLowerCase() || 'permit'
 
