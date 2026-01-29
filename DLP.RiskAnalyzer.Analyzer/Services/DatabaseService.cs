@@ -400,6 +400,19 @@ public class DatabaseService
                             }
                             }
 
+                    }
+                }
+            }
+            return maxMatches;
+        }
+        catch (Exception ex)
+        {
+            // Fallback to 0 if parsing fails
+            _logger.LogWarning("Failed to parse violation triggers for max matches: {Error}", ex.Message);
+            return 0;
+        }
+    }
+
     private string DeduplicateViolationTriggers(string? violationTriggersJson)
     {
         if (string.IsNullOrEmpty(violationTriggersJson)) return "[]";
@@ -455,19 +468,6 @@ public class DatabaseService
         {
             _logger.LogWarning("Failed to deduplicate violation triggers: {Error}", ex.Message);
             return violationTriggersJson; // Return original if parsing fails
-        }
-    }
-}
-                    }
-                }
-            }
-            return maxMatches;
-        }
-        catch (Exception ex)
-        {
-            // Fallback to 0 if parsing fails
-            _logger.LogWarning("Failed to parse violation triggers for max matches: {Error}", ex.Message);
-            return 0;
         }
     }
 }
