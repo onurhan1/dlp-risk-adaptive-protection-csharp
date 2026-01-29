@@ -570,8 +570,13 @@ export default function AnalyticsPage() {
                           <span style={{
                             padding: '4px 10px',
                             borderRadius: '12px',
-                            background: incident.action === 'Block' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: incident.action === 'Block' ? '#ef4444' : '#10b981',
+                            ...(() => {
+                              const action = incident.action?.toLowerCase() || ''
+                              if (action.includes('block')) return { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }
+                              if (action.includes('quarantine')) return { background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                              if (action.includes('authorized') || action.includes('allow')) return { background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }
+                              return { background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' } // Permit, Released, etc.
+                            })(),
                             fontSize: '12px',
                             fontWeight: '600',
                             display: 'inline-block'
