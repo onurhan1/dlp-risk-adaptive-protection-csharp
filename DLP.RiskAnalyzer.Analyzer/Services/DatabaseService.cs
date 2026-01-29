@@ -323,9 +323,49 @@ public class DatabaseService
                         skippedCount++;
                     }
                 }
+                else if (string.IsNullOrEmpty(existingIncident.ViolationTriggers) || existingIncident.ViolationTriggers == "[]")
+                {
+                    // Incident exists with same action but missing/empty violation_triggers - BACKFILL
+                    if (!string.IsNullOrEmpty(violationTriggers) && violationTriggers != "[]")
+                    {
+                        _logger.LogInformation(
+                            "Incident {Id} missing violation_triggers, backfilling from Redis...",
+                            incidentId);
+                        
+                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers);
+                        existingIncident.ViolationTriggers = dedupedTriggers;
+                        existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
+                        
+                        // Also update other missing fields if available
+                        if (string.IsNullOrEmpty(existingIncident.FullName) && !string.IsNullOrEmpty(fullName))
+                            existingIncident.FullName = fullName;
+                        if (string.IsNullOrEmpty(existingIncident.Team) && !string.IsNullOrEmpty(team))
+                            existingIncident.Team = team;
+                        if (string.IsNullOrEmpty(existingIncident.RuleName) && !string.IsNullOrEmpty(ruleName))
+                            existingIncident.RuleName = ruleName;
+                        
+                        try
+                        {
+                            await _context.SaveChangesAsync();
+                            processedCount++;
+                            _logger.LogInformation("Incident {Id} backfilled with violation_triggers, max_matches={MaxMatches}", 
+                                incidentId, existingIncident.MaxMatches);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error backfilling incident {Id}", incidentId);
+                            skippedCount++;
+                        }
+                    }
+                    else
+                    {
+                        skippedCount++;
+                        _logger.LogDebug("SKIPPED incident {Id} (both existing and new have empty violation_triggers)", incidentId);
+                    }
+                }
                 else
                 {
-                    // Duplicate with same action - skip
+                    // Duplicate with same action and already has violation_triggers - skip
                     skippedCount++;
                     _logger.LogDebug("SKIPPED duplicate incident {Id} (same action: {Action})", incidentId, existingIncident.Action);
                 }
