@@ -273,7 +273,8 @@ public class DLPCollectorService : IDisposable
                 new("rule_name", incident.RuleName ?? ""),
                 new("email_address", incident.EmailAddress ?? ""),
                 new("host_name", incident.HostName ?? ""),
-                new("violation_triggers", incident.ViolationTriggers != null ? JsonConvert.SerializeObject(incident.ViolationTriggers) : "")
+                new("violation_triggers", incident.ViolationTriggers ?? ""),
+                new("max_matches", incident.MaxMatches.ToString())
             };
 
             var messageId = await db.StreamAddAsync(streamName, fields);

@@ -160,6 +160,7 @@ public class DatabaseService
                 var loginNameValue = message.Values.FirstOrDefault(v => v.Name == "login_name");
                 var emailAddressValue = message.Values.FirstOrDefault(v => v.Name == "email_address");
                 var violationTriggersValue = message.Values.FirstOrDefault(v => v.Name == "violation_triggers");
+                var maxMatchesValue = message.Values.FirstOrDefault(v => v.Name == "max_matches");
                 
                 // New fields for missing data
                 var fullNameValue = message.Values.FirstOrDefault(v => v.Name == "full_name");
@@ -247,7 +248,7 @@ public class DatabaseService
                         FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
                         Team = string.IsNullOrEmpty(team) ? null : team,
                         RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName,
-                        MaxMatches = CalculateMaxMatches(string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers))
+                        MaxMatches = ParseMaxMatchesFromRedis(maxMatchesValue, violationTriggers)
                     };
 
                     _context.Incidents.Add(incident);
@@ -349,6 +350,28 @@ public class DatabaseService
         }
 
         return totalProcessedCount;
+    }
+
+    /// <summary>
+    /// Parse max_matches from Redis stream, fallback to calculating from ViolationTriggers JSON
+    /// </summary>
+    private int ParseMaxMatchesFromRedis(StackExchange.Redis.NameValueEntry maxMatchesValue, string? violationTriggers)
+    {
+        // Önce Redis'ten direkt max_matches değerini dene
+        if (maxMatchesValue.Value.HasValue && !string.IsNullOrEmpty(maxMatchesValue.Value.ToString()))
+        {
+            if (int.TryParse(maxMatchesValue.Value.ToString(), out int parsedMax) && parsedMax > 0)
+            {
+                _logger.LogDebug("Using max_matches from Redis: {MaxMatches}", parsedMax);
+                return parsedMax;
+            }
+        }
+        
+        // Fallback: ViolationTriggers'dan hesapla
+        var dedupedTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers);
+        var calculated = CalculateMaxMatches(dedupedTriggers);
+        _logger.LogDebug("Calculated max_matches from ViolationTriggers: {MaxMatches}", calculated);
+        return calculated;
     }
 
     private int CalculateMaxMatches(string? violationTriggersJson)
