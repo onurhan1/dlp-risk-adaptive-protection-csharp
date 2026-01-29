@@ -191,7 +191,7 @@ public class DomainFeaturesController : ControllerBase
 
         foreach (var item in details)
         {
-            var parts = item.Destination.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            var parts = (item.Destination ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
                 if (part.Contains("@"))

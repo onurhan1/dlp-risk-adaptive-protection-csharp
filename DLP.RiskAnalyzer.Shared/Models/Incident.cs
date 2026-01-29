@@ -82,4 +82,8 @@ public class IncidentResponse
     public string? RemediatedBy { get; set; }
     public string? RemediationAction { get; set; }
     public string? RemediationNotes { get; set; }
+
+    // Display fields
+    public string? FullName { get; set; }
+    public string? Team { get; set; }
 }

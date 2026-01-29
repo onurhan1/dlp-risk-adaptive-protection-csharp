@@ -14,7 +14,12 @@ interface Incident {
   severity: string
   destination?: string
   domain?: string
+  department?: string
   team?: string
+  fullName?: string
+  maxMatches?: number
+  loginName?: string
+  emailAddress?: string
 }
 
 interface DomainFeature {
@@ -36,8 +41,10 @@ export default function AnalyticsPage() {
 
   // Filter States
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  const [selectedDepartment, setSelectedDepartment] = useState('')
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedUser, setSelectedUser] = useState('')
+  const [selectedFullName, setSelectedFullName] = useState('')
   const [selectedPolicy, setSelectedPolicy] = useState('')
   const [selectedDomain, setSelectedDomain] = useState('')
   const [selectedAction, setSelectedAction] = useState('')
@@ -108,7 +115,12 @@ export default function AnalyticsPage() {
           severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
           destination: dest,
           domain: domain || 'Unknown',
-          team: item.department || item.user_department // Try to get department info
+          department: item.department || item.user_department,
+          team: item.team,
+          fullName: item.fullName,
+          maxMatches: item.maxMatches || 0,
+          loginName: item.loginName,
+          emailAddress: item.emailAddress
         }
       })
 
@@ -120,11 +132,7 @@ export default function AnalyticsPage() {
     }
   }
 
-  const formatTeam = (team?: string) => {
-    if (!team) return 'Unknown'
-    if (team.includes('Şubesi')) return 'Şube'
-    return team
-  }
+
 
   // Filter Logic
   const filteredIncidents = useMemo(() => {
@@ -137,11 +145,23 @@ export default function AnalyticsPage() {
         if (!isWithinInterval(incidentDate, { start, end })) return false
       }
 
-      // Team Filter
-      if (selectedTeam && formatTeam(incident.team) !== selectedTeam) return false
+      // Department Filter
+      if (selectedDepartment && incident.department !== selectedDepartment) return false
 
-      // User Filter (Text search)
-      if (selectedUser && !incident.userEmail?.toLowerCase().includes(selectedUser.toLowerCase())) return false
+      // Team Filter
+      if (selectedTeam && incident.team !== selectedTeam) return false
+
+      // User Filter (Broad search)
+      if (selectedUser) {
+        const search = selectedUser.toLowerCase()
+        const match = incident.userEmail?.toLowerCase().includes(search) ||
+          incident.loginName?.toLowerCase().includes(search) ||
+          incident.emailAddress?.toLowerCase().includes(search)
+        if (!match) return false
+      }
+
+      // Full Name Filter
+      if (selectedFullName && !incident.fullName?.toLowerCase().includes(selectedFullName.toLowerCase())) return false
 
       // Policy Filter (Text search)
       if (selectedPolicy && !incident.policy?.toLowerCase().includes(selectedPolicy.toLowerCase())) return false
@@ -154,7 +174,7 @@ export default function AnalyticsPage() {
 
       return true
     })
-  }, [incidents, dateRange, selectedTeam, selectedUser, selectedPolicy, selectedDomain, selectedAction])
+  }, [incidents, dateRange, selectedDepartment, selectedTeam, selectedUser, selectedFullName, selectedPolicy, selectedDomain, selectedAction])
 
   // Reset page when filters change
   useEffect(() => {
@@ -170,7 +190,8 @@ export default function AnalyticsPage() {
   const totalPages = Math.ceil(filteredIncidents.length / itemsPerPage)
 
   // Get Unique Values for Selects
-  const uniqueTeams = useMemo(() => Array.from(new Set(incidents.map(i => formatTeam(i.team)))).sort(), [incidents])
+  const uniqueDepartments = useMemo(() => Array.from(new Set(incidents.map(i => i.department).filter(Boolean))).sort(), [incidents])
+  const uniqueTeams = useMemo(() => Array.from(new Set(incidents.map(i => i.team).filter(Boolean))).sort(), [incidents])
   const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort(), [incidents])
 
   // Heatmap Data Calculation (using filtered incidents - ALL matching records, not just current page)
@@ -178,17 +199,27 @@ export default function AnalyticsPage() {
     const teams = new Set<string>()
     const domains = new Set<string>()
     const counts: Record<string, Record<string, number>> = {}
+    const breakdown: Record<string, Record<string, { block: number, permit: number, authorized: number, quarantine: number }>> = {}
     const domainTotalCounts: Record<string, number> = {}
 
     filteredIncidents.forEach(incident => {
-      const team = formatTeam(incident.team)
+      const team = incident.team || 'Unknown'
       const domain = incident.domain || 'Unknown'
+      const action = incident.action?.toLowerCase() || 'permit'
 
       teams.add(team)
       domains.add(domain)
 
       if (!counts[team]) counts[team] = {}
       counts[team][domain] = (counts[team][domain] || 0) + 1
+
+      if (!breakdown[team]) breakdown[team] = {}
+      if (!breakdown[team][domain]) breakdown[team][domain] = { block: 0, permit: 0, authorized: 0, quarantine: 0 }
+
+      if (action === 'block') breakdown[team][domain].block++
+      else if (action === 'permit') breakdown[team][domain].permit++
+      else if (action === 'authorized' || action === 'allow') breakdown[team][domain].authorized++
+      else if (action === 'quarantine') breakdown[team][domain].quarantine++
 
       domainTotalCounts[domain] = (domainTotalCounts[domain] || 0) + 1
     })
@@ -204,7 +235,7 @@ export default function AnalyticsPage() {
       })
     })
 
-    return { teams: sortedTeams, domains: sortedDomains, counts, maxCount }
+    return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount }
   }, [filteredIncidents])
 
   const getHeatmapColor = (count: number, max: number) => {
@@ -215,9 +246,7 @@ export default function AnalyticsPage() {
   }
 
   const getTextColor = (count: number, max: number) => {
-    if (count === 0) return 'var(--text-secondary)'
-    const intensity = max > 0 ? count / max : 0
-    return intensity > 0.5 ? 'white' : 'var(--text-primary)'
+    return 'var(--text-primary)' // Always use dark/primary text color as requested (Siyah olabilir)
   }
 
   const getYesNoColor = (value: string) => {
@@ -343,6 +372,21 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
+                {/* Department Select */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Department</label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedDepartment(e.target.value)}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }}
+                  >
+                    <option value="">All Departments</option>
+                    {uniqueDepartments.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Team Select */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Team</label>
@@ -366,6 +410,18 @@ export default function AnalyticsPage() {
                     placeholder="Search user..."
                     value={selectedUser}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }}
+                  />
+                </div>
+
+                {/* Full Name Search */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="Search full name..."
+                    value={selectedFullName}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
                     style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }}
                   />
                 </div>
@@ -415,8 +471,10 @@ export default function AnalyticsPage() {
                 <button
                   onClick={() => {
                     setDateRange({ start: '', end: '' })
+                    setSelectedDepartment('')
                     setSelectedTeam('')
                     setSelectedUser('')
+                    setSelectedFullName('')
                     setSelectedPolicy('')
                     setSelectedDomain('')
                     setSelectedAction('')
@@ -452,22 +510,25 @@ export default function AnalyticsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
-                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', width: '180px' }}>Time</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', width: '150px' }}>Time</th>
                     <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>User</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Full Name</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Department</th>
                     <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Team</th>
                     <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Policy</th>
                     <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Domain</th>
-                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', width: '120px' }}>Action</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Max</th>
+                    <th style={{ padding: '16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', width: '100px' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading incidents...</td>
+                      <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading incidents...</td>
                     </tr>
                   ) : paginatedIncidents.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>No incidents found matching filters</td>
+                      <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>No incidents found matching filters</td>
                     </tr>
                   ) : (
                     paginatedIncidents.map((incident) => (
@@ -479,13 +540,22 @@ export default function AnalyticsPage() {
                           {incident.userEmail || 'Unknown'}
                         </td>
                         <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {formatTeam(incident.team)}
+                          {incident.fullName || '-'}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                          {incident.department || '-'}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                          {incident.team || '-'}
                         </td>
                         <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
                           {incident.policy || '-'}
                         </td>
                         <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
                           {incident.domain || '-'}
+                        </td>
+                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                          {incident.maxMatches || 0}
                         </td>
                         <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
                           <span style={{
@@ -606,6 +676,7 @@ export default function AnalyticsPage() {
                       {/* Cells */}
                       {heatmapData.teams.map(team => {
                         const count = heatmapData.counts[team]?.[domain] || 0
+                        const bd = heatmapData.breakdown[team]?.[domain] || { block: 0, permit: 0, authorized: 0, quarantine: 0 }
                         return (
                           <div key={`${team}-${domain}`} style={{
                             height: '30px',
@@ -616,20 +687,50 @@ export default function AnalyticsPage() {
                             fontSize: '10px',
                             fontWeight: count > 0 ? '600' : '400',
                             transition: 'transform 0.2s',
-                            cursor: 'default',
+                            cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            position: 'relative'
                           }}
-                            title={`${domain} -> ${team}: ${count} incidents`}
-                            onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
-                              if (count > 0) e.currentTarget.style.transform = 'scale(1.2)'
-                            }}
-                            onMouseLeave={(e: MouseEvent<HTMLDivElement>) => {
-                              if (count > 0) e.currentTarget.style.transform = 'scale(1)'
-                            }}
+                            className="group"
                           >
                             {count > 0 ? count : ''}
+
+                            {/* Popup Tooltip */}
+                            {count > 0 && (
+                              <div className="hidden group-hover:block" style={{
+                                position: 'absolute',
+                                bottom: '100%',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                zIndex: 10,
+                                minWidth: '150px',
+                                pointerEvents: 'none',
+                                marginBottom: '4px'
+                              }}>
+                                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '4px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', color: 'var(--text-primary)' }}>
+                                  {domain} / {team}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                  <span>Block:</span> <span style={{ color: '#ef4444', fontWeight: '600' }}>{bd.block}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                  <span>Quarantine:</span> <span style={{ color: '#f59e0b', fontWeight: '600' }}>{bd.quarantine}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                                  <span>Authorized:</span> <span style={{ color: '#3b82f6', fontWeight: '600' }}>{bd.authorized}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                                  <span>Permit:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{bd.permit}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )
                       })}

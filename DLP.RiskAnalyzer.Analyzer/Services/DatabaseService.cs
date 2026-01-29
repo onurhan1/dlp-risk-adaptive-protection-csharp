@@ -49,7 +49,13 @@ public class DatabaseService
         }
 
         if (!string.IsNullOrEmpty(user))
-            query = query.Where(i => i.UserEmail == user);
+        {
+            var userLower = user.ToLower();
+            query = query.Where(i => i.UserEmail.ToLower().Contains(userLower) 
+                || (i.EmailAddress != null && i.EmailAddress.ToLower().Contains(userLower))
+                || (i.LoginName != null && i.LoginName.ToLower().Contains(userLower))
+                || (i.FullName != null && i.FullName.ToLower().Contains(userLower)));
+        }
 
         if (!string.IsNullOrEmpty(department))
             query = query.Where(i => i.Department == department);
@@ -282,7 +288,10 @@ public class DatabaseService
                     if (!string.IsNullOrEmpty(fileName))
                         existingIncident.FileName = fileName;
                     if (!string.IsNullOrEmpty(violationTriggers))
+                    {
                         existingIncident.ViolationTriggers = violationTriggers;
+                        existingIncident.MaxMatches = CalculateMaxMatches(violationTriggers);
+                    }
                     if (!string.IsNullOrEmpty(fullName))
                         existingIncident.FullName = fullName;
                     if (!string.IsNullOrEmpty(team))
@@ -367,14 +376,23 @@ public class DatabaseService
                                 int matches = 0;
                                 // Check all casing variants for NumberMatches
                                 System.Text.Json.JsonElement m;
-                                if (classifier.TryGetProperty("number_matches", out m) ||
-                                    classifier.TryGetProperty("NumberMatches", out m) ||
-                                    classifier.TryGetProperty("numberMatches", out m))
+                                // Check all casing variants for NumberMatches (do not rely on || short-circuit as serialized JSON might have all keys)
+                                if (classifier.TryGetProperty("number_matches", out var m1) && m1.ValueKind == System.Text.Json.JsonValueKind.Number)
                                 {
-                                    if (m.ValueKind == System.Text.Json.JsonValueKind.Number)
-                                    {
-                                        matches = m.GetInt32();
-                                    }
+                                    var val = m1.GetInt32();
+                                    if (val > matches) matches = val;
+                                }
+                                
+                                if (classifier.TryGetProperty("NumberMatches", out var m2) && m2.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                {
+                                    var val = m2.GetInt32();
+                                    if (val > matches) matches = val;
+                                }
+
+                                if (classifier.TryGetProperty("numberMatches", out var m3) && m3.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                {
+                                    var val = m3.GetInt32();
+                                    if (val > matches) matches = val;
                                 }
                                 
                                 if (matches > maxMatches) maxMatches = matches;

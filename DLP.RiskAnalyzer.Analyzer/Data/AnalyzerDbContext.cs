@@ -56,6 +56,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.ViolationTriggers).HasColumnName("violation_triggers");
             entity.Property(e => e.MaxMatches).HasColumnName("max_matches").HasDefaultValue(0);
             entity.Property(e => e.RuleName).HasColumnName("rule_name");
+            entity.Property(e => e.HostName).HasColumnName("host_name");
             
             // Remediation fields
             entity.Property(e => e.IsRemediated).HasColumnName("is_remediated").HasDefaultValue(false);

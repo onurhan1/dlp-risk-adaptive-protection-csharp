@@ -7,6 +7,10 @@ import { getApiUrlDynamic } from '@/lib/api-config'
 
 interface ActionIncident {
     login_name: string
+    user_email?: string
+    email_address?: string
+    host_name?: string
+    full_name?: string
     destination: string
     channel: string
     policy: string
@@ -447,7 +451,17 @@ export default function ActionIncidentsModal({
                                             {(page - 1) * pageSize + idx + 1}
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                            {incident.login_name}
+                                            <div title={`Login: ${incident.login_name}\nEmail: ${incident.email_address || incident.user_email || 'N/A'}\nHost: ${incident.host_name || 'N/A'}\nFull Name: ${incident.full_name || 'N/A'}`}>
+                                                {incident.login_name && incident.login_name !== 'unknown' && incident.login_name !== 'N/A'
+                                                    ? incident.login_name
+                                                    : (incident.email_address || incident.host_name || incident.login_name)}
+
+                                                {(incident.host_name || incident.email_address) && (incident.login_name === 'unknown' || incident.login_name === 'N/A') && (
+                                                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                        {incident.host_name ? `(${incident.host_name})` : ''}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
                                             <div style={{

@@ -140,6 +140,11 @@ public class IncidentsController : ControllerBase
                     LoginName = incident.LoginName,
                     EmailAddress = incident.EmailAddress,
                     ViolationTriggers = incident.ViolationTriggers,
+                    FullName = incident.FullName,
+                    Team = incident.Team,
+                    MaxMatches = incident.MaxMatches,
+                    RuleName = incident.RuleName,
+                    HostName = incident.HostName,
                     // Enriched fields
                     RiskLevel = riskLevel,
                     RecommendedAction = policyAction,
@@ -195,6 +200,11 @@ public class IncidentsController : ControllerBase
                 LoginName = incident.LoginName,
                 EmailAddress = incident.EmailAddress,
                 ViolationTriggers = incident.ViolationTriggers,
+                FullName = incident.FullName,
+                Team = incident.Team,
+                MaxMatches = incident.MaxMatches,
+                RuleName = incident.RuleName,
+                HostName = incident.HostName,
                 // Enriched fields
                 RiskLevel = riskLevel,
                 RecommendedAction = policyAction,
