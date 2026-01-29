@@ -859,10 +859,19 @@ public class RiskAnalyzerService
             var userEmail = group.Key;
             var dailyIncidents = group.ToList();
             
-            var totalRiskScore = dailyIncidents.Sum(i => (double)(i.RiskScore ?? 0));
+            var sumRiskScore = dailyIncidents.Sum(i => (double)(i.RiskScore ?? 0));
             var maxRiskScore = dailyIncidents.Max(i => i.RiskScore ?? 0);
             var incidentCount = dailyIncidents.Count;
-            var avgRiskScore = incidentCount > 0 ? totalRiskScore / incidentCount : 0;
+            var avgRiskScore = incidentCount > 0 ? sumRiskScore / incidentCount : 0;
+            
+            // Normalized daily score (1-100 scale)
+            // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+            var normalizedScore = Math.Min(100,
+                (avgRiskScore / 500.0 * 50) +
+                (maxRiskScore / 500.0 * 30) +
+                Math.Min(20, Math.Log10(incidentCount + 1) * 10)
+            );
+            var totalRiskScore = Math.Round(normalizedScore, 2);
 
             // Check if record exists
             var existingRecord = await _context.UserDailyRiskScores

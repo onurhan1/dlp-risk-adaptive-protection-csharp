@@ -12,7 +12,7 @@ END $$;
 
 -- 2. Backfill/Recalculate daily scores for ALL historical incidents
 -- This query aggregates risks per user per day and inserts/updates the daily summary table
--- It gets team/full_name from the incidents themselves
+-- First pass: Insert aggregated scores without team/full_name
 INSERT INTO user_daily_risk_scores (
     user_email, 
     date, 
@@ -20,20 +20,21 @@ INSERT INTO user_daily_risk_scores (
     incident_count, 
     max_risk_score, 
     avg_risk_score, 
-    team, 
-    full_name,
     created_at
 )
 SELECT 
     i.user_email,
     i.timestamp::date as date,
-    COALESCE(SUM(i.risk_score), 0) as daily_risk_score,
+    -- Normalized daily score (1-100 scale)
+    -- Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+    LEAST(100, 
+        (COALESCE(AVG(i.risk_score), 0) / 500.0 * 50) + 
+        (COALESCE(MAX(i.risk_score), 0) / 500.0 * 30) + 
+        LEAST(20, LOG(COUNT(*) + 1) * 10)
+    ) as daily_risk_score,
     COUNT(*) as incident_count,
     COALESCE(MAX(i.risk_score), 0) as max_risk_score,
     COALESCE(AVG(i.risk_score), 0) as avg_risk_score,
-    -- Get the most common or last non-null department/fullname for this user on this day
-    (SELECT department FROM incidents i2 WHERE i2.user_email = i.user_email AND i2.timestamp::date = i.timestamp::date AND department IS NOT NULL LIMIT 1) as team,
-    (SELECT full_name FROM incidents i2 WHERE i2.user_email = i.user_email AND i2.timestamp::date = i.timestamp::date AND full_name IS NOT NULL LIMIT 1) as full_name,
     NOW() as created_at
 FROM incidents i
 GROUP BY i.user_email, i.timestamp::date
@@ -42,9 +43,26 @@ DO UPDATE SET
     daily_risk_score = EXCLUDED.daily_risk_score,
     incident_count = EXCLUDED.incident_count,
     max_risk_score = EXCLUDED.max_risk_score,
-    avg_risk_score = EXCLUDED.avg_risk_score,
-    team = COALESCE(EXCLUDED.team, user_daily_risk_scores.team),
-    full_name = COALESCE(EXCLUDED.full_name, user_daily_risk_scores.full_name);
+    avg_risk_score = EXCLUDED.avg_risk_score;
+
+-- 2b. Fill team/full_name from incidents for each user+date combination
+UPDATE user_daily_risk_scores u
+SET 
+    team = sub.team,
+    full_name = sub.full_name
+FROM (
+    SELECT DISTINCT ON (user_email, timestamp::date)
+        user_email,
+        timestamp::date as date,
+        department as team,
+        full_name
+    FROM incidents
+    WHERE department IS NOT NULL OR full_name IS NOT NULL
+    ORDER BY user_email, timestamp::date, timestamp DESC
+) sub
+WHERE u.user_email = sub.user_email 
+  AND u.date = sub.date
+  AND (u.team IS NULL OR u.full_name IS NULL);
 
 -- 3. If there are still missing team/full_name (e.g. some days had nulls), try to fill from ANY record for that user
 UPDATE user_daily_risk_scores u
