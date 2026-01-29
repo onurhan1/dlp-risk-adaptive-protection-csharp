@@ -448,40 +448,56 @@ public class DatabaseService
                 WriteIndented = false 
             };
             
-            // Parse as dynamic list of objects
-            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(violationTriggersJson, options);
-            if (triggers == null || !triggers.Any()) return "[]";
+            // Parse as JSON document to handle various field names
+            using var doc = System.Text.Json.JsonDocument.Parse(violationTriggersJson);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return "[]";
 
-            // Deduplicate based on policy_name and rule_name
-            var uniqueTriggers = new List<Dictionary<string, object>>();
+            // Deduplicate and clean based on policy_name and rule_name
+            var uniqueTriggers = new List<Dictionary<string, object?>>();
             var seenKeys = new HashSet<string>();
 
-            foreach (var trigger in triggers)
+            foreach (var trigger in doc.RootElement.EnumerateArray())
             {
-                // Try to get PolicyName/policy_name/PolicyNameSnake
-                object? policyObj = null;
-                if (!trigger.TryGetValue("PolicyName", out policyObj) && 
-                    !trigger.TryGetValue("policy_name", out policyObj) && 
-                    !trigger.TryGetValue("PolicyNameSnake", out policyObj))
-                {
-                    policyObj = "unknown";
-                }
+                // Extract policy_name (from various field names)
+                string? policyName = GetJsonStringValue(trigger, "policy_name", "PolicyName", "PolicyNameSnake", "PolicyNamePascal");
                 
-                // Try to get RuleName/rule_name/RuleNameSnake
-                object? ruleObj = null;
-                if (!trigger.TryGetValue("RuleName", out ruleObj) && 
-                    !trigger.TryGetValue("rule_name", out ruleObj) && 
-                    !trigger.TryGetValue("RuleNameSnake", out ruleObj))
-                {
-                    ruleObj = "unknown";
-                }
+                // Extract rule_name (from various field names)
+                string? ruleName = GetJsonStringValue(trigger, "rule_name", "RuleName", "RuleNameSnake", "RuleNamePascal", "RuleNameCamel");
 
-                var key = $"{policyObj?.ToString()}|{ruleObj?.ToString()}";
+                var key = $"{policyName ?? "unknown"}|{ruleName ?? "unknown"}";
                 
                 if (!seenKeys.Contains(key))
                 {
                     seenKeys.Add(key);
-                    uniqueTriggers.Add(trigger);
+                    
+                    // Build clean classifier list
+                    var cleanClassifiers = new List<Dictionary<string, object?>>();
+                    if (trigger.TryGetProperty("classifiers", out var classifiersElem) || 
+                        trigger.TryGetProperty("Classifiers", out classifiersElem))
+                    {
+                        if (classifiersElem.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        {
+                            foreach (var classifier in classifiersElem.EnumerateArray())
+                            {
+                                var classifierName = GetJsonStringValue(classifier, "classifier_name", "ClassifierName", "ClassifierNameSnake", "ClassifierNamePascal");
+                                var numberMatches = GetJsonIntValue(classifier, "number_matches", "NumberMatches", "NumberMatchesSnake", "NumberMatchesPascal", "NumberMatchesCamel");
+                                
+                                cleanClassifiers.Add(new Dictionary<string, object?>
+                                {
+                                    ["classifier_name"] = classifierName,
+                                    ["number_matches"] = numberMatches
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Add clean trigger with only essential fields
+                    uniqueTriggers.Add(new Dictionary<string, object?>
+                    {
+                        ["policy_name"] = policyName,
+                        ["rule_name"] = ruleName,
+                        ["classifiers"] = cleanClassifiers
+                    });
                 }
             }
 
@@ -492,5 +508,33 @@ public class DatabaseService
             _logger.LogWarning("Failed to deduplicate violation triggers: {Error}", ex.Message);
             return violationTriggersJson; // Return original if parsing fails
         }
+    }
+
+    private string? GetJsonStringValue(System.Text.Json.JsonElement element, params string[] fieldNames)
+    {
+        foreach (var fieldName in fieldNames)
+        {
+            if (element.TryGetProperty(fieldName, out var prop) && prop.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                return prop.GetString();
+            }
+        }
+        return null;
+    }
+
+    private int GetJsonIntValue(System.Text.Json.JsonElement element, params string[] fieldNames)
+    {
+        foreach (var fieldName in fieldNames)
+        {
+            if (element.TryGetProperty(fieldName, out var prop))
+            {
+                if (prop.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    var value = prop.GetInt32();
+                    if (value > 0) return value;
+                }
+            }
+        }
+        return 0;
     }
 }

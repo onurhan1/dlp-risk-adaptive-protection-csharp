@@ -313,8 +313,20 @@ public class CollectorBackgroundService : BackgroundService
                                 .Distinct())
                             : null,
 
+                        // Clean ViolationTriggers: remove duplicate fields, keep only essential ones
                         ViolationTriggers = dlpIncident.ViolationTriggers != null 
-                            ? System.Text.Json.JsonSerializer.Serialize(dlpIncident.ViolationTriggers, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }) 
+                            ? System.Text.Json.JsonSerializer.Serialize(
+                                dlpIncident.ViolationTriggers.Select(vt => new 
+                                {
+                                    policy_name = vt.PolicyName,
+                                    rule_name = vt.RuleName,
+                                    classifiers = vt.Classifiers?.Select(c => new 
+                                    {
+                                        classifier_name = c.ClassifierName,
+                                        number_matches = c.NumberMatches
+                                    }).ToList()
+                                }).ToList(), 
+                                new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }) 
                             : null
                     };
 
