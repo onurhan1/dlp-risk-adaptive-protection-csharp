@@ -167,21 +167,31 @@ public class DatabaseService
                 var teamValue = message.Values.FirstOrDefault(v => v.Name == "team");
                 var ruleNameValue = message.Values.FirstOrDefault(v => v.Name == "rule_name");
 
-                if (userEmailValue.Value.IsNull || severityValue.Value.IsNull || timestampValue.Value.IsNull)
-                {
-                    _logger.LogWarning("Skipping invalid message {MessageId}: missing required fields", message.Id);
-                    await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
-                    continue;
-                }
-
-                // Parse ID - DLP API'den gelen orijinal ID
+                // Parse ID first - DLP API'den gelen orijinal ID
                 var incidentId = 0;
                 if (idValue.Value.HasValue && !string.IsNullOrEmpty(idValue.Value.ToString()))
                 {
                     int.TryParse(idValue.Value.ToString(), out incidentId);
                 }
 
-                var userEmail = userEmailValue.Value.ToString();
+                // Validation: ID zorunlu - yoksa veya 0 ise bir sorun var demektir
+                if (incidentId <= 0)
+                {
+                    _logger.LogWarning("Skipping message {MessageId}: missing or invalid ID", message.Id);
+                    await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
+                    continue;
+                }
+                
+                // Timestamp zorunlu
+                if (timestampValue.Value.IsNull)
+                {
+                    _logger.LogWarning("Skipping message {MessageId}: ID={Id} but missing timestamp", message.Id, incidentId);
+                    await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
+                    continue;
+                }
+
+                // userEmail opsiyonel - bazı kullanıcıların user adı olmayabiliyor
+                var userEmail = userEmailValue.Value.HasValue ? userEmailValue.Value.ToString() : "unknown";
                 
                 // Domain prefix'i kaldır (örn: "KUVEYTTURK\enesa" -> "enesa")
                 // Network email ve Endpoint kullanıcılarını birleştirmek için
@@ -191,7 +201,7 @@ public class DatabaseService
                 }
                 
                 var department = departmentValue.Value.HasValue ? departmentValue.Value.ToString() : null;
-                var severity = int.Parse(severityValue.Value.ToString());
+                var severity = severityValue.Value.HasValue && int.TryParse(severityValue.Value.ToString(), out var sev) ? sev : 1;
                 var dataType = dataTypeValue.Value.HasValue ? dataTypeValue.Value.ToString() : null;
                 var timestamp = DateTime.Parse(timestampValue.Value.ToString());
                 var policy = policyValue.Value.HasValue ? policyValue.Value.ToString() : null;
