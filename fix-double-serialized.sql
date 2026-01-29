@@ -1,14 +1,29 @@
 -- Fix double-serialized violation_triggers
--- Pattern: """[{\"PolicyNameSnake\":...}]""" -> needs unescaping first
+-- Pattern: """[{\"PolicyNameSnake\":...}]""" 
+-- Need to: 1) Remove outer quotes 2) Replace \" with "
 
 -- Step 1: Count double-serialized records
 SELECT COUNT(*) as double_serialized_count
 FROM incidents 
-WHERE violation_triggers LIKE '"""%' 
-   OR violation_triggers LIKE '"%[{\"%';
+WHERE violation_triggers LIKE '%PolicyNameSnake%'
+  AND violation_triggers LIKE '%\"%';
 
--- Step 2: Unescape and clean double-serialized records
--- First, remove outer quotes and unescape inner quotes
+-- Step 2: Preview what the unescape will look like
+SELECT id, 
+       LEFT(violation_triggers, 100) as original,
+       LEFT(
+           REPLACE(
+               TRIM(BOTH '"' FROM violation_triggers),
+               '\"', '"'
+           ), 
+           100
+       ) as unescaped
+FROM incidents 
+WHERE violation_triggers LIKE '%PolicyNameSnake%'
+  AND violation_triggers LIKE '%\"%'
+LIMIT 3;
+
+-- Step 3: Unescape and clean double-serialized records
 UPDATE incidents
 SET violation_triggers = (
     SELECT jsonb_agg(
@@ -35,20 +50,23 @@ SET violation_triggers = (
         )
     )::text
     FROM jsonb_array_elements(
-        -- Unescape: remove outer quotes and convert escaped quotes
-        (TRIM(BOTH '"' FROM violation_triggers))::jsonb
+        -- Unescape: remove outer quotes and replace \" with "
+        REPLACE(
+            TRIM(BOTH '"' FROM violation_triggers),
+            '\"', '"'
+        )::jsonb
     ) AS trigger
 )
 WHERE violation_triggers IS NOT NULL
   AND violation_triggers LIKE '%PolicyNameSnake%'
-  AND violation_triggers LIKE '"%';
+  AND violation_triggers LIKE '%\"%';
 
--- Step 3: Verify remaining
+-- Step 4: Verify remaining
 SELECT COUNT(*) as remaining_old_format
 FROM incidents 
 WHERE violation_triggers LIKE '%PolicyNameSnake%';
 
--- Step 4: Show sample of remaining (if any)
+-- Step 5: Show sample of remaining (if any)
 SELECT id, LEFT(violation_triggers, 200) as sample
 FROM incidents 
 WHERE violation_triggers LIKE '%PolicyNameSnake%'
