@@ -242,12 +242,12 @@ public class DatabaseService
                         LoginName = string.IsNullOrEmpty(loginName) ? null : loginName,
                         HostName = string.IsNullOrEmpty(hostName) ? null : hostName,
                         EmailAddress = string.IsNullOrEmpty(emailAddress) ? null : emailAddress,
-                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : violationTriggers,
+                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers),
                         // FullName, Team, RuleName
                         FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
                         Team = string.IsNullOrEmpty(team) ? null : team,
                         RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName,
-                        MaxMatches = CalculateMaxMatches(violationTriggers)
+                        MaxMatches = CalculateMaxMatches(string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers))
                     };
 
                     _context.Incidents.Add(incident);
@@ -289,8 +289,9 @@ public class DatabaseService
                         existingIncident.FileName = fileName;
                     if (!string.IsNullOrEmpty(violationTriggers))
                     {
-                        existingIncident.ViolationTriggers = violationTriggers;
-                        existingIncident.MaxMatches = CalculateMaxMatches(violationTriggers);
+                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers);
+                        existingIncident.ViolationTriggers = dedupedTriggers;
+                        existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
                     }
                     if (!string.IsNullOrEmpty(fullName))
                         existingIncident.FullName = fullName;
@@ -397,7 +398,66 @@ public class DatabaseService
                                 
                                 if (matches > maxMatches) maxMatches = matches;
                             }
-                        }
+                            }
+
+    private string DeduplicateViolationTriggers(string? violationTriggersJson)
+    {
+        if (string.IsNullOrEmpty(violationTriggersJson)) return "[]";
+
+        try
+        {
+            var options = new System.Text.Json.JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true,
+                WriteIndented = false 
+            };
+            
+            // Parse as dynamic list of objects
+            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(violationTriggersJson, options);
+            if (triggers == null || !triggers.Any()) return "[]";
+
+            // Deduplicate based on policy_name and rule_name
+            var uniqueTriggers = new List<Dictionary<string, object>>();
+            var seenKeys = new HashSet<string>();
+
+            foreach (var trigger in triggers)
+            {
+                // Try to get PolicyName/policy_name/PolicyNameSnake
+                object? policyObj = null;
+                if (!trigger.TryGetValue("PolicyName", out policyObj) && 
+                    !trigger.TryGetValue("policy_name", out policyObj) && 
+                    !trigger.TryGetValue("PolicyNameSnake", out policyObj))
+                {
+                    policyObj = "unknown";
+                }
+                
+                // Try to get RuleName/rule_name/RuleNameSnake
+                object? ruleObj = null;
+                if (!trigger.TryGetValue("RuleName", out ruleObj) && 
+                    !trigger.TryGetValue("rule_name", out ruleObj) && 
+                    !trigger.TryGetValue("RuleNameSnake", out ruleObj))
+                {
+                    ruleObj = "unknown";
+                }
+
+                var key = $"{policyObj?.ToString()}|{ruleObj?.ToString()}";
+                
+                if (!seenKeys.Contains(key))
+                {
+                    seenKeys.Add(key);
+                    uniqueTriggers.Add(trigger);
+                }
+            }
+
+            return System.Text.Json.JsonSerializer.Serialize(uniqueTriggers, options);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Failed to deduplicate violation triggers: {Error}", ex.Message);
+            return violationTriggersJson; // Return original if parsing fails
+        }
+    }
+}
                     }
                 }
             }
