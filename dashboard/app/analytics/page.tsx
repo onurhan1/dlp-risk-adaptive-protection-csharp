@@ -199,7 +199,7 @@ export default function AnalyticsPage() {
     const teams = new Set<string>()
     const domains = new Set<string>()
     const counts: Record<string, Record<string, number>> = {}
-    const breakdown: Record<string, Record<string, { block: number, permit: number, authorized: number, quarantine: number }>> = {}
+    const breakdown: Record<string, Record<string, { block: number, permit: number, authorized: number, quarantine: number, maxMatchTotal: number, incidentCount: number }>> = {}
     const domainTotalCounts: Record<string, number> = {}
 
     filteredIncidents.forEach(incident => {
@@ -214,12 +214,17 @@ export default function AnalyticsPage() {
       counts[team][domain] = (counts[team][domain] || 0) + 1
 
       if (!breakdown[team]) breakdown[team] = {}
-      if (!breakdown[team][domain]) breakdown[team][domain] = { block: 0, permit: 0, authorized: 0, quarantine: 0 }
+      if (!breakdown[team][domain]) breakdown[team][domain] = { block: 0, permit: 0, authorized: 0, quarantine: 0, maxMatchTotal: 0, incidentCount: 0 }
 
-      if (action === 'block') breakdown[team][domain].block++
-      else if (action === 'permit') breakdown[team][domain].permit++
-      else if (action === 'authorized' || action === 'allow') breakdown[team][domain].authorized++
-      else if (action === 'quarantine') breakdown[team][domain].quarantine++
+      // Add maxMatches to total for average calculation
+      breakdown[team][domain].maxMatchTotal += (incident.maxMatches || 0)
+      breakdown[team][domain].incidentCount++
+
+      // Action matching with includes for variations like BLOCKED, Block, blocked
+      if (action.includes('block')) breakdown[team][domain].block++
+      else if (action.includes('permit') || action.includes('released')) breakdown[team][domain].permit++
+      else if (action.includes('authorized') || action.includes('allow')) breakdown[team][domain].authorized++
+      else if (action.includes('quarantine')) breakdown[team][domain].quarantine++
 
       domainTotalCounts[domain] = (domainTotalCounts[domain] || 0) + 1
     })
@@ -241,12 +246,16 @@ export default function AnalyticsPage() {
   const getHeatmapColor = (count: number, max: number) => {
     if (count === 0) return 'transparent'
     const intensity = max > 0 ? count / max : 0
-    const lightness = 95 - (intensity * 55)
-    return `hsl(200, 80%, ${lightness}%)`
+    // Daha koyu renkler: 85'ten 25'e kadar (açık maviden koyu maviye)
+    const lightness = 85 - (intensity * 60)
+    return `hsl(210, 90%, ${lightness}%)`
   }
 
   const getTextColor = (count: number, max: number) => {
-    return 'var(--text-primary)' // Always use dark/primary text color as requested (Siyah olabilir)
+    if (count === 0) return 'var(--text-primary)'
+    const intensity = max > 0 ? count / max : 0
+    // Açık arka planlarda (intensity < 0.4) siyah, koyu arka planlarda beyaz
+    return intensity > 0.4 ? '#ffffff' : '#1e293b'
   }
 
   const getYesNoColor = (value: string) => {
@@ -726,8 +735,11 @@ export default function AnalyticsPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                   <span>Authorized:</span> <span style={{ color: '#3b82f6', fontWeight: '600' }}>{bd.authorized}</span>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                   <span>Permit:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{bd.permit}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
+                                  <span>Avg Max Match:</span> <span style={{ color: '#8b5cf6', fontWeight: '600' }}>{bd.incidentCount > 0 ? (bd.maxMatchTotal / bd.incidentCount).toFixed(1) : 0}</span>
                                 </div>
                               </div>
                             )}
