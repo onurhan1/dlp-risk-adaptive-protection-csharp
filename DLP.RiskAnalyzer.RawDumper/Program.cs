@@ -29,8 +29,8 @@ public class Program
         Console.WriteLine();
 
         // Parse command line arguments
-        DateTime startDate;
-        DateTime endDate;
+        DateTime startDate = DateTime.Now.AddHours(-24);
+        DateTime endDate = DateTime.Now;
         
         var dateArg = GetArgValue(args, "--date");
         var startArg = GetArgValue(args, "--start");
@@ -142,10 +142,10 @@ public class Program
                 return;
             }
             
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var jsonPath = $"incident_{singleIncidentId}_{timestamp}.json";
-            File.WriteAllText(jsonPath, JsonConvert.SerializeObject(incident, Formatting.Indented));
-            Console.WriteLine($"\n✅ Full incident saved to: {jsonPath}");
+            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var outPath = $"incident_{singleIncidentId}_{ts}.json";
+            File.WriteAllText(outPath, JsonConvert.SerializeObject(incident, Formatting.Indented));
+            Console.WriteLine($"\n✅ Full incident saved to: {outPath}");
             
             // Print all fields
             Console.WriteLine("\n=== ALL ROOT FIELDS ===");
