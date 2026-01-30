@@ -169,6 +169,28 @@ public class Program
         
         Console.WriteLine($"Exported {incidents.Count} records to {csvPath}");
         
+        // Export first 3 incidents as full JSON for field discovery
+        var jsonPath = $"raw_sample_{timestamp}.json";
+        var sampleIncidents = incidents.Take(3).ToList();
+        File.WriteAllText(jsonPath, JsonConvert.SerializeObject(sampleIncidents, Formatting.Indented));
+        Console.WriteLine($"Saved {sampleIncidents.Count} sample incidents to {jsonPath} (for field discovery)");
+        
+        // List all source fields found
+        Console.WriteLine("\n=== SOURCE OBJECT FIELDS FOUND ===");
+        var allSourceFields = new HashSet<string>();
+        foreach (var inc in incidents.Take(50))
+        {
+            var source = inc["source"] as JObject;
+            if (source != null)
+            {
+                foreach (var prop in source.Properties())
+                {
+                    allSourceFields.Add(prop.Name);
+                }
+            }
+        }
+        Console.WriteLine($"Fields in source: {string.Join(", ", allSourceFields.OrderBy(x => x))}");
+        
         // Summary
         Console.WriteLine("\n=== UNIQUE VALUES SUMMARY ===");
         
