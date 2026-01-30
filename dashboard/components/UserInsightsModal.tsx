@@ -127,8 +127,8 @@ export default function UserInsightsModal({
 
     const periodLabels: Record<PeriodFilter, string> = {
         daily: 'Last 7 Days',
-        weekly: 'Last 4 Weeks',
-        monthly: 'Last Month',
+        weekly: 'Last 2 Weeks',
+        monthly: 'Last 1 Month',
         quarterly: 'Last 3 Months'
     }
 

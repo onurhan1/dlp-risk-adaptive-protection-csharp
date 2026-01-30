@@ -76,7 +76,8 @@ export default function Home() {
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
   const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
-  const [topUsersQuarterly, setTopUsersQuarterly] = useState<TopUser[]>([])
+  const [topUsersPeriod, setTopUsersPeriod] = useState<TopUser[]>([])
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
@@ -102,7 +103,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchData()
-  }, [selectedDimension, dateRange.start, dateRange.end])
+  }, [selectedDimension, dateRange.start, dateRange.end, selectedPeriod])
 
   // Separate effect for Daily Trends
   useEffect(() => {
@@ -141,7 +142,7 @@ export default function Home() {
       const apiUrl = getApiUrlDynamic()
 
       // Fetch data from new user_daily_risk_scores based endpoints
-      const [deptRes, topUsers24hRes, topUsersQuarterlyRes, actionRes, incidentsRes] = await Promise.all([
+      const [deptRes, topUsers24hRes, topUsersPeriodRes, actionRes, incidentsRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -152,9 +153,9 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
           params: { period: '24h', limit: 10 }
         }).catch(() => ({ data: [] })),
-        // Top users quarterly (3 months) from user_daily_risk_scores
+        // Top users for selected period from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
-          params: { period: 'quarterly', limit: 10 }
+          params: { period: selectedPeriod, limit: 10 }
         }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
         // Still need incidents for rules calculation
@@ -171,9 +172,9 @@ export default function Home() {
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
 
-      // Set top users from new API (already normalized 0-100 scale)
+      // Set top users from new API (already normalized 0-100 scale with consistency factor)
       setTopUsers24h(topUsers24hRes.data || [])
-      setTopUsersQuarterly(topUsersQuarterlyRes.data || [])
+      setTopUsersPeriod(topUsersPeriodRes.data || [])
 
       // Calculate top rules from dateRange incidents
       const rulesMap = new Map<string, number>()
@@ -411,13 +412,32 @@ export default function Home() {
       )
       }
 
-      {/* Two Column Layout - Quarterly Top Users & 24h Top Users */}
+      {/* Two Column Layout - Period Top Users & 24h Top Users */}
       <div className="dashboard-grid">
-        {/* 3-Month (Quarterly) Top Users - Main Risk View */}
+        {/* Top Risky Users with Period Selector */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ margin: 0 }}>🎯 Top Risky Users</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: 'var(--primary)', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 3 Months</span>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="weekly">Last Week</option>
+              <option value="monthly">Last 1 Month</option>
+              <option value="quarterly">Last 3 Months</option>
+              <option value="6month">Last 6 Months</option>
+              <option value="yearly">Last 1 Year</option>
+            </select>
           </div>
           <table className="data-table">
             <thead>
@@ -433,18 +453,16 @@ export default function Home() {
                 <tr>
                   <td colSpan={4} className="loading-cell">Loading...</td>
                 </tr>
-              ) : topUsersQuarterly.length === 0 ? (
+              ) : topUsersPeriod.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="empty-cell">No data available</td>
                 </tr>
               ) : (
-                topUsersQuarterly.map((user, idx) => (
+                topUsersPeriod.map((user, idx) => (
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
-                        <div style={{ fontWeight: '500' }}>{user.full_name || user.user_email}</div>
-                        {user.full_name && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.user_email}</div>}
-                        {user.team && <div style={{ fontSize: '10px', color: 'var(--primary)' }}>{user.team}</div>}
+                        <div style={{ fontWeight: '500' }}>{user.user_email}</div>
                       </div>
                     </td>
                     <td className="text-center">
@@ -499,8 +517,7 @@ export default function Home() {
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
-                        <div style={{ fontWeight: '500' }}>{user.full_name || user.user_email}</div>
-                        {user.full_name && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.user_email}</div>}
+                        <div style={{ fontWeight: '500' }}>{user.user_email}</div>
                       </div>
                     </td>
                     <td className="text-center">

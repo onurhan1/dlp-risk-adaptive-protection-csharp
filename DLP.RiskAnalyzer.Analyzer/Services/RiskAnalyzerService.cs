@@ -974,7 +974,7 @@ public class RiskAnalyzerService
                 startDate = endDate.AddDays(-7);
                 break;
             case "weekly":
-                startDate = endDate.AddDays(-28);
+                startDate = endDate.AddDays(-14); // 2 weeks
                 break;
             case "monthly":
                 startDate = endDate.AddDays(-30);
@@ -1245,25 +1245,41 @@ public class RiskAnalyzerService
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         DateOnly startDate;
+        int minDaysRequired = 1; // Minimum days with activity required for multi-day periods
         
         switch (period.ToLower())
         {
             case "24h":
             case "daily":
                 startDate = endDate; // Today only
+                minDaysRequired = 1;
                 break;
             case "weekly":
                 startDate = endDate.AddDays(-7);
+                minDaysRequired = 2; // At least 2 days in a week
                 break;
             case "monthly":
+            case "1month":
                 startDate = endDate.AddDays(-30);
+                minDaysRequired = 3; // At least 3 days in a month
                 break;
             case "quarterly":
             case "3month":
                 startDate = endDate.AddDays(-90);
+                minDaysRequired = 5; // At least 5 days in 3 months
+                break;
+            case "6month":
+                startDate = endDate.AddDays(-180);
+                minDaysRequired = 7; // At least 7 days in 6 months
+                break;
+            case "yearly":
+            case "12month":
+                startDate = endDate.AddDays(-365);
+                minDaysRequired = 10; // At least 10 days in a year
                 break;
             default:
                 startDate = endDate.AddDays(-1);
+                minDaysRequired = 1;
                 break;
         }
 
@@ -1272,11 +1288,12 @@ public class RiskAnalyzerService
             .Where(r => r.Date >= startDate && r.Date <= endDate)
             .ToListAsync();
 
-        // Group by user and calculate aggregated metrics
+        // Group by user and calculate aggregated metrics with consistency factor
         var userGroups = scores
             .GroupBy(s => s.UserEmail)
             .Select(g => {
                 var userScores = g.ToList();
+                var daysWithActivity = userScores.Count;
                 var totalIncidents = userScores.Sum(s => s.IncidentCount);
                 var avgDailyScore = userScores.Average(s => s.DailyRiskScore);
                 var maxDailyScore = userScores.Max(s => s.DailyRiskScore);
@@ -1289,27 +1306,40 @@ public class RiskAnalyzerService
                 var avgRiskScore = userScores.Average(s => s.AvgRiskScore);
                 var maxRiskScore = userScores.Max(s => s.MaxRiskScore);
                 
-                var periodScore = Math.Min(100,
+                var baseScore = Math.Min(100,
                     (avgRiskScore / 500.0 * 50) +
                     (maxRiskScore / 500.0 * 30) +
                     Math.Min(20, Math.Log10(totalIncidents + 1) * 10)
                 );
                 
+                // HYBRID APPROACH: Apply consistency factor for multi-day periods
+                // Single-day events get penalized, persistent behavior gets full score
+                // consistency_factor = MIN(1, days_with_activity / minDaysRequired)
+                // For 24h/daily period, no penalty applied (consistencyFactor = 1)
+                double consistencyFactor = period.ToLower() == "24h" || period.ToLower() == "daily" 
+                    ? 1.0 
+                    : Math.Min(1.0, (double)daysWithActivity / minDaysRequired);
+                
+                var adjustedScore = baseScore * consistencyFactor;
+                
                 return new {
                     UserEmail = g.Key,
                     FullName = latestScore?.FullName,
                     Team = latestScore?.Team,
-                    PeriodScore = Math.Round(periodScore, 1),
+                    BaseScore = Math.Round(baseScore, 1),
+                    AdjustedScore = Math.Round(adjustedScore, 1),
+                    ConsistencyFactor = Math.Round(consistencyFactor, 2),
                     AvgDailyScore = Math.Round(avgDailyScore, 1),
                     MaxDailyScore = Math.Round(maxDailyScore, 1),
                     TotalIncidents = totalIncidents,
                     TotalBlocks = totalBlocks,
                     TotalQuarantines = totalQuarantines,
-                    DaysWithActivity = userScores.Count
+                    DaysWithActivity = daysWithActivity,
+                    MinDaysRequired = minDaysRequired
                 };
             })
             .Where(u => u.TotalIncidents > 0)
-            .OrderByDescending(u => u.PeriodScore)
+            .OrderByDescending(u => u.AdjustedScore) // Sort by adjusted score (with consistency factor)
             .Take(limit)
             .ToList();
 
@@ -1318,13 +1348,16 @@ public class RiskAnalyzerService
             { "user_email", u.UserEmail },
             { "full_name", u.FullName ?? "" },
             { "team", u.Team ?? "" },
-            { "risk_score", u.PeriodScore },
+            { "risk_score", u.AdjustedScore }, // Use adjusted score as main score
+            { "base_score", u.BaseScore },
+            { "consistency_factor", u.ConsistencyFactor },
             { "avg_daily_score", u.AvgDailyScore },
             { "max_daily_score", u.MaxDailyScore },
             { "total_incidents", u.TotalIncidents },
             { "total_blocks", u.TotalBlocks },
             { "total_quarantines", u.TotalQuarantines },
             { "days_with_activity", u.DaysWithActivity },
+            { "min_days_required", u.MinDaysRequired },
             { "period", period }
         }).ToList();
     }
