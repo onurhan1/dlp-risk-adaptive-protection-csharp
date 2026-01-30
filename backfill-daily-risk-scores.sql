@@ -36,6 +36,7 @@ END $$;
 
 -- 2. Backfill/Recalculate daily scores for ALL historical incidents
 -- This query aggregates risks per user per day and inserts/updates the daily summary table
+-- COALESCE: user_email boş ise email_address, o da boşsa login_name kullanılır
 INSERT INTO user_daily_risk_scores (
     user_email, 
     date, 
@@ -52,7 +53,12 @@ INSERT INTO user_daily_risk_scores (
     created_at
 )
 SELECT 
-    i.user_email,
+    COALESCE(
+        NULLIF(TRIM(i.user_email), ''),
+        NULLIF(TRIM(i.email_address), ''),
+        NULLIF(TRIM(i.login_name), ''),
+        'unknown'
+    ) as user_email,
     i.timestamp::date as date,
     -- Normalized daily score (1-100 scale)
     -- Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
@@ -74,7 +80,12 @@ SELECT
     COALESCE(AVG(i.max_matches), 0) as avg_max_matches,
     NOW() as created_at
 FROM incidents i
-GROUP BY i.user_email, i.timestamp::date
+GROUP BY COALESCE(
+    NULLIF(TRIM(i.user_email), ''),
+    NULLIF(TRIM(i.email_address), ''),
+    NULLIF(TRIM(i.login_name), ''),
+    'unknown'
+), i.timestamp::date
 ON CONFLICT (user_email, date) 
 DO UPDATE SET
     daily_risk_score = EXCLUDED.daily_risk_score,
@@ -89,21 +100,28 @@ DO UPDATE SET
     avg_max_matches = EXCLUDED.avg_max_matches;
 
 -- 2b. Fill team/full_name from incidents for each user+date combination
+-- COALESCE ile user_email, email_address veya login_name eşleştirmesi yapılır
 UPDATE user_daily_risk_scores u
 SET 
     team = sub.team,
     full_name = sub.full_name
 FROM (
-    SELECT DISTINCT ON (user_email, timestamp::date)
-        user_email,
+    SELECT DISTINCT ON (
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown'),
+        timestamp::date
+    )
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown') as resolved_email,
         timestamp::date as date,
         department as team,
         full_name
     FROM incidents
     WHERE department IS NOT NULL OR full_name IS NOT NULL
-    ORDER BY user_email, timestamp::date, timestamp DESC
+    ORDER BY 
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown'),
+        timestamp::date, 
+        timestamp DESC
 ) sub
-WHERE u.user_email = sub.user_email 
+WHERE u.user_email = sub.resolved_email 
   AND u.date = sub.date
   AND (u.team IS NULL OR u.full_name IS NULL);
 
@@ -113,15 +131,19 @@ SET
     team = COALESCE(u.team, info.team),
     full_name = COALESCE(u.full_name, info.full_name)
 FROM (
-    SELECT DISTINCT ON (user_email) 
-        user_email, 
+    SELECT DISTINCT ON (
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown')
+    )
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown') as resolved_email, 
         department as team, 
         full_name
     FROM incidents
     WHERE department IS NOT NULL OR full_name IS NOT NULL
-    ORDER BY user_email, timestamp DESC
+    ORDER BY 
+        COALESCE(NULLIF(TRIM(user_email), ''), NULLIF(TRIM(email_address), ''), NULLIF(TRIM(login_name), ''), 'unknown'),
+        timestamp DESC
 ) info
-WHERE u.user_email = info.user_email 
+WHERE u.user_email = info.resolved_email 
   AND (u.team IS NULL OR u.full_name IS NULL);
 
 -- Verification
