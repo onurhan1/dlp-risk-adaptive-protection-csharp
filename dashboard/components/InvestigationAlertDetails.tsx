@@ -115,7 +115,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             })()}
           </div>
 
-          {/* Matched Rules Sub-section */}
+          {/* Matched Rules Sub-section with Grouped Classifiers */}
           {(() => {
             let triggers: any[] = []
             if (event.violationTriggers) {
@@ -126,56 +126,57 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               }
             }
 
-            // Calculate total matches per rule
-            const rulesWithMatches = triggers.map((t: any) => {
-              const totalMatches = (t.Classifiers || []).reduce((sum: number, c: any) => sum + (c.NumberMatches || 0), 0)
-              return {
-                ruleName: t.RuleName,
-                totalMatches
-              }
-            }).filter((r: any) => r.ruleName)
+            // Build rules with their classifiers grouped
+            const rulesWithClassifiers = triggers.map((t: any) => ({
+              ruleName: t.RuleName,
+              classifiers: (t.Classifiers || [])
+                .filter((c: any) => c.ClassifierName && c.NumberMatches > 0)
+                .map((c: any) => ({
+                  name: c.ClassifierName,
+                  matches: c.NumberMatches
+                }))
+            })).filter((r: any) => r.ruleName)
 
             // Fallback to matched_rules if no triggers
-            const legacyRules = rulesWithMatches.length === 0 ? (event.matched_rules || []) : []
-
-            // Extract classifiers with NumberMatches grouped by rule
-            const classifiersWithMatches = triggers.flatMap((t: any) =>
-              (t.Classifiers || []).map((c: any) => ({
-                name: c.ClassifierName,
-                matches: c.NumberMatches,
-                rule: t.RuleName
-              }))
-            ).filter((c: any) => c.name && c.matches > 0)
+            const legacyRules = rulesWithClassifiers.length === 0 ? (event.matched_rules || []) : []
 
             return (
               <>
-                {rulesWithMatches.length > 0 && (
+                {rulesWithClassifiers.length > 0 && (
                   <div style={{ marginTop: '12px' }}>
-                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
-                      {rulesWithMatches.map((rule: any, idx: number) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
-                            <span style={{ color: 'var(--text-primary)' }}>{rule.ruleName}</span>
+                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '8px' }}>Matched Rules</h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingLeft: '8px' }}>
+                      {rulesWithClassifiers.map((rule: any, idx: number) => (
+                        <div key={idx} style={{ borderLeft: '2px solid #ef4444', paddingLeft: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 {rule.ruleName}</span>
                           </div>
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            background: rule.totalMatches >= 10 ? '#dc2626' : rule.totalMatches >= 5 ? '#f59e0b' : '#10b981',
-                            color: 'white'
-                          }}>
-                            {rule.totalMatches} matches
-                          </span>
+                          {rule.classifiers.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
+                              {rule.classifiers.map((c: any, cIdx: number) => (
+                                <div key={cIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '4px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
+                                  <span style={{ color: 'var(--text-secondary)' }}>├── {c.name}</span>
+                                  <span style={{
+                                    padding: '2px 6px',
+                                    borderRadius: '10px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
+                                    color: 'white'
+                                  }}>
+                                    {c.matches}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Legacy rules without match count */}
+                {/* Legacy rules without classifiers */}
                 {legacyRules.length > 0 && (
                   <div style={{ marginTop: '12px' }}>
                     <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
@@ -184,32 +185,6 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
                           <span style={{ color: 'var(--text-primary)' }}>{rule}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* MaxMatches - Classifier Matches Section */}
-                {classifiersWithMatches.length > 0 && (
-                  <div style={{ marginTop: '12px' }}>
-                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      Classifier Matches
-                    </h5>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
-                      {classifiersWithMatches.map((c: any, idx: number) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
-                          <span style={{ color: 'var(--text-primary)' }}>{c.name}</span>
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
-                            color: 'white'
-                          }}>
-                            {c.matches} matches
-                          </span>
                         </div>
                       ))}
                     </div>
