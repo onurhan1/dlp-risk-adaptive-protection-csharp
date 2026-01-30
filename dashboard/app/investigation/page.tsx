@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import apiClient from '@/lib/axios'
 import { format } from 'date-fns'
 import InvestigationUsersList from '@/components/InvestigationUsersList'
@@ -37,11 +38,13 @@ interface TimelineEvent {
 }
 
 export default function InvestigationPage() {
+  const searchParams = useSearchParams()
   const [selectedUser, setSelectedUser] = useState<string>()
   const [selectedUserRiskScore, setSelectedUserRiskScore] = useState<number | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent>()
   const [activeTab, setActiveTab] = useState<'users' | 'alerts'>('users')
   const [searchQuery, setSearchQuery] = useState('')
+  const [initialUserLoaded, setInitialUserLoaded] = useState(false)
   const [filterRisk, setFilterRisk] = useState<string>('all')
   const [filterClassification, setFilterClassification] = useState<string>('all')
   const [aiAnalysis, setAiAnalysis] = useState<any>(null)
@@ -54,6 +57,18 @@ export default function InvestigationPage() {
   const [alertsPage, setAlertsPage] = useState(1)
   const [alertsTotal, setAlertsTotal] = useState(0)
   const alertsPageSize = 2000
+
+  // Read user from URL query parameter on initial load
+  useEffect(() => {
+    if (!initialUserLoaded) {
+      const userFromUrl = searchParams.get('user')
+      if (userFromUrl) {
+        setSearchQuery(userFromUrl)
+        setSelectedUser(userFromUrl)
+      }
+      setInitialUserLoaded(true)
+    }
+  }, [searchParams, initialUserLoaded])
 
   // Load AI Behavioral Analysis when user is selected
   useEffect(() => {

@@ -1400,20 +1400,20 @@ public class RiskAnalyzerService
     /// Get high impact alerts - single-day events with unusually high max_matches
     /// These are potential data exfiltration attempts that would be penalized by consistency factor
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int limit = 10)
+    public async Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20)
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        // Get all scores in range
+        // Get all scores in range with filters
         var scores = await _context.UserDailyRiskScores
             .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .Where(r => r.MaxMaxMatches >= minMaxMatches)
+            .Where(r => r.DailyRiskScore >= minDailyRiskScore)
             .ToListAsync();
 
-        // Find single-day high-impact events
-        // Users with high max_matches on a single day but low total days (potential exfiltration)
-        var highImpactAlerts = scores
-            .Where(s => s.MaxMaxMatches >= minMaxMatches) // High data volume
+        // Find high-impact events and enrich with incident details
+        var highImpactAlertsRaw = scores
             .GroupBy(s => s.UserEmail)
             .Select(g => {
                 var userScores = g.ToList();
@@ -1421,7 +1421,6 @@ public class RiskAnalyzerService
                 var daysWithActivity = userScores.Count;
                 
                 // Calculate impact score based on max matches and severity
-                // Higher max_matches = higher impact
                 var impactScore = Math.Min(100, (highestDay.MaxMaxMatches / 10.0) + (highestDay.DailyRiskScore * 0.5));
                 
                 return new {
@@ -1437,34 +1436,90 @@ public class RiskAnalyzerService
                     QuarantineCount = highestDay.QuarantineCount,
                     DaysWithActivity = daysWithActivity,
                     TotalIncidentsInPeriod = userScores.Sum(s => s.IncidentCount),
-                    // Flag if this is a one-time event (potential exfiltration attempt)
                     IsSingleDayEvent = daysWithActivity == 1,
-                    // Severity level
                     SeverityLevel = highestDay.MaxMaxMatches >= 500 ? "Critical" :
                                    highestDay.MaxMaxMatches >= 200 ? "High" :
                                    highestDay.MaxMaxMatches >= 100 ? "Medium" : "Low"
                 };
             })
-            .OrderByDescending(a => a.ImpactScore)
-            .Take(limit)
+            .OrderByDescending(a => a.HighestRiskDate) // Sort by date (newest first)
+            .ThenByDescending(a => a.ImpactScore)
             .ToList();
 
-        return highImpactAlerts.Select(a => new Dictionary<string, object>
+        // Total count for pagination
+        var totalCount = highImpactAlertsRaw.Count;
+
+        // Apply pagination
+        var paginatedAlerts = highImpactAlertsRaw
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        // Fetch incident details for each alert
+        var alertsWithDetails = new List<Dictionary<string, object>>();
+        
+        foreach (var alert in paginatedAlerts)
         {
-            { "user_email", a.UserEmail },
-            { "full_name", a.FullName ?? "" },
-            { "team", a.Team ?? "" },
-            { "impact_score", a.ImpactScore },
-            { "max_max_matches", a.MaxMaxMatches },
-            { "highest_risk_date", a.HighestRiskDate.ToString("yyyy-MM-dd") },
-            { "daily_risk_score", a.DailyRiskScore },
-            { "incident_count", a.IncidentCount },
-            { "block_count", a.BlockCount },
-            { "quarantine_count", a.QuarantineCount },
-            { "days_with_activity", a.DaysWithActivity },
-            { "total_incidents_in_period", a.TotalIncidentsInPeriod },
-            { "is_single_day_event", a.IsSingleDayEvent },
-            { "severity_level", a.SeverityLevel }
-        }).ToList();
+            // Get incident details from incidents table for the highest risk date
+            var startOfDay = alert.HighestRiskDate.ToDateTime(TimeOnly.MinValue);
+            var endOfDay = alert.HighestRiskDate.ToDateTime(TimeOnly.MaxValue);
+            
+            var incidentDetails = await _context.Incidents
+                .Where(i => i.UserEmail == alert.UserEmail)
+                .Where(i => i.Timestamp >= startOfDay && i.Timestamp <= endOfDay)
+                .OrderByDescending(i => i.MaxMatches)
+                .Take(5) // Top 5 incidents for this day
+                .Select(i => new {
+                    i.FileName,
+                    Destination = i.Destination,
+                    i.Channel,
+                    i.Action,
+                    i.Policy,
+                    i.MaxMatches,
+                    EventTimestamp = i.Timestamp
+                })
+                .ToListAsync();
+
+            var alertDict = new Dictionary<string, object>
+            {
+                { "user_email", alert.UserEmail },
+                { "full_name", alert.FullName ?? "" },
+                { "team", alert.Team ?? "" },
+                { "impact_score", alert.ImpactScore },
+                { "max_max_matches", alert.MaxMaxMatches },
+                { "highest_risk_date", alert.HighestRiskDate.ToString("yyyy-MM-dd") },
+                { "daily_risk_score", alert.DailyRiskScore },
+                { "incident_count", alert.IncidentCount },
+                { "block_count", alert.BlockCount },
+                { "quarantine_count", alert.QuarantineCount },
+                { "days_with_activity", alert.DaysWithActivity },
+                { "total_incidents_in_period", alert.TotalIncidentsInPeriod },
+                { "is_single_day_event", alert.IsSingleDayEvent },
+                { "severity_level", alert.SeverityLevel },
+                { "incident_details", incidentDetails.Select(i => new Dictionary<string, object>
+                    {
+                        { "file_name", i.FileName ?? "" },
+                        { "destination", i.Destination ?? "" },
+                        { "channel", i.Channel ?? "" },
+                        { "action", i.Action ?? "" },
+                        { "policy", i.Policy ?? "" },
+                        { "max_matches", i.MaxMatches },
+                        { "timestamp", i.EventTimestamp.ToString("yyyy-MM-dd HH:mm:ss") }
+                    }).ToList()
+                }
+            };
+            
+            alertsWithDetails.Add(alertDict);
+        }
+
+        return new {
+            data = alertsWithDetails,
+            pagination = new {
+                page = page,
+                pageSize = pageSize,
+                totalCount = totalCount,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            }
+        };
     }
 }

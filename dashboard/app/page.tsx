@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
-import RiskTimelineChart from '../components/RiskTimelineChart'
 import ChannelActivity from '../components/ChannelActivity'
 import RiskLevelBadge from '../components/RiskLevelBadge'
 import ActionIncidentsModal from '../components/ActionIncidentsModal'
@@ -62,17 +62,42 @@ interface TopUser {
   period?: string
 }
 
+interface IncidentDetail {
+  file_name: string
+  destination: string
+  channel: string
+  action: string
+  policy: string
+  max_matches: number
+  timestamp: string
+}
+
 interface HighImpactAlert {
   user_email: string
+  full_name?: string
+  team?: string
   impact_score: number
   max_max_matches: number
   highest_risk_date: string
   daily_risk_score: number
   incident_count: number
   block_count: number
+  quarantine_count: number
   days_with_activity: number
+  total_incidents_in_period: number
   is_single_day_event: boolean
   severity_level: string
+  incident_details: IncidentDetail[]
+}
+
+interface HighImpactAlertsResponse {
+  data: HighImpactAlert[]
+  pagination: {
+    page: number
+    pageSize: number
+    totalCount: number
+    totalPages: number
+  }
 }
 
 interface ActionSummary {
@@ -85,12 +110,15 @@ interface ActionSummary {
 }
 
 export default function Home() {
+  const router = useRouter()
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
   const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
   const [topUsersPeriod, setTopUsersPeriod] = useState<TopUser[]>([])
   const [highImpactAlerts, setHighImpactAlerts] = useState<HighImpactAlert[]>([])
+  const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+  const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -171,10 +199,10 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
           params: { period: selectedPeriod, limit: 10 }
         }).catch(() => ({ data: [] })),
-        // High impact alerts - potential data exfiltration
+        // High impact alerts - potential data exfiltration (minMaxMatches=100, minDailyRiskScore=80)
         axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-          params: { days: 7, minMaxMatches: 50, limit: 5 }
-        }).catch(() => ({ data: [] })),
+          params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: 1, pageSize: 20 }
+        }).catch(() => ({ data: { data: [], pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 } } })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
         // Still need incidents for rules calculation
         axios.get(`${apiUrl}/api/incidents`, {
@@ -194,8 +222,12 @@ export default function Home() {
       setTopUsers24h(topUsers24hRes.data || [])
       setTopUsersPeriod(topUsersPeriodRes.data || [])
       
-      // Set high impact alerts (potential data exfiltration)
-      setHighImpactAlerts(highImpactRes.data || [])
+      // Set high impact alerts with pagination (potential data exfiltration)
+      const highImpactData = highImpactRes.data as HighImpactAlertsResponse
+      setHighImpactAlerts(highImpactData?.data || [])
+      if (highImpactData?.pagination) {
+        setHighImpactPagination(highImpactData.pagination)
+      }
 
       // Calculate top rules from dateRange incidents
       const rulesMap = new Map<string, number>()
@@ -304,13 +336,6 @@ export default function Home() {
       <div className="dashboard-header">
         <h1>RADAR - Risk Adaptive Data Analysis Dashboard</h1>
         <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
-      </div>
-
-      {/* Filters removed - date filtering moved to RiskTimelineChart */}
-
-      {/* Investigation Timeline - Full Width */}
-      <div className="card timeline-card">
-        <RiskTimelineChart days={30} />
       </div>
 
       {/* Action Summary Card */}
@@ -433,7 +458,7 @@ export default function Home() {
       )
       }
 
-      {/* High Impact Alerts - Potential Data Exfiltration */}
+      {/* High Impact Alerts - Potential Data Exfiltration with Accordion UI */}
       {highImpactAlerts.length > 0 && (
         <div className="card" style={{ marginBottom: '24px', border: '1px solid #dc2626', background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.05) 0%, var(--surface) 100%)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -442,7 +467,7 @@ export default function Home() {
               <div>
                 <h2 style={{ margin: 0, color: '#dc2626' }}>Potential Data Exfiltration</h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  High-volume data transfer events in the last 7 days
+                  High-volume data transfer events (max_matches ≥ 100, daily_score ≥ 80) - Last 30 days
                 </p>
               </div>
             </div>
@@ -454,76 +479,287 @@ export default function Home() {
               borderRadius: '12px',
               fontWeight: '600'
             }}>
-              {highImpactAlerts.length} Alert{highImpactAlerts.length > 1 ? 's' : ''}
+              {highImpactPagination.totalCount} Alert{highImpactPagination.totalCount !== 1 ? 's' : ''}
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-            {highImpactAlerts.map((alert, idx) => (
-              <div 
-                key={idx}
+          
+          {/* Accordion List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {highImpactAlerts.map((alert, idx) => {
+              const isExpanded = expandedAlerts.has(alert.user_email + alert.highest_risk_date)
+              const toggleExpand = () => {
+                const key = alert.user_email + alert.highest_risk_date
+                setExpandedAlerts(prev => {
+                  const newSet = new Set(prev)
+                  if (newSet.has(key)) {
+                    newSet.delete(key)
+                  } else {
+                    newSet.add(key)
+                  }
+                  return newSet
+                })
+              }
+              
+              return (
+                <div 
+                  key={idx}
+                  style={{
+                    borderRadius: '8px',
+                    border: `1px solid ${alert.severity_level === 'Critical' ? '#dc2626' : alert.severity_level === 'High' ? '#f59e0b' : '#eab308'}`,
+                    background: 'var(--background)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Compact Header Row - Always Visible */}
+                  <div 
+                    onClick={toggleExpand}
+                    style={{
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      background: isExpanded ? 'rgba(220, 38, 38, 0.05)' : 'transparent',
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                      <span style={{ 
+                        fontSize: '16px', 
+                        transition: 'transform 0.2s',
+                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+                      }}>▶</span>
+                      
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        color: 'white',
+                        backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' : 
+                                        alert.severity_level === 'High' ? '#f59e0b' : '#eab308',
+                        minWidth: '60px',
+                        textAlign: 'center'
+                      }}>
+                        {alert.severity_level.toUpperCase()}
+                      </span>
+                      
+                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px', minWidth: '200px' }}>
+                        {alert.user_email}
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '16px' }}>
+                        <span><strong style={{ color: '#dc2626' }}>{alert.max_max_matches}</strong> matches</span>
+                        <span>Score: <strong>{Math.round(alert.daily_risk_score)}</strong></span>
+                        <span>{alert.highest_risk_date}</span>
+                        {alert.is_single_day_event && (
+                          <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ Single-day</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/investigation?user=${encodeURIComponent(alert.user_email)}`)
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#dc2626',
+                        color: 'white',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      🔍 Investigate
+                    </button>
+                  </div>
+                  
+                  {/* Expanded Details Panel */}
+                  {isExpanded && (
+                    <div style={{ 
+                      padding: '16px', 
+                      borderTop: '1px solid var(--border)',
+                      background: 'var(--surface)'
+                    }}>
+                      {/* Summary Stats */}
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+                        gap: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Impact Score</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{Math.round(alert.impact_score)}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Incidents</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{alert.incident_count}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Blocks</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#ef4444' }}>{alert.block_count}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Quarantines</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#f59e0b' }}>{alert.quarantine_count}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Active Days</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{alert.days_with_activity}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Incident Details Table */}
+                      {alert.incident_details && alert.incident_details.length > 0 && (
+                        <div>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-primary)' }}>
+                            📄 Top Incidents on {alert.highest_risk_date}
+                          </h4>
+                          <div style={{ 
+                            border: '1px solid var(--border)', 
+                            borderRadius: '6px', 
+                            overflow: 'hidden',
+                            fontSize: '12px'
+                          }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ background: 'var(--background)' }}>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>File</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Destination</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Channel</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Action</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Policy</th>
+                                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>Matches</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Time</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {alert.incident_details.map((detail, dIdx) => (
+                                  <tr key={dIdx} style={{ borderBottom: dIdx < alert.incident_details.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                    <td style={{ padding: '8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.file_name}>
+                                      {detail.file_name || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.destination}>
+                                      {detail.destination || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px' }}>
+                                      <span style={{
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '10px',
+                                        background: detail.channel === 'Email' ? '#3b82f6' : 
+                                                   detail.channel === 'USB' ? '#8b5cf6' : 
+                                                   detail.channel === 'Cloud' ? '#06b6d4' : '#6b7280',
+                                        color: 'white'
+                                      }}>
+                                        {detail.channel || '-'}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '8px' }}>
+                                      <span style={{
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '10px',
+                                        background: detail.action === 'Block' ? '#ef4444' : 
+                                                   detail.action === 'Quarantine' ? '#f59e0b' : '#22c55e',
+                                        color: 'white'
+                                      }}>
+                                        {detail.action || '-'}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.policy}>
+                                      {detail.policy || '-'}
+                                    </td>
+                                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600', color: '#dc2626' }}>
+                                      {detail.max_matches}
+                                    </td>
+                                    <td style={{ padding: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                      {detail.timestamp?.split(' ')[1] || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          
+          {/* Pagination */}
+          {highImpactPagination.totalPages > 1 && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              gap: '12px', 
+              marginTop: '16px',
+              paddingTop: '16px',
+              borderTop: '1px solid var(--border)'
+            }}>
+              <button
+                disabled={highImpactPagination.page <= 1}
+                onClick={async () => {
+                  const newPage = highImpactPagination.page - 1
+                  const apiUrl = getApiUrlDynamic()
+                  const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
+                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
+                  })
+                  const data = res.data as HighImpactAlertsResponse
+                  setHighImpactAlerts(data.data)
+                  setHighImpactPagination(data.pagination)
+                }}
                 style={{
-                  padding: '16px',
-                  borderRadius: '8px',
-                  border: `1px solid ${alert.severity_level === 'Critical' ? '#dc2626' : alert.severity_level === 'High' ? '#f59e0b' : '#eab308'}`,
-                  background: 'var(--background)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: highImpactPagination.page <= 1 ? 'var(--surface)' : 'var(--background)',
+                  color: highImpactPagination.page <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: highImpactPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '12px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px' }}>
-                    {alert.user_email}
-                  </div>
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    fontWeight: '700',
-                    color: 'white',
-                    backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' : 
-                                    alert.severity_level === 'High' ? '#f59e0b' : '#eab308'
-                  }}>
-                    {alert.severity_level.toUpperCase()}
-                  </span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Max Matches:</span>
-                    <span style={{ marginLeft: '4px', fontWeight: '600', color: '#dc2626' }}>{alert.max_max_matches}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Impact Score:</span>
-                    <span style={{ marginLeft: '4px', fontWeight: '600' }}>{Math.round(alert.impact_score)}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Date:</span>
-                    <span style={{ marginLeft: '4px' }}>{alert.highest_risk_date}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Incidents:</span>
-                    <span style={{ marginLeft: '4px' }}>{alert.incident_count}</span>
-                  </div>
-                </div>
-                {alert.is_single_day_event && (
-                  <div style={{ 
-                    marginTop: '4px',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(220, 38, 38, 0.1)',
-                    fontSize: '11px',
-                    color: '#dc2626',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    ⚠️ Single-day event - Requires investigation
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                ← Previous
+              </button>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Page {highImpactPagination.page} of {highImpactPagination.totalPages}
+              </span>
+              <button
+                disabled={highImpactPagination.page >= highImpactPagination.totalPages}
+                onClick={async () => {
+                  const newPage = highImpactPagination.page + 1
+                  const apiUrl = getApiUrlDynamic()
+                  const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
+                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
+                  })
+                  const data = res.data as HighImpactAlertsResponse
+                  setHighImpactAlerts(data.data)
+                  setHighImpactPagination(data.pagination)
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: highImpactPagination.page >= highImpactPagination.totalPages ? 'var(--surface)' : 'var(--background)',
+                  color: highImpactPagination.page >= highImpactPagination.totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                  cursor: highImpactPagination.page >= highImpactPagination.totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -991,10 +1227,6 @@ export default function Home() {
           font-size: 18px;
           font-weight: 600;
           letter-spacing: -0.02em;
-        }
-
-        .timeline-card {
-          margin-bottom: 24px;
         }
 
         .dashboard-grid {

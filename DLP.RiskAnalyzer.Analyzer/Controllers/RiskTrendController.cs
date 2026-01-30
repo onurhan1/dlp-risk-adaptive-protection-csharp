@@ -194,14 +194,16 @@ public class RiskTrendController : ControllerBase
     /// Single-day events with unusually high max_matches that would be penalized by consistency factor
     /// </summary>
     [HttpGet("high-impact-alerts")]
-    public async Task<ActionResult<List<Dictionary<string, object>>>> GetHighImpactAlerts(
+    public async Task<ActionResult<object>> GetHighImpactAlerts(
         [FromQuery] int days = 7,
         [FromQuery] int minMaxMatches = 100,
-        [FromQuery] int limit = 10)
+        [FromQuery] int minDailyRiskScore = 0,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var result = await _riskService.GetHighImpactAlertsAsync(days, minMaxMatches, limit);
+            var result = await _riskService.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
             return Ok(result);
         }
         catch (Exception ex)
