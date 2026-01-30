@@ -188,4 +188,26 @@ public class RiskTrendController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get high impact alerts - potential data exfiltration attempts
+    /// Single-day events with unusually high max_matches that would be penalized by consistency factor
+    /// </summary>
+    [HttpGet("high-impact-alerts")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetHighImpactAlerts(
+        [FromQuery] int days = 7,
+        [FromQuery] int minMaxMatches = 100,
+        [FromQuery] int limit = 10)
+    {
+        try
+        {
+            var result = await _riskService.GetHighImpactAlertsAsync(days, minMaxMatches, limit);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching high impact alerts");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }

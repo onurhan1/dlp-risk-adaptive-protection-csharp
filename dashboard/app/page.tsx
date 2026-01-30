@@ -62,6 +62,19 @@ interface TopUser {
   period?: string
 }
 
+interface HighImpactAlert {
+  user_email: string
+  impact_score: number
+  max_max_matches: number
+  highest_risk_date: string
+  daily_risk_score: number
+  incident_count: number
+  block_count: number
+  days_with_activity: number
+  is_single_day_event: boolean
+  severity_level: string
+}
+
 interface ActionSummary {
   authorized: number
   block: number
@@ -77,6 +90,7 @@ export default function Home() {
   const [topRules, setTopRules] = useState<TopRule[]>([])
   const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
   const [topUsersPeriod, setTopUsersPeriod] = useState<TopUser[]>([])
+  const [highImpactAlerts, setHighImpactAlerts] = useState<HighImpactAlert[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -142,7 +156,7 @@ export default function Home() {
       const apiUrl = getApiUrlDynamic()
 
       // Fetch data from new user_daily_risk_scores based endpoints
-      const [deptRes, topUsers24hRes, topUsersPeriodRes, actionRes, incidentsRes] = await Promise.all([
+      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, incidentsRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -156,6 +170,10 @@ export default function Home() {
         // Top users for selected period from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
           params: { period: selectedPeriod, limit: 10 }
+        }).catch(() => ({ data: [] })),
+        // High impact alerts - potential data exfiltration
+        axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
+          params: { days: 7, minMaxMatches: 50, limit: 5 }
         }).catch(() => ({ data: [] })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
         // Still need incidents for rules calculation
@@ -175,6 +193,9 @@ export default function Home() {
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
       setTopUsers24h(topUsers24hRes.data || [])
       setTopUsersPeriod(topUsersPeriodRes.data || [])
+      
+      // Set high impact alerts (potential data exfiltration)
+      setHighImpactAlerts(highImpactRes.data || [])
 
       // Calculate top rules from dateRange incidents
       const rulesMap = new Map<string, number>()
@@ -411,6 +432,100 @@ export default function Home() {
         </div>
       )
       }
+
+      {/* High Impact Alerts - Potential Data Exfiltration */}
+      {highImpactAlerts.length > 0 && (
+        <div className="card" style={{ marginBottom: '24px', border: '1px solid #dc2626', background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.05) 0%, var(--surface) 100%)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '24px' }}>🚨</span>
+              <div>
+                <h2 style={{ margin: 0, color: '#dc2626' }}>Potential Data Exfiltration</h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  High-volume data transfer events in the last 7 days
+                </p>
+              </div>
+            </div>
+            <span style={{ 
+              fontSize: '12px', 
+              color: 'white', 
+              backgroundColor: '#dc2626', 
+              padding: '4px 12px', 
+              borderRadius: '12px',
+              fontWeight: '600'
+            }}>
+              {highImpactAlerts.length} Alert{highImpactAlerts.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+            {highImpactAlerts.map((alert, idx) => (
+              <div 
+                key={idx}
+                style={{
+                  padding: '16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${alert.severity_level === 'Critical' ? '#dc2626' : alert.severity_level === 'High' ? '#f59e0b' : '#eab308'}`,
+                  background: 'var(--background)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px' }}>
+                    {alert.user_email}
+                  </div>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    color: 'white',
+                    backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' : 
+                                    alert.severity_level === 'High' ? '#f59e0b' : '#eab308'
+                  }}>
+                    {alert.severity_level.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Max Matches:</span>
+                    <span style={{ marginLeft: '4px', fontWeight: '600', color: '#dc2626' }}>{alert.max_max_matches}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Impact Score:</span>
+                    <span style={{ marginLeft: '4px', fontWeight: '600' }}>{Math.round(alert.impact_score)}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Date:</span>
+                    <span style={{ marginLeft: '4px' }}>{alert.highest_risk_date}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Incidents:</span>
+                    <span style={{ marginLeft: '4px' }}>{alert.incident_count}</span>
+                  </div>
+                </div>
+                {alert.is_single_day_event && (
+                  <div style={{ 
+                    marginTop: '4px',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(220, 38, 38, 0.1)',
+                    fontSize: '11px',
+                    color: '#dc2626',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    ⚠️ Single-day event - Requires investigation
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Two Column Layout - Period Top Users & 24h Top Users */}
       <div className="dashboard-grid">

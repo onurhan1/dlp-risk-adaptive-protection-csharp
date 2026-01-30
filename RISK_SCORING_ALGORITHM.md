@@ -291,6 +291,11 @@ switch (period.ToLower())
 
 ## 📝 Change Log
 
+### v2.1 (January 2026)
+- ✅ Added High Impact Alerts widget for detecting potential data exfiltration
+- ✅ New endpoint: `/api/risk-trends/high-impact-alerts`
+- ✅ Dashboard shows 🚨 Potential Data Exfiltration card with severity levels
+
 ### v2.0 (January 2026)
 - ✅ Added consistency factor to penalize one-time events
 - ✅ Added 6-month and yearly period options
@@ -301,6 +306,109 @@ switch (period.ToLower())
 ### v1.0 (Initial)
 - Basic formula: `MIN(100, (Avg/500×50) + (Max/500×30) + MIN(20, LOG₁₀(Count+1)×10))`
 - Fixed periods only (24h, quarterly)
+
+---
+
+## 🚨 High Impact Alerts (Data Exfiltration Detection)
+
+### Purpose
+Detects potential data exfiltration attempts that would be **penalized by the consistency factor** in the regular Top Risky Users scoring. These are single-day events with unusually high data volume.
+
+### Detection Criteria
+```
+max_max_matches >= minMaxMatches (default: 50)
+```
+
+| Severity Level | Max Matches Threshold |
+|----------------|----------------------|
+| Critical | ≥ 500 |
+| High | ≥ 200 |
+| Medium | ≥ 100 |
+| Low | ≥ 50 |
+
+### Impact Score Formula
+```
+impact_score = MIN(100, (max_max_matches / 10) + (daily_risk_score * 0.5))
+```
+
+### API Endpoint
+```
+GET /api/risk-trends/high-impact-alerts
+```
+
+### Parameters
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 7 | Look-back period in days |
+| `minMaxMatches` | int | 100 | Minimum max_matches threshold |
+| `limit` | int | 10 | Maximum number of alerts |
+
+### Response Schema
+```json
+{
+  "user_email": "user@example.com",
+  "impact_score": 85.5,
+  "max_max_matches": 650,
+  "highest_risk_date": "2026-01-28",
+  "daily_risk_score": 71.0,
+  "incident_count": 3,
+  "block_count": 1,
+  "quarantine_count": 0,
+  "days_with_activity": 1,
+  "total_incidents_in_period": 3,
+  "is_single_day_event": true,
+  "severity_level": "Critical"
+}
+```
+
+### Key Indicators
+| Field | Meaning |
+|-------|---------|
+| `is_single_day_event` | True = One-time event, requires investigation |
+| `severity_level` | Critical/High/Medium/Low based on data volume |
+| `max_max_matches` | Number of sensitive data matches detected |
+
+### Dashboard Widget
+The "🚨 Potential Data Exfiltration" card shows:
+- Alert count badge
+- User email with severity indicator
+- Max matches and impact score
+- Date of the event
+- Warning flag for single-day events
+
+### Use Case Examples
+
+#### Example 1: Malicious Insider
+```
+User: john.smith@company.com
+Max Matches: 1200 (Critical)
+Days Active: 1
+Action: BLOCK
+
+→ Single-day massive data transfer attempt
+→ Blocked by DLP, but flagged for investigation
+```
+
+#### Example 2: Accidental Bulk Send
+```
+User: marketing@company.com
+Max Matches: 350 (High)
+Days Active: 1
+Action: QUARANTINE
+
+→ May be legitimate bulk email
+→ Review quarantined content
+```
+
+### Relationship with Consistency Factor
+
+| Scenario | Regular Score | High Impact Alert |
+|----------|---------------|-------------------|
+| 1 day, 500 matches | 16.6 (penalized) | ✅ Shows in widget |
+| 10 days, 50 matches each | 65.0 (full score) | ❌ Not shown |
+| 1 day, 30 matches | 12.4 (penalized) | ❌ Below threshold |
+
+This ensures both **persistent threats** and **one-time exfiltration attempts** are visible to security teams.
 
 ---
 

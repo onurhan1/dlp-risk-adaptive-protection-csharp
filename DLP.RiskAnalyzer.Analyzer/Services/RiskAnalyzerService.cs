@@ -1395,4 +1395,76 @@ public class RiskAnalyzerService
 
         return dailyGroups;
     }
+
+    /// <summary>
+    /// Get high impact alerts - single-day events with unusually high max_matches
+    /// These are potential data exfiltration attempts that would be penalized by consistency factor
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int limit = 10)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-days);
+
+        // Get all scores in range
+        var scores = await _context.UserDailyRiskScores
+            .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .ToListAsync();
+
+        // Find single-day high-impact events
+        // Users with high max_matches on a single day but low total days (potential exfiltration)
+        var highImpactAlerts = scores
+            .Where(s => s.MaxMaxMatches >= minMaxMatches) // High data volume
+            .GroupBy(s => s.UserEmail)
+            .Select(g => {
+                var userScores = g.ToList();
+                var highestDay = userScores.OrderByDescending(s => s.MaxMaxMatches).First();
+                var daysWithActivity = userScores.Count;
+                
+                // Calculate impact score based on max matches and severity
+                // Higher max_matches = higher impact
+                var impactScore = Math.Min(100, (highestDay.MaxMaxMatches / 10.0) + (highestDay.DailyRiskScore * 0.5));
+                
+                return new {
+                    UserEmail = g.Key,
+                    FullName = highestDay.FullName,
+                    Team = highestDay.Team,
+                    ImpactScore = Math.Round(impactScore, 1),
+                    MaxMaxMatches = highestDay.MaxMaxMatches,
+                    HighestRiskDate = highestDay.Date,
+                    DailyRiskScore = Math.Round(highestDay.DailyRiskScore, 1),
+                    IncidentCount = highestDay.IncidentCount,
+                    BlockCount = highestDay.BlockCount,
+                    QuarantineCount = highestDay.QuarantineCount,
+                    DaysWithActivity = daysWithActivity,
+                    TotalIncidentsInPeriod = userScores.Sum(s => s.IncidentCount),
+                    // Flag if this is a one-time event (potential exfiltration attempt)
+                    IsSingleDayEvent = daysWithActivity == 1,
+                    // Severity level
+                    SeverityLevel = highestDay.MaxMaxMatches >= 500 ? "Critical" :
+                                   highestDay.MaxMaxMatches >= 200 ? "High" :
+                                   highestDay.MaxMaxMatches >= 100 ? "Medium" : "Low"
+                };
+            })
+            .OrderByDescending(a => a.ImpactScore)
+            .Take(limit)
+            .ToList();
+
+        return highImpactAlerts.Select(a => new Dictionary<string, object>
+        {
+            { "user_email", a.UserEmail },
+            { "full_name", a.FullName ?? "" },
+            { "team", a.Team ?? "" },
+            { "impact_score", a.ImpactScore },
+            { "max_max_matches", a.MaxMaxMatches },
+            { "highest_risk_date", a.HighestRiskDate.ToString("yyyy-MM-dd") },
+            { "daily_risk_score", a.DailyRiskScore },
+            { "incident_count", a.IncidentCount },
+            { "block_count", a.BlockCount },
+            { "quarantine_count", a.QuarantineCount },
+            { "days_with_activity", a.DaysWithActivity },
+            { "total_incidents_in_period", a.TotalIncidentsInPeriod },
+            { "is_single_day_event", a.IsSingleDayEvent },
+            { "severity_level", a.SeverityLevel }
+        }).ToList();
+    }
 }
