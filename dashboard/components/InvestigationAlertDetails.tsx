@@ -125,10 +125,20 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                 triggers = []
               }
             }
-            const ruleNames = triggers.map((t: any) => t.RuleName).filter(Boolean)
-            const rules = ruleNames.length > 0 ? ruleNames : (event.matched_rules || [])
 
-            // Extract classifiers with NumberMatches
+            // Calculate total matches per rule
+            const rulesWithMatches = triggers.map((t: any) => {
+              const totalMatches = (t.Classifiers || []).reduce((sum: number, c: any) => sum + (c.NumberMatches || 0), 0)
+              return {
+                ruleName: t.RuleName,
+                totalMatches
+              }
+            }).filter((r: any) => r.ruleName)
+
+            // Fallback to matched_rules if no triggers
+            const legacyRules = rulesWithMatches.length === 0 ? (event.matched_rules || []) : []
+
+            // Extract classifiers with NumberMatches grouped by rule
             const classifiersWithMatches = triggers.flatMap((t: any) =>
               (t.Classifiers || []).map((c: any) => ({
                 name: c.ClassifierName,
@@ -139,11 +149,38 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
 
             return (
               <>
-                {rules.length > 0 && (
+                {rulesWithMatches.length > 0 && (
                   <div style={{ marginTop: '12px' }}>
                     <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
-                      {rules.map((rule: string, idx: number) => (
+                      {rulesWithMatches.map((rule: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                            <span style={{ color: 'var(--text-primary)' }}>{rule.ruleName}</span>
+                          </div>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            background: rule.totalMatches >= 10 ? '#dc2626' : rule.totalMatches >= 5 ? '#f59e0b' : '#10b981',
+                            color: 'white'
+                          }}>
+                            {rule.totalMatches} matches
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy rules without match count */}
+                {legacyRules.length > 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
+                      {legacyRules.map((rule: string, idx: number) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
                           <span style={{ color: 'var(--text-primary)' }}>{rule}</span>

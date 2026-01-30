@@ -801,17 +801,18 @@ export default function Home() {
                 <th>User</th>
                 <th className="text-center">Risk Score</th>
                 <th className="text-center">Days Active</th>
-                <th className="text-right">Total Incidents</th>
+                <th className="text-center">Incidents</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="loading-cell">Loading...</td>
+                  <td colSpan={5} className="loading-cell">Loading...</td>
                 </tr>
               ) : topUsersPeriod.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="empty-cell">No data available</td>
+                  <td colSpan={5} className="empty-cell">No data available</td>
                 </tr>
               ) : (
                 topUsersPeriod.map((user, idx) => (
@@ -836,7 +837,25 @@ export default function Home() {
                       </span>
                     </td>
                     <td className="text-center">{user.days_with_activity || 0}</td>
-                    <td className="text-right">{user.total_incidents || 0}</td>
+                    <td className="text-center">{user.total_incidents || 0}</td>
+                    <td className="text-right">
+                      <button
+                        onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#3b82f6',
+                          color: 'white',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        🔍 Investigate
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -856,17 +875,18 @@ export default function Home() {
                 <th>User</th>
                 <th className="text-center">Risk Score</th>
                 <th className="text-center">Blocks</th>
-                <th className="text-right">Incidents</th>
+                <th className="text-center">Incidents</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="loading-cell">Loading...</td>
+                  <td colSpan={5} className="loading-cell">Loading...</td>
                 </tr>
               ) : topUsers24h.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="empty-cell">No activity today</td>
+                  <td colSpan={5} className="empty-cell">No activity today</td>
                 </tr>
               ) : (
                 topUsers24h.map((user, idx) => (
@@ -891,7 +911,25 @@ export default function Home() {
                       </span>
                     </td>
                     <td className="text-center">{user.total_blocks || 0}</td>
-                    <td className="text-right">{user.total_incidents || 0}</td>
+                    <td className="text-center">{user.total_incidents || 0}</td>
+                    <td className="text-right">
+                      <button
+                        onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#f57c00',
+                          color: 'white',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        🔍 Investigate
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
