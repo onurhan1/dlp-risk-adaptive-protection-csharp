@@ -3,7 +3,6 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Npgsql;
 
 namespace DLP.RiskAnalyzer.RawDumper;
 
@@ -14,26 +13,23 @@ public class Program
     private static int _managerPort;
     private static string _username = null!;
     private static string _password = null!;
-    private static string _dbConnection = null!;
 
     public static async Task Main(string[] args)
     {
         Console.WriteLine("===============================================");
-        Console.WriteLine("   DLP RAW DATA DUMPER (DEBUG TOOL)");
+        Console.WriteLine("   DLP SOURCE DATA EXPORTER");
         Console.WriteLine("===============================================");
         Console.WriteLine();
         Console.WriteLine("Usage: dotnet run [options]");
-        Console.WriteLine("  --date <dd/MM/yyyy>    : Fetch data for a specific date (full day)");
+        Console.WriteLine("  --date <dd/MM/yyyy>    : Fetch data for a specific date");
         Console.WriteLine("  --start <dd/MM/yyyy>   : Start date for range");
         Console.WriteLine("  --end <dd/MM/yyyy>     : End date for range");
         Console.WriteLine("  --hours <N>            : Last N hours (default: 24)");
-        Console.WriteLine("  --skip-db              : Don't save to database, just print count");
         Console.WriteLine();
 
         // Parse command line arguments
         DateTime startDate;
         DateTime endDate;
-        bool skipDb = args.Contains("--skip-db");
         
         var dateArg = GetArgValue(args, "--date");
         var startArg = GetArgValue(args, "--start");
@@ -42,20 +38,18 @@ public class Program
 
         if (!string.IsNullOrEmpty(dateArg))
         {
-            // Belirli bir gün için: 00:00:00 - 23:59:59
             if (!DateTime.TryParseExact(dateArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out var specificDate))
             {
                 Console.WriteLine($"ERROR: Invalid date format '{dateArg}'. Use dd/MM/yyyy");
                 return;
             }
-            startDate = specificDate.Date; // 00:00:00
-            endDate = specificDate.Date.AddDays(1).AddSeconds(-1); // 23:59:59
+            startDate = specificDate.Date;
+            endDate = specificDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Specific Date - {specificDate:dd/MM/yyyy}");
         }
         else if (!string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
         {
-            // Tarih aralığı
             if (!DateTime.TryParseExact(startArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out startDate))
             {
@@ -74,7 +68,6 @@ public class Program
         }
         else
         {
-            // Default: Son N saat (varsayılan 24)
             int hours = 24;
             if (!string.IsNullOrEmpty(hoursArg) && int.TryParse(hoursArg, out var parsedHours))
             {
@@ -85,42 +78,27 @@ public class Program
             Console.WriteLine($"Mode: Last {hours} hours");
         }
 
-        Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} → {endDate:dd/MM/yyyy HH:mm:ss}");
+        Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} -> {endDate:dd/MM/yyyy HH:mm:ss}");
         Console.WriteLine();
 
-        // 1. Load Configuration (Combine from Collector and Analyzer)
+        // Load Configuration
         var parentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
-        
         var collectorConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Collector", "appsettings.json");
-        var analyzerConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Analyzer", "appsettings.json");
         var localConfigPath = "appsettings.json";
 
         Console.WriteLine($"Loading DLP config from: {collectorConfigPath}");
-        Console.WriteLine($"Loading DB config from: {analyzerConfigPath}");
 
         var config = new ConfigurationBuilder()
             .AddJsonFile(localConfigPath, optional: true, reloadOnChange: true)
-            .AddJsonFile(analyzerConfigPath, optional: true, reloadOnChange: true) // Loads DB connection
-            .AddJsonFile(collectorConfigPath, optional: true, reloadOnChange: true) // Loads DLP settings (wins if same keys)
+            .AddJsonFile(collectorConfigPath, optional: true, reloadOnChange: true)
             .Build();
 
         _managerIp = config["DLP:ManagerIP"] ?? throw new Exception("DLP:ManagerIP not configured");
         _managerPort = config.GetValue<int>("DLP:ManagerPort", 8443);
         _username = config["DLP:Username"] ?? throw new Exception("DLP:Username not configured");
         _password = config["DLP:Password"] ?? throw new Exception("DLP:Password not configured");
-        
-        // Connection string usually in Analyzer appsettings
-        _dbConnection = config.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(_dbConnection))
-        {
-             // Fallback: try to read directly from Analyzer config if the merge didn't work as expected 
-             // (though it should). Or maybe it's in a different section?
-             // In Analyzer appsettings it is under "ConnectionStrings": { "DefaultConnection": ... }
-             // Let's print what we found if missing.
-             throw new Exception($"ConnectionStrings:DefaultConnection not configured. Loaded keys: {string.Join(", ", config.GetChildren().Select(k => k.Key))}");
-        }
 
-        // 2. Setup HttpClient
+        // Setup HttpClient
         var handler = new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
@@ -131,7 +109,7 @@ public class Program
             Timeout = TimeSpan.FromMinutes(5)
         };
 
-        // 3. Auth
+        // Auth
         Console.WriteLine("Authenticating...");
         var token = await GetAccessTokenAsync();
         if (string.IsNullOrEmpty(token))
@@ -141,61 +119,70 @@ public class Program
         }
         Console.WriteLine("Authenticated.");
 
-        // 4. Fetch Incidents
-        Console.WriteLine($"Fetching incidents from {startDate:dd/MM/yyyy HH:mm:ss} to {endDate:dd/MM/yyyy HH:mm:ss}...");
+        // Fetch Incidents
+        Console.WriteLine($"Fetching incidents...");
         var incidents = await FetchRawIncidentsAsync(token, startDate, endDate);
-
         Console.WriteLine($"Found {incidents.Count} incidents.");
 
-        if (skipDb)
+        if (incidents.Count == 0)
         {
-            Console.WriteLine("--skip-db flag set. Skipping database insert.");
-            // Print sample of first 3 incidents
-            if (incidents.Count > 0)
-            {
-                            Console.WriteLine("\nSample incidents:");
-                for (int i = 0; i < Math.Min(3, incidents.Count); i++)
-                {
-                    var inc = incidents[i];
-                    var incidentDate = inc["date_time"]?.ToString() ?? inc["timestamp"]?.ToString() ?? "N/A";
-                    Console.WriteLine($"  [{i+1}] ID: {inc["incident_id"]}, Date: {incidentDate}, User: {inc["source"]?["login_name"] ?? inc["source"]?["user_email"]}");
-                }
-                
-                // Tarih aralığını kontrol et
-                Console.WriteLine("\n[DEBUG] Checking date range of returned incidents:");
-                var dates = incidents
-                    .Select(i => i["date_time"]?.ToString() ?? i["timestamp"]?.ToString())
-                    .Where(d => !string.IsNullOrEmpty(d))
-                    .Take(10)
-                    .ToList();
-                foreach (var d in dates)
-                {
-                    Console.WriteLine($"  - {d}");
-                }
-            }
+            Console.WriteLine("No incidents found for the specified date range.");
             return;
         }
 
-        Console.WriteLine("Dumping to DB...");
-
-        using var conn = new NpgsqlConnection(_dbConnection);
-        await conn.OpenAsync();
-
-        foreach (var incidentJson in incidents)
+        // Export to CSV
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var csvPath = $"source_dump_{timestamp}.csv";
+        
+        Console.WriteLine($"\nExporting to {csvPath}...");
+        
+        using var writer = new StreamWriter(csvPath, false, Encoding.UTF8);
+        // CSV Header
+        writer.WriteLine("incident_id,event_time,severity,action,channel,policies,destination,file_name,maximum_matches,manager,department,ip_address,login_name,host_name,email_address,dn,nt_domain");
+        
+        foreach (var inc in incidents)
         {
-            var incidentId = incidentJson["incident_id"]?.ToString() ?? "UNKNOWN";
-            var sourceJson = incidentJson["source"]?.ToString();
-            var fullJson = incidentJson.ToString();
-
-            using var cmd = new NpgsqlCommand("INSERT INTO raw_dlp_data (incident_id, source_json, full_json) VALUES (@id, @source::jsonb, @full::jsonb)", conn);
-            cmd.Parameters.AddWithValue("id", incidentId);
-            cmd.Parameters.AddWithValue("source", (object?)sourceJson ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("full", fullJson);
-
-            await cmd.ExecuteNonQueryAsync();
+            var incidentId = inc["id"]?.ToString() ?? inc["incident_id"]?.ToString() ?? "";
+            var eventTime = inc["event_time"]?.ToString() ?? inc["date_time"]?.ToString() ?? "";
+            var severity = inc["severity"]?.ToString() ?? "";
+            var action = inc["action"]?.ToString() ?? "";
+            var channel = inc["channel"]?.ToString() ?? "";
+            var policies = inc["policies"]?.ToString() ?? "";
+            var destination = inc["destination"]?.ToString() ?? "";
+            var fileName = inc["file_name"]?.ToString() ?? "";
+            var maxMatches = inc["maximum_matches"]?.ToString() ?? "";
+            
+            var source = inc["source"];
+            var manager = source?["manager"]?.ToString() ?? "";
+            var department = source?["department"]?.ToString() ?? "";
+            var ipAddress = source?["ip_address"]?.ToString() ?? "";
+            var loginName = source?["login_name"]?.ToString() ?? "";
+            var hostName = source?["host_name"]?.ToString() ?? "";
+            var emailAddress = source?["email_address"]?.ToString() ?? "";
+            var dn = source?["dn"]?.ToString() ?? "";
+            var ntDomain = source?["nt_domain"]?.ToString() ?? "";
+            
+            string Escape(string val) => $"\"{val.Replace("\"", "\"\"")}\"";
+            
+            writer.WriteLine($"{Escape(incidentId)},{Escape(eventTime)},{Escape(severity)},{Escape(action)},{Escape(channel)},{Escape(policies)},{Escape(destination)},{Escape(fileName)},{Escape(maxMatches)},{Escape(manager)},{Escape(department)},{Escape(ipAddress)},{Escape(loginName)},{Escape(hostName)},{Escape(emailAddress)},{Escape(dn)},{Escape(ntDomain)}");
         }
-
-        Console.WriteLine("Dump complete.");
+        
+        Console.WriteLine($"Exported {incidents.Count} records to {csvPath}");
+        
+        // Summary
+        Console.WriteLine("\n=== UNIQUE VALUES SUMMARY ===");
+        
+        var uniqueManagers = incidents.Select(i => i["source"]?["manager"]?.ToString()).Where(x => !string.IsNullOrEmpty(x)).Distinct().Take(20).ToList();
+        var uniqueDepts = incidents.Select(i => i["source"]?["department"]?.ToString()).Where(x => !string.IsNullOrEmpty(x)).Distinct().Take(20).ToList();
+        var uniqueChannels = incidents.Select(i => i["channel"]?.ToString()).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+        var uniqueActions = incidents.Select(i => i["action"]?.ToString()).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+        
+        Console.WriteLine($"\nChannels ({uniqueChannels.Count}): {string.Join(", ", uniqueChannels)}");
+        Console.WriteLine($"Actions ({uniqueActions.Count}): {string.Join(", ", uniqueActions)}");
+        Console.WriteLine($"\nDepartments (first 20): {string.Join(", ", uniqueDepts)}");
+        Console.WriteLine($"\nManagers (first 20): {string.Join(", ", uniqueManagers)}");
+        
+        Console.WriteLine("\nDone!");
     }
 
     private static string? GetArgValue(string[] args, string key)
@@ -217,11 +204,8 @@ public class Program
             var request = new HttpRequestMessage(HttpMethod.Post, "auth/access-token");
             request.Headers.Add("username", _username);
             request.Headers.Add("password", _password);
-
-            // Removing default auth headers if any
             _httpClient.DefaultRequestHeaders.Authorization = null;
 
-            Console.WriteLine("Requesting Access Token...");
             var response = await _httpClient.SendAsync(request);
             
             if (!response.IsSuccessStatusCode)
@@ -233,7 +217,6 @@ public class Program
 
             var content = await response.Content.ReadAsStringAsync();
             dynamic json = JsonConvert.DeserializeObject(content)!;
-            // Handle snake_case or camelCase token field
             string token = json.access_token ?? json.accessToken ?? json.token;
             
             return token;
@@ -247,15 +230,10 @@ public class Program
 
     private static async Task<JArray> FetchRawIncidentsAsync(string token, DateTime start, DateTime end)
     {
-        // Use Bearer Token for this request
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        // Forcepoint API expects dd/MM/yyyy HH:mm:ss format
         var fromDateStr = start.ToString("dd/MM/yyyy HH:mm:ss");
         var toDateStr = end.ToString("dd/MM/yyyy HH:mm:ss");
-        
-        Console.WriteLine($"[DEBUG] API Request from_date: {fromDateStr}");
-        Console.WriteLine($"[DEBUG] API Request to_date: {toDateStr}");
 
         var requestBody = new
         {
@@ -266,8 +244,6 @@ public class Program
         };
 
         var jsonBody = JsonConvert.SerializeObject(requestBody);
-        Console.WriteLine($"[DEBUG] Request Body: {jsonBody}");
-
         var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync("incidents", content);
         
@@ -282,7 +258,6 @@ public class Program
 
         try 
         {
-            // If it returns a list directly
             if (responseString.TrimStart().StartsWith("[")) return JArray.Parse(responseString);
             
             var jsonObj = JObject.Parse(responseString);
