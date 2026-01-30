@@ -143,4 +143,49 @@ public class RiskTrendController : ControllerBase
         var result = await _riskService.GetRiskyUsersReportAsync(period);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get top risky users based on user_daily_risk_scores table
+    /// period: 24h, weekly, monthly, quarterly
+    /// Uses normalized daily score formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+    /// </summary>
+    [HttpGet("top-users")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRiskyUsers(
+        [FromQuery] string period = "24h",
+        [FromQuery] int limit = 10)
+    {
+        try
+        {
+            var result = await _riskService.GetTopRiskyUsersFromDailyScoresAsync(period, limit);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching top risky users for period {Period}", period);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get daily risk summary aggregated from user_daily_risk_scores
+    /// Returns total incidents, avg risk score, unique users per day
+    /// </summary>
+    [HttpGet("daily-summary")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetDailySummaryFromScores(
+        [FromQuery] DateOnly? startDate,
+        [FromQuery] DateOnly? endDate)
+    {
+        try
+        {
+            var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+            var start = startDate ?? end.AddDays(-30);
+            var result = await _riskService.GetDailySummaryFromDailyScoresAsync(start, end);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching daily summary");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }

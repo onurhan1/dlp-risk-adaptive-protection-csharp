@@ -35,6 +35,7 @@ interface InvestigationTimelineProps {
   onEventSelect: (event: TimelineEvent) => void
   selectedEventId?: number
   onEventsLoaded?: (events: TimelineEvent[]) => void
+  onUserInsightsClick?: () => void
 }
 
 export default function InvestigationTimeline({
@@ -42,7 +43,8 @@ export default function InvestigationTimeline({
   userRiskScore,
   onEventSelect,
   selectedEventId,
-  onEventsLoaded
+  onEventsLoaded,
+  onUserInsightsClick
 }: InvestigationTimelineProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
@@ -373,8 +375,8 @@ export default function InvestigationTimeline({
             </div>
             <button
               onClick={() => {
-                if (userEmail) {
-                  window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(userEmail)}`
+                if (onUserInsightsClick) {
+                  onUserInsightsClick()
                 }
               }}
               style={{

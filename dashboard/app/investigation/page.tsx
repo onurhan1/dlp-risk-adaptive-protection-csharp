@@ -621,7 +621,11 @@ export default function InvestigationPage() {
                   AI Behavioral Analysis
                 </h3>
                 <button
-                  onClick={() => setUserInsightsOpen(true)}
+                  onClick={() => {
+                    if (selectedUser) {
+                      window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(selectedUser)}`
+                    }
+                  }}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '8px',
@@ -645,7 +649,7 @@ export default function InvestigationPage() {
                     e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
-                  📊 User Insights
+                  🧠 View AI Analysis
                 </button>
               </div>
               {loadingAI ? (
@@ -710,6 +714,7 @@ export default function InvestigationPage() {
               onEventSelect={handleEventSelect}
               selectedEventId={selectedEvent?.id}
               onEventsLoaded={handleEventsLoaded}
+              onUserInsightsClick={() => setUserInsightsOpen(true)}
             />
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>

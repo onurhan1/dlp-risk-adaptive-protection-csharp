@@ -1235,4 +1235,131 @@ public class RiskAnalyzerService
 
         return result.OrderByDescending(r => (double)r["current_score"]).ToList();
     }
+
+    /// <summary>
+    /// Get top risky users from user_daily_risk_scores table
+    /// period: 24h, weekly, monthly, quarterly
+    /// Uses normalized daily score formula
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly startDate;
+        
+        switch (period.ToLower())
+        {
+            case "24h":
+            case "daily":
+                startDate = endDate; // Today only
+                break;
+            case "weekly":
+                startDate = endDate.AddDays(-7);
+                break;
+            case "monthly":
+                startDate = endDate.AddDays(-30);
+                break;
+            case "quarterly":
+            case "3month":
+                startDate = endDate.AddDays(-90);
+                break;
+            default:
+                startDate = endDate.AddDays(-1);
+                break;
+        }
+
+        // Get all scores in range
+        var scores = await _context.UserDailyRiskScores
+            .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .ToListAsync();
+
+        // Group by user and calculate aggregated metrics
+        var userGroups = scores
+            .GroupBy(s => s.UserEmail)
+            .Select(g => {
+                var userScores = g.ToList();
+                var totalIncidents = userScores.Sum(s => s.IncidentCount);
+                var avgDailyScore = userScores.Average(s => s.DailyRiskScore);
+                var maxDailyScore = userScores.Max(s => s.DailyRiskScore);
+                var totalBlocks = userScores.Sum(s => s.BlockCount);
+                var totalQuarantines = userScores.Sum(s => s.QuarantineCount);
+                var latestScore = userScores.OrderByDescending(s => s.Date).FirstOrDefault();
+                
+                // For multi-day periods, recalculate aggregated score using same formula
+                // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+                var avgRiskScore = userScores.Average(s => s.AvgRiskScore);
+                var maxRiskScore = userScores.Max(s => s.MaxRiskScore);
+                
+                var periodScore = Math.Min(100,
+                    (avgRiskScore / 500.0 * 50) +
+                    (maxRiskScore / 500.0 * 30) +
+                    Math.Min(20, Math.Log10(totalIncidents + 1) * 10)
+                );
+                
+                return new {
+                    UserEmail = g.Key,
+                    FullName = latestScore?.FullName,
+                    Team = latestScore?.Team,
+                    PeriodScore = Math.Round(periodScore, 1),
+                    AvgDailyScore = Math.Round(avgDailyScore, 1),
+                    MaxDailyScore = Math.Round(maxDailyScore, 1),
+                    TotalIncidents = totalIncidents,
+                    TotalBlocks = totalBlocks,
+                    TotalQuarantines = totalQuarantines,
+                    DaysWithActivity = userScores.Count
+                };
+            })
+            .Where(u => u.TotalIncidents > 0)
+            .OrderByDescending(u => u.PeriodScore)
+            .Take(limit)
+            .ToList();
+
+        return userGroups.Select(u => new Dictionary<string, object>
+        {
+            { "user_email", u.UserEmail },
+            { "full_name", u.FullName ?? "" },
+            { "team", u.Team ?? "" },
+            { "risk_score", u.PeriodScore },
+            { "avg_daily_score", u.AvgDailyScore },
+            { "max_daily_score", u.MaxDailyScore },
+            { "total_incidents", u.TotalIncidents },
+            { "total_blocks", u.TotalBlocks },
+            { "total_quarantines", u.TotalQuarantines },
+            { "days_with_activity", u.DaysWithActivity },
+            { "period", period }
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Get daily summary aggregated from user_daily_risk_scores
+    /// Returns total incidents, avg risk score, unique users per day
+    /// </summary>
+    public async Task<List<Dictionary<string, object>>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate)
+    {
+        var scores = await _context.UserDailyRiskScores
+            .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .ToListAsync();
+
+        // Group by date
+        var dailyGroups = scores
+            .GroupBy(s => s.Date)
+            .Select(g => {
+                var dayScores = g.ToList();
+                return new Dictionary<string, object>
+                {
+                    { "date", g.Key.ToString("yyyy-MM-dd") },
+                    { "total_incidents", dayScores.Sum(s => s.IncidentCount) },
+                    { "unique_users", dayScores.Count },
+                    { "avg_risk_score", Math.Round(dayScores.Average(s => s.DailyRiskScore), 1) },
+                    { "max_risk_score", Math.Round(dayScores.Max(s => s.DailyRiskScore), 1) },
+                    { "high_risk_count", dayScores.Count(s => s.DailyRiskScore >= 50) },
+                    { "critical_risk_count", dayScores.Count(s => s.DailyRiskScore >= 75) },
+                    { "total_blocks", dayScores.Sum(s => s.BlockCount) },
+                    { "total_quarantines", dayScores.Sum(s => s.QuarantineCount) }
+                };
+            })
+            .OrderBy(d => d["date"])
+            .ToList();
+
+        return dailyGroups;
+    }
 }

@@ -49,8 +49,17 @@ interface TopRule {
 
 interface TopUser {
   user_email: string
-  total_alerts: number
+  full_name?: string
+  team?: string
+  total_incidents?: number
+  total_alerts?: number
   risk_score: number
+  avg_daily_score?: number
+  max_daily_score?: number
+  total_blocks?: number
+  total_quarantines?: number
+  days_with_activity?: number
+  period?: string
 }
 
 interface ActionSummary {
@@ -66,7 +75,8 @@ export default function Home() {
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
-  const [topUsers, setTopUsers] = useState<TopUser[]>([])
+  const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
+  const [topUsersQuarterly, setTopUsersQuarterly] = useState<TopUser[]>([])
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
@@ -127,23 +137,27 @@ export default function Home() {
       const currentEnd = dateRange.end
       const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
 
-      // Calculate last 24 hours for top users - use ISO format with time
-      const now = new Date()
-      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000) // exactly 24 hours ago
-      const last24HoursStart = last24Hours.toISOString()
-      const nowISO = now.toISOString()
-
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
 
-      // Removed daily-summary call from here as it is now handled independently
-      const [deptRes, incidentsRes, incidentsLast24hRes, actionRes] = await Promise.all([
+      // Fetch data from new user_daily_risk_scores based endpoints
+      const [deptRes, topUsers24hRes, topUsersQuarterlyRes, actionRes, incidentsRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
             endDate: currentEnd
           }
         }).catch(() => ({ data: [] })),
+        // Top users 24h from user_daily_risk_scores
+        axios.get(`${apiUrl}/api/risk-trends/top-users`, {
+          params: { period: '24h', limit: 10 }
+        }).catch(() => ({ data: [] })),
+        // Top users quarterly (3 months) from user_daily_risk_scores
+        axios.get(`${apiUrl}/api/risk-trends/top-users`, {
+          params: { period: 'quarterly', limit: 10 }
+        }).catch(() => ({ data: [] })),
+        axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
+        // Still need incidents for rules calculation
         axios.get(`${apiUrl}/api/incidents`, {
           params: {
             startDate: currentStart,
@@ -151,22 +165,15 @@ export default function Home() {
             limit: 5000,
             orderBy: 'risk_score_desc'
           }
-        }).catch(() => ({ data: [] })),
-        // Separate call for last 24 hours for top users - using ISO timestamp
-        axios.get(`${apiUrl}/api/incidents`, {
-          params: {
-            startDate: last24HoursStart,
-            endDate: nowISO,
-            limit: 5000,
-            orderBy: 'risk_score_desc'
-          }
-        }).catch(() => ({ data: [] })),
-        axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null }))
+        }).catch(() => ({ data: [] }))
       ])
 
-      // setDailySummary(dailyRes.data)  <-- Handled by fetchDailyTrends
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
+
+      // Set top users from new API (already normalized 0-100 scale)
+      setTopUsers24h(topUsers24hRes.data || [])
+      setTopUsersQuarterly(topUsersQuarterlyRes.data || [])
 
       // Calculate top rules from dateRange incidents
       const rulesMap = new Map<string, number>()
@@ -179,33 +186,6 @@ export default function Home() {
         .sort((a, b) => b.total_alerts - a.total_alerts)
         .slice(0, 10)
       setTopRules(topRulesData)
-
-      // Calculate top users from LAST 24 HOURS incidents only
-      const usersMap = new Map<string, { alerts: number, risk: number }>()
-      incidentsLast24hRes.data.forEach((incident: any) => {
-        const user = incident.userEmail || incident.user_email || ''
-        if (!user) return // Skip if no user email
-        const rawScore = incident.riskScore || incident.risk_score || 0
-        const existing = usersMap.get(user) || { alerts: 0, risk: 0 }
-        usersMap.set(user, {
-          alerts: existing.alerts + 1,
-          risk: Math.max(existing.risk, rawScore)
-        })
-      })
-      const topUsersData = Array.from(usersMap.entries())
-        .filter(([email]) => email && email.length > 0) // Filter out empty emails
-        .map(([user_email, data]) => {
-          // All DB scores are in 1000-scale, always divide by 10 for display
-          const normalizedScore = Math.round(data.risk / 10)
-          return {
-            user_email,
-            total_alerts: data.alerts,
-            risk_score: normalizedScore
-          }
-        })
-        .sort((a, b) => b.risk_score - a.risk_score)  // Sort by risk score descending
-        .slice(0, 10)
-      setTopUsers(topUsersData)
 
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -431,36 +411,40 @@ export default function Home() {
       )
       }
 
-      {/* Two Column Layout */}
+      {/* Two Column Layout - Quarterly Top Users & 24h Top Users */}
       <div className="dashboard-grid">
+        {/* 3-Month (Quarterly) Top Users - Main Risk View */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>Top users</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: 'var(--surface-hover)', padding: '4px 12px', borderRadius: '12px' }}>Last 24 Hours</span>
+            <h2 style={{ margin: 0 }}>🎯 Top Risky Users</h2>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: 'var(--primary)', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 3 Months</span>
           </div>
           <table className="data-table">
             <thead>
               <tr>
                 <th>User</th>
                 <th className="text-center">Risk Score</th>
-                <th className="text-right">Total alerts</th>
+                <th className="text-center">Days Active</th>
+                <th className="text-right">Total Incidents</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="loading-cell">Loading...</td>
+                  <td colSpan={4} className="loading-cell">Loading...</td>
                 </tr>
-              ) : topUsers.length === 0 ? (
+              ) : topUsersQuarterly.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="empty-cell">No data available</td>
+                  <td colSpan={4} className="empty-cell">No data available</td>
                 </tr>
               ) : (
-                topUsers.map((user, idx) => (
+                topUsersQuarterly.map((user, idx) => (
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
-                        <span>{user.user_email}</span>
+                        <div style={{ fontWeight: '500' }}>{user.full_name || user.user_email}</div>
+                        {user.full_name && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.user_email}</div>}
+                        {user.team && <div style={{ fontSize: '10px', color: 'var(--primary)' }}>{user.team}</div>}
                       </div>
                     </td>
                     <td className="text-center">
@@ -474,10 +458,11 @@ export default function Home() {
                           user.risk_score >= 50 ? '#f57c00' :
                             user.risk_score >= 25 ? '#fbc02d' : '#4caf50'
                       }}>
-                        {user.risk_score}
+                        {Math.round(user.risk_score)}
                       </span>
                     </td>
-                    <td className="text-right">{user.total_alerts}</td>
+                    <td className="text-center">{user.days_with_activity || 0}</td>
+                    <td className="text-right">{user.total_incidents || 0}</td>
                   </tr>
                 ))
               )}
@@ -485,6 +470,65 @@ export default function Home() {
           </table>
         </div>
 
+        {/* 24-Hour Top Users - Today's Activity */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>⚡ Today's Active Users</h2>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th className="text-center">Risk Score</th>
+                <th className="text-center">Blocks</th>
+                <th className="text-right">Incidents</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="loading-cell">Loading...</td>
+                </tr>
+              ) : topUsers24h.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="empty-cell">No activity today</td>
+                </tr>
+              ) : (
+                topUsers24h.map((user, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div className="user-cell">
+                        <div style={{ fontWeight: '500' }}>{user.full_name || user.user_email}</div>
+                        {user.full_name && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.user_email}</div>}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: 'white',
+                        backgroundColor: user.risk_score >= 75 ? '#d32f2f' :
+                          user.risk_score >= 50 ? '#f57c00' :
+                            user.risk_score >= 25 ? '#fbc02d' : '#4caf50'
+                      }}>
+                        {Math.round(user.risk_score)}
+                      </span>
+                    </td>
+                    <td className="text-center">{user.total_blocks || 0}</td>
+                    <td className="text-right">{user.total_incidents || 0}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Data Movement Chart */}
+      <div className="dashboard-grid">
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
           <h2>Data Movement 30 days</h2>
           <div style={{ position: 'relative' }}>
