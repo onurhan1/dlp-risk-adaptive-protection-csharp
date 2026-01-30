@@ -47,16 +47,6 @@ interface IncidentSummary {
     timestamp: string
 }
 
-interface UserDailyRiskScore {
-    id: number
-    userEmail: string
-    date: string
-    dailyRiskScore: number
-    incidentCount: number
-    maxRiskScore: number
-    avgRiskScore: number
-}
-
 interface ZScoreDetail {
     zScore: number
     mean: number
@@ -114,10 +104,8 @@ export default function EntityDetailModal({
     const [data, setData] = useState<EntityDetailData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents' | 'daily_scores'>('overview')
+    const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents'>('overview')
     const [selectedWeek, setSelectedWeek] = useState<TrendDataPoint | null>(null)
-    const [dailyScores, setDailyScores] = useState<UserDailyRiskScore[]>([])
-    const [loadingScores, setLoadingScores] = useState(false)
     const [selectedZScore, setSelectedZScore] = useState<{ key: string; detail: ZScoreDetail } | null>(null)
     const [showAllReferenceIncidents, setShowAllReferenceIncidents] = useState(false)
     const [hoveredIncident, setHoveredIncident] = useState<IncidentSummary | null>(null)
@@ -152,24 +140,6 @@ export default function EntityDetailModal({
             setError(err.response?.data?.detail || 'Failed to load detail')
         } finally {
             setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (activeView === 'daily_scores' && entityId && dailyScores.length === 0) {
-            fetchDailyScores()
-        }
-    }, [activeView, entityId])
-
-    const fetchDailyScores = async () => {
-        setLoadingScores(true)
-        try {
-            const res = await apiClient.get<UserDailyRiskScore[]>(`/api/risk-trends/user/${encodeURIComponent(entityId)}/daily`)
-            setDailyScores(res.data)
-        } catch (err) {
-            console.error("Failed to fetch daily scores", err)
-        } finally {
-            setLoadingScores(false)
         }
     }
 
@@ -283,7 +253,7 @@ export default function EntityDetailModal({
 
                     {/* Tab Navigation */}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                        {(['overview', 'trends', 'incidents', 'daily_scores'] as const).map(view => (
+                        {(['overview', 'trends', 'incidents'] as const).map(view => (
                             <button
                                 key={view}
                                 onClick={() => setActiveView(view)}
@@ -300,7 +270,6 @@ export default function EntityDetailModal({
                             >
                                 {view === 'overview' ? '📊 Overview' :
                                     view === 'trends' ? '📈 Trends' :
-                                        view === 'daily_scores' ? '📅 Daily Scores' :
                                             '📋 Incidents'}
                             </button>
                         ))}
@@ -927,87 +896,6 @@ export default function EntityDetailModal({
                                     </div>
                                 </div>
                             )}
-                        </div>
-                    ) : activeView === 'daily_scores' ? (
-                        <div style={{ display: 'grid', gap: '24px' }}>
-                            {/* Daily Risk Trend Chart */}
-                            <div style={{
-                                background: 'var(--background)',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                border: '1px solid var(--border)'
-                            }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    📅 Daily Risk Score History
-                                </h3>
-                                {loadingScores ? (
-                                    <div style={{ textAlign: 'center', padding: '40px' }}>Loading scores...</div>
-                                ) : dailyScores.length > 0 ? (
-                                    <Plot
-                                        data={[
-                                            {
-                                                x: dailyScores.map(s => s.date),
-                                                y: dailyScores.map(s => s.dailyRiskScore),
-                                                type: 'scatter',
-                                                mode: 'lines+markers',
-                                                name: 'Risk Score',
-                                                line: { color: '#ef4444', width: 3 },
-                                                marker: { size: 6 }
-                                            }
-                                        ]}
-                                        layout={{ ...plotlyLayout, height: 350 }}
-                                        config={plotlyConfig}
-                                        style={{ width: '100%', height: '350px' }}
-                                    />
-                                ) : (
-                                    <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No daily score data available</div>
-                                )}
-                            </div>
-
-                            {/* Daily Scores Table */}
-                            <div style={{
-                                background: 'var(--background)',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                border: '1px solid var(--border)'
-                            }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                    Detailed History
-                                </h3>
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <th style={{ textAlign: 'left', padding: '12px', color: 'var(--text-muted)' }}>Date</th>
-                                                <th style={{ textAlign: 'right', padding: '12px', color: 'var(--text-muted)' }}>Risk Score</th>
-                                                <th style={{ textAlign: 'right', padding: '12px', color: 'var(--text-muted)' }}>Incidents</th>
-                                                <th style={{ textAlign: 'right', padding: '12px', color: 'var(--text-muted)' }}>Max Score</th>
-                                                <th style={{ textAlign: 'right', padding: '12px', color: 'var(--text-muted)' }}>Avg Score</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {dailyScores.map(score => (
-                                                <tr key={score.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ padding: '12px', color: 'var(--text-primary)' }}>{score.date}</td>
-                                                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: '700', color: getRiskColor(score.dailyRiskScore > 100 ? score.dailyRiskScore / 10 : score.dailyRiskScore) }}>
-                                                        {score.dailyRiskScore.toFixed(0)}
-                                                    </td>
-                                                    <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{score.incidentCount}</td>
-                                                    <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{score.maxRiskScore}</td>
-                                                    <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{score.avgRiskScore.toFixed(1)}</td>
-                                                </tr>
-                                            ))}
-                                            {dailyScores.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                                        No history found
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
                         </div>
                     ) : data && activeView === 'incidents' ? (
                         <div style={{

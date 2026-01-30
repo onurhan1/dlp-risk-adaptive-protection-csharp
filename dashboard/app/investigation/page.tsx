@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
+import UserInsightsModal from '@/components/UserInsightsModal'
 
 interface TimelineEvent {
   id: number
@@ -45,6 +46,7 @@ export default function InvestigationPage() {
   const [filterClassification, setFilterClassification] = useState<string>('all')
   const [aiAnalysis, setAiAnalysis] = useState<any>(null)
   const [loadingAI, setLoadingAI] = useState(false)
+  const [userInsightsOpen, setUserInsightsOpen] = useState(false)
 
   // Alerts tab state
   const [alerts, setAlerts] = useState<TimelineEvent[]>([])
@@ -618,16 +620,33 @@ export default function InvestigationPage() {
                 <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
                   AI Behavioral Analysis
                 </h3>
-                <a
-                  href={`/ai-behavioral?entityType=user&entityId=${encodeURIComponent(selectedUser)}`}
+                <button
+                  onClick={() => setUserInsightsOpen(true)}
                   style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'var(--primary)',
+                    color: 'white',
                     fontSize: '12px',
-                    color: 'var(--primary)',
-                    textDecoration: 'none'
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '0.9'
+                    e.currentTarget.style.transform = 'scale(1.02)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = '1'
+                    e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
-                  View Details →
-                </a>
+                  📊 User Insights
+                </button>
               </div>
               {loadingAI ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -845,6 +864,14 @@ export default function InvestigationPage() {
           <InvestigationAlertDetails event={selectedEvent} />
         </div>
       </div>
+
+      {/* User Insights Modal */}
+      <UserInsightsModal
+        isOpen={userInsightsOpen}
+        onClose={() => setUserInsightsOpen(false)}
+        userEmail={selectedUser || ''}
+        userName={aiAnalysis?.fullName}
+      />
     </div>
   )
 }
