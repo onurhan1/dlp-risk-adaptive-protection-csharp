@@ -25,6 +25,7 @@ public class Program
         Console.WriteLine("  --start <dd/MM/yyyy>   : Start date for range");
         Console.WriteLine("  --end <dd/MM/yyyy>     : End date for range");
         Console.WriteLine("  --hours <N>            : Last N hours (default: 24)");
+        Console.WriteLine("  --id <incident_id>     : Fetch single incident by ID (full details)");
         Console.WriteLine();
 
         // Parse command line arguments
@@ -35,8 +36,18 @@ public class Program
         var startArg = GetArgValue(args, "--start");
         var endArg = GetArgValue(args, "--end");
         var hoursArg = GetArgValue(args, "--hours");
+        var idArg = GetArgValue(args, "--id");
 
-        if (!string.IsNullOrEmpty(dateArg))
+        // Check if single incident mode
+        bool singleIncidentMode = !string.IsNullOrEmpty(idArg);
+        int singleIncidentId = 0;
+        if (singleIncidentMode && !int.TryParse(idArg, out singleIncidentId))
+        {
+            Console.WriteLine($"ERROR: Invalid incident ID '{idArg}'");
+            return;
+        }
+
+        if (!singleIncidentMode && !string.IsNullOrEmpty(dateArg))
         {
             if (!DateTime.TryParseExact(dateArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out var specificDate))
@@ -48,7 +59,7 @@ public class Program
             endDate = specificDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Specific Date - {specificDate:dd/MM/yyyy}");
         }
-        else if (!string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
+        else if (!singleIncidentMode && !string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
         {
             if (!DateTime.TryParseExact(startArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out startDate))
@@ -66,7 +77,7 @@ public class Program
             endDate = endDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Date Range - {startDate:dd/MM/yyyy} to {endDate:dd/MM/yyyy}");
         }
-        else
+        else if (!singleIncidentMode)
         {
             int hours = 24;
             if (!string.IsNullOrEmpty(hoursArg) && int.TryParse(hoursArg, out var parsedHours))
@@ -119,7 +130,55 @@ public class Program
         }
         Console.WriteLine("Authenticated.");
 
-        // Fetch Incidents
+        // Single Incident Mode - fetch by ID and dump full JSON
+        if (singleIncidentMode)
+        {
+            Console.WriteLine($"\nFetching incident ID: {singleIncidentId} ...");
+            var incident = await FetchIncidentByIdAsync(token, singleIncidentId);
+            
+            if (incident == null)
+            {
+                Console.WriteLine("Incident not found.");
+                return;
+            }
+            
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var jsonPath = $"incident_{singleIncidentId}_{timestamp}.json";
+            File.WriteAllText(jsonPath, JsonConvert.SerializeObject(incident, Formatting.Indented));
+            Console.WriteLine($"\n✅ Full incident saved to: {jsonPath}");
+            
+            // Print all fields
+            Console.WriteLine("\n=== ALL ROOT FIELDS ===");
+            if (incident is JObject incObj)
+            {
+                foreach (var prop in incObj.Properties())
+                {
+                    var val = prop.Value?.ToString() ?? "(null)";
+                    if (val.Length > 100) val = val.Substring(0, 100) + "...";
+                    Console.WriteLine($"  {prop.Name}: {val}");
+                }
+            }
+            
+            // Print all source fields
+            Console.WriteLine("\n=== ALL SOURCE FIELDS ===");
+            var source = incident["source"] as JObject;
+            if (source != null)
+            {
+                foreach (var prop in source.Properties())
+                {
+                    Console.WriteLine($"  {prop.Name}: {prop.Value}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("  (no source object)");
+            }
+            
+            Console.WriteLine("\nDone!");
+            return;
+        }
+
+        // Fetch Incidents by date range
         Console.WriteLine($"Fetching incidents...");
         var incidents = await FetchRawIncidentsAsync(token, startDate, endDate);
         Console.WriteLine($"Found {incidents.Count} incidents.");
@@ -291,6 +350,56 @@ public class Program
         { 
             Console.WriteLine($"Parse Error: {ex.Message}");
             return new JArray(); 
+        }
+    }
+
+    private static async Task<JToken?> FetchIncidentByIdAsync(string token, int incidentId)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var requestBody = new
+        {
+            type = "INCIDENTS",
+            ids = new[] { incidentId }
+        };
+
+        var jsonBody = JsonConvert.SerializeObject(requestBody);
+        Console.WriteLine($"Request: {jsonBody}");
+        
+        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync("incidents", content);
+        
+        Console.WriteLine($"Response Status: {response.StatusCode}");
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Error: {error}");
+            return null;
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Raw Response Length: {responseString.Length} chars");
+        
+        if (string.IsNullOrWhiteSpace(responseString)) return null;
+
+        try 
+        {
+            var jsonObj = JObject.Parse(responseString);
+            
+            // incidents array içindeki ilk elemanı dön
+            if (jsonObj["incidents"] is JArray arr && arr.Count > 0)
+            {
+                return arr[0];
+            }
+            
+            return jsonObj;
+        }
+        catch
+        {
+            // Array olarak dene
+            var arr = JArray.Parse(responseString);
+            return arr.Count > 0 ? arr[0] : null;
         }
     }
 }
