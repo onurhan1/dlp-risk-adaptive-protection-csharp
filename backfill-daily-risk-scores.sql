@@ -37,6 +37,20 @@ END $$;
 -- 2. Backfill/Recalculate daily scores for ALL historical incidents
 -- This query aggregates risks per user per day and inserts/updates the daily summary table
 -- COALESCE: user_email boş ise email_address, o da boşsa login_name kullanılır
+WITH resolved_incidents AS (
+    SELECT 
+        COALESCE(
+            NULLIF(TRIM(user_email), ''),
+            NULLIF(TRIM(email_address), ''),
+            NULLIF(TRIM(login_name), ''),
+            'unknown'
+        ) as resolved_email,
+        timestamp,
+        risk_score,
+        action,
+        max_matches
+    FROM incidents
+)
 INSERT INTO user_daily_risk_scores (
     user_email, 
     date, 
@@ -53,12 +67,7 @@ INSERT INTO user_daily_risk_scores (
     created_at
 )
 SELECT 
-    COALESCE(
-        NULLIF(TRIM(i.user_email), ''),
-        NULLIF(TRIM(i.email_address), ''),
-        NULLIF(TRIM(i.login_name), ''),
-        'unknown'
-    ) as user_email,
+    i.resolved_email as user_email,
     i.timestamp::date as date,
     -- Normalized daily score (1-100 scale)
     -- Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
@@ -79,13 +88,8 @@ SELECT
     COALESCE(MAX(i.max_matches), 0) as max_max_matches,
     COALESCE(AVG(i.max_matches), 0) as avg_max_matches,
     NOW() as created_at
-FROM incidents i
-GROUP BY COALESCE(
-    NULLIF(TRIM(i.user_email), ''),
-    NULLIF(TRIM(i.email_address), ''),
-    NULLIF(TRIM(i.login_name), ''),
-    'unknown'
-), i.timestamp::date
+FROM resolved_incidents i
+GROUP BY i.resolved_email, i.timestamp::date
 ON CONFLICT (user_email, date) 
 DO UPDATE SET
     daily_risk_score = EXCLUDED.daily_risk_score,
