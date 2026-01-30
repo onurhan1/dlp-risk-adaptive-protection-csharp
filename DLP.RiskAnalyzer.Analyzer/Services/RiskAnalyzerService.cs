@@ -1260,13 +1260,14 @@ public class RiskAnalyzerService
         DateOnly startDate;
         int minDaysRequired = 1; // Minimum days with activity required for multi-day periods
         
+        // For 24h/daily, use real-time data from incidents table
+        if (period.ToLower() == "24h" || period.ToLower() == "daily")
+        {
+            return await GetTopUsersFromIncidentsRealTimeAsync(limit);
+        }
+        
         switch (period.ToLower())
         {
-            case "24h":
-            case "daily":
-                startDate = endDate; // Today only
-                minDaysRequired = 1;
-                break;
             case "weekly":
                 startDate = endDate.AddDays(-7);
                 minDaysRequired = 2; // At least 2 days in a week
@@ -1291,8 +1292,8 @@ public class RiskAnalyzerService
                 minDaysRequired = 10; // At least 10 days in a year
                 break;
             default:
-                startDate = endDate.AddDays(-1);
-                minDaysRequired = 1;
+                startDate = endDate.AddDays(-7);
+                minDaysRequired = 2;
                 break;
         }
 
@@ -1372,6 +1373,84 @@ public class RiskAnalyzerService
             { "days_with_activity", u.DaysWithActivity },
             { "min_days_required", u.MinDaysRequired },
             { "period", period }
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Get top users from incidents table in real-time (last 24 hours)
+    /// Used for "Today's Active Users" to show live data without waiting for daily aggregation
+    /// </summary>
+    private async Task<List<Dictionary<string, object>>> GetTopUsersFromIncidentsRealTimeAsync(int limit = 10)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var yesterday = today.AddDays(-1);
+
+        // Get incidents from last 24 hours using existing repository method
+        var incidents = await _incidentRepository.GetIncidentsAsync(yesterday, today);
+        
+        // Filter to last 24 hours (in case we get more)
+        var now = DateTime.UtcNow;
+        var startTime = now.AddHours(-24);
+        var recentIncidents = incidents
+            .Where(i => i.Timestamp >= startTime)
+            .ToList();
+
+        if (!recentIncidents.Any())
+        {
+            return new List<Dictionary<string, object>>();
+        }
+
+        // Group by user and calculate scores
+        var userGroups = recentIncidents
+            .GroupBy(i => i.UserEmail)
+            .Select(g => {
+                var userIncidents = g.ToList();
+                var totalIncidents = userIncidents.Count;
+                double avgRiskScore = userIncidents.Average(i => i.RiskScore ?? 0.0);
+                double maxRiskScore = userIncidents.Max(i => i.RiskScore ?? 0.0);
+                var totalBlocks = userIncidents.Count(i => 
+                    i.Action?.ToUpper() == "BLOCKED" || i.Action?.ToUpper() == "BLOCK");
+                var totalQuarantines = userIncidents.Count(i => 
+                    i.Action?.ToUpper() == "QUARANTINED" || i.Action?.ToUpper() == "QUARANTINE");
+
+                // Calculate risk score using same formula
+                // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+                double riskScore = Math.Min(100.0,
+                    (avgRiskScore / 500.0 * 50.0) +
+                    (maxRiskScore / 500.0 * 30.0) +
+                    Math.Min(20.0, Math.Log10(totalIncidents + 1) * 10.0)
+                );
+
+                return new {
+                    UserEmail = g.Key,
+                    RiskScore = Math.Round(riskScore, 1),
+                    TotalIncidents = totalIncidents,
+                    TotalBlocks = totalBlocks,
+                    TotalQuarantines = totalQuarantines,
+                    AvgRiskScore = Math.Round(avgRiskScore, 1),
+                    MaxRiskScore = Math.Round(maxRiskScore, 1)
+                };
+            })
+            .OrderByDescending(u => u.RiskScore)
+            .Take(limit)
+            .ToList();
+
+        return userGroups.Select(u => new Dictionary<string, object>
+        {
+            { "user_email", u.UserEmail },
+            { "full_name", "" },
+            { "team", "" },
+            { "risk_score", u.RiskScore },
+            { "base_score", u.RiskScore },
+            { "consistency_factor", 1.0 },
+            { "avg_daily_score", u.AvgRiskScore },
+            { "max_daily_score", u.MaxRiskScore },
+            { "total_incidents", u.TotalIncidents },
+            { "total_blocks", u.TotalBlocks },
+            { "total_quarantines", u.TotalQuarantines },
+            { "days_with_activity", 1 },
+            { "min_days_required", 1 },
+            { "period", "24h" }
         }).ToList();
     }
 
