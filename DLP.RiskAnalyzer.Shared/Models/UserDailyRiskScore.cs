@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace DLP.RiskAnalyzer.Shared.Models;
 
 /// <summary>
@@ -51,31 +53,37 @@ public class UserDailyRiskScore
     /// <summary>
     /// O günkü BLOCK action sayısı
     /// </summary>
+    [Column("block_count")]
     public int BlockCount { get; set; } = 0;
 
     /// <summary>
     /// O günkü PERMIT action sayısı
     /// </summary>
+    [Column("permit_count")]
     public int PermitCount { get; set; } = 0;
 
     /// <summary>
     /// O günkü QUARANTINE action sayısı
     /// </summary>
+    [Column("quarantine_count")]
     public int QuarantineCount { get; set; } = 0;
 
     /// <summary>
     /// O günkü RELEASED action sayısı
     /// </summary>
+    [Column("released_count")]
     public int ReleasedCount { get; set; } = 0;
 
     /// <summary>
     /// O günkü en yüksek max_matches değeri
     /// </summary>
+    [Column("max_max_matches")]
     public int MaxMaxMatches { get; set; } = 0;
 
     /// <summary>
     /// O günkü ortalama max_matches değeri
     /// </summary>
+    [Column("avg_max_matches")]
     public double AvgMaxMatches { get; set; } = 0;
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
