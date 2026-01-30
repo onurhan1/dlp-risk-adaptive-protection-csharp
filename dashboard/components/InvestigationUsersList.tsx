@@ -7,6 +7,7 @@ interface UserRisk {
   user_email: string
   risk_score: number
   total_incidents: number
+  team?: string
 }
 
 interface InvestigationUsersListProps {
@@ -42,15 +43,13 @@ export default function InvestigationUsersList({
           page_size: 5000  // Get all users at once
         }
       })
-      const usersData = (response.data.users || []).map((user: any) => {
-        const rawScore = user.risk_score || user.maxRiskScore || 0
-        const normalizedScore = rawScore > 100 ? Math.round(rawScore / 10) : rawScore
-        return {
-          user_email: user.user_email || user.userEmail || '',
-          risk_score: normalizedScore,
-          total_incidents: user.total_incidents || user.totalIncidents || 0
-        }
-      })
+      // Risk score is now 0-100 average from user_daily_risk_scores (no normalization needed)
+      const usersData = (response.data.users || []).map((user: any) => ({
+        user_email: user.user_email || user.userEmail || '',
+        risk_score: Math.round(user.risk_score || 0),
+        total_incidents: user.total_incidents || user.totalIncidents || 0,
+        team: user.team || ''
+      }))
       setAllUsers(usersData)
     } catch (error) {
       console.error('Error fetching users:', error)
@@ -175,8 +174,11 @@ export default function InvestigationUsersList({
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>{user.user_email}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.user_email}</span>
+                {user.team && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.team}</span>
+                )}
               </div>
             </div>
           ))

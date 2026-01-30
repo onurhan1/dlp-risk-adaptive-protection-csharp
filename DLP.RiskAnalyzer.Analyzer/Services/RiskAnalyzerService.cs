@@ -344,28 +344,39 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
-    /// Get paginated user list with risk scores
+    /// Get paginated user list with risk scores from user_daily_risk_scores (last 30 days average)
+    /// Uses same algorithm as Dashboard Top Risky Users for consistency
     /// </summary>
     public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null)
     {
-        // Get all incidents (no date filter for user list)
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-365); // Last year
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
-        
-        var userGroups = incidents
-            .GroupBy(i => i.UserEmail)
-            .Select(g => new
-            {
-                user_email = g.Key,
-                risk_score = g.Max(i => i.RiskScore ?? 0),
-                total_incidents = g.Count(),
-                last_incident_date = g.Max(i => i.Timestamp),
-                department = g.Where(i => !string.IsNullOrEmpty(i.Department))
-                             .Select(i => i.Department)
-                             .FirstOrDefault() ?? null
+        var startDate = endDate.AddDays(-30); // Last 30 days
+
+        // Get daily scores from user_daily_risk_scores table
+        var dailyScores = await _context.UserDailyRiskScores
+            .Where(r => r.Date >= startDate && r.Date <= endDate)
+            .ToListAsync();
+
+        // Calculate average risk score per user (same as Dashboard)
+        var userGroups = dailyScores
+            .GroupBy(s => s.UserEmail)
+            .Select(g => {
+                var scores = g.ToList();
+                var avgScore = scores.Average(s => s.DailyRiskScore);
+                var totalIncidents = scores.Sum(s => s.IncidentCount);
+                var lastDate = scores.Max(s => s.Date);
+                var fullName = scores.FirstOrDefault(s => !string.IsNullOrEmpty(s.FullName))?.FullName;
+                var team = scores.FirstOrDefault(s => !string.IsNullOrEmpty(s.Team))?.Team;
+                
+                return new {
+                    user_email = g.Key,
+                    risk_score = Math.Round(avgScore, 1),
+                    total_incidents = totalIncidents,
+                    last_incident_date = lastDate,
+                    full_name = fullName ?? "",
+                    team = team ?? ""
+                };
             })
-            // Sort by: 1) Risk score desc, 2) Last incident date desc (most recent first)
             .OrderByDescending(u => u.risk_score)
             .ThenByDescending(u => u.last_incident_date)
             .ToList();
@@ -376,7 +387,8 @@ public class RiskAnalyzerService
             var searchLower = search.ToLower().Trim();
             userGroups = userGroups
                 .Where(u => u.user_email.ToLower().Contains(searchLower) ||
-                           (u.department != null && u.department.ToLower().Contains(searchLower)))
+                           u.full_name.ToLower().Contains(searchLower) ||
+                           u.team.ToLower().Contains(searchLower))
                 .ToList();
         }
 
@@ -391,8 +403,9 @@ public class RiskAnalyzerService
                 { "user_email", u.user_email },
                 { "risk_score", u.risk_score },
                 { "total_incidents", u.total_incidents },
-                { "last_incident_date", u.last_incident_date.ToString("O") },
-                { "department", u.department ?? "" }
+                { "last_incident_date", u.last_incident_date.ToString("yyyy-MM-dd") },
+                { "full_name", u.full_name },
+                { "team", u.team }
             }) },
             { "total", total },
             { "page", page },

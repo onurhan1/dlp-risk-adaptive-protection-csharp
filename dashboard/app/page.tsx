@@ -666,8 +666,13 @@ export default function Home() {
                                         padding: '2px 6px',
                                         borderRadius: '4px',
                                         fontSize: '10px',
-                                        background: detail.action === 'Block' ? '#ef4444' : 
-                                                   detail.action === 'Quarantine' ? '#f59e0b' : '#22c55e',
+                                        background: (() => {
+                                          const action = (detail.action || '').toUpperCase()
+                                          if (action === 'BLOCK' || action === 'BLOCKED') return '#ef4444'  // Kırmızı
+                                          if (action === 'QUARANTINE' || action === 'QUARANTINED') return '#f59e0b'  // Turuncu
+                                          if (action === 'AUTHORIZED' || action === 'RELEASED' || action === 'PERMIT' || action === 'ALLOWED') return '#22c55e'  // Yeşil
+                                          return '#6b7280'  // Gri (bilinmeyen)
+                                        })(),
                                         color: 'white'
                                       }}>
                                         {detail.action || '-'}
