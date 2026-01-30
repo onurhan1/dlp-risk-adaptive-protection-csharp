@@ -36,6 +36,26 @@ public class RiskTrendController : ControllerBase
     }
 
     /// <summary>
+    /// Get comprehensive user insights with daily scores, action counts, and period averages
+    /// </summary>
+    [HttpGet("user/{email}/comprehensive")]
+    public async Task<ActionResult<Dictionary<string, object>>> GetUserComprehensiveInsights(
+        string email,
+        [FromQuery] string period = "monthly") // daily, weekly, monthly, quarterly
+    {
+        try
+        {
+            var result = await _riskService.GetUserComprehensiveInsightsAsync(email, period);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching comprehensive insights for {Email}", email);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Get weekly trend analysis for a user
     /// </summary>
     [HttpGet("user/{email}/weekly-trend")]

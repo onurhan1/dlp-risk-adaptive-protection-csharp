@@ -8,18 +8,47 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'full_name') THEN
         ALTER TABLE user_daily_risk_scores ADD COLUMN full_name TEXT;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'block_count') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN block_count INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'permit_count') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN permit_count INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'quarantine_count') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN quarantine_count INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'released_count') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN released_count INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'max_max_matches') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN max_max_matches INTEGER DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_daily_risk_scores' AND column_name = 'avg_max_matches') THEN
+        ALTER TABLE user_daily_risk_scores ADD COLUMN avg_max_matches DOUBLE PRECISION DEFAULT 0;
+    END IF;
 END $$;
 
 -- 2. Backfill/Recalculate daily scores for ALL historical incidents
 -- This query aggregates risks per user per day and inserts/updates the daily summary table
--- First pass: Insert aggregated scores without team/full_name
 INSERT INTO user_daily_risk_scores (
     user_email, 
     date, 
     daily_risk_score, 
     incident_count, 
     max_risk_score, 
-    avg_risk_score, 
+    avg_risk_score,
+    block_count,
+    permit_count,
+    quarantine_count,
+    released_count,
+    max_max_matches,
+    avg_max_matches,
     created_at
 )
 SELECT 
@@ -35,6 +64,14 @@ SELECT
     COUNT(*) as incident_count,
     COALESCE(MAX(i.risk_score), 0) as max_risk_score,
     COALESCE(AVG(i.risk_score), 0) as avg_risk_score,
+    -- Action counts
+    COUNT(*) FILTER (WHERE UPPER(i.action) IN ('BLOCK', 'BLOCKED')) as block_count,
+    COUNT(*) FILTER (WHERE UPPER(i.action) IN ('PERMIT', 'PERMITTED', 'AUTHORIZED')) as permit_count,
+    COUNT(*) FILTER (WHERE UPPER(i.action) IN ('QUARANTINE', 'QUARANTINED')) as quarantine_count,
+    COUNT(*) FILTER (WHERE UPPER(i.action) IN ('RELEASE', 'RELEASED')) as released_count,
+    -- Max matches stats
+    COALESCE(MAX(i.max_matches), 0) as max_max_matches,
+    COALESCE(AVG(i.max_matches), 0) as avg_max_matches,
     NOW() as created_at
 FROM incidents i
 GROUP BY i.user_email, i.timestamp::date
@@ -43,7 +80,13 @@ DO UPDATE SET
     daily_risk_score = EXCLUDED.daily_risk_score,
     incident_count = EXCLUDED.incident_count,
     max_risk_score = EXCLUDED.max_risk_score,
-    avg_risk_score = EXCLUDED.avg_risk_score;
+    avg_risk_score = EXCLUDED.avg_risk_score,
+    block_count = EXCLUDED.block_count,
+    permit_count = EXCLUDED.permit_count,
+    quarantine_count = EXCLUDED.quarantine_count,
+    released_count = EXCLUDED.released_count,
+    max_max_matches = EXCLUDED.max_max_matches,
+    avg_max_matches = EXCLUDED.avg_max_matches;
 
 -- 2b. Fill team/full_name from incidents for each user+date combination
 UPDATE user_daily_risk_scores u

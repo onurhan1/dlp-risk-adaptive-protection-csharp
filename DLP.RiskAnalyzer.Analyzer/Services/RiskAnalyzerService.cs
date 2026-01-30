@@ -920,6 +920,106 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
+    /// Get comprehensive user insights with daily scores, action breakdown, and period averages
+    /// </summary>
+    public async Task<Dictionary<string, object>> GetUserComprehensiveInsightsAsync(string userEmail, string period)
+    {
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly startDate;
+        
+        switch (period.ToLower())
+        {
+            case "daily":
+                startDate = endDate.AddDays(-7);
+                break;
+            case "weekly":
+                startDate = endDate.AddDays(-28);
+                break;
+            case "monthly":
+                startDate = endDate.AddDays(-30);
+                break;
+            case "quarterly":
+                startDate = endDate.AddDays(-90);
+                break;
+            default:
+                startDate = endDate.AddDays(-30);
+                break;
+        }
+        
+        var dailyScores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
+        
+        // Calculate period averages (all-time windows for comparison)
+        var weeklyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-7), endDate);
+        var monthlyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-30), endDate);
+        var quarterlyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-90), endDate);
+        
+        var periodAverages = new Dictionary<string, object>
+        {
+            { "weekly", new {
+                avgScore = weeklyScores.Any() ? Math.Round(weeklyScores.Average(s => s.DailyRiskScore), 2) : 0,
+                totalIncidents = weeklyScores.Sum(s => s.IncidentCount),
+                totalBlocks = weeklyScores.Sum(s => s.BlockCount),
+                totalQuarantines = weeklyScores.Sum(s => s.QuarantineCount)
+            }},
+            { "monthly", new {
+                avgScore = monthlyScores.Any() ? Math.Round(monthlyScores.Average(s => s.DailyRiskScore), 2) : 0,
+                totalIncidents = monthlyScores.Sum(s => s.IncidentCount),
+                totalBlocks = monthlyScores.Sum(s => s.BlockCount),
+                totalQuarantines = monthlyScores.Sum(s => s.QuarantineCount)
+            }},
+            { "quarterly", new {
+                avgScore = quarterlyScores.Any() ? Math.Round(quarterlyScores.Average(s => s.DailyRiskScore), 2) : 0,
+                totalIncidents = quarterlyScores.Sum(s => s.IncidentCount),
+                totalBlocks = quarterlyScores.Sum(s => s.BlockCount),
+                totalQuarantines = quarterlyScores.Sum(s => s.QuarantineCount)
+            }}
+        };
+        
+        // Summary for selected period
+        var summary = new Dictionary<string, object>
+        {
+            { "totalIncidents", dailyScores.Sum(s => s.IncidentCount) },
+            { "avgDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Average(s => s.DailyRiskScore), 2) : 0 },
+            { "maxDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Max(s => s.DailyRiskScore), 2) : 0 },
+            { "minDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Min(s => s.DailyRiskScore), 2) : 0 },
+            { "totalBlockCount", dailyScores.Sum(s => s.BlockCount) },
+            { "totalPermitCount", dailyScores.Sum(s => s.PermitCount) },
+            { "totalQuarantineCount", dailyScores.Sum(s => s.QuarantineCount) },
+            { "totalReleasedCount", dailyScores.Sum(s => s.ReleasedCount) },
+            { "maxMaxMatches", dailyScores.Any() ? dailyScores.Max(s => s.MaxMaxMatches) : 0 },
+            { "avgMaxMatches", dailyScores.Any() ? Math.Round(dailyScores.Average(s => s.AvgMaxMatches), 2) : 0 }
+        };
+        
+        // Get user info from latest score
+        var latestScore = dailyScores.OrderByDescending(s => s.Date).FirstOrDefault();
+        
+        return new Dictionary<string, object>
+        {
+            { "userEmail", userEmail },
+            { "fullName", latestScore?.FullName ?? "" },
+            { "team", latestScore?.Team ?? "" },
+            { "period", period },
+            { "startDate", startDate.ToString("yyyy-MM-dd") },
+            { "endDate", endDate.ToString("yyyy-MM-dd") },
+            { "summary", summary },
+            { "periodAverages", periodAverages },
+            { "dailyScores", dailyScores.Select(s => new {
+                date = s.Date.ToString("yyyy-MM-dd"),
+                dailyRiskScore = Math.Round(s.DailyRiskScore, 2),
+                incidentCount = s.IncidentCount,
+                maxRiskScore = s.MaxRiskScore,
+                avgRiskScore = Math.Round(s.AvgRiskScore, 2),
+                blockCount = s.BlockCount,
+                permitCount = s.PermitCount,
+                quarantineCount = s.QuarantineCount,
+                releasedCount = s.ReleasedCount,
+                maxMaxMatches = s.MaxMaxMatches,
+                avgMaxMatches = Math.Round(s.AvgMaxMatches, 2)
+            }).ToList() }
+        };
+    }
+
+    /// <summary>
     /// Get weekly trend metrics
     /// </summary>
     public async Task<Dictionary<string, object>> GetUserWeeklyTrendAsync(string userEmail)

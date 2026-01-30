@@ -47,6 +47,36 @@ public class UserDailyRiskScore
     /// Kullanıcı tam adı
     /// </summary>
     public string? FullName { get; set; }
+
+    /// <summary>
+    /// O günkü BLOCK action sayısı
+    /// </summary>
+    public int BlockCount { get; set; } = 0;
+
+    /// <summary>
+    /// O günkü PERMIT action sayısı
+    /// </summary>
+    public int PermitCount { get; set; } = 0;
+
+    /// <summary>
+    /// O günkü QUARANTINE action sayısı
+    /// </summary>
+    public int QuarantineCount { get; set; } = 0;
+
+    /// <summary>
+    /// O günkü RELEASED action sayısı
+    /// </summary>
+    public int ReleasedCount { get; set; } = 0;
+
+    /// <summary>
+    /// O günkü en yüksek max_matches değeri
+    /// </summary>
+    public int MaxMaxMatches { get; set; } = 0;
+
+    /// <summary>
+    /// O günkü ortalama max_matches değeri
+    /// </summary>
+    public double AvgMaxMatches { get; set; } = 0;
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
