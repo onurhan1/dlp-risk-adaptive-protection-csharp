@@ -65,10 +65,26 @@ export default function InvestigationPage() {
       if (userFromUrl) {
         setSearchQuery(userFromUrl)
         setSelectedUser(userFromUrl)
+        // Fetch risk score for URL user
+        fetchUserRiskScoreFromUrl(userFromUrl)
       }
       setInitialUserLoaded(true)
     }
   }, [searchParams, initialUserLoaded])
+
+  // Fetch risk score when user comes from URL
+  const fetchUserRiskScoreFromUrl = async (userEmail: string) => {
+    try {
+      const response = await apiClient.get('/api/risk/user-list', {
+        params: { page: 1, page_size: 5000 }
+      })
+      const user = response.data.users?.find((u: any) => u.user_email === userEmail)
+      setSelectedUserRiskScore(user?.risk_score ?? 0)
+    } catch (error) {
+      console.error('Error fetching user risk score:', error)
+      setSelectedUserRiskScore(0)
+    }
+  }
 
   // Load AI Behavioral Analysis when user is selected
   useEffect(() => {

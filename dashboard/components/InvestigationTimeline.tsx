@@ -53,15 +53,10 @@ export default function InvestigationTimeline({
   useEffect(() => {
     if (userEmail) {
       fetchTimeline()
-      // Use risk score from props, or fetch from API, or calculate from incidents
-      const riskScore = userRiskScore ?? null
-
-      // If risk score not provided, try to calculate from incidents
-      if (riskScore === null) {
-        fetchUserRiskScore()
-      } else {
-        fetchUserInfo(riskScore)
-      }
+      // Always use risk score from props (from InvestigationUsersList)
+      // This ensures consistency between the user list and timeline header
+      const riskScore = userRiskScore ?? 0
+      fetchUserInfo(riskScore)
     } else {
       setEvents([])
       setUserInfo(null)
@@ -75,7 +70,7 @@ export default function InvestigationTimeline({
       const apiUrl = getApiUrlDynamic()
       // Fetch user's department from user-list endpoint
       const userListResponse = await axios.get(`${apiUrl}/api/risk/user-list`, {
-        params: { page: 1, page_size: 100 }
+        params: { page: 1, page_size: 5000 }
       })
 
       const user = userListResponse.data.users?.find((u: any) => u.user_email === userEmail)
@@ -113,38 +108,6 @@ export default function InvestigationTimeline({
         title: '',
         risk: riskScore
       })
-    }
-  }
-
-  const fetchUserRiskScore = async () => {
-    if (!userEmail) return
-
-    try {
-      const apiUrl = getApiUrlDynamic()
-      // Fetch user's risk score from user-list endpoint
-      const response = await axios.get(`${apiUrl}/api/risk/user-list`, {
-        params: { page: 1, page_size: 100 }
-      })
-
-      const user = response.data.users?.find((u: any) => u.user_email === userEmail)
-      const riskScore = user?.risk_score ?? 0
-
-      await fetchUserInfo(riskScore)
-    } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Error fetching user risk score:', error)
-      }
-      // Fallback: calculate from incidents
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.get(`${apiUrl}/api/incidents`, {
-        params: { user: userEmail, limit: 100 }
-      })
-
-      const maxRiskScore = response.data.length > 0
-        ? Math.max(...response.data.map((inc: any) => inc.risk_score || 0))
-        : 0
-
-      await fetchUserInfo(maxRiskScore)
     }
   }
 
