@@ -900,18 +900,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Data Movement Chart */}
-      <div className="dashboard-grid">
+      {/* Data Movement Chart & Top Matched Rules - Side by Side */}
+      <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
           <h2>Data Movement 30 days</h2>
           <div style={{ position: 'relative' }}>
             <ChannelActivity days={30} />
           </div>
         </div>
-      </div>
 
-      {/* Top Matched Rules */}
-      <div className="dashboard-grid">
         <div className="card">
           <div className="card-header-row">
             <h2>Top matched rules</h2>
