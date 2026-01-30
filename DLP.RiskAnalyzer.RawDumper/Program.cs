@@ -153,11 +153,24 @@ public class Program
             // Print sample of first 3 incidents
             if (incidents.Count > 0)
             {
-                Console.WriteLine("\nSample incidents:");
+                            Console.WriteLine("\nSample incidents:");
                 for (int i = 0; i < Math.Min(3, incidents.Count); i++)
                 {
                     var inc = incidents[i];
-                    Console.WriteLine($"  [{i+1}] ID: {inc["incident_id"]}, User: {inc["source"]?["login_name"] ?? inc["source"]?["user_email"]}");
+                    var incidentDate = inc["date_time"]?.ToString() ?? inc["timestamp"]?.ToString() ?? "N/A";
+                    Console.WriteLine($"  [{i+1}] ID: {inc["incident_id"]}, Date: {incidentDate}, User: {inc["source"]?["login_name"] ?? inc["source"]?["user_email"]}");
+                }
+                
+                // Tarih aralığını kontrol et
+                Console.WriteLine("\n[DEBUG] Checking date range of returned incidents:");
+                var dates = incidents
+                    .Select(i => i["date_time"]?.ToString() ?? i["timestamp"]?.ToString())
+                    .Where(d => !string.IsNullOrEmpty(d))
+                    .Take(10)
+                    .ToList();
+                foreach (var d in dates)
+                {
+                    Console.WriteLine($"  - {d}");
                 }
             }
             return;
@@ -237,15 +250,25 @@ public class Program
         // Use Bearer Token for this request
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+        // Forcepoint API expects dd/MM/yyyy HH:mm:ss format
+        var fromDateStr = start.ToString("dd/MM/yyyy HH:mm:ss");
+        var toDateStr = end.ToString("dd/MM/yyyy HH:mm:ss");
+        
+        Console.WriteLine($"[DEBUG] API Request from_date: {fromDateStr}");
+        Console.WriteLine($"[DEBUG] API Request to_date: {toDateStr}");
+
         var requestBody = new
         {
-            type = "INCIDENTS", // Required field based on Importer logic
-            from_date = start.ToString("dd/MM/yyyy HH:mm:ss"), // Forcepoint format
-            to_date = end.ToString("dd/MM/yyyy HH:mm:ss"),     // Forcepoint format
+            type = "INCIDENTS",
+            from_date = fromDateStr,
+            to_date = toDateStr,
             limit = 10000 
         };
 
-        var content = new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
+        var jsonBody = JsonConvert.SerializeObject(requestBody);
+        Console.WriteLine($"[DEBUG] Request Body: {jsonBody}");
+
+        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync("incidents", content);
         
         if (!response.IsSuccessStatusCode)
