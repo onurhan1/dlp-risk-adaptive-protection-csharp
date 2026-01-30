@@ -864,6 +864,31 @@ public class RiskAnalyzerService
             var incidentCount = dailyIncidents.Count;
             var avgRiskScore = incidentCount > 0 ? sumRiskScore / incidentCount : 0;
             
+            // Calculate action counts
+            var blockCount = dailyIncidents.Count(i => 
+                i.Action != null && (i.Action.Equals("BLOCK", StringComparison.OrdinalIgnoreCase) || 
+                                      i.Action.Equals("BLOCKED", StringComparison.OrdinalIgnoreCase)));
+            var permitCount = dailyIncidents.Count(i => 
+                i.Action != null && (i.Action.Equals("PERMIT", StringComparison.OrdinalIgnoreCase) || 
+                                      i.Action.Equals("PERMITTED", StringComparison.OrdinalIgnoreCase) ||
+                                      i.Action.Equals("AUTHORIZED", StringComparison.OrdinalIgnoreCase)));
+            var quarantineCount = dailyIncidents.Count(i => 
+                i.Action != null && (i.Action.Equals("QUARANTINE", StringComparison.OrdinalIgnoreCase) || 
+                                      i.Action.Equals("QUARANTINED", StringComparison.OrdinalIgnoreCase)));
+            var releasedCount = dailyIncidents.Count(i => 
+                i.Action != null && (i.Action.Equals("RELEASE", StringComparison.OrdinalIgnoreCase) || 
+                                      i.Action.Equals("RELEASED", StringComparison.OrdinalIgnoreCase)));
+            
+            // Calculate max matches stats
+            var maxMaxMatches = dailyIncidents.Max(i => i.MaxMatches);
+            var avgMaxMatches = incidentCount > 0 ? dailyIncidents.Average(i => (double)i.MaxMatches) : 0;
+            
+            // Get team and full_name from first incident that has them
+            var firstWithTeam = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.Team) || !string.IsNullOrEmpty(i.Department));
+            var firstWithName = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.FullName));
+            var team = firstWithTeam?.Team ?? firstWithTeam?.Department;
+            var fullName = firstWithName?.FullName;
+            
             // Normalized daily score (1-100 scale)
             // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
             var normalizedScore = Math.Min(100,
@@ -883,6 +908,14 @@ public class RiskAnalyzerService
                 existingRecord.IncidentCount = incidentCount;
                 existingRecord.MaxRiskScore = maxRiskScore;
                 existingRecord.AvgRiskScore = avgRiskScore;
+                existingRecord.BlockCount = blockCount;
+                existingRecord.PermitCount = permitCount;
+                existingRecord.QuarantineCount = quarantineCount;
+                existingRecord.ReleasedCount = releasedCount;
+                existingRecord.MaxMaxMatches = maxMaxMatches;
+                existingRecord.AvgMaxMatches = avgMaxMatches;
+                if (!string.IsNullOrEmpty(team)) existingRecord.Team = team;
+                if (!string.IsNullOrEmpty(fullName)) existingRecord.FullName = fullName;
                 // CreatedAt remains original
             }
             else
@@ -895,6 +928,14 @@ public class RiskAnalyzerService
                     IncidentCount = incidentCount,
                     MaxRiskScore = maxRiskScore,
                     AvgRiskScore = avgRiskScore,
+                    BlockCount = blockCount,
+                    PermitCount = permitCount,
+                    QuarantineCount = quarantineCount,
+                    ReleasedCount = releasedCount,
+                    MaxMaxMatches = maxMaxMatches,
+                    AvgMaxMatches = avgMaxMatches,
+                    Team = team,
+                    FullName = fullName,
                     CreatedAt = DateTime.UtcNow
                 };
                 
