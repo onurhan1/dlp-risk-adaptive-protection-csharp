@@ -12,7 +12,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Models
     {
         [Key]
         [Column("id")]
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         [Column("incident_id")]
         public int IncidentId { get; set; }
@@ -28,7 +28,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Models
         public int RiskScore { get; set; }
 
         [Column("anomaly_detected")]
-        public bool AnomalyDetected { get; set; }
+        public string AnomalyDetectedText { get; set; } = string.Empty;
+        
+        // Helper property to convert text to bool
+        [NotMapped]
+        public bool AnomalyDetected => AnomalyDetectedText?.ToLower() == "true";
 
         [Column("explanation")]
         public string Explanation { get; set; } = string.Empty;
@@ -37,7 +41,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Models
         public string RecommendedAction { get; set; } = string.Empty;
 
         [Column("timestamp")]
-        public DateTime Timestamp { get; set; }
+        public string[] TimestampArray { get; set; } = Array.Empty<string>();
+        
+        // Helper property to get first timestamp as DateTime
+        [NotMapped]
+        public DateTime Timestamp => TimestampArray?.Length > 0 && DateTime.TryParse(TimestampArray[0], out var dt) ? dt : DateTime.MinValue;
     }
 
     /// <summary>

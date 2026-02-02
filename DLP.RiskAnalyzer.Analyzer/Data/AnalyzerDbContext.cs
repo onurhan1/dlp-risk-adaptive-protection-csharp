@@ -295,19 +295,23 @@ public class AnalyzerDbContext : DbContext
             entity.ToTable("ai_explanations");
             entity.HasKey(e => e.Id);
             
-            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.IncidentId).HasColumnName("incident_id");
             entity.Property(e => e.UserEmail).HasColumnName("user_email").IsRequired().HasMaxLength(255);
             entity.Property(e => e.RiskLevel).HasColumnName("risk_level").HasMaxLength(50);
             entity.Property(e => e.RiskScore).HasColumnName("risk_score");
-            entity.Property(e => e.AnomalyDetected).HasColumnName("anomaly_detected");
+            entity.Property(e => e.AnomalyDetectedText).HasColumnName("anomaly_detected");
             entity.Property(e => e.Explanation).HasColumnName("explanation");
             entity.Property(e => e.RecommendedAction).HasColumnName("recommended_action");
-            entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+            entity.Property(e => e.TimestampArray).HasColumnName("timestamp");
 
             entity.HasIndex(e => e.UserEmail);
             entity.HasIndex(e => e.IncidentId);
             entity.HasIndex(e => e.RiskLevel);
+            
+            // Ignore computed properties
+            entity.Ignore(e => e.AnomalyDetected);
+            entity.Ignore(e => e.Timestamp);
         });
     }
 }
