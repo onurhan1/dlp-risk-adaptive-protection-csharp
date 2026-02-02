@@ -212,7 +212,7 @@ function TurkishContent() {
             </SubSection>
             <SubSection title="Sık Sorulan Sorular">
                 <QA q="BLOCKED, QUARANTINED gibi kartlara tıkladığımda ne olur?" a="Tıkladığınızda o aksiyona ait tüm olayların detaylı listesini gösteren bir modal açılır." />
-                <QA q="Rapor indirebilir miyim?" a="Evet, sağ üst köşedeki 'Günlük Rapor' butonuna tıklayarak PDF formatında detaylı rapor indirebilirsiniz." />
+                <QA q="Rapor indirebilir miyim?" a="Evet, sidebar'daki Reports sayfasına giderek tarih aralığına göre PDF formatında detaylı rapor oluşturabilirsiniz." />
             </SubSection>
 
             {/* Investigation */}
@@ -369,7 +369,7 @@ function EnglishContent() {
             </SubSection>
             <SubSection title="Frequently Asked Questions">
                 <QAen q="What happens when I click on BLOCKED, QUARANTINED cards?" a="Clicking opens a modal showing a detailed list of all incidents for that action." />
-                <QAen q="Can I download a report?" a="Yes, click the 'Daily Report' button in the top right corner to download a detailed PDF report." />
+                <QAen q="Can I download a report?" a="Yes, go to the Reports page in the sidebar to create and download a detailed PDF report based on your selected date range." />
             </SubSection>
 
             {/* Investigation */}

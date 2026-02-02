@@ -37,7 +37,7 @@
 > Bu liste, en yüksek `max_matches` değerine sahip ve potansiyel olarak en ciddi veri sızıntısı riski taşıyan olayları gösterir. Impact Score = Risk Skoru × Max Matches hesaplamasına göre sıralanır.
 
 **S: Rapor indirebilir miyim?**
-> Evet, sağ üst köşedeki "📊 Günlük Rapor" butonuna tıklayarak PDF formatında detaylı rapor indirebilirsiniz.
+> Evet, sidebar'daki **Reports** sayfasına giderek tarih aralığına göre PDF formatında detaylı rapor oluşturabilirsiniz.
 
 ---
 
