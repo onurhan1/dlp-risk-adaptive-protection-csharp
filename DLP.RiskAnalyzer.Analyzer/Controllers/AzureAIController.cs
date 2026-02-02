@@ -32,10 +32,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             {
                 var decodedEmail = Uri.UnescapeDataString(userEmail);
                 
-                var explanations = await _context.AzureAIExplanations
+                // Load data first, then sort in memory (Timestamp is a computed property)
+                var explanations = (await _context.AzureAIExplanations
                     .Where(e => e.UserEmail == decodedEmail)
+                    .ToListAsync())
                     .OrderByDescending(e => e.Timestamp)
-                    .ToListAsync();
+                    .ToList();
 
                 if (!explanations.Any())
                 {
