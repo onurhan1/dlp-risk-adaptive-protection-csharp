@@ -186,11 +186,62 @@ var totalRiskScore = Math.Round(normalizedScore, 2);
 ## Skor Yorumlama Tablosu
 
 | Skor Aralığı | Risk Seviyesi | Renk Kodu | Aksiyon |
-|--------------|---------------|-----------|---------|
+|--------------|---------------|-----------|---------
 | 0-25 | 🟢 Düşük | Yeşil | Normal izleme |
 | 26-50 | 🟡 Orta | Sarı | Dikkat gerektirir |
 | 51-75 | 🟠 Yüksek | Turuncu | Araştırma gerekli |
 | 76-100 | 🔴 Kritik | Kırmızı | Acil müdahale |
+
+---
+
+## Sayfa ve Bileşen Bazında Skor Kullanımı
+
+Aşağıdaki tablo, uygulamadaki her sayfa/bileşenin hangi API endpoint'ini kullandığını ve skor hesaplama yöntemini gösterir.
+
+### Ana Sayfalar
+
+| Sayfa | Bileşen | API Endpoint | Skor Hesaplama Yöntemi | Dönem | Filtreler |
+|-------|---------|--------------|------------------------|-------|-----------|
+| **Dashboard** | Top Risky Users (24h) | `/api/risk-trends/top-users?period=24h` | `Average(DailyRiskScore)` | Son 24 saat | Min 3 gün, ≥70 skor |
+| **Dashboard** | Top Risky Users (Period) | `/api/risk-trends/top-users?period={period}` | `Average(DailyRiskScore)` | Seçilebilir | Min 3 gün, ≥70 skor |
+| **Dashboard** | High Impact Alerts | `/api/risk-trends/daily-summary` | `daily_risk_score` | Son 7 gün | - |
+| **Investigation** | Users List | `/api/risk/user-list` | `Average(DailyRiskScore)` | Son 30 gün | - |
+| **Investigation** | Timeline Header | `/api/risk/user-list` | `Average(DailyRiskScore)` | Son 30 gün | - |
+| **Investigation** | User Insights Modal | `/api/risk-trends/user/{email}/comprehensive` | `Average(DailyRiskScore)` | Seçilebilir | - |
+| **Reports** | Daily Summary - Top Users | `/api/reports/daily-summary` | Günlük ham skor | Tek gün | - |
+| **Reports** | Risky Users Trends | `/api/risk-trends/users/report` | Trend analizi | weekly/monthly/quarterly | - |
+| **AI Behavioral** | Entity Risk Score | `/api/ai-behavioral/entity/{type}/{id}/detail` | AI analizi | Seçilebilir | - |
+
+### Bileşenler
+
+| Bileşen | Kullanıldığı Sayfa | API Endpoint | Skor Hesaplama |
+|---------|-------------------|--------------|----------------|
+| `InvestigationUsersList` | Investigation | `/api/risk/user-list` | `Average(DailyRiskScore)` - 30 gün |
+| `InvestigationTimeline` | Investigation | `/api/risk/user-list` | `Average(DailyRiskScore)` - 30 gün |
+| `UserInsightsModal` | Investigation | `/api/risk-trends/user/{email}/comprehensive` | `Average(DailyRiskScore)` - period bazlı |
+| `RiskTimelineChart` | Investigation | `/api/risk/top-users-daily` | Günlük ham skor |
+| `HighRiskUsersModal` | Dashboard | `/api/risk/high-risk-users` | Maksimum incident skor |
+| `UserRiskList` | - | `/api/risk/user-list` | `Average(DailyRiskScore)` - 30 gün |
+
+### Hesaplama Yöntemleri Özeti
+
+| Yöntem | Açıklama | Kullanıldığı Yerler |
+|--------|----------|---------------------|
+| **`Average(DailyRiskScore)`** | Günlük risk skorlarının basit ortalaması | Dashboard Top Users, Investigation Users List, User Insights |
+| **`daily_risk_score`** | Formül ile hesaplanmış tek günlük skor | High Impact Alerts, Daily Summary |
+| **Maksimum incident skor** | O gündeki en yüksek incident skoru | High Risk Users Modal |
+| **AI Analizi** | Machine learning tabanlı davranış analizi | AI Behavioral sayfa |
+
+### API Endpoint Detayları
+
+| Endpoint | Controller | Servis Metodu | Hesaplama |
+|----------|------------|---------------|-----------|
+| `/api/risk-trends/top-users` | RiskTrendController | `GetTopRiskyUsersFromDailyScoresAsync` | Average(DailyRiskScore), min 3 gün, ≥70 skor |
+| `/api/risk/user-list` | RiskController | `GetUserListAsync` | Average(DailyRiskScore), son 30 gün |
+| `/api/risk-trends/user/{email}/comprehensive` | RiskTrendController | `GetUserComprehensiveInsightsAsync` | Average(DailyRiskScore), period bazlı |
+| `/api/risk-trends/daily-summary` | RiskTrendController | `GetDailySummaryFromDailyScoresAsync` | Ham daily_risk_score |
+| `/api/reports/daily-summary` | ReportsController | `GetDailySummary` | Günlük agregasyon |
+| `/api/risk/high-risk-users` | RiskController | `GetHighRiskUsers` | MAX(incident.risk_score) |
 
 ---
 
@@ -222,6 +273,8 @@ Bu script:
 
 | Tarih | Değişiklik |
 |-------|------------|
+| 2026-02-02 | Sayfa bazlı skor kullanım tablosu eklendi |
+| 2026-02-02 | Top Risky Users hesaplaması basitleştirildi (consistency factor kaldırıldı) |
 | 2026-01-29 | Normalizasyon algoritması eklendi (v2) |
 | 2026-01-29 | 500 bölen değeri belirlendi |
 | 2026-01-29 | Backfill script güncellendi |
@@ -243,3 +296,9 @@ Bu script:
    - Ortalama en önemli (günün genel resmi)
    - Max önemli ama tek başına belirleyici değil
    - Count tamamlayıcı faktör (sıklık)
+
+4. **Neden Consistency Factor Kaldırıldı?**
+   - Dashboard ve Investigation arasında tutarsızlık yaratıyordu
+   - Aynı kullanıcı farklı sayfalarda farklı skor gösteriyordu
+   - Basit ortalama daha anlaşılır ve tutarlı
+
