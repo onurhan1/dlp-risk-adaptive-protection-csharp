@@ -41,11 +41,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Models
         public string RecommendedAction { get; set; } = string.Empty;
 
         [Column("timestamp")]
-        public string[] TimestampArray { get; set; } = Array.Empty<string>();
+        public DateTime[] TimestampArray { get; set; } = Array.Empty<DateTime>();
         
-        // Helper property to get first timestamp as DateTime
+        // Helper property to get first timestamp
         [NotMapped]
-        public DateTime Timestamp => TimestampArray?.Length > 0 && DateTime.TryParse(TimestampArray[0], out var dt) ? dt : DateTime.MinValue;
+        public DateTime Timestamp => TimestampArray?.Length > 0 ? TimestampArray[0] : DateTime.MinValue;
     }
 
     /// <summary>
