@@ -1254,11 +1254,12 @@ public class RiskAnalyzerService
     /// period: 24h, weekly, monthly, quarterly
     /// Uses normalized daily score formula
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10)
+    public async Task<List<Dictionary<string, object>>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20)
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         DateOnly startDate;
-        int minDaysRequired = 1; // Minimum days with activity required for multi-day periods
+        int minDaysRequired = 3; // Minimum 3 days activity required for all periods
+        double minScore = 70.0;  // Minimum score threshold
         
         // For 24h/daily, use real-time data from incidents table
         if (period.ToLower() == "24h" || period.ToLower() == "daily")
@@ -1270,30 +1271,24 @@ public class RiskAnalyzerService
         {
             case "weekly":
                 startDate = endDate.AddDays(-7);
-                minDaysRequired = 2; // At least 2 days in a week
                 break;
             case "monthly":
             case "1month":
                 startDate = endDate.AddDays(-30);
-                minDaysRequired = 3; // At least 3 days in a month
                 break;
             case "quarterly":
             case "3month":
                 startDate = endDate.AddDays(-90);
-                minDaysRequired = 5; // At least 5 days in 3 months
                 break;
             case "6month":
                 startDate = endDate.AddDays(-180);
-                minDaysRequired = 7; // At least 7 days in 6 months
                 break;
             case "yearly":
             case "12month":
                 startDate = endDate.AddDays(-365);
-                minDaysRequired = 10; // At least 10 days in a year
                 break;
             default:
                 startDate = endDate.AddDays(-7);
-                minDaysRequired = 2;
                 break;
         }
 
@@ -1302,77 +1297,64 @@ public class RiskAnalyzerService
             .Where(r => r.Date >= startDate && r.Date <= endDate)
             .ToListAsync();
 
-        // Group by user and calculate aggregated metrics with consistency factor
+        // Group by user and calculate simple average (like User Insights)
         var userGroups = scores
             .GroupBy(s => s.UserEmail)
             .Select(g => {
                 var userScores = g.ToList();
                 var daysWithActivity = userScores.Count;
                 var totalIncidents = userScores.Sum(s => s.IncidentCount);
+                
+                // Use simple average of DailyRiskScore (same as User Insights)
                 var avgDailyScore = userScores.Average(s => s.DailyRiskScore);
                 var maxDailyScore = userScores.Max(s => s.DailyRiskScore);
                 var totalBlocks = userScores.Sum(s => s.BlockCount);
                 var totalQuarantines = userScores.Sum(s => s.QuarantineCount);
                 var latestScore = userScores.OrderByDescending(s => s.Date).FirstOrDefault();
                 
-                // For multi-day periods, recalculate aggregated score using same formula
-                // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
-                var avgRiskScore = userScores.Average(s => s.AvgRiskScore);
-                var maxRiskScore = userScores.Max(s => s.MaxRiskScore);
-                
-                var baseScore = Math.Min(100,
-                    (avgRiskScore / 500.0 * 50) +
-                    (maxRiskScore / 500.0 * 30) +
-                    Math.Min(20, Math.Log10(totalIncidents + 1) * 10)
-                );
-                
-                // HYBRID APPROACH: Apply consistency factor for multi-day periods
-                // Single-day events get penalized, persistent behavior gets full score
-                // consistency_factor = MIN(1, days_with_activity / minDaysRequired)
-                // For 24h/daily period, no penalty applied (consistencyFactor = 1)
-                double consistencyFactor = period.ToLower() == "24h" || period.ToLower() == "daily" 
-                    ? 1.0 
-                    : Math.Min(1.0, (double)daysWithActivity / minDaysRequired);
-                
-                var adjustedScore = baseScore * consistencyFactor;
-                
                 return new {
                     UserEmail = g.Key,
                     FullName = latestScore?.FullName,
                     Team = latestScore?.Team,
-                    BaseScore = Math.Round(baseScore, 1),
-                    AdjustedScore = Math.Round(adjustedScore, 1),
-                    ConsistencyFactor = Math.Round(consistencyFactor, 2),
-                    AvgDailyScore = Math.Round(avgDailyScore, 1),
+                    RiskScore = Math.Round(avgDailyScore, 1),  // Simple average score
                     MaxDailyScore = Math.Round(maxDailyScore, 1),
                     TotalIncidents = totalIncidents,
                     TotalBlocks = totalBlocks,
                     TotalQuarantines = totalQuarantines,
-                    DaysWithActivity = daysWithActivity,
-                    MinDaysRequired = minDaysRequired
+                    DaysWithActivity = daysWithActivity
                 };
             })
-            .Where(u => u.TotalIncidents > 0)
-            .OrderByDescending(u => u.AdjustedScore) // Sort by adjusted score (with consistency factor)
-            .Take(limit)
+            // Filter: minimum 3 days activity AND score >= 70
+            .Where(u => u.DaysWithActivity >= minDaysRequired && u.RiskScore >= minScore)
+            .OrderByDescending(u => u.RiskScore)
+            .ThenByDescending(u => u.DaysWithActivity)
             .ToList();
 
-        return userGroups.Select(u => new Dictionary<string, object>
+        // Calculate pagination
+        var totalCount = userGroups.Count;
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        var pagedUsers = userGroups
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return pagedUsers.Select(u => new Dictionary<string, object>
         {
             { "user_email", u.UserEmail },
             { "full_name", u.FullName ?? "" },
             { "team", u.Team ?? "" },
-            { "risk_score", u.AdjustedScore }, // Use adjusted score as main score
-            { "base_score", u.BaseScore },
-            { "consistency_factor", u.ConsistencyFactor },
-            { "avg_daily_score", u.AvgDailyScore },
+            { "risk_score", u.RiskScore },
             { "max_daily_score", u.MaxDailyScore },
             { "total_incidents", u.TotalIncidents },
             { "total_blocks", u.TotalBlocks },
             { "total_quarantines", u.TotalQuarantines },
             { "days_with_activity", u.DaysWithActivity },
-            { "min_days_required", u.MinDaysRequired },
-            { "period", period }
+            { "min_days_required", minDaysRequired },
+            { "period", period },
+            { "page", page },
+            { "page_size", pageSize },
+            { "total_count", totalCount },
+            { "total_pages", totalPages }
         }).ToList();
     }
 

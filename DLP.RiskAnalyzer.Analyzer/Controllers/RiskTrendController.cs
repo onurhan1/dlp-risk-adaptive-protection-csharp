@@ -147,16 +147,19 @@ public class RiskTrendController : ControllerBase
     /// <summary>
     /// Get top risky users based on user_daily_risk_scores table
     /// period: 24h, weekly, monthly, quarterly
-    /// Uses normalized daily score formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+    /// Uses simple average of DailyRiskScore (same as User Insights)
+    /// Filters: minimum 3 days activity, score >= 70
     /// </summary>
     [HttpGet("top-users")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRiskyUsers(
         [FromQuery] string period = "24h",
-        [FromQuery] int limit = 10)
+        [FromQuery] int limit = 10,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            var result = await _riskService.GetTopRiskyUsersFromDailyScoresAsync(period, limit);
+            var result = await _riskService.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
             return Ok(result);
         }
         catch (Exception ex)
