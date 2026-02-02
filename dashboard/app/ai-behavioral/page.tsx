@@ -50,6 +50,10 @@ export default function AIBehavioralPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 100
 
+  // Azure AI data state
+  const [azureAIUsers, setAzureAIUsers] = useState<Map<string, number>>(new Map())
+  const [showOnlyAzureAI, setShowOnlyAzureAI] = useState(false)
+
   // Detail modal state
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [detailEntity, setDetailEntity] = useState<{ type: string; id: string } | null>(null)
@@ -73,10 +77,22 @@ export default function AIBehavioralPage() {
   const fetchOverview = async (forceRefresh: boolean = false) => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/api/ai-behavioral/overview', {
-        params: { lookbackDays, forceRefresh }
-      })
-      setOverview(response.data)
+      const [overviewRes, azureAIRes] = await Promise.all([
+        apiClient.get('/api/ai-behavioral/overview', {
+          params: { lookbackDays, forceRefresh }
+        }),
+        apiClient.get('/api/azure-ai/users-with-analysis')
+      ])
+      setOverview(overviewRes.data)
+
+      // Build a map of user email -> Azure AI average score
+      const azureMap = new Map<string, number>()
+      if (azureAIRes.data?.users) {
+        azureAIRes.data.users.forEach((u: any) => {
+          azureMap.set(u.userEmail, u.averageRiskScore)
+        })
+      }
+      setAzureAIUsers(azureMap)
     } catch (error: any) {
       console.error('Error fetching AI behavioral overview:', error)
     } finally {
@@ -147,13 +163,24 @@ export default function AIBehavioralPage() {
     }
   }, [overview, activeTab])
 
-  // Filter anomalies based on filter text
+  // Filter anomalies based on filter text and Azure AI filter
   const filteredAnomalies = useMemo(() => {
-    if (!filterText.trim()) return currentTabData.anomalies
-    return currentTabData.anomalies.filter(a =>
-      a.entityId.toLowerCase().includes(filterText.toLowerCase())
-    )
-  }, [currentTabData.anomalies, filterText])
+    let anomalies = currentTabData.anomalies
+
+    // Filter by text
+    if (filterText.trim()) {
+      anomalies = anomalies.filter(a =>
+        a.entityId.toLowerCase().includes(filterText.toLowerCase())
+      )
+    }
+
+    // Filter by Azure AI analysis (only for users tab)
+    if (showOnlyAzureAI && activeTab === 'users') {
+      anomalies = anomalies.filter(a => azureAIUsers.has(a.entityId))
+    }
+
+    return anomalies
+  }, [currentTabData.anomalies, filterText, showOnlyAzureAI, activeTab, azureAIUsers])
 
   // Pagination
   const totalPages = Math.ceil(filteredAnomalies.length / itemsPerPage)
@@ -255,6 +282,37 @@ export default function AIBehavioralPage() {
           >
             Refresh
           </button>
+
+          {/* Azure AI Filter Toggle */}
+          {activeTab === 'users' && (
+            <button
+              onClick={() => setShowOnlyAzureAI(!showOnlyAzureAI)}
+              style={{
+                padding: '8px 16px',
+                background: showOnlyAzureAI ? '#10b981' : 'var(--background)',
+                color: showOnlyAzureAI ? 'white' : 'var(--text-secondary)',
+                border: showOnlyAzureAI ? 'none' : '1px solid var(--border)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🤖 {showOnlyAzureAI ? 'Showing AI Analyzed' : 'Show AI Analyzed Only'}
+              <span style={{
+                background: showOnlyAzureAI ? 'rgba(255,255,255,0.2)' : 'var(--primary)',
+                color: 'white',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                fontSize: '11px'
+              }}>
+                {azureAIUsers.size}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Overview Stats */}
@@ -468,12 +526,29 @@ export default function AIBehavioralPage() {
                             }}>
                               {anomaly.anomalyLevel.toUpperCase()}
                             </div>
-                            <div style={{
-                              fontSize: '20px',
-                              fontWeight: '700',
-                              color: selectedEntity?.entityId === anomaly.entityId ? 'white' : getRiskColor(anomaly.riskScore)
-                            }}>
-                              {anomaly.riskScore}
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <div style={{
+                                fontSize: '20px',
+                                fontWeight: '700',
+                                color: selectedEntity?.entityId === anomaly.entityId ? 'white' : getRiskColor(anomaly.riskScore)
+                              }}>
+                                {anomaly.riskScore}
+                              </div>
+                              {activeTab === 'users' && azureAIUsers.has(anomaly.entityId) && (
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  padding: '4px 8px',
+                                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                  borderRadius: '8px'
+                                }}>
+                                  <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}>Azure AI</span>
+                                  <span style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>
+                                    {azureAIUsers.get(anomaly.entityId)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <button
