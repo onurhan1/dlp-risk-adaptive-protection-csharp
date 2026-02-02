@@ -7,7 +7,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Models
     /// Azure AI-generated explanations for DLP incidents
     /// Imported from external Azure AI analysis
     /// </summary>
-    [Table("AI_Explanations")]
+    [Table("ai_explanations")]
     public class AzureAIExplanation
     {
         [Key]

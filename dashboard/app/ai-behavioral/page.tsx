@@ -77,22 +77,25 @@ export default function AIBehavioralPage() {
   const fetchOverview = async (forceRefresh: boolean = false) => {
     setLoading(true)
     try {
-      const [overviewRes, azureAIRes] = await Promise.all([
-        apiClient.get('/api/ai-behavioral/overview', {
-          params: { lookbackDays, forceRefresh }
-        }),
-        apiClient.get('/api/azure-ai/users-with-analysis')
-      ])
+      const overviewRes = await apiClient.get('/api/ai-behavioral/overview', {
+        params: { lookbackDays, forceRefresh }
+      })
       setOverview(overviewRes.data)
 
-      // Build a map of user email -> Azure AI average score
-      const azureMap = new Map<string, number>()
-      if (azureAIRes.data?.users) {
-        azureAIRes.data.users.forEach((u: any) => {
-          azureMap.set(u.userEmail, u.averageRiskScore)
-        })
+      // Fetch Azure AI data separately to not block main data if it fails
+      try {
+        const azureAIRes = await apiClient.get('/api/azure-ai/users-with-analysis')
+        // Build a map of user email -> Azure AI average score
+        const azureMap = new Map<string, number>()
+        if (azureAIRes.data?.users) {
+          azureAIRes.data.users.forEach((u: any) => {
+            azureMap.set(u.userEmail, u.averageRiskScore)
+          })
+        }
+        setAzureAIUsers(azureMap)
+      } catch (azureError) {
+        console.warn('Azure AI data fetch failed, continuing without it:', azureError)
       }
-      setAzureAIUsers(azureMap)
     } catch (error: any) {
       console.error('Error fetching AI behavioral overview:', error)
     } finally {

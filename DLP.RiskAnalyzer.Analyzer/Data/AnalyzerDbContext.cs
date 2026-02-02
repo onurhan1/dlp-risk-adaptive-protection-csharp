@@ -292,7 +292,7 @@ public class AnalyzerDbContext : DbContext
         // Configure AzureAIExplanation
         modelBuilder.Entity<AzureAIExplanation>(entity =>
         {
-            entity.ToTable("AI_Explanations");
+            entity.ToTable("ai_explanations");
             entity.HasKey(e => e.Id);
             
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
