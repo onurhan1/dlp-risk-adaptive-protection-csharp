@@ -123,7 +123,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
         {
             try
             {
-                var users = await _context.AzureAIExplanations
+                // First fetch all data, then group in memory to avoid SQL translation issues
+                var allExplanations = await _context.AzureAIExplanations.ToListAsync();
+                
+                var users = allExplanations
                     .GroupBy(e => e.UserEmail)
                     .Select(g => new {
                         userEmail = g.Key,
@@ -133,7 +136,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
                         latestAnalysis = g.Max(e => e.Timestamp)
                     })
                     .OrderByDescending(u => u.averageRiskScore)
-                    .ToListAsync();
+                    .ToList();
 
                 return Ok(new {
                     totalUsers = users.Count,
