@@ -22,6 +22,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<UserDailyRiskScore> UserDailyRiskScores { get; set; }
     public DbSet<DomainFeatureDefinition> DomainFeatureDefinitions { get; set; }
     public DbSet<DomainFeatureValue> DomainFeatureValues { get; set; }
+    public DbSet<AzureAIExplanation> AzureAIExplanations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -286,6 +287,27 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.UserEmail);
             entity.HasIndex(e => e.Date);
             entity.HasIndex(e => new { e.UserEmail, e.Date }).IsUnique();
+        });
+
+        // Configure AzureAIExplanation
+        modelBuilder.Entity<AzureAIExplanation>(entity =>
+        {
+            entity.ToTable("AI_Explanations");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.IncidentId).HasColumnName("incident_id");
+            entity.Property(e => e.UserEmail).HasColumnName("user_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.RiskLevel).HasColumnName("risk_level").HasMaxLength(50);
+            entity.Property(e => e.RiskScore).HasColumnName("risk_score");
+            entity.Property(e => e.AnomalyDetected).HasColumnName("anomaly_detected");
+            entity.Property(e => e.Explanation).HasColumnName("explanation");
+            entity.Property(e => e.RecommendedAction).HasColumnName("recommended_action");
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp");
+
+            entity.HasIndex(e => e.UserEmail);
+            entity.HasIndex(e => e.IncidentId);
+            entity.HasIndex(e => e.RiskLevel);
         });
     }
 }
