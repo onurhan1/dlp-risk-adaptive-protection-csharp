@@ -412,6 +412,34 @@ This ensures both **persistent threats** and **one-time exfiltration attempts** 
 
 ---
 
+## 🛑 Alert Details (Investigation)
+
+Alert Details panelinde, bir incident (olay) seçildiğinde aşağıdaki bilgiler ve gruplama mantığı gösterilir:
+
+- **Matched Policy:** Olayı tetikleyen politika adı.
+- **Matched Rules:** Her politika altında, o olaya sebep olan kurallar listelenir.
+- **Classifier Matches:** Her kural altında, o kurala ait classifier'lar ve her birinin match (eşleşme) sayısı gruplu şekilde gösterilir.
+
+### Görsel Mantık
+
+```
+Matched Rules
+├─────────────────────────────────
+│ 📋 PCI-DSS Rule
+│    ├── Credit Card: 5
+│    └── CVV: 2
+│
+│ 📋 PII Rule
+│    └── SSN: 3
+```
+
+- Her kural altında, sadece o kurala ait classifier'lar ve match sayıları gösterilir.
+- Eğer ViolationTriggers JSON'u yoksa, sadece matched_rules dizisi gösterilir (classifier yok).
+
+> **Not:** Toplam match sayısı gösterilmez, her classifier kendi match sayısı ile listelenir. Bu yapı InvestigationAlertDetails.tsx dosyasında uygulanmıştır.
+
+---
+
 ## 🧪 Testing
 
 ### Test Scenarios
@@ -436,3 +464,19 @@ curl "http://localhost:5062/api/risk-trends/top-users?period=yearly&limit=10"
 - [DASHBOARD_VERI_AKISI_REHBERI.md](./DASHBOARD_VERI_AKISI_REHBERI.md) - Dashboard data flow
 - [ENTITY_ANOMALY_CALCULATION.md](./ENTITY_ANOMALY_CALCULATION.md) - Entity anomaly detection
 - [backfill-daily-risk-scores.sql](./backfill-daily-risk-scores.sql) - SQL script for historical data
+
+---
+
+## 📊 Tablo ve Skorlama Kullanımı
+
+Aşağıda, sistemdeki ana tablolar ve her birinde hangi skorlamanın kullanıldığı özetlenmiştir:
+
+| Tablo/Bölüm Adı                | Kullanılan Skor Formülü                                                                                 | Açıklama |
+|-------------------------------|--------------------------------------------------------------------------------------------------------|----------|
+| **Top Risky Users**           | `MIN(100, (Avg/500×50) + (Max/500×30) + MIN(20, LOG₁₀(Count+1)×10))`                                   | Seçilen periyottaki (hafta, ay, 3 ay, 6 ay, yıl) kullanıcı aktivitelerine göre hesaplanır. |
+| **Today's Active Users**      | Son 24 saatteki incident'lara göre aynı formül ile anlık skor hesaplanır.                              | Gerçek zamanlı, incidents tablosundan alınır. |
+| **Investigation User List**   | Son 30 günün günlük risk skorlarının ortalaması alınır.                                                | user_daily_risk_scores tablosu kullanılır. |
+| **Investigation Timeline**    | Seçili kullanıcının son 30 günlük risk skorlarının ortalaması (veya ilgili gün) gösterilir.            | user_daily_risk_scores tablosu kullanılır. |
+| **Potential Data Exfiltration** | Yüksek impact score ve match sayısına göre özel filtrelenmiş skorlar.                                 | incidents tablosu, ek filtreler uygulanır. |
+
+> Not: Tüm skorlamalarda temel formül yukarıda açıklanan hibrit risk skorudur. Bazı bölümlerde (ör. Investigation) sadece ortalama alınır, bazı bölümlerde ise formül tam uygulanır.

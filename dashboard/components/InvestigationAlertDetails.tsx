@@ -105,7 +105,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                   triggers = []
                 }
               }
-              const policyName = triggers.length > 0 ? triggers[0]?.PolicyName : event.policy
+              const policyName = triggers.length > 0 ? (triggers[0]?.PolicyName || triggers[0]?.policy_name) : event.policy
               return policyName ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
@@ -126,14 +126,14 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               }
             }
 
-            // Build rules with their classifiers grouped
+            // Build rules with their classifiers grouped (support both PascalCase and snake_case)
             const rulesWithClassifiers = triggers.map((t: any) => ({
-              ruleName: t.RuleName,
-              classifiers: (t.Classifiers || [])
-                .filter((c: any) => c.ClassifierName && c.NumberMatches > 0)
+              ruleName: t.RuleName || t.rule_name,
+              classifiers: (t.Classifiers || t.classifiers || [])
+                .filter((c: any) => (c.ClassifierName || c.classifier_name) && (c.NumberMatches || c.number_matches) > 0)
                 .map((c: any) => ({
-                  name: c.ClassifierName,
-                  matches: c.NumberMatches
+                  name: c.ClassifierName || c.classifier_name,
+                  matches: c.NumberMatches || c.number_matches
                 }))
             })).filter((r: any) => r.ruleName)
 
