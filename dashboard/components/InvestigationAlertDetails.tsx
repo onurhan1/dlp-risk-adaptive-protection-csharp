@@ -91,31 +91,10 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
         )}
       </div>
 
-      {/* Matched Policy */}
+      {/* Matched Policy - Grouped by Policy with Rules and Classifiers */}
       {(event.policy || event.violationTriggers) && (
         <div style={{ marginBottom: '24px' }}>
           <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Matched Policy</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {(() => {
-              let triggers: any[] = []
-              if (event.violationTriggers) {
-                try {
-                  triggers = JSON.parse(event.violationTriggers)
-                } catch {
-                  triggers = []
-                }
-              }
-              const policyName = triggers.length > 0 ? (triggers[0]?.PolicyName || triggers[0]?.policy_name) : event.policy
-              return policyName ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
-                  <span style={{ color: 'var(--text-primary)' }}>{policyName}</span>
-                </div>
-              ) : null
-            })()}
-          </div>
-
-          {/* Matched Rules Sub-section with Grouped Classifiers */}
           {(() => {
             let triggers: any[] = []
             if (event.violationTriggers) {
@@ -126,57 +105,89 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               }
             }
 
-            // Build rules with their classifiers grouped (support both PascalCase and snake_case)
-            const rulesWithClassifiers = triggers.map((t: any) => ({
-              ruleName: t.RuleName || t.rule_name,
-              classifiers: (t.Classifiers || t.classifiers || [])
+            // Group triggers by policy name (support both PascalCase and snake_case)
+            const policiesMap = new Map<string, Array<{
+              ruleName: string;
+              classifiers: Array<{ name: string; matches: number }>;
+            }>>()
+
+            triggers.forEach((t: any) => {
+              const policyName = t.PolicyName || t.policy_name
+              const ruleName = t.RuleName || t.rule_name
+              if (!policyName || !ruleName) return
+
+              const classifiers = (t.Classifiers || t.classifiers || [])
                 .filter((c: any) => (c.ClassifierName || c.classifier_name) && (c.NumberMatches || c.number_matches) > 0)
                 .map((c: any) => ({
                   name: c.ClassifierName || c.classifier_name,
                   matches: c.NumberMatches || c.number_matches
                 }))
-            })).filter((r: any) => r.ruleName)
 
-            // Fallback to matched_rules if no triggers
-            const legacyRules = rulesWithClassifiers.length === 0 ? (event.matched_rules || []) : []
+              if (!policiesMap.has(policyName)) {
+                policiesMap.set(policyName, [])
+              }
+              policiesMap.get(policyName)!.push({ ruleName, classifiers })
+            })
+
+            // Convert to array for rendering
+            const policies = Array.from(policiesMap.entries()).map(([policyName, rules]) => ({
+              policyName,
+              rules
+            }))
+
+            // Fallback to event.policy if no triggers parsed
+            if (policies.length === 0 && event.policy) {
+              policies.push({ policyName: event.policy, rules: [] })
+            }
+
+            // Fallback for legacy matched_rules
+            const legacyRules = policies.length === 0 ? (event.matched_rules || []) : []
 
             return (
-              <>
-                {rulesWithClassifiers.length > 0 && (
-                  <div style={{ marginTop: '12px' }}>
-                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '8px' }}>Matched Rules</h5>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingLeft: '8px' }}>
-                      {rulesWithClassifiers.map((rule: any, idx: number) => (
-                        <div key={idx} style={{ borderLeft: '2px solid #ef4444', paddingLeft: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 {rule.ruleName}</span>
-                          </div>
-                          {rule.classifiers.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
-                              {rule.classifiers.map((c: any, cIdx: number) => (
-                                <div key={cIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '4px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
-                                  <span style={{ color: 'var(--text-secondary)' }}>├── {c.name}</span>
-                                  <span style={{
-                                    padding: '2px 6px',
-                                    borderRadius: '10px',
-                                    fontSize: '11px',
-                                    fontWeight: '600',
-                                    background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
-                                    color: 'white'
-                                  }}>
-                                    {c.matches}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {policies.map((policy, pIdx) => (
+                  <div key={pIdx} style={{ borderLeft: '3px solid #3b82f6', paddingLeft: '12px' }}>
+                    {/* Policy Name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', marginBottom: '8px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }} />
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{policy.policyName}</span>
                     </div>
-                  </div>
-                )}
 
-                {/* Legacy rules without classifiers */}
+                    {/* Rules under this policy */}
+                    {policy.rules.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingLeft: '8px' }}>
+                        {policy.rules.map((rule, rIdx) => (
+                          <div key={rIdx} style={{ borderLeft: '2px solid #ef4444', paddingLeft: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 {rule.ruleName}</span>
+                            </div>
+                            {rule.classifiers.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
+                                {rule.classifiers.map((c, cIdx) => (
+                                  <div key={cIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '4px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>├── {c.name}</span>
+                                    <span style={{
+                                      padding: '2px 6px',
+                                      borderRadius: '10px',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
+                                      color: 'white'
+                                    }}>
+                                      {c.matches}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Legacy rules without policies */}
                 {legacyRules.length > 0 && (
                   <div style={{ marginTop: '12px' }}>
                     <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
@@ -190,7 +201,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )
           })()}
         </div>
