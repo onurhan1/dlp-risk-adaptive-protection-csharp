@@ -26,6 +26,7 @@ public class Program
         Console.WriteLine("  --end <dd/MM/yyyy>     : End date for range");
         Console.WriteLine("  --hours <N>            : Last N hours (default: 24)");
         Console.WriteLine("  --id <incident_id>     : Fetch single incident by ID (full details)");
+        Console.WriteLine("  --ids <id1,id2,...>    : Fetch multiple incidents by IDs (bulk mode)");
         Console.WriteLine();
 
         // Parse command line arguments
@@ -37,6 +38,7 @@ public class Program
         var endArg = GetArgValue(args, "--end");
         var hoursArg = GetArgValue(args, "--hours");
         var idArg = GetArgValue(args, "--id");
+        var idsArg = GetArgValue(args, "--ids");
 
         // Check if single incident mode
         bool singleIncidentMode = !string.IsNullOrEmpty(idArg);
@@ -47,7 +49,31 @@ public class Program
             return;
         }
 
-        if (!singleIncidentMode && !string.IsNullOrEmpty(dateArg))
+        // Check if bulk incidents mode
+        bool bulkIncidentMode = !string.IsNullOrEmpty(idsArg);
+        List<int> bulkIncidentIds = new List<int>();
+        if (bulkIncidentMode)
+        {
+            foreach (var idStr in idsArg!.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (int.TryParse(idStr.Trim(), out var parsedId))
+                {
+                    bulkIncidentIds.Add(parsedId);
+                }
+                else
+                {
+                    Console.WriteLine($"WARNING: Invalid incident ID '{idStr}' - skipping");
+                }
+            }
+            if (bulkIncidentIds.Count == 0)
+            {
+                Console.WriteLine("ERROR: No valid incident IDs provided");
+                return;
+            }
+            Console.WriteLine($"Mode: Bulk IDs - {bulkIncidentIds.Count} incidents");
+        }
+
+        if (!singleIncidentMode && !bulkIncidentMode && !string.IsNullOrEmpty(dateArg))
         {
             if (!DateTime.TryParseExact(dateArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out var specificDate))
@@ -59,7 +85,7 @@ public class Program
             endDate = specificDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Specific Date - {specificDate:dd/MM/yyyy}");
         }
-        else if (!singleIncidentMode && !string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
+        else if (!singleIncidentMode && !bulkIncidentMode && !string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
         {
             if (!DateTime.TryParseExact(startArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out startDate))
@@ -77,7 +103,7 @@ public class Program
             endDate = endDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Date Range - {startDate:dd/MM/yyyy} to {endDate:dd/MM/yyyy}");
         }
-        else if (!singleIncidentMode)
+        else if (!singleIncidentMode && !bulkIncidentMode)
         {
             int hours = 24;
             if (!string.IsNullOrEmpty(hoursArg) && int.TryParse(hoursArg, out var parsedHours))
@@ -89,8 +115,11 @@ public class Program
             Console.WriteLine($"Mode: Last {hours} hours");
         }
 
-        Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} -> {endDate:dd/MM/yyyy HH:mm:ss}");
-        Console.WriteLine();
+        if (!singleIncidentMode && !bulkIncidentMode)
+        {
+            Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} -> {endDate:dd/MM/yyyy HH:mm:ss}");
+            Console.WriteLine();
+        }
 
         // Load Configuration
         var parentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
@@ -129,6 +158,117 @@ public class Program
             return;
         }
         Console.WriteLine("Authenticated.");
+
+        // Bulk Incidents Mode - fetch multiple incidents by IDs and dump all data
+        if (bulkIncidentMode)
+        {
+            Console.WriteLine($"\n📦 Fetching {bulkIncidentIds.Count} incidents by IDs...");
+            var incidents = await FetchIncidentsByIdsAsync(token, bulkIncidentIds);
+            
+            if (incidents.Count == 0)
+            {
+                Console.WriteLine("No incidents found.");
+                return;
+            }
+            
+            Console.WriteLine($"✅ Retrieved {incidents.Count} incidents");
+            
+            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            
+            // Save full JSON
+            var jsonPath = $"bulk_incidents_{ts}.json";
+            File.WriteAllText(jsonPath, JsonConvert.SerializeObject(incidents, Formatting.Indented));
+            Console.WriteLine($"📄 Full JSON saved to: {jsonPath}");
+            
+            // Save CSV for source fields
+            var csvPath = $"bulk_source_data_{ts}.csv";
+            using (var writer = new StreamWriter(csvPath, false, Encoding.UTF8))
+            {
+                // Extended CSV header with all source fields
+                writer.WriteLine("incident_id,event_time,severity,action,channel,policies,destination,file_name,maximum_matches,manager,department,ip_address,login_name,host_name,email_address,dn,nt_domain,business_unit,risk_level,full_cn");
+                
+                foreach (var inc in incidents)
+                {
+                    var incidentId = inc["id"]?.ToString() ?? "";
+                    var eventTime = inc["event_time"]?.ToString() ?? "";
+                    var severity = inc["severity"]?.ToString() ?? "";
+                    var action = inc["action"]?.ToString() ?? "";
+                    var channel = inc["channel"]?.ToString() ?? "";
+                    var policies = inc["policies"]?.ToString() ?? "";
+                    var destination = inc["destination"]?.ToString() ?? "";
+                    var fileName = inc["file_name"]?.ToString() ?? "";
+                    var maxMatches = inc["maximum_matches"]?.ToString() ?? "";
+                    var riskLevel = inc["risk_level"]?.ToString() ?? "";
+                    var businessUnit = inc["business_unit"]?.ToString() ?? "";
+                    
+                    var source = inc["source"];
+                    var manager = source?["manager"]?.ToString() ?? "";
+                    var department = source?["department"]?.ToString() ?? "";
+                    var ipAddress = source?["ip_address"]?.ToString() ?? "";
+                    var loginName = source?["login_name"]?.ToString() ?? "";
+                    var hostName = source?["host_name"]?.ToString() ?? "";
+                    var emailAddress = source?["email_address"]?.ToString() ?? "";
+                    var dn = source?["dn"]?.ToString() ?? "";
+                    var ntDomain = source?["nt_domain"]?.ToString() ?? "";
+                    
+                    // Extract CN (Common Name) from DN if present
+                    var fullCn = "";
+                    if (!string.IsNullOrEmpty(dn) && dn.Contains("CN="))
+                    {
+                        var cnStart = dn.IndexOf("CN=") + 3;
+                        var cnEnd = dn.IndexOf(",", cnStart);
+                        if (cnEnd > cnStart) fullCn = dn.Substring(cnStart, cnEnd - cnStart);
+                        else fullCn = dn.Substring(cnStart);
+                    }
+                    
+                    string Escape(string val) => $"\"{val.Replace("\"", "\"\"")}\"";
+                    
+                    writer.WriteLine($"{Escape(incidentId)},{Escape(eventTime)},{Escape(severity)},{Escape(action)},{Escape(channel)},{Escape(policies)},{Escape(destination)},{Escape(fileName)},{Escape(maxMatches)},{Escape(manager)},{Escape(department)},{Escape(ipAddress)},{Escape(loginName)},{Escape(hostName)},{Escape(emailAddress)},{Escape(dn)},{Escape(ntDomain)},{Escape(businessUnit)},{Escape(riskLevel)},{Escape(fullCn)}");
+                }
+            }
+            Console.WriteLine($"📊 CSV saved to: {csvPath}");
+            
+            // Print all source fields found
+            Console.WriteLine("\n=== ALL SOURCE FIELDS FOUND ===");
+            var allSourceFields = new HashSet<string>();
+            foreach (var inc in incidents)
+            {
+                var source = inc["source"] as JObject;
+                if (source != null)
+                {
+                    foreach (var prop in source.Properties())
+                    {
+                        allSourceFields.Add(prop.Name);
+                    }
+                }
+            }
+            Console.WriteLine($"Fields: {string.Join(", ", allSourceFields.OrderBy(x => x))}");
+            
+            // Print detailed source data for each incident
+            Console.WriteLine("\n=== DETAILED SOURCE DATA ===");
+            foreach (var inc in incidents)
+            {
+                var incId = inc["id"]?.ToString() ?? "?";
+                var source = inc["source"] as JObject;
+                Console.WriteLine($"\n--- Incident {incId} ---");
+                if (source != null)
+                {
+                    foreach (var prop in source.Properties())
+                    {
+                        var val = prop.Value?.ToString() ?? "(null)";
+                        if (val.Length > 80) val = val.Substring(0, 80) + "...";
+                        Console.WriteLine($"  {prop.Name}: {val}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("  (no source object)");
+                }
+            }
+            
+            Console.WriteLine("\n✅ Done!");
+            return;
+        }
 
         // Single Incident Mode - fetch by ID and dump full JSON
         if (singleIncidentMode)
@@ -400,6 +540,54 @@ public class Program
             // Array olarak dene
             var arr = JArray.Parse(responseString);
             return arr.Count > 0 ? arr[0] : null;
+        }
+    }
+
+    private static async Task<List<JToken>> FetchIncidentsByIdsAsync(string token, List<int> incidentIds)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var requestBody = new
+        {
+            type = "INCIDENTS",
+            ids = incidentIds
+        };
+
+        var jsonBody = JsonConvert.SerializeObject(requestBody);
+        Console.WriteLine($"Request: {jsonBody}");
+        
+        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync("incidents", content);
+        
+        Console.WriteLine($"Response Status: {response.StatusCode}");
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Error: {error}");
+            return new List<JToken>();
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Raw Response Length: {responseString.Length} chars");
+        
+        if (string.IsNullOrWhiteSpace(responseString)) return new List<JToken>();
+
+        try 
+        {
+            var jsonObj = JObject.Parse(responseString);
+            
+            if (jsonObj["incidents"] is JArray arr)
+            {
+                return arr.ToList();
+            }
+            
+            return new List<JToken>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Parse Error: {ex.Message}");
+            return new List<JToken>();
         }
     }
 }
