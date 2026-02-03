@@ -22,8 +22,7 @@ export default function Sidebar() {
             style={{
               width: '100px',
               height: '100px',
-              objectFit: 'contain',
-              mixBlendMode: 'lighten'
+              objectFit: 'contain'
             }}
           />
         </div>
