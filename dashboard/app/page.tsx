@@ -120,6 +120,10 @@ export default function Home() {
   const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
+  // Pagination for Top Risky Users tables
+  const [topUsersPeriodPage, setTopUsersPeriodPage] = useState(1)
+  const [topUsers24hPage, setTopUsers24hPage] = useState(1)
+  const usersPerPage = 10
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
@@ -193,11 +197,11 @@ export default function Home() {
         }).catch(() => ({ data: [] })),
         // Top users 24h from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
-          params: { period: '24h', limit: 10 }
+          params: { period: '24h', limit: 50 }
         }).catch(() => ({ data: [] })),
         // Top users for selected period from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
-          params: { period: selectedPeriod, limit: 10 }
+          params: { period: selectedPeriod, limit: 50 }
         }).catch(() => ({ data: [] })),
         // High impact alerts - potential data exfiltration (minMaxMatches=100, minDailyRiskScore=80)
         axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
@@ -221,7 +225,10 @@ export default function Home() {
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
       setTopUsers24h(topUsers24hRes.data || [])
       setTopUsersPeriod(topUsersPeriodRes.data || [])
-      
+      // Reset pagination to page 1 when data changes
+      setTopUsersPeriodPage(1)
+      setTopUsers24hPage(1)
+
       // Set high impact alerts with pagination (potential data exfiltration)
       const highImpactData = highImpactRes.data as HighImpactAlertsResponse
       setHighImpactAlerts(highImpactData?.data || [])
@@ -471,18 +478,18 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <span style={{ 
-              fontSize: '12px', 
-              color: 'white', 
-              backgroundColor: '#dc2626', 
-              padding: '4px 12px', 
+            <span style={{
+              fontSize: '12px',
+              color: 'white',
+              backgroundColor: '#dc2626',
+              padding: '4px 12px',
               borderRadius: '12px',
               fontWeight: '600'
             }}>
               {highImpactPagination.totalCount} Alert{highImpactPagination.totalCount !== 1 ? 's' : ''}
             </span>
           </div>
-          
+
           {/* Accordion List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {highImpactAlerts.map((alert, idx) => {
@@ -499,9 +506,9 @@ export default function Home() {
                   return newSet
                 })
               }
-              
+
               return (
-                <div 
+                <div
                   key={idx}
                   style={{
                     borderRadius: '8px',
@@ -511,7 +518,7 @@ export default function Home() {
                   }}
                 >
                   {/* Compact Header Row - Always Visible */}
-                  <div 
+                  <div
                     onClick={toggleExpand}
                     style={{
                       padding: '12px 16px',
@@ -524,30 +531,30 @@ export default function Home() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-                      <span style={{ 
-                        fontSize: '16px', 
+                      <span style={{
+                        fontSize: '16px',
                         transition: 'transform 0.2s',
                         transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
                       }}>▶</span>
-                      
+
                       <span style={{
                         padding: '2px 8px',
                         borderRadius: '4px',
                         fontSize: '10px',
                         fontWeight: '700',
                         color: 'white',
-                        backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' : 
-                                        alert.severity_level === 'High' ? '#f59e0b' : '#eab308',
+                        backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' :
+                          alert.severity_level === 'High' ? '#f59e0b' : '#eab308',
                         minWidth: '60px',
                         textAlign: 'center'
                       }}>
                         {alert.severity_level.toUpperCase()}
                       </span>
-                      
+
                       <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px', minWidth: '200px' }}>
                         {alert.user_email}
                       </div>
-                      
+
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '16px' }}>
                         <span><strong style={{ color: '#dc2626' }}>{alert.max_max_matches}</strong> matches</span>
                         <span>Score: <strong>{Math.round(alert.daily_risk_score)}</strong></span>
@@ -557,7 +564,7 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-                    
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -578,18 +585,18 @@ export default function Home() {
                       🔍 Investigate
                     </button>
                   </div>
-                  
+
                   {/* Expanded Details Panel */}
                   {isExpanded && (
-                    <div style={{ 
-                      padding: '16px', 
+                    <div style={{
+                      padding: '16px',
                       borderTop: '1px solid var(--border)',
                       background: 'var(--surface)'
                     }}>
                       {/* Summary Stats */}
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
                         gap: '12px',
                         marginBottom: '16px'
                       }}>
@@ -614,16 +621,16 @@ export default function Home() {
                           <div style={{ fontSize: '18px', fontWeight: '700' }}>{alert.days_with_activity}</div>
                         </div>
                       </div>
-                      
+
                       {/* Incident Details Table */}
                       {alert.incident_details && alert.incident_details.length > 0 && (
                         <div>
                           <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-primary)' }}>
                             📄 Top Incidents on {alert.highest_risk_date}
                           </h4>
-                          <div style={{ 
-                            border: '1px solid var(--border)', 
-                            borderRadius: '6px', 
+                          <div style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: '6px',
                             overflow: 'hidden',
                             fontSize: '12px'
                           }}>
@@ -653,9 +660,9 @@ export default function Home() {
                                         padding: '2px 6px',
                                         borderRadius: '4px',
                                         fontSize: '10px',
-                                        background: detail.channel === 'Email' ? '#3b82f6' : 
-                                                   detail.channel === 'USB' ? '#8b5cf6' : 
-                                                   detail.channel === 'Cloud' ? '#06b6d4' : '#6b7280',
+                                        background: detail.channel === 'Email' ? '#3b82f6' :
+                                          detail.channel === 'USB' ? '#8b5cf6' :
+                                            detail.channel === 'Cloud' ? '#06b6d4' : '#6b7280',
                                         color: 'white'
                                       }}>
                                         {detail.channel || '-'}
@@ -700,14 +707,14 @@ export default function Home() {
               )
             })}
           </div>
-          
+
           {/* Pagination */}
           {highImpactPagination.totalPages > 1 && (
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center', 
-              gap: '12px', 
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '12px',
               marginTop: '16px',
               paddingTop: '16px',
               borderTop: '1px solid var(--border)'
@@ -815,7 +822,7 @@ export default function Home() {
                   <td colSpan={5} className="empty-cell">No data available</td>
                 </tr>
               ) : (
-                topUsersPeriod.map((user, idx) => (
+                topUsersPeriod.slice((topUsersPeriodPage - 1) * usersPerPage, topUsersPeriodPage * usersPerPage).map((user, idx) => (
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
@@ -861,13 +868,35 @@ export default function Home() {
               )}
             </tbody>
           </table>
+          {/* Pagination for Top Risky Users */}
+          {topUsersPeriod.length > usersPerPage && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+              <button
+                disabled={topUsersPeriodPage <= 1}
+                onClick={() => setTopUsersPeriodPage(p => Math.max(1, p - 1))}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsersPeriodPage <= 1 ? 'var(--surface)' : 'var(--background)', color: topUsersPeriodPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsersPeriodPage <= 1 ? 'not-allowed' : 'pointer', fontSize: '12px' }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {topUsersPeriodPage} / {Math.ceil(topUsersPeriod.length / usersPerPage)}
+              </span>
+              <button
+                disabled={topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage)}
+                onClick={() => setTopUsersPeriodPage(p => Math.min(Math.ceil(topUsersPeriod.length / usersPerPage), p + 1))}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'var(--surface)' : 'var(--background)', color: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'not-allowed' : 'pointer', fontSize: '12px' }}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ margin: 0 }}>⚡ Today's Active Users</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
+            <span style={{ fontSize: '12px', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
           </div>
           <table className="data-table">
             <thead>
@@ -889,7 +918,7 @@ export default function Home() {
                   <td colSpan={5} className="empty-cell">No activity today</td>
                 </tr>
               ) : (
-                topUsers24h.map((user, idx) => (
+                topUsers24h.slice((topUsers24hPage - 1) * usersPerPage, topUsers24hPage * usersPerPage).map((user, idx) => (
                   <tr key={idx}>
                     <td>
                       <div className="user-cell">
@@ -935,6 +964,28 @@ export default function Home() {
               )}
             </tbody>
           </table>
+          {/* Pagination for Today's Active Users */}
+          {topUsers24h.length > usersPerPage && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+              <button
+                disabled={topUsers24hPage <= 1}
+                onClick={() => setTopUsers24hPage(p => Math.max(1, p - 1))}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsers24hPage <= 1 ? 'var(--surface)' : 'var(--background)', color: topUsers24hPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsers24hPage <= 1 ? 'not-allowed' : 'pointer', fontSize: '12px' }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {topUsers24hPage} / {Math.ceil(topUsers24h.length / usersPerPage)}
+              </span>
+              <button
+                disabled={topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage)}
+                onClick={() => setTopUsers24hPage(p => Math.min(Math.ceil(topUsers24h.length / usersPerPage), p + 1))}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'var(--surface)' : 'var(--background)', color: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'not-allowed' : 'pointer', fontSize: '12px' }}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
