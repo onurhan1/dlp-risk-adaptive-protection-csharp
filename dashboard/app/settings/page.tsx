@@ -1,9 +1,17 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import dynamic from 'next/dynamic'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+
+// Lazy load tab components
+const UsersTab = dynamic(() => import('@/components/settings/UsersTab'), { ssr: false })
+const AISettingsTab = dynamic(() => import('@/components/settings/AISettingsTab'), { ssr: false })
+const LogsTab = dynamic(() => import('@/components/settings/LogsTab'), { ssr: false })
+
+type SettingsTab = 'general' | 'users' | 'ai' | 'logs'
 
 interface Settings {
   email_notifications: boolean
@@ -108,6 +116,7 @@ export default function SettingsPage() {
   const [splunkTesting, setSplunkTesting] = useState(false)
   const [splunkMessage, setSplunkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [showSplunkToken, setShowSplunkToken] = useState(false)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   useEffect(() => {
     fetchSettings()
@@ -162,31 +171,31 @@ export default function SettingsPage() {
     }
   }
 
-const fetchEmailSettings = async () => {
-  setEmailLoading(true)
-  try {
-    const apiUrl = getApiUrlDynamic()
-    const response = await axios.get(`${apiUrl}/api/settings/email`)
-    const data = response.data
-    setEmailSettings({
-      smtp_host: data.smtpHost ?? '',
-      smtp_port: Number(data.smtpPort) || 587,
-      enable_ssl: data.enableSsl ?? true,
-      username: data.username ?? '',
-      password: '',
-      password_set: data.passwordSet ?? false,
-      from_email: data.fromEmail ?? '',
-      from_name: data.fromName ?? 'DLP Risk Analyzer',
-      is_configured: data.isConfigured ?? false,
-      last_updated: data.updatedAt ?? null
-    })
-    setEmailConfigured(data.isConfigured ?? false)
-  } catch (error) {
-    console.error('Error fetching SMTP settings:', error)
-  } finally {
-    setEmailLoading(false)
+  const fetchEmailSettings = async () => {
+    setEmailLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.get(`${apiUrl}/api/settings/email`)
+      const data = response.data
+      setEmailSettings({
+        smtp_host: data.smtpHost ?? '',
+        smtp_port: Number(data.smtpPort) || 587,
+        enable_ssl: data.enableSsl ?? true,
+        username: data.username ?? '',
+        password: '',
+        password_set: data.passwordSet ?? false,
+        from_email: data.fromEmail ?? '',
+        from_name: data.fromName ?? 'DLP Risk Analyzer',
+        is_configured: data.isConfigured ?? false,
+        last_updated: data.updatedAt ?? null
+      })
+      setEmailConfigured(data.isConfigured ?? false)
+    } catch (error) {
+      console.error('Error fetching SMTP settings:', error)
+    } finally {
+      setEmailLoading(false)
+    }
   }
-}
 
   const saveSettings = async () => {
     setSaving(true)
@@ -229,7 +238,7 @@ const fetchEmailSettings = async () => {
         console.error('Error saving settings:', error)
       }
       let errorMessage = 'Failed to save settings'
-      
+
       if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('ERR_NETWORK')) {
         const apiUrl = getApiUrlDynamic()
         errorMessage = `Network Error: Cannot connect to API. Please ensure the API is running on ${apiUrl}`
@@ -240,7 +249,7 @@ const fetchEmailSettings = async () => {
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       setMessage({ type: 'error', text: errorMessage })
       setTimeout(() => setMessage(null), 5000)
     } finally {
@@ -392,12 +401,12 @@ const fetchEmailSettings = async () => {
           password_set: true,
           last_updated: response.data.settings.updatedAt ?? new Date().toISOString()
         }))
-        setDlpMessage({ type: 'success', text: 'DLP API ayarları kaydedildi' })
+        setDlpMessage({ type: 'success', text: 'DLP API ayarlarÄ± kaydedildi' })
       } else {
         throw new Error(response.data?.detail || 'Ayarlar kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarları kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarlarÄ± kaydedilemedi'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpSaving(false)
@@ -415,9 +424,9 @@ const fetchEmailSettings = async () => {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setDlpMessage({ type: 'success', text: response.data?.message || 'Bağlantı başarılı' })
+      setDlpMessage({ type: 'success', text: response.data?.message || 'BaÄŸlantÄ± baÅŸarÄ±lÄ±' })
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Bağlantı testi başarısız'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'BaÄŸlantÄ± testi baÅŸarÄ±sÄ±z'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpTesting(false)
@@ -464,12 +473,12 @@ const fetchEmailSettings = async () => {
           last_updated: saved.updatedAt ?? new Date().toISOString()
         })
         setEmailConfigured(saved.isConfigured ?? false)
-        setEmailMessage({ type: 'success', text: 'SMTP ayarları kaydedildi' })
+        setEmailMessage({ type: 'success', text: 'SMTP ayarlarÄ± kaydedildi' })
       } else {
-        throw new Error(response.data?.detail || 'SMTP ayarları kaydedilemedi')
+        throw new Error(response.data?.detail || 'SMTP ayarlarÄ± kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarları kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarlarÄ± kaydedilemedi'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailSaving(false)
@@ -490,9 +499,9 @@ const fetchEmailSettings = async () => {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP bağlantısı başarılı' })
+      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±' })
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi başarısız'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi baÅŸarÄ±sÄ±z'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailTesting(false)
@@ -509,7 +518,7 @@ const fetchEmailSettings = async () => {
 
     setSendingEmail(true)
     setMessage(null)
-    
+
     try {
       const token = localStorage.getItem('authToken')
       const apiUrl = getApiUrlDynamic()
@@ -557,677 +566,720 @@ const fetchEmailSettings = async () => {
         </div>
       </div>
 
-      <div className="card">
-        <h2>SMTP Configuration</h2>
-        {emailMessage && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              background: emailMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: emailMessage.type === 'success' ? '#166534' : '#991b1b',
-              border: `1px solid ${emailMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
-            }}
-          >
-            {emailMessage.text}
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>SMTP Host</label>
-            <input
-              type="text"
-              value={emailSettings.smtp_host}
-              onChange={(e) => updateEmailSetting('smtp_host', e.target.value)}
-              placeholder="smtp.company.com"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={emailSettings.smtp_port}
-              onChange={(e) => updateEmailSetting('smtp_port', parseInt(e.target.value) || 587)}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
-            <input
-              type="text"
-              value={emailSettings.username}
-              onChange={(e) => updateEmailSetting('username', e.target.value)}
-              placeholder="smtp_user"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input
-                type={showEmailPassword ? 'text' : 'password'}
-                value={emailSettings.password}
-                onChange={(e) => updateEmailSetting('password', e.target.value)}
-                placeholder={emailSettings.password_set ? '********' : 'Enter password'}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-              />
-              {emailSettings.password_set && (
-                <button
-                  type="button"
-                  onClick={() => updateEmailSetting('password', '')}
-                  style={{
-                    padding: '8px 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    background: 'white',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
-              <input type="checkbox" checked={showEmailPassword} onChange={(e) => setShowEmailPassword(e.target.checked)} />
-              Şifreyi göster
-            </label>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Email</label>
-            <input
-              type="email"
-              value={emailSettings.from_email}
-              onChange={(e) => updateEmailSetting('from_email', e.target.value)}
-              placeholder="dlp@company.com"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Name</label>
-            <input
-              type="text"
-              value={emailSettings.from_name}
-              onChange={(e) => updateEmailSetting('from_name', e.target.value)}
-              placeholder="DLP Risk Analyzer"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use SSL/TLS</label>
-            <select
-              value={emailSettings.enable_ssl ? 'true' : 'false'}
-              onChange={(e) => updateEmailSetting('enable_ssl', e.target.value === 'true')}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            >
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-          {emailSettings.last_updated ? `Son güncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
-        </div>
-        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      {/* Tab Navigation */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid var(--border)', paddingBottom: '2px' }}>
+        {[
+          { id: 'general' as SettingsTab, label: 'âš™ï¸ General', icon: '' },
+          { id: 'users' as SettingsTab, label: 'ğŸ‘¤ Users', icon: '' },
+          { id: 'ai' as SettingsTab, label: 'ğŸ¤– AI Settings', icon: '' },
+          { id: 'logs' as SettingsTab, label: 'ğŸ“‹ Logs', icon: '' }
+        ].map(tab => (
           <button
-            onClick={testEmailSettings}
-            disabled={emailTesting}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '10px 24px',
-              background: '#0ea5e9',
-              color: 'white',
+              padding: '12px 24px',
+              background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
+              color: activeTab === tab.id ? 'white' : 'var(--text-primary)',
               border: 'none',
-              borderRadius: '6px',
-              cursor: emailTesting ? 'not-allowed' : 'pointer',
-              opacity: emailTesting ? 0.6 : 1
+              borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '14px',
+              transition: 'all 0.2s',
+              borderRadius: '6px 6px 0 0'
             }}
           >
-            {emailTesting ? 'Testing...' : 'Test SMTP'}
+            {tab.label}
           </button>
-          <button
-            onClick={saveEmailSettings}
-            disabled={emailSaving}
-            style={{
-              padding: '10px 24px',
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: emailSaving ? 'not-allowed' : 'pointer',
-              opacity: emailSaving ? 0.6 : 1
-            }}
-          >
-            {emailSaving ? 'Saving...' : 'Save SMTP Settings'}
-          </button>
-        </div>
+        ))}
       </div>
 
-      {message && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: '6px',
-            marginBottom: '24px',
-            background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-            color: message.type === 'success' ? '#166534' : '#991b1b',
-            border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`
-          }}
-        >
-          {message.text}
-        </div>
-      )}
+      {/* Users Tab */}
+      {activeTab === 'users' && <UsersTab />}
 
-      <div className="card">
-        <h2>Notification Settings</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
-                Email Notifications
-              </label>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
-                Receive email alerts for high-risk incidents
-              </p>
-            </div>
-            <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
-              <input
-                type="checkbox"
-                checked={settings.email_notifications}
-                onChange={(e) => updateSetting('email_notifications', e.target.checked)}
-                style={{ opacity: 0, width: 0, height: 0 }}
-              />
-              <span
+      {/* AI Settings Tab */}
+      {activeTab === 'ai' && <AISettingsTab />}
+
+      {/* Logs Tab */}
+      {activeTab === 'logs' && <LogsTab />}
+
+      {/* General Tab */}
+      {activeTab === 'general' && (
+        <>
+          <div className="card">
+            <h2>SMTP Configuration</h2>
+            {emailMessage && (
+              <div
                 style={{
-                  position: 'absolute',
-                  cursor: 'pointer',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: settings.email_notifications ? 'var(--primary)' : '#ccc',
-                  borderRadius: '28px',
-                  transition: '0.3s'
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  marginBottom: '16px',
+                  background: emailMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+                  color: emailMessage.type === 'success' ? '#166534' : '#991b1b',
+                  border: `1px solid ${emailMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
                 }}
               >
-                <span
-                  style={{
-                    position: 'absolute',
-                    content: '""',
-                    height: '22px',
-                    width: '22px',
-                    left: '3px',
-                    bottom: '3px',
-                    backgroundColor: 'white',
-                    borderRadius: '50%',
-                    transition: '0.3s',
-                    transform: settings.email_notifications ? 'translateX(24px)' : 'translateX(0)'
-                  }}
+                {emailMessage.text}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>SMTP Host</label>
+                <input
+                  type="text"
+                  value={emailSettings.smtp_host}
+                  onChange={(e) => updateEmailSetting('smtp_host', e.target.value)}
+                  placeholder="smtp.company.com"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
                 />
-              </span>
-            </label>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-              Daily Report Time
-            </label>
-            <input
-              type="time"
-              value={settings.daily_report_time}
-              onChange={(e) => updateSetting('daily_report_time', e.target.value)}
-              style={{
-                width: '200px',
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: '14px'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-              Administrator Email
-            </label>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <input
-                type="email"
-                value={settings.admin_email}
-                onChange={(e) => updateSetting('admin_email', e.target.value)}
-                placeholder="admin@company.com"
-                style={{
-                  flex: 1,
-                  maxWidth: '400px',
-                  padding: '8px 12px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  background: 'var(--background)',
-                  color: 'var(--text-primary)'
-                }}
-              />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={emailSettings.smtp_port}
+                  onChange={(e) => updateEmailSetting('smtp_port', parseInt(e.target.value) || 587)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+                <input
+                  type="text"
+                  value={emailSettings.username}
+                  onChange={(e) => updateEmailSetting('username', e.target.value)}
+                  placeholder="smtp_user"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type={showEmailPassword ? 'text' : 'password'}
+                    value={emailSettings.password}
+                    onChange={(e) => updateEmailSetting('password', e.target.value)}
+                    placeholder={emailSettings.password_set ? '********' : 'Enter password'}
+                    style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                  />
+                  {emailSettings.password_set && (
+                    <button
+                      type="button"
+                      onClick={() => updateEmailSetting('password', '')}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        background: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+                  <input type="checkbox" checked={showEmailPassword} onChange={(e) => setShowEmailPassword(e.target.checked)} />
+                  Åifreyi gÃ¶ster
+                </label>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Email</label>
+                <input
+                  type="email"
+                  value={emailSettings.from_email}
+                  onChange={(e) => updateEmailSetting('from_email', e.target.value)}
+                  placeholder="dlp@company.com"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Name</label>
+                <input
+                  type="text"
+                  value={emailSettings.from_name}
+                  onChange={(e) => updateEmailSetting('from_name', e.target.value)}
+                  placeholder="DLP Risk Analyzer"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use SSL/TLS</label>
+                <select
+                  value={emailSettings.enable_ssl ? 'true' : 'false'}
+                  onChange={(e) => updateEmailSetting('enable_ssl', e.target.value === 'true')}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                >
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
+              {emailSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+            </div>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button
-                onClick={sendTestEmail}
-                disabled={sendingEmail || !settings.admin_email}
+                onClick={testEmailSettings}
+                disabled={emailTesting}
                 style={{
-                  padding: '8px 20px',
-                  background: sendingEmail || !settings.admin_email ? '#ccc' : 'var(--primary)',
+                  padding: '10px 24px',
+                  background: '#0ea5e9',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: sendingEmail || !settings.admin_email ? 'not-allowed' : 'pointer',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  whiteSpace: 'nowrap',
-                  opacity: sendingEmail || !settings.admin_email ? 0.6 : 1
+                  cursor: emailTesting ? 'not-allowed' : 'pointer',
+                  opacity: emailTesting ? 0.6 : 1
                 }}
               >
-                {sendingEmail ? 'Sending...' : 'Send Test Email'}
+                {emailTesting ? 'Testing...' : 'Test SMTP'}
+              </button>
+              <button
+                onClick={saveEmailSettings}
+                disabled={emailSaving}
+                style={{
+                  padding: '10px 24px',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: emailSaving ? 'not-allowed' : 'pointer',
+                  opacity: emailSaving ? 0.6 : 1
+                }}
+              >
+                {emailSaving ? 'Saving...' : 'Save SMTP Settings'}
               </button>
             </div>
-            {emailConfigured === false && (
-              <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
-                ⚠️ Email service is not configured. Please configure SMTP settings below.
-              </p>
-            )}
-            {emailConfigured === true && (
-              <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', marginBottom: 0 }}>
-                ✓ Email service is configured and ready
-              </p>
-            )}
           </div>
-        </div>
-      </div>
 
-      <div className="card">
-        <h2>Risk Thresholds</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-              Low Risk Threshold
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={settings.risk_threshold_low || 10}
-              onChange={(e) => {
-                const val = parseInt(e.target.value) || 10
-                updateSetting('risk_threshold_low', val)
-              }}
+          {message && (
+            <div
               style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
+                padding: '12px 16px',
                 borderRadius: '6px',
-                fontSize: '14px'
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-              Medium Risk Threshold
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={settings.risk_threshold_medium || 30}
-              onChange={(e) => {
-                const val = parseInt(e.target.value) || 30
-                updateSetting('risk_threshold_medium', val)
-              }}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: '14px'
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-              High Risk Threshold
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={settings.risk_threshold_high || 50}
-              onChange={(e) => {
-                const val = parseInt(e.target.value) || 50
-                updateSetting('risk_threshold_high', val)
-              }}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                fontSize: '14px'
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Splunk Settings Card */}
-      <div className="card" style={{ marginTop: '24px' }}>
-        <h2>Splunk SIEM Configuration</h2>
-        {splunkMessage && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              marginBottom: '16px',
-              background: splunkMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: splunkMessage.type === 'success' ? '#166534' : '#991b1b',
-              border: `1px solid ${splunkMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
-            }}
-          >
-            {splunkMessage.text}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <div>
-            <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
-              Enable Splunk Integration
-            </label>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
-              Send audit and application logs to Splunk SIEM
-            </p>
-          </div>
-          <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
-            <input
-              type="checkbox"
-              checked={splunkSettings.enabled}
-              onChange={(e) => updateSplunkSetting('enabled', e.target.checked)}
-              style={{ opacity: 0, width: 0, height: 0 }}
-            />
-            <span
-              style={{
-                position: 'absolute',
-                cursor: 'pointer',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: splunkSettings.enabled ? 'var(--primary)' : '#ccc',
-                borderRadius: '28px',
-                transition: '0.3s'
+                marginBottom: '24px',
+                background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+                color: message.type === 'success' ? '#166534' : '#991b1b',
+                border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`
               }}
             >
-              <span
-                style={{
-                  position: 'absolute',
-                  content: '""',
-                  height: '22px',
-                  width: '22px',
-                  left: '3px',
-                  bottom: '3px',
-                  backgroundColor: 'white',
-                  borderRadius: '50%',
-                  transition: '0.3s',
-                  transform: splunkSettings.enabled ? 'translateX(24px)' : 'translateX(0)'
-                }}
-              />
-            </span>
-          </label>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC URL</label>
-            <input
-              type="text"
-              value={splunkSettings.hec_url}
-              onChange={(e) => updateSplunkSetting('hec_url', e.target.value)}
-              placeholder="https://splunk-server:8088/services/collector/event"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC Token</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input
-                type={showSplunkToken ? 'text' : 'password'}
-                value={splunkSettings.hec_token}
-                onChange={(e) => updateSplunkSetting('hec_token', e.target.value)}
-                placeholder={splunkSettings.hec_token_set ? '********' : 'Enter HEC token'}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-              />
+              {message.text}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
-              <input type="checkbox" checked={showSplunkToken} onChange={(e) => setShowSplunkToken(e.target.checked)} />
-              Show token
-            </label>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Index</label>
-            <input
-              type="text"
-              value={splunkSettings.index}
-              onChange={(e) => updateSplunkSetting('index', e.target.value)}
-              placeholder="dlp_risk_analyzer"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Source</label>
-            <input
-              type="text"
-              value={splunkSettings.source}
-              onChange={(e) => updateSplunkSetting('source', e.target.value)}
-              placeholder="dlp-risk-analyzer"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Sourcetype</label>
-            <input
-              type="text"
-              value={splunkSettings.sourcetype}
-              onChange={(e) => updateSplunkSetting('sourcetype', e.target.value)}
-              placeholder="dlp:audit"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-        </div>
-        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button
-            onClick={testSplunkConnection}
-            disabled={splunkTesting}
-            style={{
-              padding: '10px 24px',
-              background: '#0ea5e9',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: splunkTesting ? 'not-allowed' : 'pointer',
-              opacity: splunkTesting ? 0.6 : 1
-            }}
-          >
-            {splunkTesting ? 'Testing...' : 'Test Connection'}
-          </button>
-          <button
-            onClick={saveSplunkSettings}
-            disabled={splunkSaving}
-            style={{
-              padding: '10px 24px',
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: splunkSaving ? 'not-allowed' : 'pointer',
-              opacity: splunkSaving ? 0.6 : 1
-            }}
-          >
-            {splunkSaving ? 'Saving...' : 'Save Splunk Settings'}
-          </button>
-        </div>
-      </div>
+          )}
 
-      <div className="card">
-        <h2>DLP API Configuration</h2>
-        {dlpMessage && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              background: dlpMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: dlpMessage.type === 'success' ? '#166534' : '#991b1b',
-              border: `1px solid ${dlpMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
-            }}
-          >
-            {dlpMessage.text}
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Manager IP / Host</label>
-            <input
-              type="text"
-              value={dlpSettings.manager_ip}
-              onChange={(e) => updateDlpSetting('manager_ip', e.target.value)}
-              placeholder="172.16.245.126"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={dlpSettings.manager_port}
-              onChange={(e) => updateDlpSetting('manager_port', parseInt(e.target.value) || 8443)}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Timeout (sn)</label>
-            <input
-              type="number"
-              min={5}
-              max={300}
-              value={dlpSettings.timeout_seconds}
-              onChange={(e) => updateDlpSetting('timeout_seconds', parseInt(e.target.value) || 30)}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
-            <input
-              type="text"
-              value={dlpSettings.username}
-              onChange={(e) => updateDlpSetting('username', e.target.value)}
-              placeholder="dlp_api_user"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={dlpSettings.password}
-                onChange={(e) => updateDlpSetting('password', e.target.value)}
-                placeholder={dlpSettings.password_set ? '********' : 'Enter password'}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-              />
-              {dlpSettings.password_set && (
-                <button
-                  type="button"
-                  onClick={() => updateDlpSetting('password', '')}
+          <div className="card">
+            <h2>Notification Settings</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+                    Email Notifications
+                  </label>
+                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
+                    Receive email alerts for high-risk incidents
+                  </p>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.email_notifications}
+                    onChange={(e) => updateSetting('email_notifications', e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: settings.email_notifications ? 'var(--primary)' : '#ccc',
+                      borderRadius: '28px',
+                      transition: '0.3s'
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        content: '""',
+                        height: '22px',
+                        width: '22px',
+                        left: '3px',
+                        bottom: '3px',
+                        backgroundColor: 'white',
+                        borderRadius: '50%',
+                        transition: '0.3s',
+                        transform: settings.email_notifications ? 'translateX(24px)' : 'translateX(0)'
+                      }}
+                    />
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Daily Report Time
+                </label>
+                <input
+                  type="time"
+                  value={settings.daily_report_time}
+                  onChange={(e) => updateSetting('daily_report_time', e.target.value)}
                   style={{
+                    width: '200px',
                     padding: '8px 12px',
                     border: '1px solid var(--border)',
                     borderRadius: '6px',
-                    background: 'white',
-                    cursor: 'pointer'
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Administrator Email
+                </label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <input
+                    type="email"
+                    value={settings.admin_email}
+                    onChange={(e) => updateSetting('admin_email', e.target.value)}
+                    placeholder="admin@company.com"
+                    style={{
+                      flex: 1,
+                      maxWidth: '400px',
+                      padding: '8px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      background: 'var(--background)',
+                      color: 'var(--text-primary)'
+                    }}
+                  />
+                  <button
+                    onClick={sendTestEmail}
+                    disabled={sendingEmail || !settings.admin_email}
+                    style={{
+                      padding: '8px 20px',
+                      background: sendingEmail || !settings.admin_email ? '#ccc' : 'var(--primary)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: sendingEmail || !settings.admin_email ? 'not-allowed' : 'pointer',
+                      fontWeight: '500',
+                      fontSize: '14px',
+                      whiteSpace: 'nowrap',
+                      opacity: sendingEmail || !settings.admin_email ? 0.6 : 1
+                    }}
+                  >
+                    {sendingEmail ? 'Sending...' : 'Send Test Email'}
+                  </button>
+                </div>
+                {emailConfigured === false && (
+                  <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
+                    âš ï¸ Email service is not configured. Please configure SMTP settings below.
+                  </p>
+                )}
+                {emailConfigured === true && (
+                  <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', marginBottom: 0 }}>
+                    âœ“ Email service is configured and ready
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>Risk Thresholds</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Low Risk Threshold
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={settings.risk_threshold_low || 10}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 10
+                    updateSetting('risk_threshold_low', val)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Medium Risk Threshold
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={settings.risk_threshold_medium || 30}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 30
+                    updateSetting('risk_threshold_medium', val)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  High Risk Threshold
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={settings.risk_threshold_high || 50}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 50
+                    updateSetting('risk_threshold_high', val)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Splunk Settings Card */}
+          <div className="card" style={{ marginTop: '24px' }}>
+            <h2>Splunk SIEM Configuration</h2>
+            {splunkMessage && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  background: splunkMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+                  color: splunkMessage.type === 'success' ? '#166534' : '#991b1b',
+                  border: `1px solid ${splunkMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
+                }}
+              >
+                {splunkMessage.text}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+                  Enable Splunk Integration
+                </label>
+                <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
+                  Send audit and application logs to Splunk SIEM
+                </p>
+              </div>
+              <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
+                <input
+                  type="checkbox"
+                  checked={splunkSettings.enabled}
+                  onChange={(e) => updateSplunkSetting('enabled', e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    cursor: 'pointer',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: splunkSettings.enabled ? 'var(--primary)' : '#ccc',
+                    borderRadius: '28px',
+                    transition: '0.3s'
                   }}
                 >
-                  Reset
-                </button>
-              )}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      content: '""',
+                      height: '22px',
+                      width: '22px',
+                      left: '3px',
+                      bottom: '3px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      transition: '0.3s',
+                      transform: splunkSettings.enabled ? 'translateX(24px)' : 'translateX(0)'
+                    }}
+                  />
+                </span>
+              </label>
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
-              <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
-              Şifreyi göster
-            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC URL</label>
+                <input
+                  type="text"
+                  value={splunkSettings.hec_url}
+                  onChange={(e) => updateSplunkSetting('hec_url', e.target.value)}
+                  placeholder="https://splunk-server:8088/services/collector/event"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>HEC Token</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type={showSplunkToken ? 'text' : 'password'}
+                    value={splunkSettings.hec_token}
+                    onChange={(e) => updateSplunkSetting('hec_token', e.target.value)}
+                    placeholder={splunkSettings.hec_token_set ? '********' : 'Enter HEC token'}
+                    style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                  />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+                  <input type="checkbox" checked={showSplunkToken} onChange={(e) => setShowSplunkToken(e.target.checked)} />
+                  Show token
+                </label>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Index</label>
+                <input
+                  type="text"
+                  value={splunkSettings.index}
+                  onChange={(e) => updateSplunkSetting('index', e.target.value)}
+                  placeholder="dlp_risk_analyzer"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Source</label>
+                <input
+                  type="text"
+                  value={splunkSettings.source}
+                  onChange={(e) => updateSplunkSetting('source', e.target.value)}
+                  placeholder="dlp-risk-analyzer"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Sourcetype</label>
+                <input
+                  type="text"
+                  value={splunkSettings.sourcetype}
+                  onChange={(e) => updateSplunkSetting('sourcetype', e.target.value)}
+                  placeholder="dlp:audit"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                onClick={testSplunkConnection}
+                disabled={splunkTesting}
+                style={{
+                  padding: '10px 24px',
+                  background: '#0ea5e9',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: splunkTesting ? 'not-allowed' : 'pointer',
+                  opacity: splunkTesting ? 0.6 : 1
+                }}
+              >
+                {splunkTesting ? 'Testing...' : 'Test Connection'}
+              </button>
+              <button
+                onClick={saveSplunkSettings}
+                disabled={splunkSaving}
+                style={{
+                  padding: '10px 24px',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: splunkSaving ? 'not-allowed' : 'pointer',
+                  opacity: splunkSaving ? 0.6 : 1
+                }}
+              >
+                {splunkSaving ? 'Saving...' : 'Save Splunk Settings'}
+              </button>
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use HTTPS</label>
-            <select
-              value={dlpSettings.use_https ? 'true' : 'false'}
-              onChange={(e) => updateDlpSetting('use_https', e.target.value === 'true')}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
-            >
-              <option value="true">HTTPS</option>
-              <option value="false">HTTP</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-          {dlpSettings.last_updated ? `Son güncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
-        </div>
-        <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button
-            onClick={testDlpApiSettings}
-            disabled={dlpTesting}
-            style={{
-              padding: '10px 24px',
-              background: '#0ea5e9',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: dlpTesting ? 'not-allowed' : 'pointer',
-              opacity: dlpTesting ? 0.6 : 1
-            }}
-          >
-            {dlpTesting ? 'Testing...' : 'Test Connection'}
-          </button>
-          <button
-            onClick={saveDlpApiSettings}
-            disabled={dlpSaving}
-            style={{
-              padding: '10px 24px',
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: dlpSaving ? 'not-allowed' : 'pointer',
-              opacity: dlpSaving ? 0.6 : 1
-            }}
-          >
-            {dlpSaving ? 'Saving...' : 'Save DLP Settings'}
-          </button>
-        </div>
-      </div>
 
-      <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          onClick={saveSettings}
-          disabled={saving}
-          style={{
-            padding: '12px 32px',
-            background: 'var(--primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            fontWeight: '600',
-            fontSize: '16px',
-            opacity: saving ? 0.6 : 1
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
-      </div>
+          <div className="card">
+            <h2>DLP API Configuration</h2>
+            {dlpMessage && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  marginBottom: '16px',
+                  background: dlpMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
+                  color: dlpMessage.type === 'success' ? '#166534' : '#991b1b',
+                  border: `1px solid ${dlpMessage.type === 'success' ? '#86efac' : '#fca5a5'}`
+                }}
+              >
+                {dlpMessage.text}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Manager IP / Host</label>
+                <input
+                  type="text"
+                  value={dlpSettings.manager_ip}
+                  onChange={(e) => updateDlpSetting('manager_ip', e.target.value)}
+                  placeholder="172.16.245.126"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={dlpSettings.manager_port}
+                  onChange={(e) => updateDlpSetting('manager_port', parseInt(e.target.value) || 8443)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Timeout (sn)</label>
+                <input
+                  type="number"
+                  min={5}
+                  max={300}
+                  value={dlpSettings.timeout_seconds}
+                  onChange={(e) => updateDlpSetting('timeout_seconds', parseInt(e.target.value) || 30)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+                <input
+                  type="text"
+                  value={dlpSettings.username}
+                  onChange={(e) => updateDlpSetting('username', e.target.value)}
+                  placeholder="dlp_api_user"
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={dlpSettings.password}
+                    onChange={(e) => updateDlpSetting('password', e.target.value)}
+                    placeholder={dlpSettings.password_set ? '********' : 'Enter password'}
+                    style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                  />
+                  {dlpSettings.password_set && (
+                    <button
+                      type="button"
+                      onClick={() => updateDlpSetting('password', '')}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        background: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
+                  <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
+                  Åifreyi gÃ¶ster
+                </label>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use HTTPS</label>
+                <select
+                  value={dlpSettings.use_https ? 'true' : 'false'}
+                  onChange={(e) => updateDlpSetting('use_https', e.target.value === 'true')}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                >
+                  <option value="true">HTTPS</option>
+                  <option value="false">HTTP</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
+              {dlpSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+            </div>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                onClick={testDlpApiSettings}
+                disabled={dlpTesting}
+                style={{
+                  padding: '10px 24px',
+                  background: '#0ea5e9',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: dlpTesting ? 'not-allowed' : 'pointer',
+                  opacity: dlpTesting ? 0.6 : 1
+                }}
+              >
+                {dlpTesting ? 'Testing...' : 'Test Connection'}
+              </button>
+              <button
+                onClick={saveDlpApiSettings}
+                disabled={dlpSaving}
+                style={{
+                  padding: '10px 24px',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: dlpSaving ? 'not-allowed' : 'pointer',
+                  opacity: dlpSaving ? 0.6 : 1
+                }}
+              >
+                {dlpSaving ? 'Saving...' : 'Save DLP Settings'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={saveSettings}
+              disabled={saving}
+              style={{
+                padding: '12px 32px',
+                background: 'var(--primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                fontSize: '16px',
+                opacity: saving ? 0.6 : 1
+              }}
+            >
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+      </>
+      )}
     </div>
   )
 }
-
