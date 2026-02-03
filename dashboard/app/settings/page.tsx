@@ -1277,8 +1277,7 @@ export default function SettingsPage() {
               {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>
-        </div>
-      </>
+        </>
       )}
     </div>
   )
