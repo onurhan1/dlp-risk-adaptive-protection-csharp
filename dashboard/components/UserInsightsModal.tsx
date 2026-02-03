@@ -168,8 +168,8 @@ export default function UserInsightsModal({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>User Risk Insights</div>
-                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.fullName || userName || userEmail}</h2>
-                            {(data?.fullName || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
+                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{userEmail}</h2>
+                            {data?.team && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.team}</div>}
                         </div>
                         <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '28px', cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
                     </div>
