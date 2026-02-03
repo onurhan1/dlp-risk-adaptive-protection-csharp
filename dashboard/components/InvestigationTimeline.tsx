@@ -49,9 +49,13 @@ export default function InvestigationTimeline({
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [userInfo, setUserInfo] = useState<{ name: string; title: string; risk: number; department?: string } | null>(null)
+  // Pagination state for timeline events
+  const [currentPage, setCurrentPage] = useState(1)
+  const eventsPerPage = 20
 
   useEffect(() => {
     if (userEmail) {
+      setCurrentPage(1) // Reset pagination when user changes
       fetchTimeline()
       // Always use risk score from props (from InvestigationUsersList)
       // This ensures consistency between the user list and timeline header
@@ -60,6 +64,7 @@ export default function InvestigationTimeline({
     } else {
       setEvents([])
       setUserInfo(null)
+      setCurrentPage(1)
     }
   }, [userEmail, userRiskScore])
 
@@ -120,10 +125,10 @@ export default function InvestigationTimeline({
       const response = await axios.get(`${apiUrl}/api/incidents`, {
         params: {
           user: userEmail,
-          limit: 50,
+          limit: 1000, // Load all incidents for the user
           order_by: 'timestamp_desc'
         },
-        timeout: 5000 // 5 second timeout
+        timeout: 15000 // 15 second timeout for larger data loads
       })
 
       // Check if response.data is valid and not empty
@@ -284,8 +289,12 @@ export default function InvestigationTimeline({
     return '#10b981' // Green - Low
   }
 
-  // Group events by date
-  const groupedEvents = events.reduce((acc, event) => {
+  // Pagination calculations
+  const totalPages = Math.ceil(events.length / eventsPerPage)
+  const paginatedEvents = events.slice((currentPage - 1) * eventsPerPage, currentPage * eventsPerPage)
+
+  // Group paginated events by date
+  const groupedEvents = paginatedEvents.reduce((acc, event) => {
     const date = format(new Date(event.timestamp), 'dd-MMM-yyyy')
     if (!acc[date]) {
       acc[date] = []
@@ -381,69 +390,109 @@ export default function InvestigationTimeline({
             No events found
           </div>
         ) : (
-          Object.entries(groupedEvents).map(([date, dateEvents]) => (
-            <div key={date} style={{ marginBottom: '24px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
-                {date} ({dateEvents.length} {dateEvents.length === 1 ? 'alert' : 'alerts'})
-              </div>
+          <>
+            {Object.entries(groupedEvents).map(([date, dateEvents]) => (
+              <div key={date} style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
+                  {date} ({dateEvents.length} {dateEvents.length === 1 ? 'alert' : 'alerts'})
+                </div>
 
-              {dateEvents.map((event, eventIdx) => (
-                <div
-                  key={`${event.id}-${event.timestamp}-${eventIdx}`}
-                  onClick={() => onEventSelect(event)}
+                {dateEvents.map((event, eventIdx) => (
+                  <div
+                    key={`${event.id}-${event.timestamp}-${eventIdx}`}
+                    onClick={() => onEventSelect(event)}
+                    style={{
+                      display: 'flex',
+                      gap: '16px',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      marginBottom: '8px',
+                      background: selectedEventId === event.id ? 'rgba(0, 168, 232, 0.1)' : 'transparent',
+                      borderLeft: selectedEventId === event.id ? '4px solid var(--primary)' : 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedEventId !== event.id) {
+                        e.currentTarget.style.background = 'var(--surface-hover)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedEventId !== event.id) {
+                        e.currentTarget.style.background = 'transparent'
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4px' }}>
+                      <div
+                        style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getSeverityColor(event.severity as any) }}
+                      />
+                      <div style={{ width: '2px', height: '100%', background: 'var(--border)', marginTop: '4px' }} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          {format(new Date(event.timestamp), 'HH:mm')} UTC
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', marginBottom: '8px' }}>
+                        {event.description}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {event.tags.map((tag, idx) => (
+                          <span
+                            key={idx}
+                            style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', color: 'white', backgroundColor: getTagColor(tag) }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {events.length > eventsPerPage && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '24px', paddingBottom: '16px' }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.max(1, p - 1)); }}
+                  disabled={currentPage === 1}
                   style={{
-                    display: 'flex',
-                    gap: '16px',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    marginBottom: '8px',
-                    background: selectedEventId === event.id ? 'rgba(0, 168, 232, 0.1)' : 'transparent',
-                    borderLeft: selectedEventId === event.id ? '4px solid var(--primary)' : 'none'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedEventId !== event.id) {
-                      e.currentTarget.style.background = 'var(--surface-hover)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedEventId !== event.id) {
-                      e.currentTarget.style.background = 'transparent'
-                    }
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: currentPage === 1 ? 'var(--surface)' : 'var(--background)',
+                    color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '12px'
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4px' }}>
-                    <div
-                      style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getSeverityColor(event.severity) }}
-                    />
-                    <div style={{ width: '2px', height: '100%', background: 'var(--border)', marginTop: '4px' }} />
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                        {format(new Date(event.timestamp), 'HH:mm')} UTC
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', marginBottom: '8px' }}>
-                      {event.description}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {event.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '500', color: 'white', backgroundColor: getTagColor(tag) }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))
+                  Previous
+                </button>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: currentPage === totalPages ? 'var(--surface)' : 'var(--background)',
+                    color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
