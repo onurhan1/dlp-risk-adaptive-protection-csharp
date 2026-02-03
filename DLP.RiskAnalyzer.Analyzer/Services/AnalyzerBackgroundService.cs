@@ -47,6 +47,23 @@ public class AnalyzerBackgroundService : BackgroundService
                     {
                         _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated risk scores", 
                             processedCount);
+                        
+                        // Calculate daily scores for today to keep Dashboard data up-to-date
+                        // This populates user_daily_risk_scores table for "Potential Data Exfiltration" and other dashboards
+                        try
+                        {
+                            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                            var updatedUsers = await riskAnalyzerService.CalculateDailyScoresAsync(today);
+                            if (updatedUsers > 0)
+                            {
+                                _logger.LogInformation("Updated daily risk scores for {Count} users on {Date}", 
+                                    updatedUsers, today);
+                            }
+                        }
+                        catch (Exception dailyEx)
+                        {
+                            _logger.LogWarning(dailyEx, "Failed to calculate daily scores, will retry next cycle");
+                        }
                     }
                 }
             }
