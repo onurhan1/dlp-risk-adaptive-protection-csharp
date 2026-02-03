@@ -9,6 +9,7 @@ import ChannelActivity from '../components/ChannelActivity'
 import RiskLevelBadge from '../components/RiskLevelBadge'
 import ActionIncidentsModal from '../components/ActionIncidentsModal'
 import HighRiskUsersModal from '../components/HighRiskUsersModal'
+import ReportModal from '../components/ReportModal'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -145,6 +146,9 @@ export default function Home() {
 
   // Modal state for high-risk users
   const [showHighRiskModal, setShowHighRiskModal] = useState(false)
+
+  // Modal state for Report
+  const [showReportModal, setShowReportModal] = useState(false)
   const [selectedHighRiskDate, setSelectedHighRiskDate] = useState<string>('')
 
   useEffect(() => {
@@ -340,9 +344,31 @@ export default function Home() {
 
   return (
     <div className="dashboard-page">
-      <div className="dashboard-header">
-        <h1>RADAR - Risk Adaptive Data Analysis Dashboard</h1>
-        <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>RADAR - Risk Adaptive Data Analysis Dashboard</h1>
+          <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
+        </div>
+        <button
+          onClick={() => setShowReportModal(true)}
+          style={{
+            padding: '10px 20px',
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+            transition: 'all 0.2s'
+          }}
+        >
+          📊 Daily Report
+        </button>
       </div>
 
       {/* Action Summary Card */}
@@ -1442,6 +1468,12 @@ export default function Home() {
         isOpen={showHighRiskModal}
         onClose={() => setShowHighRiskModal(false)}
         date={selectedHighRiskDate}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
       />
     </div >
   )
