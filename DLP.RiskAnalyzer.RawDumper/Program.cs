@@ -163,31 +163,31 @@ public class Program
         if (bulkIncidentMode)
         {
             Console.WriteLine($"\n📦 Fetching {bulkIncidentIds.Count} incidents by IDs...");
-            var incidents = await FetchIncidentsByIdsAsync(token, bulkIncidentIds);
+            var bulkIncidents = await FetchIncidentsByIdsAsync(token, bulkIncidentIds);
             
-            if (incidents.Count == 0)
+            if (bulkIncidents.Count == 0)
             {
                 Console.WriteLine("No incidents found.");
                 return;
             }
             
-            Console.WriteLine($"✅ Retrieved {incidents.Count} incidents");
+            Console.WriteLine($"✅ Retrieved {bulkIncidents.Count} incidents");
             
             var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             
             // Save full JSON
-            var jsonPath = $"bulk_incidents_{ts}.json";
-            File.WriteAllText(jsonPath, JsonConvert.SerializeObject(incidents, Formatting.Indented));
-            Console.WriteLine($"📄 Full JSON saved to: {jsonPath}");
+            var bulkJsonPath = $"bulk_incidents_{ts}.json";
+            File.WriteAllText(bulkJsonPath, JsonConvert.SerializeObject(bulkIncidents, Formatting.Indented));
+            Console.WriteLine($"📄 Full JSON saved to: {bulkJsonPath}");
             
             // Save CSV for source fields
-            var csvPath = $"bulk_source_data_{ts}.csv";
-            using (var writer = new StreamWriter(csvPath, false, Encoding.UTF8))
+            var bulkCsvPath = $"bulk_source_data_{ts}.csv";
+            using (var bulkWriter = new StreamWriter(bulkCsvPath, false, Encoding.UTF8))
             {
                 // Extended CSV header with all source fields
-                writer.WriteLine("incident_id,event_time,severity,action,channel,policies,destination,file_name,maximum_matches,manager,department,ip_address,login_name,host_name,email_address,dn,nt_domain,business_unit,risk_level,full_cn");
+                bulkWriter.WriteLine("incident_id,event_time,severity,action,channel,policies,destination,file_name,maximum_matches,manager,department,ip_address,login_name,host_name,email_address,dn,nt_domain,business_unit,risk_level,full_cn");
                 
-                foreach (var inc in incidents)
+                foreach (var inc in bulkIncidents)
                 {
                     var incidentId = inc["id"]?.ToString() ?? "";
                     var eventTime = inc["event_time"]?.ToString() ?? "";
@@ -223,30 +223,30 @@ public class Program
                     
                     string Escape(string val) => $"\"{val.Replace("\"", "\"\"")}\"";
                     
-                    writer.WriteLine($"{Escape(incidentId)},{Escape(eventTime)},{Escape(severity)},{Escape(action)},{Escape(channel)},{Escape(policies)},{Escape(destination)},{Escape(fileName)},{Escape(maxMatches)},{Escape(manager)},{Escape(department)},{Escape(ipAddress)},{Escape(loginName)},{Escape(hostName)},{Escape(emailAddress)},{Escape(dn)},{Escape(ntDomain)},{Escape(businessUnit)},{Escape(riskLevel)},{Escape(fullCn)}");
+                    bulkWriter.WriteLine($"{Escape(incidentId)},{Escape(eventTime)},{Escape(severity)},{Escape(action)},{Escape(channel)},{Escape(policies)},{Escape(destination)},{Escape(fileName)},{Escape(maxMatches)},{Escape(manager)},{Escape(department)},{Escape(ipAddress)},{Escape(loginName)},{Escape(hostName)},{Escape(emailAddress)},{Escape(dn)},{Escape(ntDomain)},{Escape(businessUnit)},{Escape(riskLevel)},{Escape(fullCn)}");
                 }
             }
-            Console.WriteLine($"📊 CSV saved to: {csvPath}");
+            Console.WriteLine($"📊 CSV saved to: {bulkCsvPath}");
             
             // Print all source fields found
             Console.WriteLine("\n=== ALL SOURCE FIELDS FOUND ===");
-            var allSourceFields = new HashSet<string>();
-            foreach (var inc in incidents)
+            var bulkSourceFields = new HashSet<string>();
+            foreach (var inc in bulkIncidents)
             {
                 var source = inc["source"] as JObject;
                 if (source != null)
                 {
                     foreach (var prop in source.Properties())
                     {
-                        allSourceFields.Add(prop.Name);
+                        bulkSourceFields.Add(prop.Name);
                     }
                 }
             }
-            Console.WriteLine($"Fields: {string.Join(", ", allSourceFields.OrderBy(x => x))}");
+            Console.WriteLine($"Fields: {string.Join(", ", bulkSourceFields.OrderBy(x => x))}");
             
             // Print detailed source data for each incident
             Console.WriteLine("\n=== DETAILED SOURCE DATA ===");
-            foreach (var inc in incidents)
+            foreach (var inc in bulkIncidents)
             {
                 var incId = inc["id"]?.ToString() ?? "?";
                 var source = inc["source"] as JObject;
