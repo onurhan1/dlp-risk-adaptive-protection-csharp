@@ -68,29 +68,34 @@ export default function InvestigationTimeline({
 
     try {
       const apiUrl = getApiUrlDynamic()
-      // Fetch user's department from user-list endpoint
-      const userListResponse = await axios.get(`${apiUrl}/api/risk/user-list`, {
-        params: { page: 1, page_size: 5000 }
+      // Fetch user's department and login_name from incidents
+      const incidentsResponse = await axios.get(`${apiUrl}/api/incidents`, {
+        params: { user: userEmail, limit: 5 }
       })
 
-      const user = userListResponse.data.users?.find((u: any) => u.user_email === userEmail)
-      const department = user?.department || null
+      const incidents = incidentsResponse.data || []
+      const firstIncident = incidents[0]
 
-      // If department not found in user-list, try to get from incidents
-      let finalDepartment = department
-      if (!finalDepartment) {
-        const incidentsResponse = await axios.get(`${apiUrl}/api/incidents`, {
-          params: { user: userEmail, limit: 1 }
-        })
-        finalDepartment = incidentsResponse.data?.[0]?.department || null
+      // Get login_name from incidents (hierarchy: login_name -> user_email -> email_address)
+      let displayName = userEmail
+      if (firstIncident) {
+        const loginName = firstIncident.loginName || firstIncident.login_name
+        const emailAddress = firstIncident.emailAddress || firstIncident.email_address
+
+        // Apply hierarchy: login_name (if valid) -> user_email -> email_address
+        if (loginName && loginName !== 'unknown' && loginName !== 'N/A' && loginName.trim()) {
+          displayName = loginName
+        } else if (userEmail) {
+          displayName = userEmail
+        } else if (emailAddress) {
+          displayName = emailAddress
+        }
       }
 
-      // Extract name from email (e.g., "sercan.dincer@kuveytturk.com.tr" -> "Sercan Dincer")
-      const emailParts = userEmail.split('@')[0].split('.')
-      const name = emailParts.map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
+      const finalDepartment = firstIncident?.department || null
 
       setUserInfo({
-        name: name,
+        name: displayName,
         title: finalDepartment || '',
         risk: riskScore,
         department: finalDepartment || undefined
@@ -99,12 +104,9 @@ export default function InvestigationTimeline({
       if (process.env.NODE_ENV !== 'production') {
         console.error('Error fetching user info:', error)
       }
-      // Fallback: extract name from email only
-      const emailParts = userEmail.split('@')[0].split('.')
-      const name = emailParts.map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
-
+      // Fallback: use userEmail directly
       setUserInfo({
-        name: name,
+        name: userEmail,
         title: '',
         risk: riskScore
       })
