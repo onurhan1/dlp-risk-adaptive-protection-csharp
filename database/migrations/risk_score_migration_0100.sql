@@ -113,11 +113,11 @@ FROM user_daily_risk_scores;
 -- DailyScore = (Avg * 0.50) + (Max * 0.30) + MIN(20, LOG10(Count+1) * 10)
 
 UPDATE user_daily_risk_scores 
-SET daily_risk_score = LEAST(100, ROUND(
+SET daily_risk_score = LEAST(100, ROUND((
     (COALESCE(avg_risk_score, 0) * 0.50) +
     (COALESCE(max_risk_score, 0) * 0.30) +
     LEAST(20, LOG(COALESCE(incident_count, 0) + 1) * 10)
-, 2));
+)::numeric, 2));
 
 -- Verify daily_risk_score update
 SELECT 
