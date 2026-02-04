@@ -137,7 +137,7 @@ public class RiskController : ControllerBase
                     MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
                     IncidentCount = g.Count()
                 })
-                .Where(u => u.MaxRiskScore >= 500)  // High risk threshold in 1000-scale (50+ when normalized to 0-100)
+                .Where(u => u.MaxRiskScore >= 50)  // High risk threshold (50+ on 0-100 scale)
                 .OrderByDescending(u => u.MaxRiskScore)
                 .ThenByDescending(u => u.IncidentCount)
                 .ToList();

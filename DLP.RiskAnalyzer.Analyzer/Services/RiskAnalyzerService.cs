@@ -436,9 +436,9 @@ public class RiskAnalyzerService
             {
                 Channel = g.Key!,
                 TotalIncidents = g.Count(),
-                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= 750), // High risk in 1000-scale (75+ on dashboard)
+                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= 75), // High risk (75+ on 0-100 scale)
                 HighCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold && 
-                                         (i.RiskScore ?? 0) < 750),
+                                         (i.RiskScore ?? 0) < 75),
                 MediumCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.MediumThreshold && 
                                           (i.RiskScore ?? 0) < RiskConstants.RiskScores.HighThreshold),
                 LowCount = g.Count(i => (i.RiskScore ?? 0) < RiskConstants.RiskScores.MediumThreshold)
@@ -664,8 +664,8 @@ public class RiskAnalyzerService
                              .Select(i => i.Department)
                              .FirstOrDefault() ?? "",
                 TotalAlerts = g.Count(),
-                // Convert 1000-scale risk score to 100-scale for display
-                RiskScore = (int)Math.Round(g.Max(i => i.RiskScore ?? 0) / 10.0)
+                // Score is already 0-100 scale
+                RiskScore = (int)Math.Round(g.Max(i => i.RiskScore ?? 0) * 1.0)
             })
             .OrderByDescending(u => u.TotalAlerts)
             .Take(10)
@@ -676,7 +676,7 @@ public class RiskAnalyzerService
                 { "department", u.Department },
                 { "total_alerts", u.TotalAlerts },
                 { "risk_score", u.RiskScore },
-                { "risk_level", GetRiskLevelFromScore(u.RiskScore * 10) } // Convert back to 1000 scale for level
+                { "risk_level", GetRiskLevelFromScore(u.RiskScore) } // Direct 0-100 scale
             })
             .ToList();
 
@@ -828,17 +828,17 @@ public class RiskAnalyzerService
     }
 
     /// <summary>
-    /// Helper method to get risk level from score (1000 scale)
+    /// Helper method to get risk level from score (0-100 scale)
     /// </summary>
     private string GetRiskLevelFromScore(int score)
     {
-        if (score >= 500) return "High";
-        if (score >= 250) return "Medium";
+        if (score >= 50) return "High";
+        if (score >= 25) return "Medium";
         return "Low";
     }
     
     /// <summary>
-    /// Get display score for dashboard (1000 -> 100 scale)
+    /// Get display score for dashboard (already 0-100 scale)
     /// </summary>
     public double GetDisplayScore(int riskScore)
     {
@@ -1397,10 +1397,10 @@ public class RiskAnalyzerService
                     i.Action?.ToUpper() == "QUARANTINED" || i.Action?.ToUpper() == "QUARANTINE");
 
                 // Calculate risk score using same formula
-                // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+                // Formula: (Avg * 0.50) + (Max * 0.30) + MIN(20, LOG10(Count+1)*10)
                 double riskScore = Math.Min(100.0,
-                    (avgRiskScore / 500.0 * 50.0) +
-                    (maxRiskScore / 500.0 * 30.0) +
+                    (avgRiskScore * 0.50) +
+                    (maxRiskScore * 0.30) +
                     Math.Min(20.0, Math.Log10(totalIncidents + 1) * 10.0)
                 );
 

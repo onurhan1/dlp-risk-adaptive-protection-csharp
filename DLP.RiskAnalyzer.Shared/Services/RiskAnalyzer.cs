@@ -136,29 +136,28 @@ public class RiskAnalyzer
     }
 
     /// <summary>
-    /// Risk seviyesi belirle (1000 üzerinden)
-    /// - High: 500-1000 (Dashboard: 50-100)
-    /// - Medium: 250-499 (Dashboard: 25-49.9)
-    /// - Low: 0-249 (Dashboard: 0-24.9)
+    /// Risk seviyesi belirle (0-100 ölçeği)
+    /// - High: 50-100
+    /// - Medium: 25-49
+    /// - Low: 0-24
     /// </summary>
     public string GetRiskLevel(int riskScore)
     {
-        if (riskScore >= 500)
+        if (riskScore >= 50)
             return "High";
-        else if (riskScore >= 250)
+        else if (riskScore >= 25)
             return "Medium";
         else
             return "Low";
     }
     
     /// <summary>
-    /// Dashboard için skor dönüşümü (1000 → 100 ölçeği)
+    /// Dashboard için skor (0-100 ölçeği, artık dönüşüm yok)
     /// </summary>
     public double GetDisplayScore(int riskScore)
     {
-        var displayScore = riskScore / 10.0;
-        // 0.5 üstü yukarı yuvarlama
-        return Math.Round(displayScore, 1, MidpointRounding.AwayFromZero);
+        // Score is already 0-100, no conversion needed
+        return Math.Round((double)riskScore, 1, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

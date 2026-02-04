@@ -148,7 +148,7 @@ public class RiskTrendController : ControllerBase
     /// Get top risky users based on user_daily_risk_scores table
     /// period: 24h, weekly, monthly, quarterly
     /// Uses simple average of DailyRiskScore (same as User Insights)
-    /// Filters: minimum 3 days activity, score >= 70
+    /// Filters: minimum 3 days activity, score >= 35
     /// </summary>
     [HttpGet("top-users")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRiskyUsers(
