@@ -902,11 +902,12 @@ public class RiskAnalyzerService
             var team = firstWithTeam?.Team ?? firstWithTeam?.Department;
             var fullName = firstWithName?.FullName;
             
-            // Normalized daily score (1-100 scale)
-            // Formula: MIN(100, (Avg/500*50) + (Max/500*30) + MIN(20, LOG10(Count+1)*10))
+            // Normalized daily score (0-100 scale)
+            // Now incident scores are directly 0-100, so we use direct multipliers
+            // Formula: (Avg * 0.50) + (Max * 0.30) + MIN(20, LOG10(Count+1) * 10)
             var normalizedScore = Math.Min(100,
-                (avgRiskScore / 500.0 * 50) +
-                (maxRiskScore / 500.0 * 30) +
+                (avgRiskScore * 0.50) +
+                (maxRiskScore * 0.30) +
                 Math.Min(20, Math.Log10(incidentCount + 1) * 10)
             );
             var totalRiskScore = Math.Round(normalizedScore, 2);

@@ -7,11 +7,11 @@ public static class RiskConstants
 {
     public static class RiskScores
     {
-        // New 1000-point scale (displayed as 0-100 on dashboard)
-        public const int HighThreshold = 500;      // 50+ on dashboard
-        public const int MediumThreshold = 250;    // 25+ on dashboard
+        // 0-100 scale (direct, no conversion needed)
+        public const int HighThreshold = 50;       // Yüksek risk eşiği
+        public const int MediumThreshold = 25;     // Orta risk eşiği
         
-        public const int MaxScore = 1000;
+        public const int MaxScore = 100;
         public const int MinScore = 0;
         
         // Legacy thresholds for backward compatibility
@@ -60,12 +60,13 @@ public static class RiskConstants
 
     public static class DestinationScores
     {
-        public const int Spl = 1;
-        public const int Printer = 3;
-        public const int NdaPresent = 1;
-        public const int NdaAbsent = 5;
-        public const int Unknown = 5;
-        public const int Personal = 10;
+        // Max 15 points for destination (85 + 15 = 100)
+        public const int Spl = 2;            // Güvenli, SPL listesinde
+        public const int Printer = 5;        // Yazıcı
+        public const int NdaPresent = 2;     // NDA mevcut
+        public const int NdaAbsent = 8;      // NDA yok
+        public const int Unknown = 8;        // Bilinmeyen hedef
+        public const int Personal = 15;      // Kişisel e-posta (gmail, hotmail)
     }
 
     public static class Defaults

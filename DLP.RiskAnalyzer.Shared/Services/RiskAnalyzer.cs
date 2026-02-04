@@ -60,12 +60,9 @@ public class RiskAnalyzer
         // Final Score
         var finalScore = baseScore * actionMultiplier;
         
-        // Scale to 1000 (Internal scale)
-        // Max possible raw: (60 * 1.0) + 10 = 70, with block = 70
-        // We multiply by ~14.3 to map 70 -> ~1000
-        double scaledScore = finalScore * 14.3;
-
-        return (int)Math.Min(1000, scaledScore);
+        // Direct 0-100 scale (no multiplier needed)
+        // Max possible: (85 * 1.0) + 15 = 100
+        return (int)Math.Min(100, finalScore);
     }
     
     public double GetChannelMultiplier(string? channel)
@@ -87,13 +84,13 @@ public class RiskAnalyzer
     {
         return maxMatches switch
         {
-            <= 15 => 5,      // 0-15: Düşük
-            <= 30 => 10,     // 16-30: Orta-Düşük
-            <= 50 => 18,     // 31-50: Orta
-            <= 100 => 28,    // 51-100: Yüksek
-            <= 250 => 38,    // 101-250: Çok Yüksek
-            <= 500 => 48,    // 251-500: Kritik
-            _ => 60          // 500+: Maksimum
+            <= 15 => 7,      // 0-15: Düşük
+            <= 30 => 14,     // 16-30: Orta-Düşük
+            <= 50 => 25,     // 31-50: Orta
+            <= 100 => 40,    // 51-100: Yüksek
+            <= 250 => 55,    // 101-250: Çok Yüksek
+            <= 500 => 70,    // 251-500: Kritik
+            _ => 85          // 500+: Maksimum
         };
     }
     
