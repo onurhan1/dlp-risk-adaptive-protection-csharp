@@ -566,7 +566,7 @@ public class RiskAnalyzerService
                               .Select(i => i.EmailAddress)
                               .FirstOrDefault() ?? ""
             })
-            .Where(u => u.RiskScore >= 700)  // Only show high-risk users (70+ normalized)
+            .Where(u => u.RiskScore >= 35)  // Only show risky users (35+ on 0-100 scale)
             .OrderByDescending(u => u.RiskScore)  // Sort by risk score first
             .ThenByDescending(u => u.TotalAlerts)  // Then by incident count
             .Take(limit)
@@ -1260,7 +1260,7 @@ public class RiskAnalyzerService
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         DateOnly startDate;
         int minDaysRequired = 3; // Minimum 3 days activity required for all periods
-        double minScore = 70.0;  // Minimum score threshold
+        double minScore = 35.0;  // Minimum score threshold (0-100 scale)
         
         // For 24h/daily, use real-time data from incidents table
         if (period.ToLower() == "24h" || period.ToLower() == "daily")
