@@ -1,319 +1,429 @@
-# DLP Risk Adaptive Protection - UI/UX Design Brief
-
-## 🎯 Proje Özeti
-
-**Uygulama Adı:** DLP Risk Adaptive Protection System
-**Sektör:** Kurumsal Siber Güvenlik / Veri Kaybı Önleme
-**Hedef Kullanıcı:** Güvenlik analistleri, SOC ekipleri, CISO'lar, IT yöneticileri
-**Platform:** Web tabanlı dashboard (masaüstü öncelikli, tablet uyumlu)
+# DLP Risk Adaptive Protection - UI/UX Design Brief (Güncel)
+## Mevcut Sistem Analizi ve Tasarım Prompt'u
 
 ---
 
-## 🔐 Projenin Amacı
+# 🎯 Proje Özeti
 
-Bu sistem, büyük kurumlarda veri sızıntısı riskini **proaktif olarak tespit eden** ve **kullanıcı bazlı risk skorlaması** yapan bir siber güvenlik platformudur.
-
-### Temel Sorun
-- Çalışanlar günlük işlerinde hassas verileri e-posta, bulut, USB veya yazıcı gibi kanallarla dışarı gönderebilir
-- Geleneksel DLP sistemleri sadece olayı kaydeder, risk analizi yapmaz
-- Güvenlik ekipleri binlerce alert arasında kaybolur
-
-### Çözüm
-- Yapay zeka destekli davranış analizi
-- Kullanıcı bazlı risk skorlaması (0-100)
-- Gerçek zamanlı tehdit tespiti
-- İncelenebilir ve raporlanabilir dashboard
+**Uygulama Adı:** RADAR - DLP Risk Adaptive Protection  
+**Sektör:** Kurumsal Siber Güvenlik / Veri Kaybı Önleme  
+**Hedef Kullanıcı:** SOC ekipleri, güvenlik analistleri, CISO, IT yöneticileri  
+**Platform:** Web tabanlı dashboard (masaüstü öncelikli)
 
 ---
 
-## 🧠 Temel Kavramlar
+# 📂 Mevcut Sayfa Yapısı
 
-### Risk Skoru (0-100)
-Kullanıcıların ne kadar "riskli" olduğunu gösteren bir metrik:
-- **0-25:** 🟢 Düşük Risk - Normal kullanım
-- **26-50:** 🟡 Orta Risk - İzleme gerektirir
-- **51-75:** 🟠 Yüksek Risk - Araştırma gerekli
-- **76-100:** 🔴 Kritik Risk - Acil müdahale
-
-### Incident (Olay)
-DLP sisteminin algıladığı her veri güvenliği ihlali:
-- Kimin yaptığı (kullanıcı)
-- Ne zaman yaptığı (timestamp)
-- Hangi kanaldan (Email, USB, Cloud, Printer)
-- Nereye gönderildi (destination)
-- Ne yapıldı (Block, Quarantine, Authorized, Released)
-- Kaç hassas veri eşleşti (max_matches)
-
-### Action Types (Eylem Tipleri)
-- **BLOCK:** DLP olayı engelledi - En ciddi durum
-- **QUARANTINE:** İnceleme için karantinaya alındı
-- **AUTHORIZED:** Yönetici tarafından izin verildi
-- **RELEASED:** Karantinadan serbest bırakıldı
-
-### Channels (Kanallar)
-- Email (kurumsal/kişisel)
-- Cloud Storage (OneDrive, Google Drive, Dropbox)
-- USB/Removable Media
-- Network Share (LAN)
-- Printer/Yazıcı
+## Sidebar Navigasyonu
+```
+📍 RADAR Logo (tema'ya göre değişir)
+├── 🏠 Dashboard (/)
+├── 🔍 Investigation (/investigation) [Admin Only]
+├── 🤖 AI Behavioral (/ai-behavioral) [Admin Only]
+├── 📊 Analytics (/analytics) [Admin Only]
+├── ⚙️ Settings (/settings) [Admin Only]
+├── ❓ F.A.Q (/faq) [Herkes]
+└── 🔐 Login (/login)
+```
 
 ---
 
-## 📊 Ana Sayfalar ve Fonksiyonlar
+# 📊 SAYFA 1: Dashboard (Ana Sayfa)
 
-### 1. Dashboard (Ana Sayfa)
-**Amaç:** Günün/haftanın genel güvenlik durumunu tek bakışta görmek
+## Amaç
+Günlük güvenlik durumunu tek bakışta görmek, hızlı aksiyon almak
 
-**Gösterilecek Metrikler:**
-- Toplam Incident sayısı (bugün/bu hafta)
-- Aksiyon bazlı dağılım (Block, Quarantine, Authorized, Released)
-- Risk skoru dağılımı (pie chart)
-- Top 10 Riskli Kullanıcı listesi
-- Günlük trend grafiği
-- Kanal bazlı breakdown
+## Yapı & Bileşenler
 
-**Etkileşimler:**
-- Aksiyon kartlarına tıklayınca detay modal
-- Kullanıcıya tıklayınca profil sayfası
-- Tarih filtresi
+### Üst Bölüm - Date Range Picker
+- Başlangıç/Bitiş tarihi seçimi
+- Varsayılan: Son 30 gün
 
----
+### Action Summary Kartları (4 adet)
+| Kart | İkon | Renk | İçerik |
+|------|------|------|--------|
+| BLOCK | 🚫 | Kırmızı | Engellenen olay sayısı |
+| QUARANTINE | ⏸️ | Turuncu | Karantinaya alınan |
+| AUTHORIZED | ✅ | Yeşil | İzin verilen |
+| RELEASED | 🔓 | Mavi | Serbest bırakılan |
 
-### 2. Investigation (Araştırma)
-**Amaç:** 30 günlük trendleri incelemek, pattern'ları tespit etmek
+**Etkileşim:** Karta tıklayınca → **ActionIncidentsModal** açılır
 
-**Gösterilecek Veriler:**
-- 30 günlük incident trendi (çizgi grafik)
-- Günlük en riskli kullanıcılar (heat map veya bar chart)
-- Kural/Policy bazlı alert dağılımı
-- Departman bazlı karşılaştırma
+### ActionIncidentsModal (33KB - Büyük Modal)
+- Sayfalandırmalı tablo (page, pageSize)
+- Filtreleme: User, Destination, Channel, Policy, Rule
+- Debounce ile arama
+- Kolonlar: Login Name, Destination, Channel, Policy, Rule, Action, Timestamp, Max Matches
+- Export seçenekleri
 
-**Etkileşimler:**
-- Belirli bir güne tıklayınca o günün detayları
-- Kullanıcı filtreleme
-- Export to PDF/Excel
+### Top 10 Riskli Kullanıcılar Tablosu
+- Kullanıcı email/login name
+- Risk skoru (0-100)
+- Department
+- Toplam alert sayısı
 
----
+**Etkileşim:** Satıra tıklayınca → **UserInsightsModal** açılır
 
-### 3. Reports (Raporlar)
-**Amaç:** Günlük/haftalık/aylık raporları görüntülemek ve indirmek
+### UserInsightsModal (25KB)
+- Kullanıcı profil özeti
+- Risk skoru trendi grafiği
+- Günlük incident detayları
+- Action breakdown
 
-**İçerik:**
-- Tarih seçici (takvim)
-- Seçilen günün özeti
-- Top kullanıcılar
-- Top politikalar/kurallar
-- Action dağılımı
-- PDF export butonu
+### Günlük Trend Grafiği (Plotly.js)
+- Son 7-30 günün trendi
+- X: Tarih, Y: Incident sayısı
+- Hover ile detay
 
----
+**Etkileşim:** Güne tıklayınca → **HighRiskUsersModal** açılır
 
-### 4. Users (Kullanıcılar)
-**Amaç:** Tüm kullanıcıları ve risk skorlarını listelemek
+### HighRiskUsersModal (11KB)
+- O gündeki yüksek riskli kullanıcılar
+- Risk skorları
+- Incident sayıları
 
-**Gösterilecekler:**
-- Kullanıcı tablosu (sayfalandırmalı)
-- Risk skoru, departman, son aktivite
-- Arama ve filtreleme
-- Sıralama (risk skoruna göre)
+### High Impact Alerts Bölümü
+- Tek günde yüksek etkili olaylar
+- Max matches yüksek olanlar
+- Severity level göstergesi
+- Expandable detay
 
-**Kullanıcı Detay Modalı:**
-- Kullanıcı profili
-- Risk skoru trendi (grafik)
-- Son 30 günlük aktivite
-- Incident geçmişi
-- Departman/şube bilgisi
+### Channel Breakdown (Pie/Donut Chart)
+- Email, USB, Cloud, LAN, Printer dağılımı
+- Yüzdelik gösterim
 
----
+### Top Policies/Rules
+- En çok tetiklenen kurallar
+- Alert sayıları
 
-### 5. AI Behavioral Analysis (Yapay Zeka Davranış Analizi)
-**Amaç:** AI tarafından analiz edilen kullanıcıları ve anomali tespitlerini göstermek
-
-**İçerik:**
-- AI ile analiz edilen kullanıcı listesi
-- Anomali skoru
-- Risk kategorisi (Critical, High, Medium, Low)
-- Haftalık trend analizi
-- Weekly incidents grafiği
-- Pattern/davranış açıklamaları
-
-**Entity Detail Modal:**
-- AI özet analizi
-- Haftalık kırılım
-- Anomalik günler
-- Öneriler
+### Report Download Butonu
+- PDF rapor indirme
+- **ReportModal** ile rapor önizleme (38KB)
 
 ---
 
-### 6. Settings (Ayarlar)
-**Amaç:** Sistem konfigürasyonu
+# 🔍 SAYFA 2: Investigation
 
-**Sekmeler:**
-- Profil ayarları
-- Bildirim tercihleri
-- DLP API bağlantısı
-- Redis/Database ayarları
+## Amaç
+Belirli bir kullanıcıyı veya olayı detaylı araştırmak
 
----
+## Yapı & Bileşenler
 
-### 7. AI Settings (AI Ayarları)
-**Amaç:** Azure OpenAI entegrasyonu yapılandırması
+### Sol Panel - Kullanıcı Listesi
+- **InvestigationUsersList** component
+- Riskli kullanıcılar listesi
+- Risk skoru renk kodlaması
+- Arama/filtreleme
 
-**İçerik:**
-- API endpoint
-- API key (masked)
-- Model adı (gpt-4, gpt-4o, vb.)
-- Max tokens
-- Temperature
-- Test connection butonu
+### Orta Panel - Timeline View
+- **InvestigationTimeline** component (19KB)
+- Kronolojik olay listesi
+- Her olay: timestamp, severity, channel, action
+- Tag'ler: policy, rule, classification
+- Severity renkleri: Critical (kırmızı), High (turuncu), Medium (sarı), Low (yeşil)
 
----
+### Sağ Panel - Alert Details
+- **InvestigationAlertDetails** component (21KB)
+- Seçilen olayın tam detayı:
+  - File name, size
+  - Source application
+  - Email subject, recipients
+  - Violation triggers (JSON parse)
+  - IOB number
+  - Classification listesi
+  - Matched rules
 
-### 8. Logs (Loglar)
-**Amaç:** Sistem loglarını görüntülemek (debug/monitoring)
-
-**İçerik:**
-- Tarih/saat filtresi
-- Seviye filtresi (Info, Warning, Error)
-- Kaynak filtresi
-- Log tablosu (sayfalandırmalı)
-
----
-
-## 🎨 Tasarım Dili ve Hissi
-
-### Renk Paleti Önerisi
-- **Primary:** Koyu mavi tonları (#1E3A5F, #2C5282) - Kurumsal, güvenilir
-- **Accent:** Elektrik mavisi (#3182CE) - Dikkat çekici, modern
-- **Success:** Yeşil (#38A169) - Düşük risk
-- **Warning:** Turuncu (#DD6B20) - Orta risk
-- **Danger:** Kırmızı (#E53E3E) - Kritik risk
-- **Background:** Çok koyu gri veya siyah (#0D1117, #161B22) - Dark mode
-- **Text:** Açık gri/beyaz - Okunabilirlik
-
-### Tasarım Karakteri
-- **Profesyonel:** Banka/finans sektörü güvenlik ekipleri kullanacak
-- **Minimal ama bilgi yoğun:** Çok data gösterilecek ama karmaşık görünmemeli
-- **Dark mode varsayılan:** Güvenlik analistleri uzun saatler çalışır
-- **Data-driven:** Grafikler, tablolar, metrikler ön planda
-- **Responsive:** Genişliğe göre uyarlanabilir grid sistemi
-
-### Tipografi
-- Monospace fontlar için: JetBrains Mono, Fira Code
-- Başlıklar için: Inter, Roboto, SF Pro
-- Okunabilirlik öncelikli, çok küçük font kullanılmamalı
-
-### Ikonografi
-- Güvenlik temalı ikonlar: kalkan, kilit, göz, alarm
-- Minimalist, filled veya outline tutarlılığı
-- Lucide Icons, Heroicons, Feather Icons uyumlu
+### Floating Modal
+- **UserInsightsModal** - Kullanıcı profil detayı
 
 ---
 
-## 📐 Sayfa Yapısı
+# 🤖 SAYFA 3: AI Behavioral Analysis
 
-### Layout
+## Amaç
+AI tarafından analiz edilen kullanıcı davranışlarını görmek, anomali tespiti
+
+## Yapı & Bileşenler
+
+### Özet Kartları (4 adet)
+- Total Analyzed
+- High Anomaly Count
+- Medium Anomaly Count  
+- Low Anomaly Count
+
+### Filtreler
+- Entity Type (User/Channel/Department)
+- Anomaly Level
+- Show AI Analyzed Only toggle
+
+### Entity Tablosu
+- Entity ID (kullanıcı email)
+- Risk Score
+- Anomaly Level (badge)
+- AI Explanation (truncated)
+- Analysis Date
+
+**Etkileşim:** Satıra tıklayınca → **EntityDetailModal** açılır (71KB - En büyük component)
+
+### EntityDetailModal İçeriği
+- Risk skoru göstergesi
+- AI Analysis Summary
+- Weekly Incidents Chart (bar chart)
+- Daily breakdown (tablo)
+- AI Recommendation
+- Incident details listesi
+- Action counts (Block/Quarantine/Authorized)
+
+---
+
+# 📊 SAYFA 4: Analytics
+
+## Amaç
+Veri analitiği, domain yönetimi, heatmap görünümü
+
+## Yapı & Bileşenler
+
+### Date Range Filter
+- Başlangıç/Bitiş tarihi
+
+### Heatmap Görünümü
+- Domain × Day matrisi
+- Renk yoğunluğu: incident sayısı
+- Hover ile detay
+
+### Domain Features Manager (39KB)
+- **DomainFeaturesManager** component
+- Domain listesi tablosu
+- Her domain için özellikler:
+  - Gizlilik Sözleşmesi (Evet/Hayır)
+  - Eğitim
+  - Noterlik
+  - Denetim
+  - Banka
+  - Hukuk Firması
+  - İştirak
+- CSV yükleme
+- Manuel düzenleme
+
+### İstatistikler
+- Toplam unique domain sayısı
+- Incident dağılımı
+
+---
+
+# ⚙️ SAYFA 5: Settings
+
+## Amaç
+Sistem konfigürasyonu, entegrasyonlar
+
+## Tab Yapısı (6 sekme)
+
+### Tab 1: Genel Ayarlar
+- Email notifications toggle
+- Daily report time
+- Risk thresholds (Low/Medium/High)
+- Admin email
+
+### Tab 2: DLP API Ayarları
+- Manager IP
+- Manager Port
+- HTTPS toggle
+- Timeout
+- Username/Password
+- Test Connection butonu
+- Save butonu
+
+### Tab 3: Email (SMTP) Ayarları
+- SMTP Host/Port
+- SSL toggle
+- Username/Password
+- From Email/Name
+- Test Email butonu
+
+### Tab 4: Splunk Entegrasyonu
+- Enabled toggle
+- HEC URL
+- HEC Token (masked)
+- Index, Source, Sourcetype
+- Test Connection
+
+### Tab 5: Users (Kullanıcı Yönetimi)
+- **UsersTab** component
+- Kullanıcı listesi
+- Rol yönetimi (Admin/User)
+- CRUD işlemleri
+
+### Tab 6: AI Settings
+- **AISettingsTab** component
+- Azure OpenAI endpoint
+- API Key (masked)
+- Model seçimi
+- Max tokens, Temperature
+- Test butonu
+
+### Tab 7: Logs
+- **LogsTab** component
+- Sistem logları
+- Tarih/seviye filtresi
+- Sayfalandırma
+
+---
+
+# ❓ SAYFA 6: FAQ
+
+## Amaç
+Kullanıcı rehberi, SSS
+
+## Yapı & Bileşenler
+
+### Dil Seçici
+- Türkçe / English toggle
+
+### İçerik Bölümleri
+- Accordion tarzı Q&A
+- SectionTitle, SubSection components
+- Tablolar (risk seviyeleri, kanallar)
+- Başlangıç rehberi
+- Risk skoru açıklaması
+- Kanal açıklamaları
+
+---
+
+# 🎨 Tasarım Dili
+
+## Renk Paleti
+```css
+/* Risk Seviyeleri */
+--risk-critical: #E53E3E;  /* 76-100 */
+--risk-high: #DD6B20;      /* 51-75 */
+--risk-medium: #D69E2E;    /* 26-50 */
+--risk-low: #38A169;       /* 0-25 */
+
+/* UI */
+--primary: #2C5282;
+--accent: #3182CE;
+--bg-dark: #0D1117;
+--bg-card: #161B22;
+--border: #30363D;
+--text: #E6EDF3;
+--text-muted: #8B949E;
+```
+
+## Layout
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Sidebar (Sol)  │        Main Content Area           │
-│                 │                                    │
-│  • Logo         │   ┌──────────────────────────────┐ │
-│  • Navigation   │   │  Header (Sayfa başlığı)      │ │
-│    - Dashboard  │   ├──────────────────────────────┤ │
-│    - Investig.  │   │                              │ │
-│    - Reports    │   │  Content Area                │ │
-│    - Users      │   │  (Kartlar, grafikler,        │ │
-│    - AI Behav.  │   │   tablolar)                  │ │
-│    - Settings   │   │                              │ │
-│    - AI Settings│   │                              │ │
-│    - Logs       │   │                              │ │
-│                 │   └──────────────────────────────┘ │
-│  • Footer       │                                    │
-│    (Version)    │                                    │
+│  Sidebar (80px)  │       Main Content (fluid)       │
+│                  │                                  │
+│  ┌──────────┐   │  ┌────────────────────────────┐  │
+│  │   LOGO   │   │  │  Header + Date Picker      │  │
+│  └──────────┘   │  ├────────────────────────────┤  │
+│  ┌──────────┐   │  │                            │  │
+│  │  Icons   │   │  │  Card Grid                 │  │
+│  │    +     │   │  │  (4 col responsive)        │  │
+│  │  Labels  │   │  │                            │  │
+│  │          │   │  ├────────────────────────────┤  │
+│  │          │   │  │                            │  │
+│  │          │   │  │  Tables / Charts           │  │
+│  │          │   │  │                            │  │
+│  └──────────┘   │  └────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Bileşenler
-1. **Stat Cards:** İkon + Sayı + Label + Trend göstergesi
-2. **Charts:** Line, Bar, Pie, Heatmap
-3. **Tables:** Sayfalandırmalı, sıralanabilir, filtrelenebilir
-4. **Modals:** Detay görünümleri için
-5. **Date Pickers:** Tarih seçimi
-6. **Dropdowns:** Filtreler
-7. **Search Bars:** Arama
-8. **Toast Notifications:** Başarı/hata mesajları
+## Bileşen Stilleri
+- **Kartlar:** Rounded corners, subtle shadow, border
+- **Tablolar:** Zebra striping, hover highlight
+- **Modaller:** Centered, overlay, max-width 90vw
+- **Butonlar:** Filled primary, outline secondary
+- **Inputs:** Dark background, focus ring
+- **Badges:** Pill shape, color-coded
 
 ---
 
-## 🔔 Kullanıcı Deneyimi Notları
+# 📋 Tasarım Prompt'u (AI Design Tools için)
 
-1. **First Impression:** Dashboard açıldığında "bugün kaç olay oldu, en riskli kim" hemen görülmeli
-2. **Drill-down:** Her metrikten detaya gidebilmeli (tıkla → modal veya sayfa)
-3. **Color Coding:** Risk seviyeleri her yerde tutarlı renk kullanmalı
-4. **Loading States:** Data yüklenirken skeleton loader
-5. **Empty States:** Veri yoksa boş ekran değil, açıklayıcı mesaj
-6. **Error Handling:** API hatalarında kullanıcı bilgilendirilmeli
-7. **Keyboard Shortcuts:** Power user'lar için (opsiyonel)
+```
+Design a professional cybersecurity dashboard called "RADAR - DLP Risk Adaptive Protection System" for enterprise security analysts.
 
----
+STYLE:
+- Dark mode with #0D1117 background
+- Cards with #161B22 background and #30363D borders
+- Risk color coding: Red (critical), Orange (high), Yellow (medium), Green (low)
+- Clean, data-dense layout with minimal whitespace
+- Modern sans-serif typography (Inter or similar)
+- Icon-based sidebar navigation (80px width)
 
-## 📱 Örnek Akış Senaryoları
+MAIN DASHBOARD PAGE:
+1. Header with logo "RADAR" and date range picker
+2. Four action summary cards in a row: BLOCK (red), QUARANTINE (orange), AUTHORIZED (green), RELEASED (blue)
+3. Top 10 Risky Users table with columns: User, Risk Score (0-100 with color badge), Department, Alerts
+4. Daily trend line chart (Plotly style)
+5. High Impact Alerts section with expandable items
+6. Channel breakdown pie chart (Email, USB, Cloud, Printer, LAN)
 
-### Senaryo 1: Sabah Kontrolü
-1. Güvenlik analisti dashboard'u açar
-2. "Dün 5 BLOCK olayı olmuş" görür
-3. BLOCK kartına tıklar → Modal açılır
-4. En riskli kullanıcıyı görür → Kullanıcı profiline gider
-5. Son 30 günlük trendi inceler
-6. Gerekirse rapor indirir
+MODALS:
+1. Action Incidents Modal: Large table with filters (User, Destination, Channel, Policy), pagination
+2. User Insights Modal: Profile header, risk trend chart, activity breakdown
+3. Entity Detail Modal: AI analysis summary, weekly incidents bar chart, recommendations
 
-### Senaryo 2: Anomali İncelemesi
-1. AI Behavioral sayfasını açar
-2. "Critical" risk seviyeli kullanıcıları filtreler
-3. Bir kullanıcıyı seçer → Detay modalı açılır
-4. AI'ın belirlediği anomali açıklamasını okur
-5. Haftalık incident grafiğini inceler
-6. Gerekli aksiyonu alır (raporlar, IT'ye bildirir)
+OTHER PAGES:
+1. Investigation: 3-column layout (user list | timeline | alert details)
+2. AI Behavioral: Entity table with anomaly badges, expandable AI explanations
+3. Analytics: Heatmap grid, domain features table with Yes/No badges
+4. Settings: Tab-based (General, DLP API, Email, Splunk, Users, AI, Logs)
+5. FAQ: Accordion-style Q&A with Turkish/English toggle
 
----
+INTERACTIONS:
+- Card click opens modal
+- Table row click shows detail
+- Hover states on all interactive elements
+- Loading skeletons for data fetching
+- Toast notifications for success/error
 
-## 🛡️ Güvenlik ve Uyumluluk Sembolleri
-
-Tasarımda kullanılabilecek semboller:
-- Kalkan (Shield) - Koruma
-- Kilit (Lock) - Güvenlik
-- Göz (Eye) - İzleme/Monitoring
-- Grafik (Chart) - Analiz
-- Kullanıcı (User) - Kişi bazlı
-- Zaman (Clock) - Gerçek zamanlı
-- Uyarı (Alert/Bell) - Bildirim
-- Dosya (File) - Veri
-- Bulut (Cloud) - Cloud storage
-- E-posta (Mail) - Email kanalı
-- USB - Removable media
-- Yazıcı (Printer) - Print kanalı
+Make it look premium, professional, and suitable for a bank's security operations center.
+```
 
 ---
 
-## 💡 Ekstra Öneriler
+## 📱 Responsive Breakpoints
 
-- **Gamification:** Departmanlar arası "en güvenli departman" gibi olumlu rekabet
-- **Trend Indicators:** ↑↓ okları ile değişim gösterimi
-- **Comparison:** "Önceki haftaya göre %15 artış" gibi karşılaştırmalar
-- **Tooltips:** Karmaşık metriklerde açıklayıcı tooltip'ler
-- **Collapsible Sections:** Uzun listelerde collapse/expand
-- **Favorites/Pinned:** Sık bakılan kullanıcıları pinleme
+| Viewport | Sidebar | Grid Cols | Notes |
+|----------|---------|-----------|-------|
+| Desktop (>1280px) | Visible | 4 | Full layout |
+| Tablet (768-1279px) | Collapsed | 2 | Hamburger menu |
+| Mobile (<768px) | Hidden | 1 | Bottom nav |
 
 ---
 
-## 📦 Çıktı Beklentisi
+## 🔗 Component Dependency Map
 
-Bu brief'i kullanarak:
-1. Dashboard ana sayfa mockup'ı
-2. Kullanıcı listesi sayfası
-3. Kullanıcı detay modalı
-4. Action incidents modalı
-5. AI Behavioral analysis sayfası
-6. Settings sayfası
+```
+Dashboard (page.tsx)
+├── ActionIncidentsModal
+├── HighRiskUsersModal
+├── UserInsightsModal
+├── ReportModal
+└── Plot (Plotly.js)
 
-Dark theme, modern, veri yoğun ama sade bir tasarım oluşturulmalıdır.
+Investigation (page.tsx)
+├── InvestigationUsersList
+├── InvestigationTimeline
+├── InvestigationAlertDetails
+└── UserInsightsModal
+
+AI Behavioral (page.tsx)
+└── EntityDetailModal
+
+Analytics (page.tsx)
+└── DomainFeaturesManager
+
+Settings (page.tsx)
+├── UsersTab
+├── AISettingsTab
+└── LogsTab
+```
+
+---
+
+**Son Güncelleme:** 2026-02-04  
+**Aktif Sayfa Sayısı:** 6 (+ Login)  
+**Toplam Component:** 25
