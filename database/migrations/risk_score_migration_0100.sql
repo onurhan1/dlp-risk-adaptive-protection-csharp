@@ -86,13 +86,13 @@ SET
     incident_count = sub.cnt
 FROM (
     SELECT 
-        login_name as user_email,
+        COALESCE(user_email, login_name) as user_email,
         DATE(timestamp) as date,
         ROUND(AVG(risk_score)::numeric, 2) as avg_score,
         MAX(risk_score) as max_score,
         COUNT(*) as cnt
     FROM incidents
-    GROUP BY login_name, DATE(timestamp)
+    GROUP BY COALESCE(user_email, login_name), DATE(timestamp)
 ) sub
 WHERE udrs.user_email = sub.user_email 
   AND udrs.date = sub.date;
