@@ -1107,17 +1107,15 @@ public class DLPTestController : ControllerBase
             }
 
             // Step 2: Fetch policy rules exceptions
-            // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // Trying without URL encoding - some APIs reject %20 encoded values
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
+            // Note: Double slash at start as shown in DLP API documentation
+            // GET //dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
+            var exceptionsUrl = $"//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            // DLP API requires Content-Type header even for GET requests
-            request.Content = new StringContent("", Encoding.UTF8, "application/json");
 
             var response = await httpClient.SendAsync(request);
 
