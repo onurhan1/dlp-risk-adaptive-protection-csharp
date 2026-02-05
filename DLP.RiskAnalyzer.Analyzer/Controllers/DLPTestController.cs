@@ -883,6 +883,165 @@ public class DLPTestController : ControllerBase
     }
 
     /// <summary>
+    /// Get ALL DLP Policy Rules Exceptions - Swagger'dan test edebilirsiniz
+    /// GET /api/dlptest/policy-exceptions-all?type={policyType}
+    /// </summary>
+    /// <param name="type">Policy type (e.g., ENDPOINT, EMAIL, NETWORK, WEB, DISCOVERY, CUSTOM, DLP)</param>
+    [HttpGet("policy-exceptions-all")]
+    public async Task<ActionResult<Dictionary<string, object>>> GetAllPolicyRulesExceptions([FromQuery] string type)
+    {
+        HttpClient? httpClient = null;
+        try
+        {
+            // Get DLP settings from database
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            httpClient = await CreateHttpClientAsync();
+
+            if (string.IsNullOrEmpty(config.Username) || string.IsNullOrEmpty(config.Password))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "DLP Username or Password not configured. Please configure DLP settings via UI (Settings → DLP API Configuration) or appsettings.json"
+                });
+            }
+
+            // Step 1: Authenticate
+            var authRequest = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/auth/access-token");
+            authRequest.Headers.Add("username", config.Username);
+            authRequest.Headers.Add("password", config.Password);
+
+            var authResponse = await httpClient.SendAsync(authRequest);
+            
+            if (!authResponse.IsSuccessStatusCode)
+            {
+                var errorContent = await authResponse.Content.ReadAsStringAsync();
+                return StatusCode((int)authResponse.StatusCode, new
+                {
+                    success = false,
+                    message = "Authentication failed",
+                    error = errorContent
+                });
+            }
+
+            var authResponseContent = await authResponse.Content.ReadAsStringAsync();
+            var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(authResponseContent);
+
+            var accessToken = tokenResponse?.ContainsKey("access_token") == true
+                ? tokenResponse["access_token"].ToString()
+                : tokenResponse?.ContainsKey("accessToken") == true
+                    ? tokenResponse["accessToken"].ToString()
+                    : tokenResponse?.ContainsKey("token") == true
+                        ? tokenResponse["token"].ToString()
+                        : null;
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "No access token received"
+                });
+            }
+
+            // Step 2: Fetch ALL policy rules exceptions
+            // GET /dlp/rest/v1/policy/rules/exceptions/all?type=<policy type>
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions/all?type={Uri.EscapeDataString(type ?? "")}";
+            
+            _logger.LogInformation("Fetching all policy rules exceptions from: {Url}", exceptionsUrl);
+            
+            var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            var response = await httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Failed to fetch all policy rules exceptions. Status: {Status}, Response: {Response}",
+                    response.StatusCode, errorContent);
+                
+                return StatusCode((int)response.StatusCode, new
+                {
+                    success = false,
+                    message = "Failed to fetch all policy rules exceptions",
+                    statusCode = (int)response.StatusCode,
+                    statusText = response.StatusCode.ToString(),
+                    url = exceptionsUrl,
+                    error = errorContent,
+                    parameters = new { type = type },
+                    hint = "Try different type values: ENDPOINT, EMAIL, NETWORK, WEB, DISCOVERY, CUSTOM, DLP"
+                });
+            }
+
+            var responseContent = await response.Content.ReadAsStringAsync();
+            
+            // Try to parse as JSON
+            object? parsedResponse = null;
+            try
+            {
+                parsedResponse = JsonSerializer.Deserialize<object>(responseContent);
+            }
+            catch
+            {
+                parsedResponse = responseContent;
+            }
+
+            _logger.LogInformation("Successfully fetched all policy rules exceptions");
+
+            return Ok(new
+            {
+                success = true,
+                message = "All policy rules exceptions fetched successfully",
+                url = exceptionsUrl,
+                parameters = new { type = type },
+                data = parsedResponse,
+                rawResponse = responseContent,
+                config = new
+                {
+                    baseUrl = httpClient?.BaseAddress?.ToString(),
+                    source = "database"
+                }
+            });
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "DLP API connection timeout");
+            return StatusCode(408, new
+            {
+                success = false,
+                message = "DLP API connection timeout",
+                error = ex.Message
+            });
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "DLP API connection error");
+            return StatusCode(503, new
+            {
+                success = false,
+                message = "DLP API connection error - Check network connectivity and firewall",
+                error = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching all policy rules exceptions");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Error fetching all policy rules exceptions",
+                error = ex.Message
+            });
+        }
+        finally
+        {
+            httpClient?.Dispose();
+        }
+    }
+
+    /// <summary>
     /// Get DLP Policy Rules Exceptions - Swagger'dan test edebilirsiniz
     /// GET /api/dlptest/policy-exceptions?type={policyType}&ruleName={ruleName}
     /// </summary>
