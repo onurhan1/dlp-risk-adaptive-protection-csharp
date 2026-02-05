@@ -1114,31 +1114,29 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
+            // NOTE: Based on curl example, ruleName should NOT be URL encoded (API expects raw value)
+            // Also note the double slash in original curl example: //dlp/rest/v1/...
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
-            // HTTP GET with Body: Not standard, but required by some APIs (like this DLP one) to force Content-Type.
+            // Try multiple approaches to send Content-Type: application/json header for GET request
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // IMPORTANT: DLP API requires Content-Type: application/json header (without charset) even for GET requests
-            // Using TryAddWithoutValidation to add Content-Type header directly without body
-            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-            
-            // Alternative approach: Send empty JSON body but override Content-Type to remove charset
-            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json"); // Remove charset
+            // Approach: Use empty ByteArrayContent to set Content-Type without actual body data
+            // This is cleaner than sending "{}" which some APIs may reject
+            var emptyContent = new ByteArrayContent(Array.Empty<byte>());
+            emptyContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            request.Content = emptyContent;
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            if (request.Content != null)
-            {
-                _logger.LogInformation("  Content-Type: {ContentType}", request.Content.Headers.ContentType);
-            }
+            _logger.LogInformation("  Content-Type: {ContentType}", request.Content.Headers.ContentType);
+            _logger.LogInformation("  Full URL: {Url}", exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
 
