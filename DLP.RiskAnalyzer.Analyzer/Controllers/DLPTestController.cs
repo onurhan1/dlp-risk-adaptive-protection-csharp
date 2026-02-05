@@ -1107,9 +1107,8 @@ public class DLPTestController : ControllerBase
             }
 
             // Step 2: Fetch policy rules exceptions
-            // Note: Double slash at start as shown in DLP API documentation
-            // GET //dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            var exceptionsUrl = $"//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
+            // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
