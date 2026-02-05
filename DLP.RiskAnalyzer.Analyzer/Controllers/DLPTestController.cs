@@ -954,6 +954,11 @@ public class DLPTestController : ControllerBase
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            
+            // IMPORTANT: DLP API requires Content-Type: application/json header even for GET requests
+            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json"); // Remove charset
 
             var response = await httpClient.SendAsync(request);
 
@@ -1118,9 +1123,13 @@ public class DLPTestController : ControllerBase
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Send empty JSON object to explicitly force Content-Type: application/json header
-            // StringContent automatically sets the Content-Type header with charset (e.g., application/json; charset=utf-8)
+            // IMPORTANT: DLP API requires Content-Type: application/json header (without charset) even for GET requests
+            // Using TryAddWithoutValidation to add Content-Type header directly without body
+            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            
+            // Alternative approach: Send empty JSON body but override Content-Type to remove charset
             request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json"); // Remove charset
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
