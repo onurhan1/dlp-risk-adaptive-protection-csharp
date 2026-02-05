@@ -1117,27 +1117,26 @@ public class DLPTestController : ControllerBase
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
             // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
-            // NOTE: curl example shows double slash: //dlp/rest/v1/...
             var exceptionsUrl = $"dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
-            // Try multiple approaches to send Content-Type: application/json header for GET request
+            // Build request with required headers
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Approach: Use empty ByteArrayContent to set Content-Type without actual body data
-            // This is cleaner than sending "{}" which some APIs may reject
-            var emptyContent = new ByteArrayContent(Array.Empty<byte>());
-            emptyContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            request.Content = emptyContent;
+            // Per Forcepoint docs: Content-Type: application/json is required even for GET
+            // TryAddWithoutValidation bypasses .NET's validation that normally prevents Content-Type on GET
+            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            
+            // DO NOT add body/content - Tomcat may reject GET requests with body
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            _logger.LogInformation("  Content-Type: {ContentType}", request.Content.Headers.ContentType);
+            _logger.LogInformation("  Content-Type: {ContentType}", request.Headers.Contains("Content-Type") ? "application/json" : "NOT SET");
             _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
