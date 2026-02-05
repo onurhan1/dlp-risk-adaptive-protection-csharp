@@ -1045,8 +1045,8 @@ public class DLPTestController : ControllerBase
     /// Get DLP Policy Rules Exceptions - Swagger'dan test edebilirsiniz
     /// GET /api/dlptest/policy-exceptions?type={policyType}&ruleName={ruleName}
     /// </summary>
-    /// <param name="type">Policy type (e.g., ENDPOINT)</param>
-    /// <param name="ruleName">Rule name to get exceptions for</param>
+    /// <param name="type">Policy type (e.g., ENDPOINT, DLP)</param>
+    /// <param name="ruleName">Rule name to get exceptions for (e.g., "CV in English")</param>
     [HttpGet("policy-exceptions")]
     public async Task<ActionResult<Dictionary<string, object>>> GetPolicyRulesExceptions(
         [FromQuery] string type, 
@@ -1108,7 +1108,6 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // Note: Sending ruleName without encoding - some APIs expect raw values
             var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={ruleName ?? ""}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
