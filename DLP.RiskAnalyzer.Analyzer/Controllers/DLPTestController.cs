@@ -1113,16 +1113,14 @@ public class DLPTestController : ControllerBase
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
+            // HTTP GET with Body: Not standard, but required by some APIs (like this DLP one) to force Content-Type.
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // STRICT HEADER REQUIREMENT: 
-            // DLP API docs say "Content-Type: application/json" is REQUIRED.
-            // For GET requests, we must trick HttpClient to send this header without a real body.
-            // Using empty ByteArrayContent allows setting Content-Type without charset or body string.
-            request.Content = new ByteArrayContent(Array.Empty<byte>());
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            // Send empty JSON object to explicitly force Content-Type: application/json header
+            // StringContent automatically sets the Content-Type header with charset (e.g., application/json; charset=utf-8)
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
@@ -1154,7 +1152,8 @@ public class DLPTestController : ControllerBase
                         type = type,
                         ruleName = ruleName
                     },
-                    requirements = "Docs: Requires Content-Type: application/json header even for GET"
+                    requirements = "Docs: Requires Content-Type: application/json header even for GET",
+                    note = "Tried sending {} body to force Content-Type header"
                 });
             }
 
