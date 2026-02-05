@@ -1116,8 +1116,22 @@ public class DLPTestController : ControllerBase
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            // Note: Not adding Content-Type for GET request as it can cause 400 Bad Request on some servers
-            // behavior should match policy-exceptions-all endpoint which works without it.
+            
+            // STRICT HEADER REQUIREMENT: 
+            // DLP API docs say "Content-Type: application/json" is REQUIRED.
+            // For GET requests, we must trick HttpClient to send this header without a real body.
+            // Using empty ByteArrayContent allows setting Content-Type without charset or body string.
+            request.Content = new ByteArrayContent(Array.Empty<byte>());
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            // Log headers for debugging
+            _logger.LogInformation("Request Headers:");
+            _logger.LogInformation("  Authorization: Bearer [REDACTED]");
+            _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
+            if (request.Content != null)
+            {
+                _logger.LogInformation("  Content-Type: {ContentType}", request.Content.Headers.ContentType);
+            }
 
             var response = await httpClient.SendAsync(request);
 
@@ -1139,7 +1153,8 @@ public class DLPTestController : ControllerBase
                     {
                         type = type,
                         ruleName = ruleName
-                    }
+                    },
+                    requirements = "Docs: Requires Content-Type: application/json header even for GET"
                 });
             }
 
