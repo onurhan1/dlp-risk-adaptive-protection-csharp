@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Linq;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -1106,31 +1107,34 @@ public class DLPTestController : ControllerBase
                 });
             }
 
-            // Step 2: Fetch policy rules exceptions
-            // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
+            // STRATEGY CHANGE: Direct endpoint with filters returns 400 Bad Request consistently.
+            // Fallback: Fetch ALL exceptions (which works) and filter in memory.
             
-            _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
+            // Step 2: Fetch ALL policy rules exceptions
+            // GET /dlp/rest/v1/policy/rules/exceptions/all?type=<policy type>
+            var allExceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions/all?type={Uri.EscapeDataString(type ?? "")}";
             
-            var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
+            _logger.LogInformation("Fetching ALL policy rules exceptions (fallback mode) from: {Url} to filter for rule: {RuleName}", allExceptionsUrl, ruleName);
+            
+            var request = new HttpRequestMessage(HttpMethod.Get, allExceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
+            
             var response = await httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Failed to fetch policy rules exceptions. Status: {Status}, Response: {Response}",
+                _logger.LogError("Failed to fetch all policy rules exceptions for filtering. Status: {Status}, Response: {Response}",
                     response.StatusCode, errorContent);
                 
                 return StatusCode((int)response.StatusCode, new
                 {
                     success = false,
-                    message = "Failed to fetch policy rules exceptions",
+                    message = "Failed to fetch policy rules exceptions (fallback)",
                     statusCode = (int)response.StatusCode,
                     statusText = response.StatusCode.ToString(),
-                    url = exceptionsUrl,
+                    url = allExceptionsUrl,
                     error = errorContent,
                     parameters = new
                     {
@@ -1142,37 +1146,133 @@ public class DLPTestController : ControllerBase
 
             var responseContent = await response.Content.ReadAsStringAsync();
             
-            // Try to parse as JSON
-            object? parsedResponse = null;
             try
             {
-                parsedResponse = JsonSerializer.Deserialize<object>(responseContent);
-            }
-            catch
-            {
-                parsedResponse = responseContent;
-            }
+                // Parse response to find specific rule
+                using var document = JsonDocument.Parse(responseContent);
+                var root = document.RootElement;
+                
+                // Navigate to data -> exception_rules array
+                // Note: Structure based on policy-exceptions-all response
+                JsonElement exceptionRules = default;
+                bool foundArray = false;
 
-            _logger.LogInformation("Successfully fetched policy rules exceptions");
-
-            return Ok(new
-            {
-                success = true,
-                message = "Policy rules exceptions fetched successfully",
-                url = exceptionsUrl,
-                parameters = new
+                if (root.TryGetProperty("data", out var data))
                 {
-                    type = type,
-                    ruleName = ruleName
-                },
-                data = parsedResponse,
-                rawResponse = responseContent,
-                config = new
-                {
-                    baseUrl = httpClient?.BaseAddress?.ToString(),
-                    source = "database"
+                    if (data.TryGetProperty("exception_rules", out exceptionRules) && exceptionRules.ValueKind == JsonValueKind.Array)
+                    {
+                        foundArray = true;
+                    }
                 }
-            });
+                
+                if (foundArray)
+                {
+                    // Filter for the requested rule name (case-insensitive)
+                    JsonElement? matchingRule = null;
+                    string targetRuleName = ruleName ?? "";
+
+                    foreach (var rule in exceptionRules.EnumerateArray())
+                    {
+                        if (rule.TryGetProperty("rule_name", out var nameProp) && 
+                            string.Equals(nameProp.GetString(), targetRuleName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchingRule = rule.Clone(); // Clone to safely return
+                            break;
+                        }
+                    }
+
+                    if (matchingRule.HasValue)
+                    {
+                        // Return in the format expected for single rule exception
+                        // The ALL endpoint returns items like { "rule_name": "...", "policy_name": "...", "exception_rule_names": [...] }
+                        // We will return the matching item directly as "data"
+                        
+                        // Reconstruct a similar response structure
+                        var resultData = new Dictionary<string, object>();
+                        
+                        // Copy properties dynamically
+                        foreach (var prop in matchingRule.Value.EnumerateObject())
+                        {
+                            switch(prop.Value.ValueKind)
+                            {
+                                case JsonValueKind.String:
+                                    resultData[prop.Name] = prop.Value.GetString();
+                                    break;
+                                case JsonValueKind.Number:
+                                    resultData[prop.Name] = prop.Value.GetDouble();
+                                    break;
+                                case JsonValueKind.True:
+                                case JsonValueKind.False:
+                                    resultData[prop.Name] = prop.Value.GetBoolean();
+                                    break;
+                                case JsonValueKind.Null:
+                                    resultData[prop.Name] = null;
+                                    break;
+                                default:
+                                    // For arrays and objects, kept as JsonElement/object
+                                    resultData[prop.Name] = prop.Value;
+                                    break;
+                            }
+                        }
+                        
+                        // Ensure keys expected by frontend/caller, mapping if necessary
+                        if (!resultData.ContainsKey("parent_rule_name") && resultData.ContainsKey("rule_name"))
+                        {
+                            resultData["parent_rule_name"] = resultData["rule_name"];
+                        }
+                        if (!resultData.ContainsKey("policy_type"))
+                        {
+                            resultData["policy_type"] = type;
+                        }
+
+                        return Ok(new
+                        {
+                            success = true,
+                            message = "Policy rules exceptions fetched successfully (via filter)",
+                            url = allExceptionsUrl,
+                            parameters = new
+                            {
+                                type = type,
+                                ruleName = ruleName
+                            },
+                            data = resultData,
+                            source = "filtered_from_all_list"
+                        });
+                    }
+                    else
+                    {
+                        return NotFound(new
+                        {
+                            success = false,
+                            message = $"Rule '{ruleName}' not found in exceptions list",
+                            url = allExceptionsUrl,
+                            parameters = new { type = type, ruleName = ruleName }, 
+                            availableRules = exceptionRules.EnumerateArray()
+                                .Select(r => r.TryGetProperty("rule_name", out var n) ? n.GetString() : "unknown")
+                                .Take(10) // Show first 10 rules as hint
+                                .ToList()
+                        });
+                    }
+                }
+                
+                return Ok(new
+                {
+                    success = false,
+                    message = "Could not parse exceptions list structure",
+                    data = JsonSerializer.Deserialize<object>(responseContent)
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error filtering policy rules exceptions");
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Error filtering policy rules exceptions",
+                    error = ex.Message,
+                    details = ex.StackTrace
+                });
+            }
         }
         catch (TaskCanceledException ex)
         {
