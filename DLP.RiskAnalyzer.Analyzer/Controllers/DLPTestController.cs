@@ -48,9 +48,10 @@ public class DLPTestController : ControllerBase
                 ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             };
             
+            // BaseAddress must end with "/" for relative URLs to work correctly
             var baseUrl = config.UseHttps 
-                ? $"https://{config.ManagerIp}:{config.ManagerPort}"
-                : $"http://{config.ManagerIp}:{config.ManagerPort}";
+                ? $"https://{config.ManagerIp}:{config.ManagerPort}/"
+                : $"http://{config.ManagerIp}:{config.ManagerPort}/";
             
             _logger.LogInformation("DLP API Configuration (from DB) - IP: {IP}, Port: {Port}, UseHttps: {UseHttps}, BaseUrl: {BaseUrl}", 
                 config.ManagerIp, config.ManagerPort, config.UseHttps, baseUrl);
@@ -76,9 +77,10 @@ public class DLPTestController : ControllerBase
                 ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             };
             
+            // BaseAddress must end with "/" for relative URLs to work correctly
             var baseUrl = useHttps 
-                ? $"https://{dlpIp}:{dlpPort}"
-                : $"http://{dlpIp}:{dlpPort}";
+                ? $"https://{dlpIp}:{dlpPort}/"
+                : $"http://{dlpIp}:{dlpPort}/";
             
             return new HttpClient(handler)
             {
@@ -1114,9 +1116,9 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // NOTE: Based on curl example, ruleName should NOT be URL encoded (API expects raw value)
-            // Also note the double slash in original curl example: //dlp/rest/v1/...
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
+            // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
+            // NOTE: curl example shows double slash: //dlp/rest/v1/...
+            var exceptionsUrl = $"dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
@@ -1136,7 +1138,7 @@ public class DLPTestController : ControllerBase
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
             _logger.LogInformation("  Content-Type: {ContentType}", request.Content.Headers.ContentType);
-            _logger.LogInformation("  Full URL: {Url}", exceptionsUrl);
+            _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
 
