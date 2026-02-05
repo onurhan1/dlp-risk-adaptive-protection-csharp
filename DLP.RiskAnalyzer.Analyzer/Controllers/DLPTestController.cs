@@ -1108,8 +1108,8 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // Note: No URL encoding - DLP API expects raw values with spaces
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
+            // URL encoding is required - spaces become %20 which DLP API interprets correctly
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
