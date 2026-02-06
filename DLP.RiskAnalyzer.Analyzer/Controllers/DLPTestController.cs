@@ -1163,30 +1163,30 @@ public class DLPTestController : ControllerBase
             
             // URL encode the ruleName to handle spaces and special characters
             var encodedRuleName = Uri.EscapeDataString(ruleName ?? "");
-            var exceptionsUrl = $"dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={encodedRuleName}";
+            // Use leading slash for absolute path from base URL
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={encodedRuleName}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             _logger.LogInformation("Parameters - type: {Type}, ruleName: {RuleName}, encodedRuleName: {EncodedRuleName}", 
                 type, ruleName, encodedRuleName);
             
-            // Build request with required headers
+            // Build request with required headers (matching curl example from docs)
+            // curl example: curl --insecure --location --request GET "https://IP:9443//dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName=CV in English"
+            //   --header "Authorization: Bearer <token>"
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Per Forcepoint docs: Content-Type: application/json is required even for GET
-            // Method 1: Use TryAddWithoutValidation for header
+            // Per Forcepoint docs: Content-Type: application/json is required
+            // Only add as header, NO body for GET request (Tomcat may reject body on GET)
             request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-            
-            // Method 2: Also add empty content with correct Content-Type as backup
-            // Some servers need actual content to send Content-Type header
-            request.Content = new StringContent("", Encoding.UTF8, "application/json");
+            // DO NOT set request.Content - empty body with GET causes issues on some servers
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            _logger.LogInformation("  Content-Type: application/json (via header and content)");
+            _logger.LogInformation("  Content-Type: application/json (header only, no body)");
             _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
