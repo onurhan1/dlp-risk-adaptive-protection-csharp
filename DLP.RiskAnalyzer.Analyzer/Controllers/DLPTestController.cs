@@ -1304,6 +1304,118 @@ public class DLPTestController : ControllerBase
     }
 
     /// <summary>
+    /// Debug endpoint - Try multiple URL formats for /exceptions endpoint
+    /// GET /api/dlptest/policy-exceptions-debug?type={policyType}&ruleName={ruleName}
+    /// </summary>
+    [HttpGet("policy-exceptions-debug")]
+    public async Task<ActionResult<Dictionary<string, object>>> DebugPolicyRulesExceptions(
+        [FromQuery] string type, 
+        [FromQuery] string ruleName)
+    {
+        HttpClient? httpClient = null;
+        var results = new List<object>();
+        
+        try
+        {
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            httpClient = await CreateHttpClientAsync();
+
+            // Authenticate first
+            var authRequest = new HttpRequestMessage(HttpMethod.Post, "dlp/rest/v1/auth/access-token");
+            authRequest.Headers.Add("username", config.Username);
+            authRequest.Headers.Add("password", config.Password);
+            var authResponse = await httpClient.SendAsync(authRequest);
+            
+            if (!authResponse.IsSuccessStatusCode)
+            {
+                return BadRequest(new { success = false, message = "Auth failed" });
+            }
+
+            var authContent = await authResponse.Content.ReadAsStringAsync();
+            var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(authContent);
+            var accessToken = tokenResponse?.ContainsKey("access_token") == true
+                ? tokenResponse["access_token"]?.ToString()
+                : null;
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return BadRequest(new { success = false, message = "No token" });
+            }
+
+            // Different URL variations to try
+            var urlVariations = new[]
+            {
+                // Standard format (from docs)
+                $"dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
+                // With leading slash
+                $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
+                // Snake case parameter name
+                $"dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&rule_name={Uri.EscapeDataString(ruleName ?? "")}",
+                // Without URL encoding
+                $"dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={ruleName ?? ""}",
+                // Lowercase type
+                $"dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString((type ?? "DLP").ToLower())}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
+            };
+
+            foreach (var url in urlVariations)
+            {
+                try
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+                    request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                    request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                    var response = await httpClient.SendAsync(request);
+                    var responseContent = await response.Content.ReadAsStringAsync();
+
+                    results.Add(new
+                    {
+                        url = url,
+                        fullUrl = $"{httpClient.BaseAddress}{url}",
+                        statusCode = (int)response.StatusCode,
+                        status = response.StatusCode.ToString(),
+                        success = response.IsSuccessStatusCode,
+                        responsePreview = responseContent.Length > 200 
+                            ? responseContent.Substring(0, 200) + "..." 
+                            : responseContent
+                    });
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new
+                    {
+                        url = url,
+                        statusCode = -1,
+                        status = "Exception",
+                        success = false,
+                        error = ex.Message
+                    });
+                }
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Debug results for multiple URL formats",
+                input = new { type, ruleName },
+                results = results,
+                hint = "Look for a result with success=true"
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+        finally
+        {
+            httpClient?.Dispose();
+        }
+    }
+
+    /// <summary>
     /// Get DLP Configuration (for debugging) - Swagger'dan test edebilirsiniz
     /// GET /api/dlptest/config
     /// </summary>
