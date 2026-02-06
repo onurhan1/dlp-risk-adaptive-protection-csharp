@@ -1126,11 +1126,8 @@ public class DLPTestController : ControllerBase
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Per Forcepoint docs: Content-Type: application/json is required even for GET
-            // TryAddWithoutValidation bypasses .NET's validation that normally prevents Content-Type on GET
-            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-            
             // IMPORTANT: DLP API requires Content-Type: application/json header even for GET requests
+            // In .NET, Content-Type is a content header, so we must add a body to set it
             // Adding empty body ensures Content-Type header is properly sent (same pattern as GetAllPolicyRulesExceptions)
             request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -1139,7 +1136,7 @@ public class DLPTestController : ControllerBase
             _logger.LogInformation("Request Headers:");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            _logger.LogInformation("  Content-Type: {ContentType}", request.Headers.Contains("Content-Type") ? "application/json" : "NOT SET");
+            _logger.LogInformation("  Content-Type: {ContentType}", request.Content?.Headers?.ContentType?.ToString() ?? "NOT SET");
             _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
