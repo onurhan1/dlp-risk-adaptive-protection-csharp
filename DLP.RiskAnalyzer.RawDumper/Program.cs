@@ -27,6 +27,8 @@ public class Program
         Console.WriteLine("  --start <dd/MM/yyyy>   : Start date for range");
         Console.WriteLine("  --end <dd/MM/yyyy>     : End date for range");
         Console.WriteLine("  --hours <N>            : Last N hours (default: 24)");
+        Console.WriteLine("  --days <N>             : Last N days");
+        Console.WriteLine("  --months <N>           : Last N months (e.g., --months 3 for last 3 months)");
         Console.WriteLine("  --id <incident_id>     : Fetch single incident by ID (full details)");
         Console.WriteLine("  --released             : Extract and save 'Released quarantined message' incidents to database");
         Console.WriteLine("  --released-json <path> : Extract from existing JSON file and save to database");
@@ -40,6 +42,8 @@ public class Program
         var startArg = GetArgValue(args, "--start");
         var endArg = GetArgValue(args, "--end");
         var hoursArg = GetArgValue(args, "--hours");
+        var daysArg = GetArgValue(args, "--days");
+        var monthsArg = GetArgValue(args, "--months");
         var idArg = GetArgValue(args, "--id");
         var releasedJsonArg = GetArgValue(args, "--released-json");
         bool releasedMode = args.Contains("--released") || !string.IsNullOrEmpty(releasedJsonArg);
@@ -82,6 +86,34 @@ public class Program
             startDate = startDate.Date;
             endDate = endDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Date Range - {startDate:dd/MM/yyyy} to {endDate:dd/MM/yyyy}");
+        }
+        else if (!singleIncidentMode && !string.IsNullOrEmpty(monthsArg))
+        {
+            if (int.TryParse(monthsArg, out var months))
+            {
+                endDate = DateTime.Now;
+                startDate = endDate.AddMonths(-months);
+                Console.WriteLine($"Mode: Last {months} months");
+            }
+            else
+            {
+                Console.WriteLine($"ERROR: Invalid months value '{monthsArg}'");
+                return;
+            }
+        }
+        else if (!singleIncidentMode && !string.IsNullOrEmpty(daysArg))
+        {
+            if (int.TryParse(daysArg, out var days))
+            {
+                endDate = DateTime.Now;
+                startDate = endDate.AddDays(-days);
+                Console.WriteLine($"Mode: Last {days} days");
+            }
+            else
+            {
+                Console.WriteLine($"ERROR: Invalid days value '{daysArg}'");
+                return;
+            }
         }
         else if (!singleIncidentMode)
         {
