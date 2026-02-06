@@ -1116,27 +1116,34 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // Valid type values: "DLP" or "DISCOVERY" (case-sensitive based on docs)
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
+            // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
+            
+            // URL encode the ruleName to handle spaces and special characters
+            var encodedRuleName = Uri.EscapeDataString(ruleName ?? "");
+            var exceptionsUrl = $"dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={encodedRuleName}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
+            _logger.LogInformation("Parameters - type: {Type}, ruleName: {RuleName}, encodedRuleName: {EncodedRuleName}", 
+                type, ruleName, encodedRuleName);
             
             // Build request with required headers
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // IMPORTANT: DLP API requires Content-Type: application/json header even for GET requests
-            // In .NET, Content-Type is a content header, so we must add a body to set it
-            // Adding empty body ensures Content-Type header is properly sent (same pattern as GetAllPolicyRulesExceptions)
-            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            // Per Forcepoint docs: Content-Type: application/json is required even for GET
+            // Method 1: Use TryAddWithoutValidation for header
+            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            
+            // Method 2: Also add empty content with correct Content-Type as backup
+            // Some servers need actual content to send Content-Type header
+            request.Content = new StringContent("", Encoding.UTF8, "application/json");
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
             _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            _logger.LogInformation("  Content-Type: {ContentType}", request.Content?.Headers?.ContentType?.ToString() ?? "NOT SET");
+            _logger.LogInformation("  Content-Type: application/json (via header and content)");
             _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
@@ -1154,14 +1161,16 @@ public class DLPTestController : ControllerBase
                     statusCode = (int)response.StatusCode,
                     statusText = response.StatusCode.ToString(),
                     url = exceptionsUrl,
+                    fullUrl = $"{httpClient.BaseAddress}{exceptionsUrl}",
                     error = errorContent,
                     parameters = new
                     {
                         type = type,
-                        ruleName = ruleName
+                        ruleName = ruleName,
+                        encodedRuleName = Uri.EscapeDataString(ruleName ?? "")
                     },
-                    requirements = "Docs: Requires Content-Type: application/json header even for GET",
-                    note = "Tried sending {} body to force Content-Type header"
+                    validTypeValues = new[] { "DLP", "discovery" },
+                    hint = "Check: 1) type must be 'DLP' or 'discovery', 2) ruleName must be an existing rule name"
                 });
             }
 
@@ -1169,9 +1178,11 @@ public class DLPTestController : ControllerBase
             
             // Try to parse as JSON
             object? parsedResponse = null;
+            Dictionary<string, object>? structuredResponse = null;
             try
             {
-                parsedResponse = JsonSerializer.Deserialize<object>(responseContent);
+                structuredResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
+                parsedResponse = structuredResponse;
             }
             catch
             {
@@ -1180,16 +1191,30 @@ public class DLPTestController : ControllerBase
 
             _logger.LogInformation("Successfully fetched policy rules exceptions");
 
+            // Extract key fields from response based on API docs
+            var parentRuleName = structuredResponse?.ContainsKey("parent_rule_name") == true 
+                ? structuredResponse["parent_rule_name"]?.ToString() : null;
+            var policyType = structuredResponse?.ContainsKey("policy_type") == true 
+                ? structuredResponse["policy_type"]?.ToString() : null;
+            var exceptionRules = structuredResponse?.ContainsKey("exception_rules") == true 
+                ? structuredResponse["exception_rules"] : null;
+
             return Ok(new
             {
                 success = true,
                 message = "Policy rules exceptions fetched successfully",
                 url = exceptionsUrl,
+                fullUrl = $"{httpClient?.BaseAddress}{exceptionsUrl}",
                 parameters = new
                 {
                     type = type,
                     ruleName = ruleName
                 },
+                // Structured response fields (from API docs)
+                parent_rule_name = parentRuleName,
+                policy_type = policyType,
+                exception_rules = exceptionRules,
+                // Full response
                 data = parsedResponse,
                 rawResponse = responseContent,
                 config = new
