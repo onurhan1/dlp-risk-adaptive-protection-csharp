@@ -1161,13 +1161,14 @@ public class DLPTestController : ControllerBase
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
             // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
             
-            // Based on curl example from docs - ruleName is NOT URL encoded in the example
-            // curl example shows: ruleName=CV in English (with spaces)
-            // Let's try without encoding first
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={ruleName ?? ""}";
+            // URL encode parameters - special characters (spaces, Turkish chars İıüşçğ, etc.) must be encoded
+            var encodedType = Uri.EscapeDataString(type ?? "DLP");
+            var encodedRuleName = Uri.EscapeDataString(ruleName ?? "");
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRuleName}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
-            _logger.LogInformation("Parameters - type: {Type}, ruleName: {RuleName}", type, ruleName);
+            _logger.LogInformation("Parameters - type: {Type} (encoded: {EncodedType}), ruleName: {RuleName} (encoded: {EncodedRuleName})", 
+                type, encodedType, ruleName, encodedRuleName);
             
             // Build request with SAME headers as /exceptions/all (which works)
             // DLP API requires Content-Type: application/json header even for GET requests
