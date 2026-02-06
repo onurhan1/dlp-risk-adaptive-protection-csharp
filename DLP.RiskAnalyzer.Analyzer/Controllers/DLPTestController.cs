@@ -985,18 +985,55 @@ public class DLPTestController : ControllerBase
 
             var responseContent = await response.Content.ReadAsStringAsync();
             
-            // Try to parse as JSON
+            // Try to parse as JSON and extract rule names for easier use
             object? parsedResponse = null;
+            List<string> availableRuleNames = new();
+            List<object> rulesList = new();
+            
             try
             {
+                var jsonDoc = JsonDocument.Parse(responseContent);
                 parsedResponse = JsonSerializer.Deserialize<object>(responseContent);
+                
+                // Extract rule_name values from exception_rules array
+                if (jsonDoc.RootElement.TryGetProperty("exception_rules", out var exceptionRules) && 
+                    exceptionRules.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var rule in exceptionRules.EnumerateArray())
+                    {
+                        if (rule.TryGetProperty("rule_name", out var ruleName))
+                        {
+                            availableRuleNames.Add(ruleName.GetString() ?? "");
+                        }
+                        
+                        // Also collect full rule info
+                        var policyName = rule.TryGetProperty("policy_name", out var pn) ? pn.GetString() : "";
+                        var rName = rule.TryGetProperty("rule_name", out var rn) ? rn.GetString() : "";
+                        var exceptionNames = new List<string>();
+                        if (rule.TryGetProperty("exception_rule_names", out var ern) && ern.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var e in ern.EnumerateArray())
+                            {
+                                exceptionNames.Add(e.GetString() ?? "");
+                            }
+                        }
+                        
+                        rulesList.Add(new
+                        {
+                            policy_name = policyName,
+                            rule_name = rName,
+                            exception_count = exceptionNames.Count,
+                            exception_rule_names = exceptionNames
+                        });
+                    }
+                }
             }
             catch
             {
                 parsedResponse = responseContent;
             }
 
-            _logger.LogInformation("Successfully fetched all policy rules exceptions");
+            _logger.LogInformation("Successfully fetched all policy rules exceptions. Found {Count} rules", availableRuleNames.Count);
 
             return Ok(new
             {
@@ -1004,8 +1041,14 @@ public class DLPTestController : ControllerBase
                 message = "All policy rules exceptions fetched successfully",
                 url = exceptionsUrl,
                 parameters = new { type = type },
+                // Helper: List of all rule names that can be used with /policy-exceptions endpoint
+                availableRuleNames = availableRuleNames.Distinct().OrderBy(x => x).ToList(),
+                totalRules = availableRuleNames.Count,
+                // Structured rules list
+                rules = rulesList,
+                // Original response
                 data = parsedResponse,
-                rawResponse = responseContent,
+                hint = "Use any rule_name from 'availableRuleNames' with GET /api/dlptest/policy-exceptions?type=DLP&ruleName={rule_name}",
                 config = new
                 {
                     baseUrl = httpClient?.BaseAddress?.ToString(),
