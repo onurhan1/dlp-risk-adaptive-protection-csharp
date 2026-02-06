@@ -23,6 +23,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<DomainFeatureDefinition> DomainFeatureDefinitions { get; set; }
     public DbSet<DomainFeatureValue> DomainFeatureValues { get; set; }
     public DbSet<AzureAIExplanation> AzureAIExplanations { get; set; }
+    public DbSet<ReleasedIncident> ReleasedIncidents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -312,6 +313,29 @@ public class AnalyzerDbContext : DbContext
             // Ignore computed properties
             entity.Ignore(e => e.AnomalyDetected);
             entity.Ignore(e => e.Timestamp);
+        });
+
+        // Configure ReleasedIncident
+        modelBuilder.Entity<ReleasedIncident>(entity =>
+        {
+            entity.ToTable("released_incidents");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.IncidentId).HasColumnName("incident_id").IsRequired();
+            entity.Property(e => e.IncidentTimestamp).HasColumnName("incident_timestamp").IsRequired();
+            entity.Property(e => e.Action).HasColumnName("action").IsRequired().HasMaxLength(50);
+            entity.Property(e => e.TaskName).HasColumnName("task_name").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.AdminName).HasColumnName("admin_name").HasMaxLength(100);
+            entity.Property(e => e.Comments).HasColumnName("comments");
+            entity.Property(e => e.UpdateTime).HasColumnName("update_time");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.IncidentId);
+            entity.HasIndex(e => e.AdminName);
+            entity.HasIndex(e => e.UpdateTime);
+            entity.HasIndex(e => e.IncidentTimestamp);
+            entity.HasIndex(e => new { e.IncidentId, e.UpdateTime }).IsUnique();
         });
     }
 }

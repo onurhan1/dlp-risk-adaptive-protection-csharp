@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Npgsql;
 
 namespace DLP.RiskAnalyzer.RawDumper;
 
@@ -13,6 +14,7 @@ public class Program
     private static int _managerPort;
     private static string _username = null!;
     private static string _password = null!;
+    private static string _connectionString = null!;
 
     public static async Task Main(string[] args)
     {
@@ -26,7 +28,8 @@ public class Program
         Console.WriteLine("  --end <dd/MM/yyyy>     : End date for range");
         Console.WriteLine("  --hours <N>            : Last N hours (default: 24)");
         Console.WriteLine("  --id <incident_id>     : Fetch single incident by ID (full details)");
-        Console.WriteLine("  --ids <id1,id2,...>    : Fetch multiple incidents by IDs (bulk mode)");
+        Console.WriteLine("  --released             : Extract and save 'Released quarantined message' incidents to database");
+        Console.WriteLine("  --released-json <path> : Extract from existing JSON file and save to database");
         Console.WriteLine();
 
         // Parse command line arguments
@@ -38,7 +41,8 @@ public class Program
         var endArg = GetArgValue(args, "--end");
         var hoursArg = GetArgValue(args, "--hours");
         var idArg = GetArgValue(args, "--id");
-        var idsArg = GetArgValue(args, "--ids");
+        var releasedJsonArg = GetArgValue(args, "--released-json");
+        bool releasedMode = args.Contains("--released") || !string.IsNullOrEmpty(releasedJsonArg);
 
         // Check if single incident mode
         bool singleIncidentMode = !string.IsNullOrEmpty(idArg);
@@ -49,31 +53,7 @@ public class Program
             return;
         }
 
-        // Check if bulk incidents mode
-        bool bulkIncidentMode = !string.IsNullOrEmpty(idsArg);
-        List<int> bulkIncidentIds = new List<int>();
-        if (bulkIncidentMode)
-        {
-            foreach (var idStr in idsArg!.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (int.TryParse(idStr.Trim(), out var parsedId))
-                {
-                    bulkIncidentIds.Add(parsedId);
-                }
-                else
-                {
-                    Console.WriteLine($"WARNING: Invalid incident ID '{idStr}' - skipping");
-                }
-            }
-            if (bulkIncidentIds.Count == 0)
-            {
-                Console.WriteLine("ERROR: No valid incident IDs provided");
-                return;
-            }
-            Console.WriteLine($"Mode: Bulk IDs - {bulkIncidentIds.Count} incidents");
-        }
-
-        if (!singleIncidentMode && !bulkIncidentMode && !string.IsNullOrEmpty(dateArg))
+        if (!singleIncidentMode && !string.IsNullOrEmpty(dateArg))
         {
             if (!DateTime.TryParseExact(dateArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out var specificDate))
@@ -85,7 +65,7 @@ public class Program
             endDate = specificDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Specific Date - {specificDate:dd/MM/yyyy}");
         }
-        else if (!singleIncidentMode && !bulkIncidentMode && !string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
+        else if (!singleIncidentMode && !string.IsNullOrEmpty(startArg) && !string.IsNullOrEmpty(endArg))
         {
             if (!DateTime.TryParseExact(startArg, new[] { "dd/MM/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" }, 
                 null, System.Globalization.DateTimeStyles.None, out startDate))
@@ -103,7 +83,7 @@ public class Program
             endDate = endDate.Date.AddDays(1).AddSeconds(-1);
             Console.WriteLine($"Mode: Date Range - {startDate:dd/MM/yyyy} to {endDate:dd/MM/yyyy}");
         }
-        else if (!singleIncidentMode && !bulkIncidentMode)
+        else if (!singleIncidentMode)
         {
             int hours = 24;
             if (!string.IsNullOrEmpty(hoursArg) && int.TryParse(hoursArg, out var parsedHours))
@@ -115,23 +95,33 @@ public class Program
             Console.WriteLine($"Mode: Last {hours} hours");
         }
 
-        if (!singleIncidentMode && !bulkIncidentMode)
-        {
-            Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} -> {endDate:dd/MM/yyyy HH:mm:ss}");
-            Console.WriteLine();
-        }
+        Console.WriteLine($"Date Range: {startDate:dd/MM/yyyy HH:mm:ss} -> {endDate:dd/MM/yyyy HH:mm:ss}");
+        Console.WriteLine();
 
         // Load Configuration
         var parentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "";
         var collectorConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Collector", "appsettings.json");
+        var analyzerConfigPath = Path.Combine(parentDir, "DLP.RiskAnalyzer.Analyzer", "appsettings.json");
         var localConfigPath = "appsettings.json";
 
         Console.WriteLine($"Loading DLP config from: {collectorConfigPath}");
+        Console.WriteLine($"Loading DB config from: {analyzerConfigPath}");
 
         var config = new ConfigurationBuilder()
             .AddJsonFile(localConfigPath, optional: true, reloadOnChange: true)
             .AddJsonFile(collectorConfigPath, optional: true, reloadOnChange: true)
+            .AddJsonFile(analyzerConfigPath, optional: true, reloadOnChange: true)
             .Build();
+
+        _connectionString = config.GetConnectionString("DefaultConnection") 
+            ?? throw new Exception("ConnectionStrings:DefaultConnection not configured");
+
+        // Released JSON mode - process existing JSON file
+        if (!string.IsNullOrEmpty(releasedJsonArg))
+        {
+            await ProcessReleasedFromJsonFileAsync(releasedJsonArg);
+            return;
+        }
 
         _managerIp = config["DLP:ManagerIP"] ?? throw new Exception("DLP:ManagerIP not configured");
         _managerPort = config.GetValue<int>("DLP:ManagerPort", 8443);
@@ -158,117 +148,6 @@ public class Program
             return;
         }
         Console.WriteLine("Authenticated.");
-
-        // Bulk Incidents Mode - fetch multiple incidents by IDs and dump all data
-        if (bulkIncidentMode)
-        {
-            Console.WriteLine($"\n📦 Fetching {bulkIncidentIds.Count} incidents by IDs...");
-            var bulkIncidents = await FetchIncidentsByIdsAsync(token, bulkIncidentIds);
-            
-            if (bulkIncidents.Count == 0)
-            {
-                Console.WriteLine("No incidents found.");
-                return;
-            }
-            
-            Console.WriteLine($"✅ Retrieved {bulkIncidents.Count} incidents");
-            
-            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            
-            // Save full JSON
-            var bulkJsonPath = $"bulk_incidents_{ts}.json";
-            File.WriteAllText(bulkJsonPath, JsonConvert.SerializeObject(bulkIncidents, Formatting.Indented));
-            Console.WriteLine($"📄 Full JSON saved to: {bulkJsonPath}");
-            
-            // Save CSV for source fields
-            var bulkCsvPath = $"bulk_source_data_{ts}.csv";
-            using (var bulkWriter = new StreamWriter(bulkCsvPath, false, Encoding.UTF8))
-            {
-                // Extended CSV header with all source fields
-                bulkWriter.WriteLine("incident_id,event_time,severity,action,channel,policies,destination,file_name,maximum_matches,manager,department,ip_address,login_name,host_name,email_address,dn,nt_domain,business_unit,risk_level,full_cn");
-                
-                foreach (var inc in bulkIncidents)
-                {
-                    var incidentId = inc["id"]?.ToString() ?? "";
-                    var eventTime = inc["event_time"]?.ToString() ?? "";
-                    var severity = inc["severity"]?.ToString() ?? "";
-                    var action = inc["action"]?.ToString() ?? "";
-                    var channel = inc["channel"]?.ToString() ?? "";
-                    var policies = inc["policies"]?.ToString() ?? "";
-                    var destination = inc["destination"]?.ToString() ?? "";
-                    var fileName = inc["file_name"]?.ToString() ?? "";
-                    var maxMatches = inc["maximum_matches"]?.ToString() ?? "";
-                    var riskLevel = inc["risk_level"]?.ToString() ?? "";
-                    var businessUnit = inc["business_unit"]?.ToString() ?? "";
-                    
-                    var source = inc["source"];
-                    var manager = source?["manager"]?.ToString() ?? "";
-                    var department = source?["department"]?.ToString() ?? "";
-                    var ipAddress = source?["ip_address"]?.ToString() ?? "";
-                    var loginName = source?["login_name"]?.ToString() ?? "";
-                    var hostName = source?["host_name"]?.ToString() ?? "";
-                    var emailAddress = source?["email_address"]?.ToString() ?? "";
-                    var dn = source?["dn"]?.ToString() ?? "";
-                    var ntDomain = source?["nt_domain"]?.ToString() ?? "";
-                    
-                    // Extract CN (Common Name) from DN if present
-                    var fullCn = "";
-                    if (!string.IsNullOrEmpty(dn) && dn.Contains("CN="))
-                    {
-                        var cnStart = dn.IndexOf("CN=") + 3;
-                        var cnEnd = dn.IndexOf(",", cnStart);
-                        if (cnEnd > cnStart) fullCn = dn.Substring(cnStart, cnEnd - cnStart);
-                        else fullCn = dn.Substring(cnStart);
-                    }
-                    
-                    string Escape(string val) => $"\"{val.Replace("\"", "\"\"")}\"";
-                    
-                    bulkWriter.WriteLine($"{Escape(incidentId)},{Escape(eventTime)},{Escape(severity)},{Escape(action)},{Escape(channel)},{Escape(policies)},{Escape(destination)},{Escape(fileName)},{Escape(maxMatches)},{Escape(manager)},{Escape(department)},{Escape(ipAddress)},{Escape(loginName)},{Escape(hostName)},{Escape(emailAddress)},{Escape(dn)},{Escape(ntDomain)},{Escape(businessUnit)},{Escape(riskLevel)},{Escape(fullCn)}");
-                }
-            }
-            Console.WriteLine($"📊 CSV saved to: {bulkCsvPath}");
-            
-            // Print all source fields found
-            Console.WriteLine("\n=== ALL SOURCE FIELDS FOUND ===");
-            var bulkSourceFields = new HashSet<string>();
-            foreach (var inc in bulkIncidents)
-            {
-                var source = inc["source"] as JObject;
-                if (source != null)
-                {
-                    foreach (var prop in source.Properties())
-                    {
-                        bulkSourceFields.Add(prop.Name);
-                    }
-                }
-            }
-            Console.WriteLine($"Fields: {string.Join(", ", bulkSourceFields.OrderBy(x => x))}");
-            
-            // Print detailed source data for each incident
-            Console.WriteLine("\n=== DETAILED SOURCE DATA ===");
-            foreach (var inc in bulkIncidents)
-            {
-                var incId = inc["id"]?.ToString() ?? "?";
-                var source = inc["source"] as JObject;
-                Console.WriteLine($"\n--- Incident {incId} ---");
-                if (source != null)
-                {
-                    foreach (var prop in source.Properties())
-                    {
-                        var val = prop.Value?.ToString() ?? "(null)";
-                        if (val.Length > 80) val = val.Substring(0, 80) + "...";
-                        Console.WriteLine($"  {prop.Name}: {val}");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("  (no source object)");
-                }
-            }
-            
-            Console.WriteLine("\n✅ Done!");
-            return;
-        }
 
         // Single Incident Mode - fetch by ID and dump full JSON
         if (singleIncidentMode)
@@ -326,6 +205,13 @@ public class Program
         if (incidents.Count == 0)
         {
             Console.WriteLine("No incidents found for the specified date range.");
+            return;
+        }
+
+        // Released Mode - Extract and save "Released quarantined message" incidents to database
+        if (releasedMode)
+        {
+            await ProcessReleasedIncidentsAsync(incidents);
             return;
         }
 
@@ -543,51 +429,201 @@ public class Program
         }
     }
 
-    private static async Task<List<JToken>> FetchIncidentsByIdsAsync(string token, List<int> incidentIds)
+    /// <summary>
+    /// Process incidents from API and save "Released quarantined message" entries to database
+    /// </summary>
+    private static async Task ProcessReleasedIncidentsAsync(JArray incidents)
     {
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        var requestBody = new
+        Console.WriteLine("\n=== RELEASED QUARANTINED MESSAGE EXTRACTION ===");
+        
+        var releasedEntries = ExtractReleasedIncidents(incidents);
+        
+        if (releasedEntries.Count == 0)
         {
-            type = "INCIDENTS",
-            ids = incidentIds
-        };
-
-        var jsonBody = JsonConvert.SerializeObject(requestBody);
-        Console.WriteLine($"Request: {jsonBody}");
-        
-        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("incidents", content);
-        
-        Console.WriteLine($"Response Status: {response.StatusCode}");
-        
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Error: {error}");
-            return new List<JToken>();
+            Console.WriteLine("No 'Released quarantined message' incidents found.");
+            return;
         }
 
-        var responseString = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"Raw Response Length: {responseString.Length} chars");
-        
-        if (string.IsNullOrWhiteSpace(responseString)) return new List<JToken>();
+        Console.WriteLine($"Found {releasedEntries.Count} released incidents.");
+        await SaveToDatabase(releasedEntries);
+    }
 
-        try 
+    /// <summary>
+    /// Process JSON file and save "Released quarantined message" entries to database
+    /// </summary>
+    private static async Task ProcessReleasedFromJsonFileAsync(string filePath)
+    {
+        Console.WriteLine("\n=== RELEASED QUARANTINED MESSAGE EXTRACTION FROM JSON FILE ===");
+        Console.WriteLine($"Reading file: {filePath}");
+
+        if (!File.Exists(filePath))
         {
-            var jsonObj = JObject.Parse(responseString);
-            
-            if (jsonObj["incidents"] is JArray arr)
-            {
-                return arr.ToList();
-            }
-            
-            return new List<JToken>();
+            Console.WriteLine($"ERROR: File not found: {filePath}");
+            return;
+        }
+
+        var jsonContent = await File.ReadAllTextAsync(filePath);
+        JArray incidents;
+        
+        try
+        {
+            incidents = JArray.Parse(jsonContent);
+            Console.WriteLine($"Loaded {incidents.Count} incidents from file.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Parse Error: {ex.Message}");
-            return new List<JToken>();
+            Console.WriteLine($"ERROR parsing JSON: {ex.Message}");
+            return;
         }
+
+        var releasedEntries = ExtractReleasedIncidents(incidents);
+        
+        if (releasedEntries.Count == 0)
+        {
+            Console.WriteLine("No 'Released quarantined message' incidents found.");
+            return;
+        }
+
+        Console.WriteLine($"Found {releasedEntries.Count} released incidents.");
+        await SaveToDatabase(releasedEntries);
+    }
+
+    /// <summary>
+    /// Extract released incidents from JArray
+    /// </summary>
+    private static List<ReleasedIncidentRecord> ExtractReleasedIncidents(JArray incidents)
+    {
+        var releasedEntries = new List<ReleasedIncidentRecord>();
+
+        foreach (var incident in incidents)
+        {
+            var history = incident["history"] as JArray;
+            if (history == null) continue;
+
+            // Find "Released quarantined message" entries in history
+            foreach (var historyItem in history)
+            {
+                var taskName = historyItem["task_name"]?.ToString();
+                if (taskName != "Released quarantined message") continue;
+
+                var incidentId = incident["id"]?.Value<long>() ?? 0;
+                var incidentTime = incident["incident_time"]?.ToString() ?? "";
+                var action = incident["action"]?.ToString() ?? "";
+                var adminName = historyItem["admin_name"]?.ToString();
+                var comments = historyItem["comments"]?.ToString();
+                var updateTime = historyItem["update_time"]?.ToString();
+
+                // Parse dates
+                DateTime? incidentTimestamp = null;
+                if (DateTime.TryParseExact(incidentTime, new[] { "dd/MM/yyyy HH:mm:ss", "yyyy-MM-dd HH:mm:ss" },
+                    null, System.Globalization.DateTimeStyles.None, out var parsedIncidentTime))
+                {
+                    incidentTimestamp = parsedIncidentTime;
+                }
+
+                DateTime? updateTimestamp = null;
+                if (DateTime.TryParseExact(updateTime, new[] { "dd/MM/yyyy HH:mm:ss", "yyyy-MM-dd HH:mm:ss" },
+                    null, System.Globalization.DateTimeStyles.None, out var parsedUpdateTime))
+                {
+                    updateTimestamp = parsedUpdateTime;
+                }
+
+                releasedEntries.Add(new ReleasedIncidentRecord
+                {
+                    IncidentId = incidentId,
+                    IncidentTimestamp = incidentTimestamp ?? DateTime.MinValue,
+                    Action = action,
+                    TaskName = taskName,
+                    AdminName = adminName,
+                    Comments = comments,
+                    UpdateTime = updateTimestamp
+                });
+            }
+        }
+
+        return releasedEntries;
+    }
+
+    /// <summary>
+    /// Save released incidents to PostgreSQL database
+    /// </summary>
+    private static async Task SaveToDatabase(List<ReleasedIncidentRecord> entries)
+    {
+        Console.WriteLine($"\nSaving {entries.Count} records to database...");
+
+        int inserted = 0;
+        int skipped = 0;
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        foreach (var entry in entries)
+        {
+            try
+            {
+                // Check if already exists (upsert / conflict handling)
+                var checkSql = @"SELECT COUNT(*) FROM released_incidents 
+                                 WHERE incident_id = @incidentId AND update_time = @updateTime";
+                
+                await using var checkCmd = new NpgsqlCommand(checkSql, conn);
+                checkCmd.Parameters.AddWithValue("incidentId", entry.IncidentId);
+                checkCmd.Parameters.AddWithValue("updateTime", entry.UpdateTime ?? (object)DBNull.Value);
+                
+                var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                
+                if (exists)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                // Insert
+                var insertSql = @"INSERT INTO released_incidents 
+                                  (incident_id, incident_timestamp, action, task_name, admin_name, comments, update_time)
+                                  VALUES (@incidentId, @incidentTimestamp, @action, @taskName, @adminName, @comments, @updateTime)";
+
+                await using var cmd = new NpgsqlCommand(insertSql, conn);
+                cmd.Parameters.AddWithValue("incidentId", entry.IncidentId);
+                cmd.Parameters.AddWithValue("incidentTimestamp", entry.IncidentTimestamp);
+                cmd.Parameters.AddWithValue("action", entry.Action);
+                cmd.Parameters.AddWithValue("taskName", entry.TaskName);
+                cmd.Parameters.AddWithValue("adminName", entry.AdminName ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("comments", entry.Comments ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("updateTime", entry.UpdateTime ?? (object)DBNull.Value);
+
+                await cmd.ExecuteNonQueryAsync();
+                inserted++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error inserting incident {entry.IncidentId}: {ex.Message}");
+            }
+        }
+
+        Console.WriteLine($"\n✅ Database update complete:");
+        Console.WriteLine($"   Inserted: {inserted}");
+        Console.WriteLine($"   Skipped (already exists): {skipped}");
+        Console.WriteLine($"   Total processed: {entries.Count}");
+
+        // Show sample data
+        Console.WriteLine("\n=== SAMPLE DATA ===");
+        foreach (var entry in entries.Take(5))
+        {
+            Console.WriteLine($"  ID: {entry.IncidentId}, Admin: {entry.AdminName}, Comments: {entry.Comments?.Substring(0, Math.Min(50, entry.Comments?.Length ?? 0))}..., Time: {entry.UpdateTime}");
+        }
+    }
+
+    /// <summary>
+    /// Record class for released incidents
+    /// </summary>
+    private class ReleasedIncidentRecord
+    {
+        public long IncidentId { get; set; }
+        public DateTime IncidentTimestamp { get; set; }
+        public string Action { get; set; } = string.Empty;
+        public string TaskName { get; set; } = string.Empty;
+        public string? AdminName { get; set; }
+        public string? Comments { get; set; }
+        public DateTime? UpdateTime { get; set; }
     }
 }
