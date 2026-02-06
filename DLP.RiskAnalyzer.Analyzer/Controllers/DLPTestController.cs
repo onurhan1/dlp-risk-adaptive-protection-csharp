@@ -1116,8 +1116,8 @@ public class DLPTestController : ControllerBase
 
             // Step 2: Fetch policy rules exceptions
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
-            // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
-            var exceptionsUrl = $"dlp/rest/v1/policy/rules/exceptions?type={type ?? ""}&ruleName={ruleName ?? ""}";
+            // Valid type values: "DLP" or "DISCOVERY" (case-sensitive based on docs)
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
             
@@ -1130,7 +1130,10 @@ public class DLPTestController : ControllerBase
             // TryAddWithoutValidation bypasses .NET's validation that normally prevents Content-Type on GET
             request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
             
-            // DO NOT add body/content - Tomcat may reject GET requests with body
+            // IMPORTANT: DLP API requires Content-Type: application/json header even for GET requests
+            // Adding empty body ensures Content-Type header is properly sent (same pattern as GetAllPolicyRulesExceptions)
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             // Log headers for debugging
             _logger.LogInformation("Request Headers:");
