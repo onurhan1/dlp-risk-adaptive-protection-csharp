@@ -1161,32 +1161,31 @@ public class DLPTestController : ControllerBase
             // GET /dlp/rest/v1/policy/rules/exceptions?type=<policy type>&ruleName=<rule name>
             // Valid type values: "DLP" or "discovery" (case-sensitive based on docs)
             
-            // URL encode the ruleName to handle spaces and special characters
-            var encodedRuleName = Uri.EscapeDataString(ruleName ?? "");
-            // Use leading slash for absolute path from base URL
-            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={encodedRuleName}";
+            // Based on curl example from docs - ruleName is NOT URL encoded in the example
+            // curl example shows: ruleName=CV in English (with spaces)
+            // Let's try without encoding first
+            var exceptionsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type={type ?? "DLP"}&ruleName={ruleName ?? ""}";
             
             _logger.LogInformation("Fetching policy rules exceptions from: {Url}", exceptionsUrl);
-            _logger.LogInformation("Parameters - type: {Type}, ruleName: {RuleName}, encodedRuleName: {EncodedRuleName}", 
-                type, ruleName, encodedRuleName);
+            _logger.LogInformation("Parameters - type: {Type}, ruleName: {RuleName}", type, ruleName);
             
-            // Build request with required headers (matching curl example from docs)
-            // curl example: curl --insecure --location --request GET "https://IP:9443//dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName=CV in English"
-            //   --header "Authorization: Bearer <token>"
+            // Build request with SAME headers as /exceptions/all (which works)
+            // DLP API requires Content-Type: application/json header even for GET requests
             var request = new HttpRequestMessage(HttpMethod.Get, exceptionsUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Per Forcepoint docs: Content-Type: application/json is required
-            // Only add as header, NO body for GET request (Tomcat may reject body on GET)
+            // IMPORTANT: DLP API requires Content-Type: application/json header even for GET requests
             request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-            // DO NOT set request.Content - empty body with GET causes issues on some servers
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json"); // Remove charset
 
             // Log headers for debugging
-            _logger.LogInformation("Request Headers:");
+            _logger.LogInformation("Request Headers (matching /exceptions/all):");
             _logger.LogInformation("  Authorization: Bearer [REDACTED]");
-            _logger.LogInformation("  Accept: {Accept}", request.Headers.Accept);
-            _logger.LogInformation("  Content-Type: application/json (header only, no body)");
+            _logger.LogInformation("  Accept: application/json");
+            _logger.LogInformation("  Content-Type: application/json");
+            _logger.LogInformation("  Body: {{}}");
             _logger.LogInformation("  Full URL: {BaseUrl}{Url}", httpClient.BaseAddress, exceptionsUrl);
 
             var response = await httpClient.SendAsync(request);
