@@ -371,44 +371,87 @@ public class Program
     {
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var fromDateStr = start.ToString("dd/MM/yyyy HH:mm:ss");
-        var toDateStr = end.ToString("dd/MM/yyyy HH:mm:ss");
+        // DLP API has a 3-day limit per request, so we need to fetch in chunks
+        var allIncidents = new JArray();
+        var chunkSize = TimeSpan.FromDays(3);
+        var currentStart = start;
+        int chunkNumber = 0;
 
-        var requestBody = new
+        Console.WriteLine($"\nFetching data in 3-day chunks from {start:dd/MM/yyyy} to {end:dd/MM/yyyy}...");
+        Console.WriteLine($"Total days to fetch: {(end - start).TotalDays:F0}");
+
+        while (currentStart < end)
         {
-            type = "INCIDENTS",
-            from_date = fromDateStr,
-            to_date = toDateStr,
-            limit = 10000 
-        };
+            chunkNumber++;
+            var currentEnd = currentStart.Add(chunkSize);
+            if (currentEnd > end) currentEnd = end;
 
-        var jsonBody = JsonConvert.SerializeObject(requestBody);
-        var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("incidents", content);
-        
-        if (!response.IsSuccessStatusCode)
-        {
-            Console.WriteLine($"Error fetching: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}");
-            return new JArray();
-        }
+            var fromDateStr = currentStart.ToString("dd/MM/yyyy HH:mm:ss");
+            var toDateStr = currentEnd.ToString("dd/MM/yyyy HH:mm:ss");
 
-        var responseString = await response.Content.ReadAsStringAsync();
-        if (string.IsNullOrWhiteSpace(responseString)) return new JArray();
+            Console.Write($"  Chunk {chunkNumber}: {currentStart:dd/MM/yyyy} -> {currentEnd:dd/MM/yyyy} ... ");
 
-        try 
-        {
-            if (responseString.TrimStart().StartsWith("[")) return JArray.Parse(responseString);
+            var requestBody = new
+            {
+                type = "INCIDENTS",
+                from_date = fromDateStr,
+                to_date = toDateStr,
+                limit = 10000 
+            };
+
+            var jsonBody = JsonConvert.SerializeObject(requestBody);
+            var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
             
-            var jsonObj = JObject.Parse(responseString);
-            if (jsonObj["incidents"] is JArray arr) return arr;
+            try
+            {
+                var response = await _httpClient.PostAsync("incidents", content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"ERROR: {response.StatusCode}");
+                    currentStart = currentEnd;
+                    continue;
+                }
+
+                var responseString = await response.Content.ReadAsStringAsync();
+                if (!string.IsNullOrWhiteSpace(responseString))
+                {
+                    JArray chunkIncidents;
+                    if (responseString.TrimStart().StartsWith("["))
+                    {
+                        chunkIncidents = JArray.Parse(responseString);
+                    }
+                    else
+                    {
+                        var jsonObj = JObject.Parse(responseString);
+                        chunkIncidents = jsonObj["incidents"] as JArray ?? new JArray();
+                    }
+
+                    Console.WriteLine($"found {chunkIncidents.Count} incidents");
+                    
+                    foreach (var incident in chunkIncidents)
+                    {
+                        allIncidents.Add(incident);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("empty response");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: {ex.Message}");
+            }
+
+            currentStart = currentEnd;
             
-            return new JArray();
+            // Small delay to avoid rate limiting
+            await Task.Delay(500);
         }
-        catch (Exception ex)
-        { 
-            Console.WriteLine($"Parse Error: {ex.Message}");
-            return new JArray(); 
-        }
+
+        Console.WriteLine($"\nTotal incidents fetched: {allIncidents.Count}");
+        return allIncidents;
     }
 
     private static async Task<JToken?> FetchIncidentByIdAsync(string token, int incidentId)
