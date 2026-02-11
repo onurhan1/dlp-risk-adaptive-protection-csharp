@@ -105,13 +105,21 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               }
             }
 
-            // Group triggers by policy name (support both PascalCase and snake_case)
-            const policiesMap = new Map<string, Array<{
-              ruleName: string;
+            // Separate normal rules and exceptions
+            const normalTriggers = triggers.filter((t: any) => !t.is_exception)
+            const exceptionTriggers = triggers.filter((t: any) => t.is_exception)
+
+            // Build hierarchy: Policy → Rule → (classifiers + exceptions)
+            const policiesMap = new Map<string, Map<string, {
               classifiers: Array<{ name: string; matches: number }>;
+              exceptions: Array<{
+                exceptionName: string;
+                classifiers: Array<{ name: string; matches: number }>;
+              }>;
             }>>()
 
-            triggers.forEach((t: any) => {
+            // Process normal rules first
+            normalTriggers.forEach((t: any) => {
               const policyName = t.PolicyName || t.policy_name
               const ruleName = t.RuleName || t.rule_name
               if (!policyName || !ruleName) return
@@ -124,15 +132,55 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                 }))
 
               if (!policiesMap.has(policyName)) {
-                policiesMap.set(policyName, [])
+                policiesMap.set(policyName, new Map())
               }
-              policiesMap.get(policyName)!.push({ ruleName, classifiers })
+              const rulesMap = policiesMap.get(policyName)!
+              if (!rulesMap.has(ruleName)) {
+                rulesMap.set(ruleName, { classifiers: [], exceptions: [] })
+              }
+              rulesMap.get(ruleName)!.classifiers = classifiers
+            })
+
+            // Process exceptions and attach to their parent rules
+            exceptionTriggers.forEach((t: any) => {
+              const policyName = t.PolicyName || t.policy_name
+              const exceptionName = t.RuleName || t.rule_name
+              const parentRuleName = t.parent_rule_name || t.ParentRuleName
+              if (!policyName || !exceptionName) return
+
+              const classifiers = (t.Classifiers || t.classifiers || [])
+                .filter((c: any) => (c.ClassifierName || c.classifier_name) && (c.NumberMatches || c.number_matches) > 0)
+                .map((c: any) => ({
+                  name: c.ClassifierName || c.classifier_name,
+                  matches: c.NumberMatches || c.number_matches
+                }))
+
+              if (!policiesMap.has(policyName)) {
+                policiesMap.set(policyName, new Map())
+              }
+              const rulesMap = policiesMap.get(policyName)!
+
+              // If parent rule exists, attach exception under it
+              if (parentRuleName && rulesMap.has(parentRuleName)) {
+                rulesMap.get(parentRuleName)!.exceptions.push({ exceptionName, classifiers })
+              } else if (parentRuleName) {
+                // Parent rule not in triggers — create placeholder entry for it
+                rulesMap.set(parentRuleName, { classifiers: [], exceptions: [{ exceptionName, classifiers }] })
+              } else {
+                // No parent rule — show exception as standalone under policy
+                if (!rulesMap.has(exceptionName)) {
+                  rulesMap.set(exceptionName, { classifiers, exceptions: [] })
+                }
+              }
             })
 
             // Convert to array for rendering
-            const policies = Array.from(policiesMap.entries()).map(([policyName, rules]) => ({
+            const policies = Array.from(policiesMap.entries()).map(([policyName, rulesMap]) => ({
               policyName,
-              rules
+              rules: Array.from(rulesMap.entries()).map(([ruleName, data]) => ({
+                ruleName,
+                ...data
+              }))
             }))
 
             // Fallback to event.policy if no triggers parsed
@@ -142,6 +190,29 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
 
             // Fallback for legacy matched_rules
             const legacyRules = policies.length === 0 ? (event.matched_rules || []) : []
+
+            // Render classifier list helper
+            const renderClassifiers = (classifiers: Array<{ name: string; matches: number }>) => (
+              classifiers.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
+                  {classifiers.map((c, cIdx) => (
+                    <div key={cIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '4px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>├── {c.name}</span>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
+                        color: 'white'
+                      }}>
+                        {c.matches}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )
+            )
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -161,21 +232,28 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                               <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 {rule.ruleName}</span>
                             </div>
-                            {rule.classifiers.length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '8px' }}>
-                                {rule.classifiers.map((c, cIdx) => (
-                                  <div key={cIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', padding: '4px 8px', background: 'var(--background-secondary)', borderRadius: '4px' }}>
-                                    <span style={{ color: 'var(--text-secondary)' }}>├── {c.name}</span>
-                                    <span style={{
-                                      padding: '2px 6px',
-                                      borderRadius: '10px',
-                                      fontSize: '11px',
-                                      fontWeight: '600',
-                                      background: c.matches >= 10 ? '#dc2626' : c.matches >= 5 ? '#f59e0b' : '#10b981',
-                                      color: 'white'
-                                    }}>
-                                      {c.matches}
-                                    </span>
+                            {renderClassifiers(rule.classifiers)}
+
+                            {/* Exceptions under this rule */}
+                            {rule.exceptions.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '8px', marginTop: '8px' }}>
+                                {rule.exceptions.map((exc, eIdx) => (
+                                  <div key={eIdx} style={{ borderLeft: '2px solid #f59e0b', paddingLeft: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b' }}>{exc.exceptionName}</span>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: '600',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(245, 158, 11, 0.15)',
+                                        color: '#f59e0b',
+                                        textTransform: 'uppercase' as const
+                                      }}>
+                                        Exception
+                                      </span>
+                                    </div>
+                                    {renderClassifiers(exc.classifiers)}
                                   </div>
                                 ))}
                               </div>

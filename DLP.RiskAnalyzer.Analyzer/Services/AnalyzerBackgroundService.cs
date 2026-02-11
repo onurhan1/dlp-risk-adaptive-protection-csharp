@@ -14,6 +14,8 @@ public class AnalyzerBackgroundService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AnalyzerBackgroundService> _logger;
     private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10); // Process every 10 seconds
+    private readonly TimeSpan _exceptionSyncInterval = TimeSpan.FromHours(24); // Sync policy exceptions every 24 hours
+    private DateTime _lastExceptionSync = DateTime.MinValue;
 
     public AnalyzerBackgroundService(
         IServiceProvider serviceProvider,
@@ -39,6 +41,22 @@ public class AnalyzerBackgroundService : BackgroundService
                 {
                     var dbService = scope.ServiceProvider.GetRequiredService<DatabaseService>();
                     var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<RiskAnalyzerService>();
+
+                    // Policy exception sync (24 saatte bir)
+                    if ((DateTime.UtcNow - _lastExceptionSync) >= _exceptionSyncInterval)
+                    {
+                        try
+                        {
+                            var syncService = scope.ServiceProvider.GetRequiredService<PolicyExceptionSyncService>();
+                            var syncedCount = await syncService.SyncAsync();
+                            _lastExceptionSync = DateTime.UtcNow;
+                            _logger.LogInformation("Policy exception sync completed: {Count} exceptions synced", syncedCount);
+                        }
+                        catch (Exception syncEx)
+                        {
+                            _logger.LogWarning(syncEx, "Policy exception sync failed, will retry in next cycle");
+                        }
+                    }
 
                     // Process Redis stream and calculate risk scores
                     var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);

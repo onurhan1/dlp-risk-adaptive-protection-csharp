@@ -108,6 +108,7 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DlpConfigurationService>();
 builder.Services.AddScoped<EmailConfigurationService>();
 builder.Services.AddScoped<BehaviorEngineService>();
+builder.Services.AddScoped<PolicyExceptionSyncService>();
 builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddHttpClient<SplunkService>();
 builder.Services.AddHttpClient<RemediationService>();

@@ -9,15 +9,18 @@ public class DatabaseService
 {
     private readonly AnalyzerDbContext _context;
     private readonly StackExchange.Redis.IConnectionMultiplexer _redis;
+    private readonly PolicyExceptionSyncService _policyExceptionSyncService;
     private readonly ILogger<DatabaseService> _logger;
 
     public DatabaseService(
         AnalyzerDbContext context, 
         StackExchange.Redis.IConnectionMultiplexer redis,
+        PolicyExceptionSyncService policyExceptionSyncService,
         ILogger<DatabaseService> logger)
     {
         _context = context;
         _redis = redis;
+        _policyExceptionSyncService = policyExceptionSyncService;
         _logger = logger;
     }
 
@@ -102,6 +105,20 @@ public class DatabaseService
         {
             // Group may already exist, which is fine
             _logger.LogDebug("Consumer group may already exist: {Error}", ex.Message);
+        }
+
+        // Exception lookup yükle (exception_name -> parent_rule_name)
+        Dictionary<string, string> exceptionLookup;
+        try
+        {
+            exceptionLookup = await _policyExceptionSyncService.GetExceptionLookupAsync();
+            if (exceptionLookup.Count > 0)
+                _logger.LogDebug("Loaded {Count} policy exception mappings for ViolationTriggers enrichment", exceptionLookup.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load policy exception lookup, proceeding without exception enrichment");
+            exceptionLookup = new Dictionary<string, string>();
         }
 
         var totalProcessedCount = 0;
@@ -253,7 +270,7 @@ public class DatabaseService
                         LoginName = string.IsNullOrEmpty(loginName) ? null : loginName,
                         HostName = string.IsNullOrEmpty(hostName) ? null : hostName,
                         EmailAddress = string.IsNullOrEmpty(emailAddress) ? null : emailAddress,
-                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers),
+                        ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers, exceptionLookup),
                         // FullName, Team, RuleName
                         FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
                         Team = string.IsNullOrEmpty(team) ? null : team,
@@ -300,7 +317,7 @@ public class DatabaseService
                         existingIncident.FileName = fileName;
                     if (!string.IsNullOrEmpty(violationTriggers))
                     {
-                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers);
+                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers, exceptionLookup);
                         existingIncident.ViolationTriggers = dedupedTriggers;
                         existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
                     }
@@ -332,7 +349,7 @@ public class DatabaseService
                             "Incident {Id} missing violation_triggers, backfilling from Redis...",
                             incidentId);
                         
-                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers);
+                        var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers, exceptionLookup);
                         existingIncident.ViolationTriggers = dedupedTriggers;
                         existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
                         
@@ -418,7 +435,7 @@ public class DatabaseService
         }
         
         // Fallback: ViolationTriggers'dan hesapla
-        var dedupedTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers);
+        var dedupedTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers, new Dictionary<string, string>());
         var calculated = CalculateMaxMatches(dedupedTriggers);
         _logger.LogDebug("Calculated max_matches from ViolationTriggers: {MaxMatches}", calculated);
         return calculated;
@@ -486,7 +503,11 @@ public class DatabaseService
         }
     }
 
-    private string DeduplicateViolationTriggers(string? violationTriggersJson)
+    /// <summary>
+    /// ViolationTriggers JSON'ını temizler, duplicate'leri kaldırır ve exception bilgisiyle zenginleştirir.
+    /// exceptionLookup: exception_name → parent_rule_name eşlemesi
+    /// </summary>
+    private string DeduplicateViolationTriggers(string? violationTriggersJson, Dictionary<string, string> exceptionLookup)
     {
         if (string.IsNullOrEmpty(violationTriggersJson)) return "[]";
 
@@ -503,7 +524,7 @@ public class DatabaseService
             if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return "[]";
 
             // Deduplicate and clean based on policy_name and rule_name
-            var uniqueTriggers = new List<Dictionary<string, object?>>();
+            var uniqueTriggers = new List<Dictionary<string, object?>>(); 
             var seenKeys = new HashSet<string>();
 
             foreach (var trigger in doc.RootElement.EnumerateArray())
@@ -521,7 +542,7 @@ public class DatabaseService
                     seenKeys.Add(key);
                     
                     // Build clean classifier list
-                    var cleanClassifiers = new List<Dictionary<string, object?>>();
+                    var cleanClassifiers = new List<Dictionary<string, object?>>(); 
                     if (trigger.TryGetProperty("classifiers", out var classifiersElem) || 
                         trigger.TryGetProperty("Classifiers", out classifiersElem))
                     {
@@ -541,13 +562,25 @@ public class DatabaseService
                         }
                     }
                     
-                    // Add clean trigger with only essential fields
-                    uniqueTriggers.Add(new Dictionary<string, object?>
+                    // Exception kontrolü: rule_name bir exception ise işaretle
+                    var isException = !string.IsNullOrEmpty(ruleName) && exceptionLookup.ContainsKey(ruleName);
+                    string? parentRuleName = isException ? exceptionLookup[ruleName] : null;
+                    
+                    // Add clean trigger with essential fields + exception info
+                    var triggerDict = new Dictionary<string, object?>
                     {
                         ["policy_name"] = policyName,
                         ["rule_name"] = ruleName,
-                        ["classifiers"] = cleanClassifiers
-                    });
+                        ["classifiers"] = cleanClassifiers,
+                        ["is_exception"] = isException
+                    };
+                    
+                    if (isException)
+                    {
+                        triggerDict["parent_rule_name"] = parentRuleName;
+                    }
+                    
+                    uniqueTriggers.Add(triggerDict);
                 }
             }
 
