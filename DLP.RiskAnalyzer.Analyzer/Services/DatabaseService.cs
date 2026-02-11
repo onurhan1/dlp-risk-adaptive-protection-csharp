@@ -54,10 +54,10 @@ public class DatabaseService
         if (!string.IsNullOrEmpty(user))
         {
             var userLower = user.ToLower();
-            query = query.Where(i => i.UserEmail.ToLower().Contains(userLower) 
-                || (i.EmailAddress != null && i.EmailAddress.ToLower().Contains(userLower))
-                || (i.LoginName != null && i.LoginName.ToLower().Contains(userLower))
-                || (i.FullName != null && i.FullName.ToLower().Contains(userLower)));
+            query = query.Where(i => i.UserEmail.ToLower() == userLower 
+                || (i.EmailAddress != null && i.EmailAddress.ToLower() == userLower)
+                || (i.LoginName != null && i.LoginName.ToLower() == userLower)
+                || (i.FullName != null && i.FullName.ToLower() == userLower));
         }
 
         if (!string.IsNullOrEmpty(department))
