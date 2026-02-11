@@ -562,9 +562,11 @@ public class DatabaseService
                         }
                     }
                     
-                    // Exception kontrolü: rule_name bir exception ise işaretle
-                    var isException = !string.IsNullOrEmpty(ruleName) && exceptionLookup.ContainsKey(ruleName);
-                    string? parentRuleName = isException ? exceptionLookup[ruleName] : null;
+                    // Exception kontrolü: policy_name + rule_name composite key ile kontrol et
+                    var exceptionKey = $"{policyName}|{ruleName}";
+                    var isException = !string.IsNullOrEmpty(ruleName) && !string.IsNullOrEmpty(policyName) 
+                        && exceptionLookup.ContainsKey(exceptionKey);
+                    string? parentRuleName = isException ? exceptionLookup[exceptionKey] : null;
                     
                     // Add clean trigger with essential fields + exception info
                     var triggerDict = new Dictionary<string, object?>

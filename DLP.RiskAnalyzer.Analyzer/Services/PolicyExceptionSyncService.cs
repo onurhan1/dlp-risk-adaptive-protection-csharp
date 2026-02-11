@@ -130,7 +130,7 @@ public class PolicyExceptionSyncService
     }
 
     /// <summary>
-    /// Exception name → Parent rule name lookup döndürür.
+    /// (policy_name|exception_name) → Parent rule name lookup döndürür.
     /// Önce in-memory cache, yoksa DB'den yükler.
     /// </summary>
     public async Task<Dictionary<string, string>> GetExceptionLookupAsync()
@@ -146,23 +146,30 @@ public class PolicyExceptionSyncService
     }
 
     /// <summary>
-    /// Verilen rule name'in exception olup olmadığını kontrol eder.
+    /// Verilen policy + rule name'in exception olup olmadığını kontrol eder.
     /// </summary>
-    public async Task<bool> IsExceptionAsync(string ruleName)
+    public async Task<bool> IsExceptionAsync(string policyName, string ruleName)
     {
         var lookup = await GetExceptionLookupAsync();
-        return lookup.ContainsKey(ruleName);
+        var key = $"{policyName}|{ruleName}";
+        return lookup.ContainsKey(key);
     }
 
     private async Task RefreshCacheAsync()
     {
         try
         {
-            var lookup = await _context.PolicyRuleExceptions
+            var allExceptions = await _context.PolicyRuleExceptions
                 .AsNoTracking()
-                .ToDictionaryAsync(
-                    e => e.ExceptionName,
-                    e => e.RuleName);
+                .ToListAsync();
+
+            // Composite key: "policy_name|exception_name" → parent rule_name
+            var lookup = new Dictionary<string, string>();
+            foreach (var e in allExceptions)
+            {
+                var key = $"{e.PolicyName}|{e.ExceptionName}";
+                lookup[key] = e.RuleName; // Last-write-wins if duplicates exist
+            }
 
             _exceptionLookupCache = lookup;
             _lastCacheRefresh = DateTime.UtcNow;
