@@ -494,7 +494,7 @@ export default function AnalyticsPage() {
     return Array.from(normalizedTeams).sort()
   }, [incidents])
   const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort(), [incidents])
-  const uniqueChannels = useMemo(() => Array.from(new Set(incidents.map(i => i.channel).filter(Boolean))).sort(), [incidents])
+  const uniqueChannels = useMemo(() => Array.from(new Set(incidents.map(i => i.channel).filter((c): c is string => Boolean(c)))).sort(), [incidents])
 
   // Get unique policies using the same logic as exception recommendation report
   // Extract policies from violationTriggers first, then fallback to incident.policy
