@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import apiClient from '@/lib/axios'
 import { format } from 'date-fns'
@@ -38,6 +38,14 @@ interface TimelineEvent {
 }
 
 export default function InvestigationPage() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
+      <InvestigationPageContent />
+    </Suspense>
+  )
+}
+
+function InvestigationPageContent() {
   const searchParams = useSearchParams()
   const [selectedUser, setSelectedUser] = useState<string>()
   const [selectedUserRiskScore, setSelectedUserRiskScore] = useState<number | null>(null)
