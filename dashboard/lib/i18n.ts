@@ -59,6 +59,8 @@ export const translations: Record<Locale, Record<string, string>> = {
 
         // Dashboard
         'dashboard.title': 'Kontrol Paneli',
+        'dashboard.subtitle': 'Gerçek zamanlı DLP olay analizi ve risk skorlama',
+        'dashboard.dailyReport': 'Günlük Rapor',
         'dashboard.totalIncidents': 'Toplam Olay',
         'dashboard.highRiskUsers': 'Yüksek Riskli Kullanıcılar',
         'dashboard.avgRiskScore': 'Ort. Risk Skoru',
@@ -212,6 +214,8 @@ export const translations: Record<Locale, Record<string, string>> = {
 
         // Dashboard
         'dashboard.title': 'Dashboard',
+        'dashboard.subtitle': 'Real-time data loss prevention incident analysis and risk scoring',
+        'dashboard.dailyReport': 'Daily Report',
         'dashboard.totalIncidents': 'Total Incidents',
         'dashboard.highRiskUsers': 'High Risk Users',
         'dashboard.avgRiskScore': 'Avg Risk Score',

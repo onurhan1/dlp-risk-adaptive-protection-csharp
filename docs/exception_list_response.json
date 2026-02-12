@@ -1,0 +1,932 @@
+{
+  "success": true,
+  "message": "All policy rules exceptions fetched successfully",
+  "url": "/dlp/rest/v1/policy/rules/exceptions/all?type=DLP",
+  "parameters": {
+    "type": "DLP"
+  },
+  "data": {
+    "exception_rules": [
+      {
+        "policy_name": "KT IBAN Politikasi",
+        "rule_name": "IBAN Verisi-Mail",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "gunlukGeciciMail",
+          "HesapArastirma",
+          "Hukuk",
+          "Selected-All",
+          "Selected-BankaMail",
+          "Selected-Mail(Selected)",
+          "serhatba-Mail(kuveytturkyatirim)",
+          "Sube-Selected",
+          "Suistimal-Banka"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Kural 3 - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_Fadil Uluisik",
+          "Ex_Hadi Rubaci",
+          "Ex_Neslihan Kurtcu"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari",
+        "rule_name": "Strateji_FP",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "gsert-All",
+          "gunlukGecici",
+          "Selected-Mail(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "KT Altyapi Bilgileri-Others",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "Ex_Airsync_Exlude",
+          "gunlukGecici",
+          "Hukuk",
+          "Selected-Mail(All)",
+          "Selected-Mail(Selected)",
+          "User-Application(Selected)"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT-TC Kimlik Numarasi_Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "hayrettc-LAN(All)",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)",
+          "ZeynepA-Web(Selected)"
+        ]
+      },
+      {
+        "policy_name": "KT Database Fingerprint",
+        "rule_name": "DB Müşteri Bilgileri-Büyük Ölçekli Erişim",
+        "exception_rule_names": [
+          "Egitim Teknolojileri-Web",
+          "IK Analitigi-App"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari_G.M",
+        "rule_name": "iban_kurali_G.M",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "gunlukgecici",
+          "HakanKe-Mail(All)",
+          "hayrettc-LAN(All)",
+          "huseyinc-Printing(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Web(Selected)",
+          "TufanK-Condition(Mail)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "Speech Analytics-Grup Mudurleri",
+        "exception_rule_names": [
+          "Selected-LAN(All)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari",
+        "rule_name": "Bluetooth Kurali",
+        "exception_rule_names": [
+          "Architecht-All"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari_G.M",
+        "rule_name": "Telefon_Numarasi_Kurali_G.M",
+        "exception_rule_names": [
+          "adild-Mail(Selected)",
+          "Ex_UstYonetim_Airsync",
+          "gunlukGecici",
+          "hayrettc-LAN(All)",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi",
+        "rule_name": "Kart Verisi-Mail",
+        "exception_rule_names": [
+          "All-MuhabirMail",
+          "All-Selected",
+          "gunlukgecici",
+          "Hukuk",
+          "ICKontrol",
+          "Selected-All",
+          "Selected-BankaMailleri"
+        ]
+      },
+      {
+        "policy_name": "KT Telefon Politikasi",
+        "rule_name": "Telefon Verisi-Mail",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "Architecht",
+          "GunlukGecici",
+          "Hukuk",
+          "KurumTahsilatlari",
+          "LeasingSatis",
+          "Saglik",
+          "sariyers",
+          "SatinAlma",
+          "Selected-All",
+          "Selected-Selected"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Kural 4 - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_Mutlu Avukatlik",
+          "Ex_Serdar Dasar "
+        ]
+      },
+      {
+        "policy_name": "KT Ses ve Sifreli Dosya Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Ses Dosyasi Yonetimi - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "Selected-LAN(All)",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "KT Altyapı Bilgileri-Web",
+        "exception_rule_names": [
+          "All-Web(kuveytturk.com)",
+          "All-Web(Localhost)",
+          "All-Web(LocalSunucu)",
+          "Architecht-Web(Selected)",
+          "BT_Otomasyon-Web",
+          "gunlukGeciciWeb",
+          "Selected-Web(mendeley)",
+          "SFTP",
+          "SomeYonetimi-Web(PaloAlto)",
+          "UG_ZafiyetYonetimi",
+          "UygulamaAltyapi-Web(ktdevops)"
+        ]
+      },
+      {
+        "policy_name": "KT Database Fingerprint",
+        "rule_name": "DB Musteri Bilgileri",
+        "exception_rule_names": [
+          "gunlukgecici",
+          "Hukuk-Mail",
+          "Sube-Printing(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Vergi Numarasi",
+        "rule_name": "KT Vergi Numarasi-Others",
+        "exception_rule_names": [
+          "All-Selected",
+          "gunlukGecici-Others",
+          "RYazismalar-Removable(All)",
+          "Selected-Printing (All)",
+          "SFTP",
+          "Sube-Printing(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Others (Python)",
+        "exception_rule_names": [
+          "Gecici"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "Only IP Address-Mail",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "gunlukGeciciMail",
+          "Hukuk",
+          "Selected-Mail(Selected)"
+        ]
+      },
+      {
+        "policy_name": "KT TC Kimlik Verisi",
+        "rule_name": "TC Kimlik Verisi-Others",
+        "exception_rule_names": [
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "Bordro-Web",
+          "gunlukGeciciOthers",
+          "ntufekci -SFTP",
+          "RYazismalar-Removable(All)",
+          "Selected-Printing",
+          "SFTP-Web",
+          "Sube-Printing(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "Only MAC Address-Mail",
+        "exception_rule_names": [
+          "All-Selected",
+          "FinansalKurumlarMudurlugu-Mail",
+          "gunlukGeciciMail",
+          "Hukuk"
+        ]
+      },
+      {
+        "policy_name": "KT Vergi Numarasi",
+        "rule_name": "KT Vergi Numarasi-LAN",
+        "exception_rule_names": [
+          "gunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Encoding Politikasi",
+        "rule_name": "Encoding Kurali",
+        "exception_rule_names": [
+          "gunlukGeciciWeb",
+          "SomeYonetimi-Web"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi",
+        "rule_name": "KT Kart Verisi Gonderim",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "All-MuhabirMail(Selected) ",
+          "All-Web(Selected)",
+          "gunlukGeciciMail",
+          "IC_Kontrol-Mail",
+          "IdariIsler-Mail",
+          "RiskTkpOp-Mail(Selected)",
+          "Selected-BankaMail",
+          "Selected-Mail(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Printing(All)",
+          "Selected-Removable(All)",
+          "Selected-Web(Selected)",
+          "User-Application",
+          "User-tertok(Removable)"
+        ]
+      },
+      {
+        "policy_name": "KT Data Classification",
+        "rule_name": "KT-Restricted",
+        "exception_rule_names": [
+          "All-Selected",
+          "GunlukGecici",
+          "Hukuk-Mail"
+        ]
+      },
+      {
+        "policy_name": "KT PCI/PII-KW Politikasi",
+        "rule_name": "KT PCI/PII-KW-Others",
+        "exception_rule_names": [
+          "All-Web(KFKS)",
+          "All-Web(Localhost*)",
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "gunlukGecici",
+          "Selected-Removable(All)",
+          "SFTP-Web",
+          "Sube-Printing(All)",
+          "User-tertok(Removable)",
+          "UyumIzleme-Browser"
+        ]
+      },
+      {
+        "policy_name": "KT Ses ve Sifreli Dosya Yonetimi",
+        "rule_name": "KT Ses Dosyasi Yonetimi",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "Architecht-Web(Selected)",
+          "CagriMrkz-Web(Selected)",
+          "Ex_UstYonetim_Airsync",
+          "GunlukGecici",
+          "Hukuk-Mail",
+          "IC_Kontrol-Web",
+          "KonyaARGE-Web(Selected)",
+          "NetworkVoice-Web(Selected)",
+          "Selected-LAN(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Removable(All)",
+          "Selected-Web(Selected)",
+          "supntuzmtest-Web(Selected)"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi",
+        "rule_name": "KT Kart Verisi-LAN",
+        "exception_rule_names": [
+          "Gecici"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Kural 2 - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_Murat Gündüz",
+          "Ex_Mutlu Avukatlik",
+          "Ex_Neslihan Kurtcu",
+          "Ex_Serdar Dasar "
+        ]
+      },
+      {
+        "policy_name": "KT Ses ve Sifreli Dosya Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Sifreli Dosya Yonetimi - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "GrupMudur-Web(All)",
+          "HadiR-Mail(All)",
+          "Selected-LAN(All)",
+          "Selected-Mail(Selected)",
+          "SuleGedikli-Removable(All)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi",
+        "rule_name": "KT TC Kimlik Numarasi",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "Arge-Mail(Selected)",
+          "Ex_Tum Sube Kullanicilari",
+          "Ex_UstYonetim_Airsync",
+          "EY-Talepleri(Selected)",
+          "gunlukGeciciMail",
+          "IK_Selected(Mail)",
+          "Leasing-Condition(Noter-fkb)",
+          "Selected-BankaMail",
+          "Selected-Condition(Noter)",
+          "Selected-LAN(APPFILESTEST)",
+          "Selected-LAN(SPLBTFILE)",
+          "Selected-LAN(SPLKTFS)",
+          "Selected-LAN(SRVACL)",
+          "Selected-Mail(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Removable(All)",
+          "Selected-YurtDisiBanka",
+          "Sube-LAN(All)",
+          "Sube-Mail(Selected)",
+          "User-Application(Selected)",
+          "YasalTerkin-Mail(Hukuk)"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Kart Verisi Gonderim - Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "gunlukgecici",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT BOA Raporu - Grup Mudurleri - Audit",
+        "exception_rule_names": [
+          "Ex_LAN_izleme_G.M",
+          "Ex_UstYonetim_Airsync",
+          "GrupMudur-LAN(All)",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-LAN(All)",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Ozel Nitelikli Kisisel Veri",
+        "rule_name": "Ozel Nitelikli Kisisel Veri",
+        "exception_rule_names": [
+          "All-Selected",
+          "gunlukgecici",
+          "Hukuk-Mail",
+          "ResmiRaporlama-Web",
+          "Sube-Printing(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri_Grup Mudurleri",
+        "rule_name": "KT Altyapi Bilgileri_Grup Mudurleri",
+        "exception_rule_names": [
+          "Ex_UstYonetim_Airsync",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "Release Test-1",
+        "rule_name": "TestFactoryKeyword",
+        "exception_rule_names": [
+          "Gmail Test"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi",
+        "rule_name": "KT Kural 6",
+        "exception_rule_names": [
+          "Ex_Kasim Aksoy",
+          "Ex_Mehmet Eren",
+          "Ex_Samet Catal"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Web (Python)",
+        "exception_rule_names": [
+          "ALL-Web",
+          "Architecht-Yapay Zeka",
+          "DenetimAnalitigi",
+          "GithubCoPilot",
+          "GunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Ses ve Sifreli Dosya Yonetimi",
+        "rule_name": "KT Sifreli Dosya Yonetimi",
+        "exception_rule_names": [
+          "All-Mail(Condition)",
+          "All-Mail(Selected)",
+          "All-Removable(Contidition)",
+          "All-Web(Selected)",
+          "Ex_Kubra Cubukcu",
+          "Ex_LAN_SUBE",
+          "Ex_Network Yonetimi",
+          "Ex_UstYonetim_Airsync",
+          "FalsePositive-Web(Selected)",
+          "gunlukGecici",
+          "hkoz-Mail(chronosconsulting.com)",
+          "Hukuk-Mail",
+          "Selected-BankaMail",
+          "Selected-LAN(SPLKTFS)",
+          "Selected-Mail(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Web(DT)",
+          "Selected-Web(Selected)",
+          "SemihSel-All",
+          "UygulamaGuvenligi(APP.CYMULATE.COM)"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "Only MAC Address-Others",
+        "exception_rule_names": [
+          "gunlukgecici",
+          "HesapArastirma-Removable(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Hesap Ekstresi",
+        "rule_name": "Hesap Ekstresi-Others",
+        "exception_rule_names": [
+          "gunlukgecici",
+          "Selected-Printing(All)",
+          "Selected-Removable(All)",
+          "Selected-Web(GithubCopilot)",
+          "Selected-Web(kefalet.kgf.com.tr)",
+          "SFTP"
+        ]
+      },
+      {
+        "policy_name": "KT TC Kimlik Verisi",
+        "rule_name": "TC Kimlik Verisi-Mail",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "AtmHizmetleri",
+          "gunlukGeciciMail",
+          "Haberlesme",
+          "HesapArastirma",
+          "Hukuk",
+          "InsanKaynaklari",
+          "IstirakKonsolidasyon",
+          "saglampay(Users)",
+          "Saglik",
+          "SatinAlma",
+          "Selected-Banka",
+          "Selected-Condition(Noter)",
+          "Selected-Mail(All)",
+          "Selected-Mail(Selected)",
+          "User-Mail(tertok)",
+          "YasalTerkin"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi",
+        "rule_name": "KT Kart Verisi Müsteri Memnuniyeti ",
+        "exception_rule_names": [
+          "Selected-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari_G.M",
+        "rule_name": "Regex-Cokgizlikeyword Kurali_G.M",
+        "exception_rule_names": [
+          "Ex_BDDK",
+          "Ex_KatilimEmeklilik",
+          "Ex_KFH",
+          "Ex_Mutlu Avukatlik",
+          "Ex_Ufuk Uyan",
+          "Ex_UstYonetim_Airsync",
+          "hayrettc-LAN(All)",
+          "Ust_Yonetim_ICAP"
+        ]
+      },
+      {
+        "policy_name": "KT PCI/PII-KW Politikasi",
+        "rule_name": "KT PCI/PII-KW-LAN",
+        "exception_rule_names": [
+          "GunlukGecici",
+          "Selected-APPFILESTEST",
+          "Selected-SPLBTFILE",
+          "Selected-SPLKTFS"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "Only IP Address-Others",
+        "exception_rule_names": [
+          "All-Web(kuveytturk.com)",
+          "All-Web(LocalSunucu)",
+          "BT Network - AppWeb",
+          "BT_Otomasyon_Web",
+          "GunlukGecici",
+          "HesapArastirma-Removable(All)",
+          "Selected - App (Browser)",
+          "Selected-Web(All)",
+          "Selected-Web(Selected)",
+          "User-abcelik"
+        ]
+      },
+      {
+        "policy_name": "KT Telefon Politikasi",
+        "rule_name": "Telefon Verisi-Others",
+        "exception_rule_names": [
+          "All-Web(Selected)",
+          "GunlukGecici",
+          "IK_IsOrt-Web",
+          "Selected-Removable(All)",
+          "Selected-Web",
+          "Selected-Web(internal)",
+          "SFTP",
+          "Sube-Printing(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Power BI ",
+        "rule_name": "POWERBI_Rapor ",
+        "exception_rule_names": [
+          "Ex_Ahmet Yasin Orcan",
+          "Ex_LAN_SUBE",
+          "Ex_MusteriDeneyimi",
+          "Ex_Suistimal Veri Analitigi",
+          "Ex_UstYonetim_Airsync",
+          "gunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT PCI/PII-KW Politikasi",
+        "rule_name": "KT PCI/PII-KW-Mail",
+        "exception_rule_names": [
+          "All-Banka",
+          "All-Selected",
+          "FinansalKurumMd-Selected",
+          "ggocmen-Key Phrase",
+          "GunlukGecici",
+          "HesapArastirma",
+          "HukukveTakipIsleriMudurlugu",
+          "KurumTahsilatlari",
+          "Leasing-Key Phrase",
+          "RiskTakip-viahukuk",
+          "saglampay(Users)",
+          "Selected-All",
+          "Selected-Key Phrase",
+          "Sube-Dic(FalseKelimeler_Sozlesme)",
+          "TuzelDijitallesme",
+          "User-tertok",
+          "UyumGuvenceveIsGelistirme",
+          "YasalTerkin-Key Phrase"
+        ]
+      },
+      {
+        "policy_name": "KT PCI-PII Politikasi",
+        "rule_name": "KT PCI/PII-Mail",
+        "exception_rule_names": [
+          "All-Selected",
+          "GunlukGecici",
+          "HesapArastirma",
+          "HukukveTakipMd-Selected",
+          "Selected-All",
+          "Selected-BankaMail",
+          "Selected-Selected",
+          "Sube-ContFalseKey",
+          "tertok-Selected"
+        ]
+      },
+      {
+        "policy_name": "KT Hesap Ekstresi",
+        "rule_name": "Hesap Ekstresi-LAN",
+        "exception_rule_names": [
+          "gunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Web (C Family or Java)",
+        "exception_rule_names": [
+          "ChatGPT",
+          "FP-WebSites",
+          "GithubCoPilot",
+          "GunlukGecici",
+          "Selected-Selected",
+          "SFTP"
+        ]
+      },
+      {
+        "policy_name": "KT Icerik Koruma",
+        "rule_name": "KT SQL Kurali",
+        "exception_rule_names": [
+          "gunlukgecici"
+        ]
+      },
+      {
+        "policy_name": "KT IBAN Politikasi",
+        "rule_name": "IBAN Verisi-Others",
+        "exception_rule_names": [
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "gunlukGeciciOthers",
+          "hcavdar-Printing",
+          "RYazismalar-Removable(All)",
+          "Selected-Web(ResmiRaporlama)",
+          "SFTP-Web"
+        ]
+      },
+      {
+        "policy_name": "KT PCI-PII Politikasi",
+        "rule_name": "KT PCI/PII-LAN",
+        "exception_rule_names": [
+          "gunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi",
+        "rule_name": "KT BOA Raporu",
+        "exception_rule_names": [
+          "All-BOA Cloud (FileAccess)",
+          "All-Mail(Selected)",
+          "All-Web(FalseP)",
+          "All-Web(Selected)",
+          "Architecht-Web(Selected)",
+          "Condition1-LAN(Selected)",
+          "Condition2-LAN(Selected)",
+          "Condition3-LAN(Selected)",
+          "Condition4-LAN(Selected)",
+          "Condition5-LAN(Selected)",
+          "Condition6-LAN(Selected)",
+          "Condition7-LAN(Selected)",
+          "Condition-LAN(Selected)",
+          "Ex_UstYonetim_Airsync",
+          "gunlukGecici",
+          "HesapArastirma",
+          "Hukuk-Mail",
+          "IdariHZM-Mail(Selected)",
+          "IK_Selected(Mail)",
+          "KurumTahsilatlari",
+          "OrganizasyonGelistirme",
+          "Selected-BankaMail",
+          "Selected-Condition(Mail)",
+          "Selected-LAN(All)",
+          "Selected-LAN(Selected)",
+          "Selected-Mail(All)",
+          "Selected-Mail(hkoz)",
+          "Selected-Mail(Muhabir) ",
+          "Selected-Mail(Selected)",
+          "Selected-Removable(All)",
+          "Selected-Web(Selected)",
+          "Sube-All",
+          "Surdurulebilirlik",
+          "User-Condition(B_Denetim)",
+          "VergiYonetimiveDanismanlik"
+        ]
+      },
+      {
+        "policy_name": "KT Musteri ve Personel Verisi Yonetimi",
+        "rule_name": "KT Speech Analytics",
+        "exception_rule_names": [
+          " All-Mail(Selected)",
+          "Gecici_Selected",
+          "Selected-Multi(srvsesweb)",
+          "SFTP",
+          "User-Multi(sestek)"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Others (C Family or Java)",
+        "exception_rule_names": [
+          "Gecici"
+        ]
+      },
+      {
+        "policy_name": "KT PCI-PII Politikasi",
+        "rule_name": "KT PCI/PII-Others",
+        "exception_rule_names": [
+          "All-Web(KFKS)",
+          "All-Web(Selected)",
+          "GunlukGecici",
+          "ResmiYazismalar-Removable",
+          "Selected-Web(SFTP)",
+          "User-tertok(Removable)"
+        ]
+      },
+      {
+        "policy_name": "KT Telefon Politikasi",
+        "rule_name": "Telefon Verisi-LAN",
+        "exception_rule_names": [
+          "GunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Altyapi Bilgileri",
+        "rule_name": "KT Altyapi Bilgileri-LAN",
+        "exception_rule_names": [
+          "gunlukGecici",
+          "Selected-LAN(SPLKTFS)"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Mail (C Family or Java)",
+        "exception_rule_names": [
+          "Gecici",
+          "Uyum"
+        ]
+      },
+      {
+        "policy_name": "KT TC Kimlik Verisi",
+        "rule_name": "TC Kimlik Verisi-LAN",
+        "exception_rule_names": [
+          "GunlukGecici",
+          "Selected-LAN(APPFILESTEST)",
+          "Selected-LAN(SPLBTFILE)",
+          "Selected-LAN(SPLKTFS)",
+          "Selected-LAN(SRVACL)",
+          "Selected-LAN(TUZLAAL)"
+        ]
+      },
+      {
+        "policy_name": "KT Vergi Numarasi",
+        "rule_name": "KT Vergi Numarasi-Mail",
+        "exception_rule_names": [
+          "All-Selected",
+          "Hukuk ve Takip",
+          "KurumTahsilatlari",
+          "LeasingIslemleriOperasyonlari",
+          "Selected-BankaMail",
+          "User-tertok"
+        ]
+      },
+      {
+        "policy_name": "Suspected Malicious Dissemination (Audit)",
+        "rule_name": "Suspected Malicious Dissemination: Email Address and Password (Default)",
+        "exception_rule_names": [
+          "gunlukGeciciWeb"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari_G.M",
+        "rule_name": "Regex-Keyword Kurali_G.M",
+        "exception_rule_names": [
+          "adild-Mail(Selected)",
+          "gunlukgecici",
+          "HakanKe-Mail(All)",
+          "hayrettc-LAN(All)",
+          "Selected-Mail(Selected)",
+          "Selected-Web(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "Yeni_DLP_Kurallari_G.M",
+        "rule_name": "Regex-Regex Kurali_G.M",
+        "exception_rule_names": [
+          "abdurrad-Printing(All)",
+          "hayrettc-LAN(All)",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)",
+          "ZeynepA-Web(Selected)"
+        ]
+      },
+      {
+        "policy_name": "KT Kaynak Kod",
+        "rule_name": "Source Code-Mail (Python)",
+        "exception_rule_names": [
+          "GunlukGecici"
+        ]
+      },
+      {
+        "policy_name": "KT Şüpheli Kullanıcı Aktivitesi",
+        "rule_name": "KT Şahsi Mail Gonderimi",
+        "exception_rule_names": [
+          "Murakıp-Mail"
+        ]
+      },
+      {
+        "policy_name": "KT Hesap Ekstresi",
+        "rule_name": "Hesap Ekstresi-Mail",
+        "exception_rule_names": [
+          "All-Mail(Selected)",
+          "gunlukGeciciMail",
+          "HazineOperasyonlari",
+          "HesapArastirma",
+          "Hukuk",
+          "ibrahimk-Mail(Selected)",
+          "KurumTahsilatlari",
+          "Selected-Mail(Selected)",
+          "User-Mail(hkoz)",
+          "User-Mail(tertok)",
+          "VergiYonetimiveDanismanlik"
+        ]
+      },
+      {
+        "policy_name": "KT IBAN Politikasi",
+        "rule_name": "IBAN Verisi-LAN",
+        "exception_rule_names": [
+          "GunlukGecici",
+          "Selected-SPLBTFILE"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi - Grup Mudurleri",
+        "rule_name": "KT Kart Verisi Internet - Grup Mudurleri",
+        "exception_rule_names": [
+          "gunlukgecici",
+          "Selected-Mail(Selected)",
+          "UfukUyan-All",
+          "UstYonetim-Mail(All)",
+          "UstYonetim-Web(All)"
+        ]
+      },
+      {
+        "policy_name": "KT Icerik Koruma",
+        "rule_name": "KT Veri Tabani Dosyasi",
+        "exception_rule_names": [
+          "gunlukgecici"
+        ]
+      },
+      {
+        "policy_name": "KT Kart Verisi Yonetimi",
+        "rule_name": "Kart Verisi-Others",
+        "exception_rule_names": [
+          "All-Web(Selected)",
+          "gunlukgecici",
+          "Printing",
+          "SFTP"
+        ]
+      }
+    ],
+    "number_of_exception_rules": 470
+  },
+  "rawResponse": "{\"exception_rules\":[{\"policy_name\":\"KT IBAN Politikasi\",\"rule_name\":\"IBAN Verisi-Mail\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"gunlukGeciciMail\",\"HesapArastirma\",\"Hukuk\",\"Selected-All\",\"Selected-BankaMail\",\"Selected-Mail(Selected)\",\"serhatba-Mail(kuveytturkyatirim)\",\"Sube-Selected\",\"Suistimal-Banka\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Kural 3 - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_Fadil Uluisik\",\"Ex_Hadi Rubaci\",\"Ex_Neslihan Kurtcu\"]},{\"policy_name\":\"Yeni_DLP_Kurallari\",\"rule_name\":\"Strateji_FP\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"gsert-All\",\"gunlukGecici\",\"Selected-Mail(All)\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"KT Altyapi Bilgileri-Others\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"Ex_Airsync_Exlude\",\"gunlukGecici\",\"Hukuk\",\"Selected-Mail(All)\",\"Selected-Mail(Selected)\",\"User-Application(Selected)\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT-TC Kimlik Numarasi_Grup Mudurleri\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"hayrettc-LAN(All)\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\",\"ZeynepA-Web(Selected)\"]},{\"policy_name\":\"KT Database Fingerprint\",\"rule_name\":\"DB Müşteri Bilgileri-Büyük Ölçekli Erişim\",\"exception_rule_names\":[\"Egitim Teknolojileri-Web\",\"IK Analitigi-App\"]},{\"policy_name\":\"Yeni_DLP_Kurallari_G.M\",\"rule_name\":\"iban_kurali_G.M\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"gunlukgecici\",\"HakanKe-Mail(All)\",\"hayrettc-LAN(All)\",\"huseyinc-Printing(All)\",\"Selected-Mail(Selected)\",\"Selected-Web(Selected)\",\"TufanK-Condition(Mail)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"Speech Analytics-Grup Mudurleri\",\"exception_rule_names\":[\"Selected-LAN(All)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"Yeni_DLP_Kurallari\",\"rule_name\":\"Bluetooth Kurali\",\"exception_rule_names\":[\"Architecht-All\"]},{\"policy_name\":\"Yeni_DLP_Kurallari_G.M\",\"rule_name\":\"Telefon_Numarasi_Kurali_G.M\",\"exception_rule_names\":[\"adild-Mail(Selected)\",\"Ex_UstYonetim_Airsync\",\"gunlukGecici\",\"hayrettc-LAN(All)\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi\",\"rule_name\":\"Kart Verisi-Mail\",\"exception_rule_names\":[\"All-MuhabirMail\",\"All-Selected\",\"gunlukgecici\",\"Hukuk\",\"ICKontrol\",\"Selected-All\",\"Selected-BankaMailleri\"]},{\"policy_name\":\"KT Telefon Politikasi\",\"rule_name\":\"Telefon Verisi-Mail\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"Architecht\",\"GunlukGecici\",\"Hukuk\",\"KurumTahsilatlari\",\"LeasingSatis\",\"Saglik\",\"sariyers\",\"SatinAlma\",\"Selected-All\",\"Selected-Selected\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Kural 4 - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_Mutlu Avukatlik\",\"Ex_Serdar Dasar \"]},{\"policy_name\":\"KT Ses ve Sifreli Dosya Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Ses Dosyasi Yonetimi - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"Selected-LAN(All)\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"KT Altyapı Bilgileri-Web\",\"exception_rule_names\":[\"All-Web(kuveytturk.com)\",\"All-Web(Localhost)\",\"All-Web(LocalSunucu)\",\"Architecht-Web(Selected)\",\"BT_Otomasyon-Web\",\"gunlukGeciciWeb\",\"Selected-Web(mendeley)\",\"SFTP\",\"SomeYonetimi-Web(PaloAlto)\",\"UG_ZafiyetYonetimi\",\"UygulamaAltyapi-Web(ktdevops)\"]},{\"policy_name\":\"KT Database Fingerprint\",\"rule_name\":\"DB Musteri Bilgileri\",\"exception_rule_names\":[\"gunlukgecici\",\"Hukuk-Mail\",\"Sube-Printing(All)\"]},{\"policy_name\":\"KT Vergi Numarasi\",\"rule_name\":\"KT Vergi Numarasi-Others\",\"exception_rule_names\":[\"All-Selected\",\"gunlukGecici-Others\",\"RYazismalar-Removable(All)\",\"Selected-Printing (All)\",\"SFTP\",\"Sube-Printing(All)\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Others (Python)\",\"exception_rule_names\":[\"Gecici\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"Only IP Address-Mail\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"gunlukGeciciMail\",\"Hukuk\",\"Selected-Mail(Selected)\"]},{\"policy_name\":\"KT TC Kimlik Verisi\",\"rule_name\":\"TC Kimlik Verisi-Others\",\"exception_rule_names\":[\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"Bordro-Web\",\"gunlukGeciciOthers\",\"ntufekci -SFTP\",\"RYazismalar-Removable(All)\",\"Selected-Printing\",\"SFTP-Web\",\"Sube-Printing(All)\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"Only MAC Address-Mail\",\"exception_rule_names\":[\"All-Selected\",\"FinansalKurumlarMudurlugu-Mail\",\"gunlukGeciciMail\",\"Hukuk\"]},{\"policy_name\":\"KT Vergi Numarasi\",\"rule_name\":\"KT Vergi Numarasi-LAN\",\"exception_rule_names\":[\"gunlukGecici\"]},{\"policy_name\":\"KT Encoding Politikasi\",\"rule_name\":\"Encoding Kurali\",\"exception_rule_names\":[\"gunlukGeciciWeb\",\"SomeYonetimi-Web\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi\",\"rule_name\":\"KT Kart Verisi Gonderim\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"All-MuhabirMail(Selected) \",\"All-Web(Selected)\",\"gunlukGeciciMail\",\"IC_Kontrol-Mail\",\"IdariIsler-Mail\",\"RiskTkpOp-Mail(Selected)\",\"Selected-BankaMail\",\"Selected-Mail(All)\",\"Selected-Mail(Selected)\",\"Selected-Printing(All)\",\"Selected-Removable(All)\",\"Selected-Web(Selected)\",\"User-Application\",\"User-tertok(Removable)\"]},{\"policy_name\":\"KT Data Classification\",\"rule_name\":\"KT-Restricted\",\"exception_rule_names\":[\"All-Selected\",\"GunlukGecici\",\"Hukuk-Mail\"]},{\"policy_name\":\"KT PCI/PII-KW Politikasi\",\"rule_name\":\"KT PCI/PII-KW-Others\",\"exception_rule_names\":[\"All-Web(KFKS)\",\"All-Web(Localhost*)\",\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"gunlukGecici\",\"Selected-Removable(All)\",\"SFTP-Web\",\"Sube-Printing(All)\",\"User-tertok(Removable)\",\"UyumIzleme-Browser\"]},{\"policy_name\":\"KT Ses ve Sifreli Dosya Yonetimi\",\"rule_name\":\"KT Ses Dosyasi Yonetimi\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"Architecht-Web(Selected)\",\"CagriMrkz-Web(Selected)\",\"Ex_UstYonetim_Airsync\",\"GunlukGecici\",\"Hukuk-Mail\",\"IC_Kontrol-Web\",\"KonyaARGE-Web(Selected)\",\"NetworkVoice-Web(Selected)\",\"Selected-LAN(All)\",\"Selected-Mail(Selected)\",\"Selected-Removable(All)\",\"Selected-Web(Selected)\",\"supntuzmtest-Web(Selected)\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi\",\"rule_name\":\"KT Kart Verisi-LAN\",\"exception_rule_names\":[\"Gecici\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Kural 2 - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_Murat Gündüz\",\"Ex_Mutlu Avukatlik\",\"Ex_Neslihan Kurtcu\",\"Ex_Serdar Dasar \"]},{\"policy_name\":\"KT Ses ve Sifreli Dosya Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Sifreli Dosya Yonetimi - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"GrupMudur-Web(All)\",\"HadiR-Mail(All)\",\"Selected-LAN(All)\",\"Selected-Mail(Selected)\",\"SuleGedikli-Removable(All)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi\",\"rule_name\":\"KT TC Kimlik Numarasi\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"Arge-Mail(Selected)\",\"Ex_Tum Sube Kullanicilari\",\"Ex_UstYonetim_Airsync\",\"EY-Talepleri(Selected)\",\"gunlukGeciciMail\",\"IK_Selected(Mail)\",\"Leasing-Condition(Noter-fkb)\",\"Selected-BankaMail\",\"Selected-Condition(Noter)\",\"Selected-LAN(APPFILESTEST)\",\"Selected-LAN(SPLBTFILE)\",\"Selected-LAN(SPLKTFS)\",\"Selected-LAN(SRVACL)\",\"Selected-Mail(All)\",\"Selected-Mail(Selected)\",\"Selected-Removable(All)\",\"Selected-YurtDisiBanka\",\"Sube-LAN(All)\",\"Sube-Mail(Selected)\",\"User-Application(Selected)\",\"YasalTerkin-Mail(Hukuk)\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Kart Verisi Gonderim - Grup Mudurleri\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"gunlukgecici\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT BOA Raporu - Grup Mudurleri - Audit\",\"exception_rule_names\":[\"Ex_LAN_izleme_G.M\",\"Ex_UstYonetim_Airsync\",\"GrupMudur-LAN(All)\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-LAN(All)\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Ozel Nitelikli Kisisel Veri\",\"rule_name\":\"Ozel Nitelikli Kisisel Veri\",\"exception_rule_names\":[\"All-Selected\",\"gunlukgecici\",\"Hukuk-Mail\",\"ResmiRaporlama-Web\",\"Sube-Printing(All)\"]},{\"policy_name\":\"KT Altyapi Bilgileri_Grup Mudurleri\",\"rule_name\":\"KT Altyapi Bilgileri_Grup Mudurleri\",\"exception_rule_names\":[\"Ex_UstYonetim_Airsync\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"Release Test-1\",\"rule_name\":\"TestFactoryKeyword\",\"exception_rule_names\":[\"Gmail Test\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi\",\"rule_name\":\"KT Kural 6\",\"exception_rule_names\":[\"Ex_Kasim Aksoy\",\"Ex_Mehmet Eren\",\"Ex_Samet Catal\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Web (Python)\",\"exception_rule_names\":[\"ALL-Web\",\"Architecht-Yapay Zeka\",\"DenetimAnalitigi\",\"GithubCoPilot\",\"GunlukGecici\"]},{\"policy_name\":\"KT Ses ve Sifreli Dosya Yonetimi\",\"rule_name\":\"KT Sifreli Dosya Yonetimi\",\"exception_rule_names\":[\"All-Mail(Condition)\",\"All-Mail(Selected)\",\"All-Removable(Contidition)\",\"All-Web(Selected)\",\"Ex_Kubra Cubukcu\",\"Ex_LAN_SUBE\",\"Ex_Network Yonetimi\",\"Ex_UstYonetim_Airsync\",\"FalsePositive-Web(Selected)\",\"gunlukGecici\",\"hkoz-Mail(chronosconsulting.com)\",\"Hukuk-Mail\",\"Selected-BankaMail\",\"Selected-LAN(SPLKTFS)\",\"Selected-Mail(All)\",\"Selected-Mail(Selected)\",\"Selected-Web(DT)\",\"Selected-Web(Selected)\",\"SemihSel-All\",\"UygulamaGuvenligi(APP.CYMULATE.COM)\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"Only MAC Address-Others\",\"exception_rule_names\":[\"gunlukgecici\",\"HesapArastirma-Removable(All)\"]},{\"policy_name\":\"KT Hesap Ekstresi\",\"rule_name\":\"Hesap Ekstresi-Others\",\"exception_rule_names\":[\"gunlukgecici\",\"Selected-Printing(All)\",\"Selected-Removable(All)\",\"Selected-Web(GithubCopilot)\",\"Selected-Web(kefalet.kgf.com.tr)\",\"SFTP\"]},{\"policy_name\":\"KT TC Kimlik Verisi\",\"rule_name\":\"TC Kimlik Verisi-Mail\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"AtmHizmetleri\",\"gunlukGeciciMail\",\"Haberlesme\",\"HesapArastirma\",\"Hukuk\",\"InsanKaynaklari\",\"IstirakKonsolidasyon\",\"saglampay(Users)\",\"Saglik\",\"SatinAlma\",\"Selected-Banka\",\"Selected-Condition(Noter)\",\"Selected-Mail(All)\",\"Selected-Mail(Selected)\",\"User-Mail(tertok)\",\"YasalTerkin\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi\",\"rule_name\":\"KT Kart Verisi Müsteri Memnuniyeti \",\"exception_rule_names\":[\"Selected-Web(All)\"]},{\"policy_name\":\"Yeni_DLP_Kurallari_G.M\",\"rule_name\":\"Regex-Cokgizlikeyword Kurali_G.M\",\"exception_rule_names\":[\"Ex_BDDK\",\"Ex_KatilimEmeklilik\",\"Ex_KFH\",\"Ex_Mutlu Avukatlik\",\"Ex_Ufuk Uyan\",\"Ex_UstYonetim_Airsync\",\"hayrettc-LAN(All)\",\"Ust_Yonetim_ICAP\"]},{\"policy_name\":\"KT PCI/PII-KW Politikasi\",\"rule_name\":\"KT PCI/PII-KW-LAN\",\"exception_rule_names\":[\"GunlukGecici\",\"Selected-APPFILESTEST\",\"Selected-SPLBTFILE\",\"Selected-SPLKTFS\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"Only IP Address-Others\",\"exception_rule_names\":[\"All-Web(kuveytturk.com)\",\"All-Web(LocalSunucu)\",\"BT Network - AppWeb\",\"BT_Otomasyon_Web\",\"GunlukGecici\",\"HesapArastirma-Removable(All)\",\"Selected - App (Browser)\",\"Selected-Web(All)\",\"Selected-Web(Selected)\",\"User-abcelik\"]},{\"policy_name\":\"KT Telefon Politikasi\",\"rule_name\":\"Telefon Verisi-Others\",\"exception_rule_names\":[\"All-Web(Selected)\",\"GunlukGecici\",\"IK_IsOrt-Web\",\"Selected-Removable(All)\",\"Selected-Web\",\"Selected-Web(internal)\",\"SFTP\",\"Sube-Printing(All)\"]},{\"policy_name\":\"KT Power BI \",\"rule_name\":\"POWERBI_Rapor \",\"exception_rule_names\":[\"Ex_Ahmet Yasin Orcan\",\"Ex_LAN_SUBE\",\"Ex_MusteriDeneyimi\",\"Ex_Suistimal Veri Analitigi\",\"Ex_UstYonetim_Airsync\",\"gunlukGecici\"]},{\"policy_name\":\"KT PCI/PII-KW Politikasi\",\"rule_name\":\"KT PCI/PII-KW-Mail\",\"exception_rule_names\":[\"All-Banka\",\"All-Selected\",\"FinansalKurumMd-Selected\",\"ggocmen-Key Phrase\",\"GunlukGecici\",\"HesapArastirma\",\"HukukveTakipIsleriMudurlugu\",\"KurumTahsilatlari\",\"Leasing-Key Phrase\",\"RiskTakip-viahukuk\",\"saglampay(Users)\",\"Selected-All\",\"Selected-Key Phrase\",\"Sube-Dic(FalseKelimeler_Sozlesme)\",\"TuzelDijitallesme\",\"User-tertok\",\"UyumGuvenceveIsGelistirme\",\"YasalTerkin-Key Phrase\"]},{\"policy_name\":\"KT PCI-PII Politikasi\",\"rule_name\":\"KT PCI/PII-Mail\",\"exception_rule_names\":[\"All-Selected\",\"GunlukGecici\",\"HesapArastirma\",\"HukukveTakipMd-Selected\",\"Selected-All\",\"Selected-BankaMail\",\"Selected-Selected\",\"Sube-ContFalseKey\",\"tertok-Selected\"]},{\"policy_name\":\"KT Hesap Ekstresi\",\"rule_name\":\"Hesap Ekstresi-LAN\",\"exception_rule_names\":[\"gunlukGecici\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Web (C Family or Java)\",\"exception_rule_names\":[\"ChatGPT\",\"FP-WebSites\",\"GithubCoPilot\",\"GunlukGecici\",\"Selected-Selected\",\"SFTP\"]},{\"policy_name\":\"KT Icerik Koruma\",\"rule_name\":\"KT SQL Kurali\",\"exception_rule_names\":[\"gunlukgecici\"]},{\"policy_name\":\"KT IBAN Politikasi\",\"rule_name\":\"IBAN Verisi-Others\",\"exception_rule_names\":[\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"gunlukGeciciOthers\",\"hcavdar-Printing\",\"RYazismalar-Removable(All)\",\"Selected-Web(ResmiRaporlama)\",\"SFTP-Web\"]},{\"policy_name\":\"KT PCI-PII Politikasi\",\"rule_name\":\"KT PCI/PII-LAN\",\"exception_rule_names\":[\"gunlukGecici\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi\",\"rule_name\":\"KT BOA Raporu\",\"exception_rule_names\":[\"All-BOA Cloud (FileAccess)\",\"All-Mail(Selected)\",\"All-Web(FalseP)\",\"All-Web(Selected)\",\"Architecht-Web(Selected)\",\"Condition1-LAN(Selected)\",\"Condition2-LAN(Selected)\",\"Condition3-LAN(Selected)\",\"Condition4-LAN(Selected)\",\"Condition5-LAN(Selected)\",\"Condition6-LAN(Selected)\",\"Condition7-LAN(Selected)\",\"Condition-LAN(Selected)\",\"Ex_UstYonetim_Airsync\",\"gunlukGecici\",\"HesapArastirma\",\"Hukuk-Mail\",\"IdariHZM-Mail(Selected)\",\"IK_Selected(Mail)\",\"KurumTahsilatlari\",\"OrganizasyonGelistirme\",\"Selected-BankaMail\",\"Selected-Condition(Mail)\",\"Selected-LAN(All)\",\"Selected-LAN(Selected)\",\"Selected-Mail(All)\",\"Selected-Mail(hkoz)\",\"Selected-Mail(Muhabir) \",\"Selected-Mail(Selected)\",\"Selected-Removable(All)\",\"Selected-Web(Selected)\",\"Sube-All\",\"Surdurulebilirlik\",\"User-Condition(B_Denetim)\",\"VergiYonetimiveDanismanlik\"]},{\"policy_name\":\"KT Musteri ve Personel Verisi Yonetimi\",\"rule_name\":\"KT Speech Analytics\",\"exception_rule_names\":[\" All-Mail(Selected)\",\"Gecici_Selected\",\"Selected-Multi(srvsesweb)\",\"SFTP\",\"User-Multi(sestek)\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Others (C Family or Java)\",\"exception_rule_names\":[\"Gecici\"]},{\"policy_name\":\"KT PCI-PII Politikasi\",\"rule_name\":\"KT PCI/PII-Others\",\"exception_rule_names\":[\"All-Web(KFKS)\",\"All-Web(Selected)\",\"GunlukGecici\",\"ResmiYazismalar-Removable\",\"Selected-Web(SFTP)\",\"User-tertok(Removable)\"]},{\"policy_name\":\"KT Telefon Politikasi\",\"rule_name\":\"Telefon Verisi-LAN\",\"exception_rule_names\":[\"GunlukGecici\"]},{\"policy_name\":\"KT Altyapi Bilgileri\",\"rule_name\":\"KT Altyapi Bilgileri-LAN\",\"exception_rule_names\":[\"gunlukGecici\",\"Selected-LAN(SPLKTFS)\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Mail (C Family or Java)\",\"exception_rule_names\":[\"Gecici\",\"Uyum\"]},{\"policy_name\":\"KT TC Kimlik Verisi\",\"rule_name\":\"TC Kimlik Verisi-LAN\",\"exception_rule_names\":[\"GunlukGecici\",\"Selected-LAN(APPFILESTEST)\",\"Selected-LAN(SPLBTFILE)\",\"Selected-LAN(SPLKTFS)\",\"Selected-LAN(SRVACL)\",\"Selected-LAN(TUZLAAL)\"]},{\"policy_name\":\"KT Vergi Numarasi\",\"rule_name\":\"KT Vergi Numarasi-Mail\",\"exception_rule_names\":[\"All-Selected\",\"Hukuk ve Takip\",\"KurumTahsilatlari\",\"LeasingIslemleriOperasyonlari\",\"Selected-BankaMail\",\"User-tertok\"]},{\"policy_name\":\"Suspected Malicious Dissemination (Audit)\",\"rule_name\":\"Suspected Malicious Dissemination: Email Address and Password (Default)\",\"exception_rule_names\":[\"gunlukGeciciWeb\"]},{\"policy_name\":\"Yeni_DLP_Kurallari_G.M\",\"rule_name\":\"Regex-Keyword Kurali_G.M\",\"exception_rule_names\":[\"adild-Mail(Selected)\",\"gunlukgecici\",\"HakanKe-Mail(All)\",\"hayrettc-LAN(All)\",\"Selected-Mail(Selected)\",\"Selected-Web(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"Yeni_DLP_Kurallari_G.M\",\"rule_name\":\"Regex-Regex Kurali_G.M\",\"exception_rule_names\":[\"abdurrad-Printing(All)\",\"hayrettc-LAN(All)\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\",\"ZeynepA-Web(Selected)\"]},{\"policy_name\":\"KT Kaynak Kod\",\"rule_name\":\"Source Code-Mail (Python)\",\"exception_rule_names\":[\"GunlukGecici\"]},{\"policy_name\":\"KT Şüpheli Kullanıcı Aktivitesi\",\"rule_name\":\"KT Şahsi Mail Gonderimi\",\"exception_rule_names\":[\"Murakıp-Mail\"]},{\"policy_name\":\"KT Hesap Ekstresi\",\"rule_name\":\"Hesap Ekstresi-Mail\",\"exception_rule_names\":[\"All-Mail(Selected)\",\"gunlukGeciciMail\",\"HazineOperasyonlari\",\"HesapArastirma\",\"Hukuk\",\"ibrahimk-Mail(Selected)\",\"KurumTahsilatlari\",\"Selected-Mail(Selected)\",\"User-Mail(hkoz)\",\"User-Mail(tertok)\",\"VergiYonetimiveDanismanlik\"]},{\"policy_name\":\"KT IBAN Politikasi\",\"rule_name\":\"IBAN Verisi-LAN\",\"exception_rule_names\":[\"GunlukGecici\",\"Selected-SPLBTFILE\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi - Grup Mudurleri\",\"rule_name\":\"KT Kart Verisi Internet - Grup Mudurleri\",\"exception_rule_names\":[\"gunlukgecici\",\"Selected-Mail(Selected)\",\"UfukUyan-All\",\"UstYonetim-Mail(All)\",\"UstYonetim-Web(All)\"]},{\"policy_name\":\"KT Icerik Koruma\",\"rule_name\":\"KT Veri Tabani Dosyasi\",\"exception_rule_names\":[\"gunlukgecici\"]},{\"policy_name\":\"KT Kart Verisi Yonetimi\",\"rule_name\":\"Kart Verisi-Others\",\"exception_rule_names\":[\"All-Web(Selected)\",\"gunlukgecici\",\"Printing\",\"SFTP\"]}],\"number_of_exception_rules\":470}",
+  "config": {
+    "baseUrl": "https://172.16.245.126:9443/",
+    "source": "database"
+  }
+}

@@ -1,0 +1,38 @@
+1.
+
+"tablo","toplam_boyut","veri_boyutu","index_boyutu","sutun_sayisi"
+"public.incidents","510 MB","425 MB","85 MB","30"
+"public.user_daily_risk_scores","45 MB","27 MB","19 MB","16"
+"public.raw_dlp_data","20 MB","18 MB","2360 kB","5"
+"public.audit_logs","14 MB","10 MB","4192 kB","14"
+"public.nda_domains","1256 kB","392 kB","864 kB","13"
+"public.released_incidents","1056 kB","384 kB","672 kB","9"
+"public.ai_explanations","672 kB","592 kB","80 kB","9"
+"public.policy_rule_exceptions","464 kB","160 kB","304 kB","5"
+"public.domain_feature_values","72 kB","8192 bytes","64 kB","5"
+"public.system_settings","64 kB","8192 bytes","56 kB","3"
+"public.ai_behavioral_analyses","40 kB","0 bytes","40 kB","11"
+"public.domain_feature_definitions","40 kB","8192 bytes","32 kB","5"
+"public.anomaly_detections","40 kB","0 bytes","40 kB","9"
+"public.""__EFMigrationsHistory""","24 kB","8192 bytes","16 kB","2"
+"public.department_summaries","16 kB","0 bytes","16 kB","7"
+"public.user_risk_trends","16 kB","0 bytes","16 kB","6"
+"public.daily_summaries","8192 bytes","0 bytes","8192 bytes","7"
+
+
+
+
+
+
+2.
+
+"incidents"	179164
+"audit_logs"	40283
+"system_settings"	19
+"user_risk_trends"	0
+"department_summaries"	0
+"daily_summaries"	0
+"anomaly_detections"	0
+"ai_behavioral_analyses"	0
+
+2. Sütun Tipleri Kontrolü

@@ -10,6 +10,10 @@ import RiskLevelBadge from '../components/RiskLevelBadge'
 import ActionIncidentsModal from '../components/ActionIncidentsModal'
 import HighRiskUsersModal from '../components/HighRiskUsersModal'
 import ReportModal from '../components/ReportModal'
+import Pagination from '../components/ui/Pagination'
+import LoadingOverlay from '../components/ui/LoadingOverlay'
+import GridExport, { ExportColumn } from '../components/ui/GridExport'
+import { useTranslation } from '../components/LanguageProvider'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -112,6 +116,7 @@ interface ActionSummary {
 
 export default function Home() {
   const router = useRouter()
+  const { t } = useTranslation()
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
@@ -343,11 +348,12 @@ export default function Home() {
   const totalAlerts = topRules.reduce((sum, r) => sum + r.total_alerts, 0)
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page" style={{ position: 'relative' }}>
+      <LoadingOverlay isLoading={loading} message={t('common.loading')} />
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>RADAR - Risk Adaptive Data Analysis Dashboard</h1>
-          <p className="dashboard-subtitle">Real-time data loss prevention incident analysis and risk scoring</p>
+          <h1>{t('dashboard.title')}</h1>
+          <p className="dashboard-subtitle">{t('dashboard.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowReportModal(true)}
@@ -367,124 +373,93 @@ export default function Home() {
             transition: 'all 0.2s'
           }}
         >
-          📊 Daily Report
+          📊 {t('dashboard.dailyReport')}
         </button>
       </div>
 
-      {/* Action Summary Card */}
+      {/* Action Summary - Donut Chart + Cards */}
       {actionSummary && (
         <div className="card" style={{ marginBottom: '24px' }}>
-          <h2>Action Analysis</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-            <div
-              onClick={() => fetchActionIncidents('AUTHORIZED')}
-              style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>AUTHORIZED</div>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.authorized}</div>
+          <h2>{t('dashboard.actionAnalysis')}</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
+            {/* Donut Chart */}
+            <div style={{ height: '280px' }}>
+              <Plot
+                data={[{
+                  values: [
+                    actionSummary.authorized,
+                    actionSummary.block,
+                    actionSummary.quarantine,
+                    actionSummary.released || 0,
+                  ],
+                  labels: ['AUTHORIZED', 'BLOCK', 'QUARANTINE', 'RELEASED'],
+                  type: 'pie',
+                  hole: 0.55,
+                  marker: {
+                    colors: ['#10b981', '#ef4444', '#a855f7', '#f59e0b'],
+                    line: { color: 'rgba(0,0,0,0.1)', width: 1 }
+                  },
+                  textinfo: 'label+percent',
+                  textfont: { size: 11, color: '#fff' },
+                  hoverinfo: 'label+value+percent',
+                  sort: false,
+                }]}
+                layout={{
+                  margin: { t: 10, b: 10, l: 10, r: 10 },
+                  showlegend: false,
+                  paper_bgcolor: 'transparent',
+                  plot_bgcolor: 'transparent',
+                  annotations: [{
+                    text: `<b>${actionSummary.total}</b><br><span style="font-size:11px">${t('common.total')}</span>`,
+                    showarrow: false,
+                    font: { size: 20, color: 'var(--text-primary)' },
+                    x: 0.5, y: 0.5,
+                  }],
+                  height: 280,
+                }}
+                config={{ displayModeBar: false, responsive: true }}
+                style={{ width: '100%', height: '100%' }}
+                onClick={(data: any) => {
+                  if (data?.points?.[0]) {
+                    const label = data.points[0].label
+                    fetchActionIncidents(label)
+                  }
+                }}
+              />
             </div>
-            <div
-              onClick={() => fetchActionIncidents('BLOCK')}
-              style={{
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(-0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>BLOCK</div>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.block}</div>
-            </div>
-            <div
-              onClick={() => fetchActionIncidents('QUARANTINE')}
-              style={{
-                background: 'linear-gradient(135deg, #90137fff 0%, #7d0962ff 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(144, 19, 255, 0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>QUARANTINE</div>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.quarantine}</div>
-            </div>
-            <div
-              onClick={() => fetchActionIncidents('RELEASED')}
-              style={{
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>RELEASED</div>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.released || 0}</div>
-            </div>
-            <div
-              onClick={() => fetchActionIncidents('TOTAL')}
-              style={{
-                background: 'linear-gradient(135deg, #060a30ff 0%, #021128ff 100%)',
-                padding: '20px',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(6, 10, 48, 0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>TOTAL</div>
-              <div style={{ fontSize: '32px', fontWeight: '700' }}>{actionSummary.total}</div>
+
+            {/* Action Cards Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              {[
+                { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+                { action: 'BLOCK', value: actionSummary.block, color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
+                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' },
+                { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+              ].map(({ action, value, gradient }) => (
+                <div
+                  key={action}
+                  onClick={() => fetchActionIncidents(action)}
+                  style={{
+                    background: gradient,
+                    padding: '16px',
+                    borderRadius: '10px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px', letterSpacing: '0.5px' }}>{action}</div>
+                  <div style={{ fontSize: '28px', fontWeight: '700' }}>{value}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -498,7 +473,7 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '24px' }}>🚨</span>
               <div>
-                <h2 style={{ margin: 0, color: '#dc2626' }}>Potential Data Exfiltration</h2>
+                <h2 style={{ margin: 0, color: '#dc2626' }}>{t('dashboard.potentialExfiltration')}</h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
                   High-volume data transfer events (max_matches ≥ 100, daily_score ≥ 80) - Last 30 days
                 </p>
@@ -735,69 +710,24 @@ export default function Home() {
           </div>
 
           {/* Pagination */}
-          {highImpactPagination.totalPages > 1 && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: '12px',
-              marginTop: '16px',
-              paddingTop: '16px',
-              borderTop: '1px solid var(--border)'
-            }}>
-              <button
-                disabled={highImpactPagination.page <= 1}
-                onClick={async () => {
-                  const newPage = highImpactPagination.page - 1
-                  const apiUrl = getApiUrlDynamic()
-                  const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
-                  })
-                  const data = res.data as HighImpactAlertsResponse
-                  setHighImpactAlerts(data.data)
-                  setHighImpactPagination(data.pagination)
-                }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: highImpactPagination.page <= 1 ? 'var(--surface)' : 'var(--background)',
-                  color: highImpactPagination.page <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                  cursor: highImpactPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                ← Previous
-              </button>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Page {highImpactPagination.page} of {highImpactPagination.totalPages}
-              </span>
-              <button
-                disabled={highImpactPagination.page >= highImpactPagination.totalPages}
-                onClick={async () => {
-                  const newPage = highImpactPagination.page + 1
-                  const apiUrl = getApiUrlDynamic()
-                  const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
-                  })
-                  const data = res.data as HighImpactAlertsResponse
-                  setHighImpactAlerts(data.data)
-                  setHighImpactPagination(data.pagination)
-                }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: highImpactPagination.page >= highImpactPagination.totalPages ? 'var(--surface)' : 'var(--background)',
-                  color: highImpactPagination.page >= highImpactPagination.totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                  cursor: highImpactPagination.page >= highImpactPagination.totalPages ? 'not-allowed' : 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={highImpactPagination.page}
+            totalPages={highImpactPagination.totalPages}
+            totalItems={highImpactPagination.totalCount}
+            onPageChange={async (newPage: number) => {
+              const apiUrl = getApiUrlDynamic()
+              const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
+                params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
+              })
+              const data = res.data as HighImpactAlertsResponse
+              setHighImpactAlerts(data.data)
+              setHighImpactPagination(data.pagination)
+            }}
+            compact
+            labels={{
+              totalItems: t('pagination.totalItems'),
+            }}
+          />
         </div>
       )}
 
@@ -806,7 +736,7 @@ export default function Home() {
         {/* Top Risky Users with Period Selector */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>🎯 Top Risky Users</h2>
+            <h2 style={{ margin: 0 }}>🎯 {t('dashboard.topRiskyUsers')}</h2>
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -895,33 +825,31 @@ export default function Home() {
             </tbody>
           </table>
           {/* Pagination for Top Risky Users */}
-          {topUsersPeriod.length > usersPerPage && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-              <button
-                disabled={topUsersPeriodPage <= 1}
-                onClick={() => setTopUsersPeriodPage(p => Math.max(1, p - 1))}
-                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsersPeriodPage <= 1 ? 'var(--surface)' : 'var(--background)', color: topUsersPeriodPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsersPeriodPage <= 1 ? 'not-allowed' : 'pointer', fontSize: '12px' }}
-              >
-                ← Prev
-              </button>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {topUsersPeriodPage} / {Math.ceil(topUsersPeriod.length / usersPerPage)}
-              </span>
-              <button
-                disabled={topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage)}
-                onClick={() => setTopUsersPeriodPage(p => Math.min(Math.ceil(topUsersPeriod.length / usersPerPage), p + 1))}
-                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'var(--surface)' : 'var(--background)', color: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsersPeriodPage >= Math.ceil(topUsersPeriod.length / usersPerPage) ? 'not-allowed' : 'pointer', fontSize: '12px' }}
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={topUsersPeriodPage}
+            totalPages={Math.ceil(topUsersPeriod.length / usersPerPage)}
+            totalItems={topUsersPeriod.length}
+            onPageChange={setTopUsersPeriodPage}
+            compact
+            labels={{ totalItems: t('pagination.totalItems') }}
+          />
+          {/* Export for Top Risky Users */}
+          <GridExport
+            data={topUsersPeriod}
+            fileName={`top-risky-users-${selectedPeriod}`}
+            columns={[
+              { key: 'user_email', header: 'User Email', width: 30 },
+              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+              { key: 'days_with_activity', header: 'Days Active', width: 12 },
+              { key: 'total_incidents', header: 'Incidents', width: 12 },
+            ]}
+          />
         </div>
 
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>⚡ Today's Active Users</h2>
+            <h2 style={{ margin: 0 }}>⚡ {t('dashboard.todayActiveUsers')}</h2>
             <span style={{ fontSize: '12px', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
           </div>
           <table className="data-table">
@@ -991,34 +919,32 @@ export default function Home() {
             </tbody>
           </table>
           {/* Pagination for Today's Active Users */}
-          {topUsers24h.length > usersPerPage && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-              <button
-                disabled={topUsers24hPage <= 1}
-                onClick={() => setTopUsers24hPage(p => Math.max(1, p - 1))}
-                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsers24hPage <= 1 ? 'var(--surface)' : 'var(--background)', color: topUsers24hPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsers24hPage <= 1 ? 'not-allowed' : 'pointer', fontSize: '12px' }}
-              >
-                ← Prev
-              </button>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {topUsers24hPage} / {Math.ceil(topUsers24h.length / usersPerPage)}
-              </span>
-              <button
-                disabled={topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage)}
-                onClick={() => setTopUsers24hPage(p => Math.min(Math.ceil(topUsers24h.length / usersPerPage), p + 1))}
-                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'var(--surface)' : 'var(--background)', color: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'var(--text-muted)' : 'var(--text-primary)', cursor: topUsers24hPage >= Math.ceil(topUsers24h.length / usersPerPage) ? 'not-allowed' : 'pointer', fontSize: '12px' }}
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <Pagination
+            currentPage={topUsers24hPage}
+            totalPages={Math.ceil(topUsers24h.length / usersPerPage)}
+            totalItems={topUsers24h.length}
+            onPageChange={setTopUsers24hPage}
+            compact
+            labels={{ totalItems: t('pagination.totalItems') }}
+          />
+          {/* Export for Today's Active Users */}
+          <GridExport
+            data={topUsers24h}
+            fileName="todays-active-users"
+            columns={[
+              { key: 'user_email', header: 'User Email', width: 30 },
+              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+              { key: 'total_blocks', header: 'Blocks', width: 12 },
+              { key: 'total_incidents', header: 'Incidents', width: 12 },
+            ]}
+          />
         </div>
       </div>
 
       {/* Data Movement Chart & Top Matched Rules - Side by Side */}
       <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
-          <h2>Data Movement 30 days</h2>
+          <h2>{t('dashboard.dataMovement')}</h2>
           <div style={{ position: 'relative' }}>
             <ChannelActivity days={30} />
           </div>
@@ -1026,37 +952,59 @@ export default function Home() {
 
         <div className="card">
           <div className="card-header-row">
-            <h2>Top matched rules</h2>
+            <h2>{t('dashboard.topRules')}</h2>
             <div className="total-alerts">
               <span className="total-label">Total alerts last 30 days: {totalAlerts}</span>
             </div>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Rule</th>
-                <th className="text-right">Total alerts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={2} className="loading-cell">Loading...</td>
-                </tr>
-              ) : topRules.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="empty-cell">No data available</td>
-                </tr>
-              ) : (
-                topRules.map((rule, idx) => (
-                  <tr key={idx}>
-                    <td>{rule.rule_name}</td>
-                    <td className="text-right">{rule.total_alerts}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
+              {t('common.loading')}
+            </div>
+          ) : topRules.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
+              {t('common.noData')}
+            </div>
+          ) : (
+            <Plot
+              data={[{
+                type: 'bar',
+                orientation: 'h',
+                y: topRules.slice().reverse().map(r => r.rule_name.length > 35 ? r.rule_name.substring(0, 35) + '...' : r.rule_name),
+                x: topRules.slice().reverse().map(r => r.total_alerts),
+                text: topRules.slice().reverse().map(r => r.total_alerts.toString()),
+                textposition: 'outside',
+                textfont: { size: 11, color: 'var(--text-primary)' },
+                hovertext: topRules.slice().reverse().map(r => `${r.rule_name}: ${r.total_alerts} alerts`),
+                hoverinfo: 'text',
+                marker: {
+                  color: topRules.slice().reverse().map((_, i) => {
+                    const colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308']
+                    return colors[i % colors.length]
+                  }),
+                  line: { width: 0 },
+                },
+              }]}
+              layout={{
+                margin: { t: 5, b: 30, l: 200, r: 60 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                xaxis: {
+                  gridcolor: 'rgba(128,128,128,0.1)',
+                  zeroline: false,
+                  tickfont: { size: 11, color: 'var(--text-muted)' },
+                },
+                yaxis: {
+                  tickfont: { size: 10, color: 'var(--text-primary)' },
+                  automargin: true,
+                },
+                height: Math.max(200, topRules.length * 32 + 40),
+                bargap: 0.3,
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              style={{ width: '100%' }}
+            />
+          )}
         </div>
       </div>
 
@@ -1064,7 +1012,7 @@ export default function Home() {
       <div className="card">
         <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ margin: 0 }}>📈 Daily Incident Trends</h2>
+            <h2 style={{ margin: 0 }}>📈 {t('dashboard.dailyTrends')}</h2>
             <p className="chart-subtitle" style={{ margin: '4px 0 0 0' }}>
               Showing {dailySummary.length} days • {trendsDateRange.start} to {trendsDateRange.end}
             </p>
@@ -1088,152 +1036,105 @@ export default function Home() {
           </div>
         </div>
         {dailySummaryLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
-            Loading trends...
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+            {t('common.loading')}
           </div>
         ) : dailySummary.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
-            No data available for selected date range
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+            {t('common.noData')}
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto', maxHeight: '500px' }}>
-            <table className="data-table">
-              <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                <tr>
-                  <th>Date</th>
-                  <th>Total Incidents</th>
-                  <th style={{ cursor: 'help' }} title="High-risk users (max risk score ≥ 61)">High Risk Users</th>
-                  <th>Avg Score</th>
-                  <th>Unique Users</th>
-                  <th style={{ width: '200px' }}>Distribution</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const maxIncidents = Math.max(...dailySummary.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0));
-                  return dailySummary
-                    .slice() // Create a shallow copy to sort
-                    .sort((a, b) => {
-                      const dateA = a.date || a.Date || '';
-                      const dateB = b.date || b.Date || '';
-                      return dateB.localeCompare(dateA); // Newest first
-                    })
-                    // REMOVED: .slice(0, 14) limitation - now shows all data matching filter
-                    .map((day, idx) => {
-                      const total = day.total_incidents ?? day.totalIncidents ?? day.TotalIncidents ?? 0;
-                      const highRisk = day.high_risk_count ?? day.highRiskCount ?? day.HighRiskCount ?? 0;
-                      const avgScore = day.avg_risk_score ?? day.avgRiskScore ?? day.AvgRiskScore ?? 0;
-                      const uniqueUsers = day.unique_users ?? day.uniqueUsers ?? day.UniqueUsers ?? 0;
-                      const dateStr = day.date || day.Date || '';
-                      const percentage = maxIncidents > 0 ? (total / maxIncidents) * 100 : 0;
+        ) : (() => {
+          const sorted = dailySummary.slice().sort((a, b) => {
+            const dateA = a.date || a.Date || ''
+            const dateB = b.date || b.Date || ''
+            return dateA.localeCompare(dateB)
+          })
+          const dates = sorted.map(d => {
+            const ds = d.date || d.Date || ''
+            try { return new Date(ds).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) } catch { return ds }
+          })
+          const totals = sorted.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0)
+          const highRisks = sorted.map(d => d.high_risk_count ?? d.highRiskCount ?? d.HighRiskCount ?? 0)
+          const avgScores = sorted.map(d => d.avg_risk_score ?? d.avgRiskScore ?? d.AvgRiskScore ?? 0)
 
-                      // Format date
-                      let formattedDate = dateStr;
-                      try {
-                        const d = new Date(dateStr);
-                        formattedDate = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', weekday: 'short', year: 'numeric' });
-                      } catch { }
-
-                      return (
-                        <tr key={idx}>
-                          <td style={{ fontWeight: '500' }}>{formattedDate}</td>
-                          <td>
-                            <span style={{
-                              fontWeight: '600',
-                              color: total > 100 ? '#ef4444' : total > 50 ? '#f59e0b' : '#10b981'
-                            }}>
-                              {total}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              onClick={() => {
-                                if (highRisk > 0) {
-                                  setSelectedHighRiskDate(dateStr)
-                                  setShowHighRiskModal(true)
-                                }
-                              }}
-                              style={{
-                                backgroundColor: highRisk > 0 ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                                color: highRisk > 0 ? '#ef4444' : '#999',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                cursor: highRisk > 0 ? 'pointer' : 'default',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => {
-                                if (highRisk > 0) {
-                                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.4)'
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (highRisk > 0) {
-                                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'
-                                }
-                              }}
-                              title={highRisk > 0 ? 'Click to view high-risk users' : ''}
-                            >
-                              {highRisk}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{
-                              color: avgScore >= 70 ? '#ef4444' : avgScore >= 40 ? '#f59e0b' : '#10b981',
-                              fontWeight: '500'
-                            }}>
-                              {avgScore.toFixed(1)}
-                            </span>
-                          </td>
-                          <td>{uniqueUsers}</td>
-                          <td>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              width: '100%'
-                            }}>
-                              <div style={{
-                                flex: 1,
-                                height: '12px',
-                                backgroundColor: 'rgba(128,128,128,0.2)',
-                                borderRadius: '6px',
-                                overflow: 'hidden',
-                                position: 'relative'
-                              }}>
-                                <div style={{
-                                  position: 'absolute',
-                                  left: 0,
-                                  top: 0,
-                                  height: '100%',
-                                  width: `${percentage}%`,
-                                  background: 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)',
-                                  borderRadius: '6px',
-                                  transition: 'width 0.3s ease'
-                                }} />
-                                {highRisk > 0 && (
-                                  <div style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    top: 0,
-                                    height: '100%',
-                                    width: `${(highRisk / maxIncidents) * 100}%`,
-                                    backgroundColor: '#ef4444',
-                                    borderRadius: '6px 0 0 6px'
-                                  }} />
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    });
-                })()}
-              </tbody>
-            </table>
-          </div>
-        )}
+          return (
+            <Plot
+              data={[
+                {
+                  x: dates,
+                  y: totals,
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: t('dashboard.totalIncidents'),
+                  fill: 'tozeroy',
+                  fillcolor: 'rgba(59, 130, 246, 0.15)',
+                  line: { color: '#3b82f6', width: 2.5, shape: 'spline' },
+                  hovertemplate: '<b>%{x}</b><br>Incidents: %{y}<extra></extra>',
+                },
+                {
+                  x: dates,
+                  y: highRisks,
+                  type: 'scatter',
+                  mode: 'lines+markers',
+                  name: t('dashboard.highRiskUsers'),
+                  line: { color: '#ef4444', width: 2, dash: 'dot' },
+                  marker: { size: 5, color: '#ef4444' },
+                  hovertemplate: '<b>%{x}</b><br>High Risk: %{y}<extra></extra>',
+                },
+                {
+                  x: dates,
+                  y: avgScores,
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: t('dashboard.avgRiskScore'),
+                  fill: 'tozeroy',
+                  fillcolor: 'rgba(245, 158, 11, 0.08)',
+                  line: { color: '#f59e0b', width: 1.5, shape: 'spline' },
+                  yaxis: 'y2',
+                  hovertemplate: '<b>%{x}</b><br>Avg Score: %{y:.1f}<extra></extra>',
+                },
+              ]}
+              layout={{
+                margin: { t: 20, b: 50, l: 55, r: 55 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                xaxis: {
+                  gridcolor: 'rgba(128,128,128,0.08)',
+                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  tickangle: -45,
+                  showgrid: true,
+                },
+                yaxis: {
+                  title: { text: t('dashboard.incidents'), font: { size: 11, color: 'var(--text-muted)' } },
+                  gridcolor: 'rgba(128,128,128,0.08)',
+                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  zeroline: false,
+                },
+                yaxis2: {
+                  title: { text: t('dashboard.avgRiskScore'), font: { size: 11, color: 'var(--text-muted)' } },
+                  overlaying: 'y',
+                  side: 'right',
+                  gridcolor: 'rgba(128,128,128,0.05)',
+                  tickfont: { size: 10, color: '#f59e0b' },
+                  zeroline: false,
+                  range: [0, 100],
+                },
+                legend: {
+                  orientation: 'h',
+                  x: 0.5,
+                  y: -0.25,
+                  xanchor: 'center',
+                  font: { size: 11, color: 'var(--text-muted)' },
+                  bgcolor: 'transparent',
+                },
+                height: 380,
+                hovermode: 'x unified',
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              style={{ width: '100%' }}
+            />
+          )
+        })()}
       </div>
 
       <style jsx>{`
