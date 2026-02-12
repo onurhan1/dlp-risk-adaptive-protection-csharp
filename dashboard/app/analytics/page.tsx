@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageInput, setPageInput] = useState('')
   const itemsPerPage = 10
-  
+
   // Heatmap pagination
   const [heatmapTeamPage, setHeatmapTeamPage] = useState(1)
   const [heatmapPageInput, setHeatmapPageInput] = useState('')
@@ -62,7 +62,7 @@ export default function AnalyticsPage() {
   // Table sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  
+
   // Column filter dropdowns
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null)
   const [columnFilterSearch, setColumnFilterSearch] = useState<Record<string, string>>({})
@@ -116,12 +116,12 @@ export default function AnalyticsPage() {
   const [exceptionPolicyFilter, setExceptionPolicyFilter] = useState<string[]>([])
   const [userIncidents, setUserIncidents] = useState<Incident[]>([])
   const [loadingUserIncidents, setLoadingUserIncidents] = useState(false)
-  
+
   // Multi-select dropdown states
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false)
   const [channelDropdownOpen, setChannelDropdownOpen] = useState(false)
   const [policyDropdownOpen, setPolicyDropdownOpen] = useState(false)
-  
+
   // Accordion states for exception recommendation
   const [expandedPolicies, setExpandedPolicies] = useState<Set<number>>(new Set())
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
           pageSize: 10000
         }
       })
-      
+
       const data = response.data?.data || []
       setReleasedIncidents(data)
     } catch (error) {
@@ -231,7 +231,7 @@ export default function AnalyticsPage() {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: Event) => {
       const target = event.target as HTMLElement
       if (!target.closest('[data-dropdown]')) {
         setActionDropdownOpen(false)
@@ -374,7 +374,7 @@ export default function AnalyticsPage() {
 
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
-        const userMatch = columnFilters.user.some(filter => 
+        const userMatch = columnFilters.user.some(filter =>
           incident.userEmail?.toLowerCase().includes(filter.toLowerCase()) ||
           incident.loginName?.toLowerCase().includes(filter.toLowerCase()) ||
           incident.emailAddress?.toLowerCase().includes(filter.toLowerCase())
@@ -495,18 +495,18 @@ export default function AnalyticsPage() {
   }, [incidents])
   const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort(), [incidents])
   const uniqueChannels = useMemo(() => Array.from(new Set(incidents.map(i => i.channel).filter(Boolean))).sort(), [incidents])
-  
+
   // Get unique policies using the same logic as exception recommendation report
   // Extract policies from violationTriggers first, then fallback to incident.policy
   const uniquePolicies = useMemo(() => {
     const policySet = new Set<string>()
-    
+
     incidents.forEach(incident => {
       let triggers: any[] = []
       if (incident.violationTriggers) {
         try {
-          triggers = typeof incident.violationTriggers === 'string' 
-            ? JSON.parse(incident.violationTriggers) 
+          triggers = typeof incident.violationTriggers === 'string'
+            ? JSON.parse(incident.violationTriggers)
             : incident.violationTriggers
         } catch {
           triggers = []
@@ -528,7 +528,7 @@ export default function AnalyticsPage() {
         }
       }
     })
-    
+
     return Array.from(policySet).sort()
   }, [incidents])
 
@@ -615,11 +615,11 @@ export default function AnalyticsPage() {
   // Allow recommendation if user search query OR any filter is selected (policy, channel, action, domain)
   const handleRecommend = () => {
     const hasUserQuery = userSearchQuery.trim()
-    const hasFilters = exceptionActionFilter.length > 0 || 
-                       exceptionChannelFilter.length > 0 || 
-                       exceptionPolicyFilter.length > 0 || 
-                       exceptionDomainFilter.trim()
-    
+    const hasFilters = exceptionActionFilter.length > 0 ||
+      exceptionChannelFilter.length > 0 ||
+      exceptionPolicyFilter.length > 0 ||
+      exceptionDomainFilter.trim()
+
     if (hasUserQuery || hasFilters) {
       fetchUserIncidents()
     } else {
@@ -697,7 +697,7 @@ export default function AnalyticsPage() {
     setLoadingUserIncidents(true)
     const query = userSearchQuery.toLowerCase().trim()
     const domainQuery = exceptionDomainFilter.toLowerCase().trim()
-    
+
     const filtered = incidents.filter(incident => {
       // Date filter
       if (dateRange.start && dateRange.end) {
@@ -737,8 +737,8 @@ export default function AnalyticsPage() {
         let triggers: any[] = []
         if (incident.violationTriggers) {
           try {
-            triggers = typeof incident.violationTriggers === 'string' 
-              ? JSON.parse(incident.violationTriggers) 
+            triggers = typeof incident.violationTriggers === 'string'
+              ? JSON.parse(incident.violationTriggers)
               : incident.violationTriggers
           } catch {
             triggers = []
@@ -760,7 +760,7 @@ export default function AnalyticsPage() {
             policyMatch = true
           }
         }
-        
+
         if (!policyMatch) {
           return false
         }
@@ -795,13 +795,13 @@ export default function AnalyticsPage() {
     userIncidents.forEach(incident => {
       let triggers: any[] = []
       let exceptionTriggers: any[] = []
-      
+
       if (incident.violationTriggers) {
         try {
-          const allTriggers = typeof incident.violationTriggers === 'string' 
-            ? JSON.parse(incident.violationTriggers) 
+          const allTriggers = typeof incident.violationTriggers === 'string'
+            ? JSON.parse(incident.violationTriggers)
             : incident.violationTriggers
-          
+
           // Separate regular triggers from exception triggers
           allTriggers.forEach((t: any) => {
             const parentRuleName = t.parent_rule_name || t.ParentRuleName
@@ -843,7 +843,7 @@ export default function AnalyticsPage() {
         triggers.forEach((t: any) => {
           const policyName = t.PolicyName || t.policy_name || incident.policy || 'Unknown Policy'
           const ruleName = t.RuleName || t.rule_name || 'Unknown Rule'
-          
+
           if (!policyMap.has(policyName)) {
             policyMap.set(policyName, new Map())
           }
@@ -860,7 +860,7 @@ export default function AnalyticsPage() {
             classifiers.forEach((c: any) => {
               const classifierName = c.ClassifierName || c.classifier_name || 'Unknown Classifier'
               const matches = c.NumberMatches || c.number_matches || 0
-              
+
               if (!ruleData.classifiers.has(classifierName)) {
                 ruleData.classifiers.set(classifierName, { incidentIds: new Set(), matches: [] })
               }
@@ -885,7 +885,7 @@ export default function AnalyticsPage() {
           const policyName = t.PolicyName || t.policy_name || incident.policy || 'Unknown Policy'
           const exceptionName = t.RuleName || t.rule_name || 'Unknown Exception'
           const parentRuleName = t.parent_rule_name || t.ParentRuleName
-          
+
           if (!policyName || !exceptionName) return
 
           if (!policyMap.has(policyName)) {
@@ -896,7 +896,7 @@ export default function AnalyticsPage() {
           // If parent rule exists, attach exception under it
           if (parentRuleName && ruleMap.has(parentRuleName)) {
             const ruleData = ruleMap.get(parentRuleName)!
-            
+
             if (!ruleData.exceptions.has(exceptionName)) {
               ruleData.exceptions.set(exceptionName, new Map())
             }
@@ -908,7 +908,7 @@ export default function AnalyticsPage() {
               classifiers.forEach((c: any) => {
                 const classifierName = c.ClassifierName || c.classifier_name || 'Unknown Classifier'
                 const matches = c.NumberMatches || c.number_matches || 0
-                
+
                 if (!exceptionClassifierMap.has(classifierName)) {
                   exceptionClassifierMap.set(classifierName, { incidentIds: new Set(), matches: [] })
                 }
@@ -930,7 +930,7 @@ export default function AnalyticsPage() {
             // Parent rule not in triggers — create placeholder entry for it
             ruleMap.set(parentRuleName, { classifiers: new Map(), exceptions: new Map() })
             const ruleData = ruleMap.get(parentRuleName)!
-            
+
             if (!ruleData.exceptions.has(exceptionName)) {
               ruleData.exceptions.set(exceptionName, new Map())
             }
@@ -941,7 +941,7 @@ export default function AnalyticsPage() {
               classifiers.forEach((c: any) => {
                 const classifierName = c.ClassifierName || c.classifier_name || 'Unknown Classifier'
                 const matches = c.NumberMatches || c.number_matches || 0
-                
+
                 if (!exceptionClassifierMap.has(classifierName)) {
                   exceptionClassifierMap.set(classifierName, { incidentIds: new Set(), matches: [] })
                 }
@@ -971,7 +971,7 @@ export default function AnalyticsPage() {
               classifiers.forEach((c: any) => {
                 const classifierName = c.ClassifierName || c.classifier_name || 'Unknown Classifier'
                 const matches = c.NumberMatches || c.number_matches || 0
-                
+
                 if (!ruleData.classifiers.has(classifierName)) {
                   ruleData.classifiers.set(classifierName, { incidentIds: new Set(), matches: [] })
                 }
@@ -1097,12 +1097,12 @@ export default function AnalyticsPage() {
         // Calculate rule-level stats (including both classifiers and exceptions)
         const allRuleIncidentIds = new Set<number>()
         const allRuleMatches: number[] = []
-        
+
         ruleData.classifiers.forEach((data) => {
           data.incidentIds.forEach(id => allRuleIncidentIds.add(id))
           allRuleMatches.push(...data.matches)
         })
-        
+
         ruleData.exceptions.forEach((exceptionClassifierMap) => {
           exceptionClassifierMap.forEach((data) => {
             data.incidentIds.forEach(id => allRuleIncidentIds.add(id))
@@ -1161,13 +1161,13 @@ export default function AnalyticsPage() {
   // Extract policies from violationTriggers first, then fallback to incident.policy
   const uniqueUserPolicies = useMemo(() => {
     const policySet = new Set<string>()
-    
+
     userIncidents.forEach(incident => {
       let triggers: any[] = []
       if (incident.violationTriggers) {
         try {
-          triggers = typeof incident.violationTriggers === 'string' 
-            ? JSON.parse(incident.violationTriggers) 
+          triggers = typeof incident.violationTriggers === 'string'
+            ? JSON.parse(incident.violationTriggers)
             : incident.violationTriggers
         } catch {
           triggers = []
@@ -1189,7 +1189,7 @@ export default function AnalyticsPage() {
         }
       }
     })
-    
+
     return Array.from(policySet).sort()
   }, [userIncidents])
 
@@ -1411,21 +1411,21 @@ export default function AnalyticsPage() {
                         {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
                           const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
                           const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
-                          
+
                           return (
                             <div key={admin} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{ 
-                                minWidth: '150px', 
-                                fontSize: '13px', 
+                              <div style={{
+                                minWidth: '150px',
+                                fontSize: '13px',
                                 color: 'var(--text-primary)',
                                 fontWeight: '500'
                               }}>
                                 {admin}
                               </div>
-                              <div style={{ 
-                                flex: 1, 
-                                height: '32px', 
-                                background: 'var(--background-secondary)', 
+                              <div style={{
+                                flex: 1,
+                                height: '32px',
+                                background: 'var(--background-secondary)',
                                 borderRadius: '4px',
                                 position: 'relative',
                                 overflow: 'hidden',
@@ -1443,9 +1443,9 @@ export default function AnalyticsPage() {
                                   transition: 'width 0.3s ease',
                                   minWidth: 'fit-content'
                                 }}>
-                                  <span style={{ 
-                                    fontSize: '12px', 
-                                    fontWeight: '600', 
+                                  <span style={{
+                                    fontSize: '12px',
+                                    fontWeight: '600',
                                     color: '#fff',
                                     whiteSpace: 'nowrap'
                                   }}>
@@ -1453,10 +1453,10 @@ export default function AnalyticsPage() {
                                   </span>
                                 </div>
                               </div>
-                              <div style={{ 
-                                minWidth: '50px', 
-                                textAlign: 'right', 
-                                fontSize: '13px', 
+                              <div style={{
+                                minWidth: '50px',
+                                textAlign: 'right',
+                                fontSize: '13px',
                                 fontWeight: '600',
                                 color: 'var(--text-primary)'
                               }}>
@@ -1521,10 +1521,10 @@ export default function AnalyticsPage() {
                       const reader = new FileReader()
                       reader.onload = (event) => {
                         const text = event.target?.result as string
-                        
+
                         // Normalize line endings
                         const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-                        
+
                         // Detect delimiter (comma or semicolon) - check first few lines
                         // First, properly split lines respecting quotes
                         const detectDelimiterLines: string[] = []
@@ -1533,7 +1533,7 @@ export default function AnalyticsPage() {
                         for (let i = 0; i < normalizedText.length && detectDelimiterLines.length < 5; i++) {
                           const char = normalizedText[i]
                           const nextChar = i < normalizedText.length - 1 ? normalizedText[i + 1] : ''
-                          
+
                           if (char === '"') {
                             if (inQuotes && nextChar === '"') {
                               currentLine += '"'
@@ -1551,7 +1551,7 @@ export default function AnalyticsPage() {
                             currentLine += char
                           }
                         }
-                        
+
                         let commaCount = 0
                         let semicolonCount = 0
                         detectDelimiterLines.forEach(line => {
@@ -1567,18 +1567,18 @@ export default function AnalyticsPage() {
                           }
                         })
                         const delimiter = semicolonCount > commaCount ? ';' : ','
-                        
+
                         // CSV parser that handles quoted values, line breaks in quotes, and both delimiters
                         const parseCSV = (text: string, delim: string): string[][] => {
                           const rows: string[][] = []
                           let currentRow: string[] = []
                           let currentField = ''
                           let inQuotes = false
-                          
+
                           for (let i = 0; i < text.length; i++) {
                             const char = text[i]
                             const nextChar = i < text.length - 1 ? text[i + 1] : ''
-                            
+
                             if (char === '"') {
                               if (inQuotes && nextChar === '"') {
                                 // Escaped quote (double quote)
@@ -1606,7 +1606,7 @@ export default function AnalyticsPage() {
                               currentField += char
                             }
                           }
-                          
+
                           // Add last field and row
                           if (currentField.trim() || currentRow.length > 0) {
                             currentRow.push(currentField.trim())
@@ -1614,9 +1614,9 @@ export default function AnalyticsPage() {
                               rows.push(currentRow)
                             }
                           }
-                          
+
                           // Remove surrounding quotes from field values
-                          return rows.map(row => 
+                          return rows.map(row =>
                             row.map(field => {
                               let cleaned = field
                               // Remove surrounding quotes if present
@@ -1629,18 +1629,18 @@ export default function AnalyticsPage() {
                             })
                           )
                         }
-                        
+
                         const parsedRows = parseCSV(normalizedText, delimiter)
                         if (parsedRows.length > 0) {
                           const headers = parsedRows[0].map(h => h.trim()).filter(h => h)
                           setCsvHeaders(headers)
-                          
+
                           const data: any[] = []
                           parsedRows.slice(1).forEach((row, rowIndex) => {
                             try {
                               const rowObj: any = {}
                               let hasAnyValue = false
-                              
+
                               headers.forEach((header, index) => {
                                 const value = row[index] !== undefined ? String(row[index]).trim() : ''
                                 rowObj[header] = value
@@ -1648,7 +1648,7 @@ export default function AnalyticsPage() {
                                   hasAnyValue = true
                                 }
                               })
-                              
+
                               // Only add row if it has at least one non-empty value
                               if (hasAnyValue) {
                                 data.push(rowObj)
@@ -1658,7 +1658,7 @@ export default function AnalyticsPage() {
                               console.warn(`Skipping malformed row ${rowIndex + 2}:`, error)
                             }
                           })
-                          
+
                           setCsvData(data)
                           setCsvCurrentPage(1)
                           setCsvSearchQuery('')
@@ -1685,23 +1685,23 @@ export default function AnalyticsPage() {
               {/* Number Cards */}
               {csvData.length > 0 && (() => {
                 // Find date column
-                const dateColumn = csvHeaders.find(h => 
-                  h.toLowerCase().includes('tarih') || 
-                  h.toLowerCase().includes('date') || 
+                const dateColumn = csvHeaders.find(h =>
+                  h.toLowerCase().includes('tarih') ||
+                  h.toLowerCase().includes('date') ||
                   h.toLowerCase().includes('time') ||
                   h.toLowerCase().includes('created')
                 )
-                
+
                 const userColumn = csvHeaders.find(h => {
                   const lower = h.toLowerCase().trim()
-                  return lower.includes('kullanıcı') || 
-                         lower.includes('user') ||
-                         lower.includes('atanan') ||
-                         lower.includes('assigned') ||
-                         lower.includes('atayan') ||
-                         lower.includes('sahip')
+                  return lower.includes('kullanıcı') ||
+                    lower.includes('user') ||
+                    lower.includes('atanan') ||
+                    lower.includes('assigned') ||
+                    lower.includes('atayan') ||
+                    lower.includes('sahip')
                 })
-                
+
                 // Apply same filters as charts
                 let filteredData = csvData
                 if (csvDateFrom || csvDateTo || csvSelectedUser) {
@@ -1734,14 +1734,14 @@ export default function AnalyticsPage() {
                     return true
                   })
                 }
-                
+
                 const now = new Date()
                 const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
                 const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-                
+
                 let lastWeekCount = 0
                 let previousWeekCount = 0
-                
+
                 if (dateColumn) {
                   filteredData.forEach(row => {
                     const dateStr = row[dateColumn]
@@ -1752,14 +1752,14 @@ export default function AnalyticsPage() {
                           if (date >= oneWeekAgo && date <= now) lastWeekCount++
                           if (date >= twoWeeksAgo && date < oneWeekAgo) previousWeekCount++
                         }
-                      } catch {}
+                      } catch { }
                     }
                   })
                 } else {
                   lastWeekCount = filteredData.length
                 }
-                
-                const weekChange = previousWeekCount > 0 
+
+                const weekChange = previousWeekCount > 0
                   ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
                   : '0'
                 const weekChangePositive = Number(weekChange) >= 0
@@ -1797,7 +1797,7 @@ export default function AnalyticsPage() {
                         {previousWeekCount > 0 && (
                           <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px' }}>
                             {previousWeekCount} (önceki hafta)
-                            <span style={{ 
+                            <span style={{
                               color: weekChangePositive ? '#10b981' : '#ef4444',
                               marginLeft: '8px',
                               fontWeight: '600'
@@ -1817,51 +1817,51 @@ export default function AnalyticsPage() {
                 // Find columns for different chart types - more flexible matching
                 const dateColumn = csvHeaders.find(h => {
                   const lower = h.toLowerCase().trim()
-                  return lower.includes('tarih') || 
-                         lower.includes('date') || 
-                         lower.includes('time') ||
-                         lower.includes('created') ||
-                         lower.includes('oluşturulma') ||
-                         lower.includes('zaman')
+                  return lower.includes('tarih') ||
+                    lower.includes('date') ||
+                    lower.includes('time') ||
+                    lower.includes('created') ||
+                    lower.includes('oluşturulma') ||
+                    lower.includes('zaman')
                 })
-                
+
                 const statusColumn = csvHeaders.find(h => {
                   const lower = h.toLowerCase().trim()
-                  return lower.includes('durum') || 
-                         lower.includes('status') ||
-                         lower.includes('state') ||
-                         lower.includes('statu')
+                  return lower.includes('durum') ||
+                    lower.includes('status') ||
+                    lower.includes('state') ||
+                    lower.includes('statu')
                 })
-                
+
                 const userColumn = csvHeaders.find(h => {
                   const lower = h.toLowerCase().trim()
-                  return lower.includes('kullanıcı') || 
-                         lower.includes('user') ||
-                         lower.includes('atanan') ||
-                         lower.includes('assigned') ||
-                         lower.includes('atayan') ||
-                         lower.includes('sahip')
+                  return lower.includes('kullanıcı') ||
+                    lower.includes('user') ||
+                    lower.includes('atanan') ||
+                    lower.includes('assigned') ||
+                    lower.includes('atayan') ||
+                    lower.includes('sahip')
                 })
-                
+
                 const categoryColumn = csvHeaders.find(h => {
                   const lower = h.toLowerCase().trim()
-                  return lower.includes('kategori') || 
-                         lower.includes('category') ||
-                         lower.includes('tip') ||
-                         lower.includes('type') ||
-                         lower.includes('tür')
+                  return lower.includes('kategori') ||
+                    lower.includes('category') ||
+                    lower.includes('tip') ||
+                    lower.includes('type') ||
+                    lower.includes('tür')
                 })
-                
+
                 // Filter out ID, number, and date columns, keep categorical columns
                 const allColumns = csvHeaders.filter(h => {
                   const lower = h.toLowerCase().trim()
-                  return !lower.includes('id') && 
-                         !lower.includes('no') && 
-                         !lower.includes('numara') &&
-                         h.trim() !== '' &&
-                         h !== dateColumn // Exclude date column from categorical charts
+                  return !lower.includes('id') &&
+                    !lower.includes('no') &&
+                    !lower.includes('numara') &&
+                    h.trim() !== '' &&
+                    h !== dateColumn // Exclude date column from categorical charts
                 })
-                
+
                 // Use first categorical columns (up to 6)
                 const categoricalColumns = allColumns.slice(0, 6)
 
@@ -1887,29 +1887,29 @@ export default function AnalyticsPage() {
                 }
 
                 // Get unique users for filter
-                const uniqueUsers = userColumn 
+                const uniqueUsers = userColumn
                   ? Array.from(new Set(csvData.map(row => row[userColumn]).filter(Boolean))).sort()
                   : []
 
                 return (
                   <div style={{ marginBottom: '24px' }}>
                     <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Grafik Görselleştirme</h3>
-                    
+
                     {/* Filters */}
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '16px', 
+                    <div style={{
+                      display: 'flex',
+                      gap: '16px',
                       marginBottom: '20px',
                       flexWrap: 'wrap',
                       alignItems: 'flex-end'
                     }}>
                       {userColumn && (
                         <div style={{ flex: '1', minWidth: '200px' }}>
-                          <label style={{ 
-                            display: 'block', 
-                            color: 'var(--text-secondary)', 
-                            fontSize: '12px', 
-                            marginBottom: '4px' 
+                          <label style={{
+                            display: 'block',
+                            color: 'var(--text-secondary)',
+                            fontSize: '12px',
+                            marginBottom: '4px'
                           }}>
                             {userColumn}
                           </label>
@@ -1939,11 +1939,11 @@ export default function AnalyticsPage() {
                       {dateColumn && (
                         <>
                           <div style={{ flex: '1', minWidth: '150px' }}>
-                            <label style={{ 
-                              display: 'block', 
-                              color: 'var(--text-secondary)', 
-                              fontSize: '12px', 
-                              marginBottom: '4px' 
+                            <label style={{
+                              display: 'block',
+                              color: 'var(--text-secondary)',
+                              fontSize: '12px',
+                              marginBottom: '4px'
                             }}>
                               Başlangıç Tarihi
                             </label>
@@ -1966,11 +1966,11 @@ export default function AnalyticsPage() {
                             />
                           </div>
                           <div style={{ flex: '1', minWidth: '150px' }}>
-                            <label style={{ 
-                              display: 'block', 
-                              color: 'var(--text-secondary)', 
-                              fontSize: '12px', 
-                              marginBottom: '4px' 
+                            <label style={{
+                              display: 'block',
+                              color: 'var(--text-secondary)',
+                              fontSize: '12px',
+                              marginBottom: '4px'
                             }}>
                               Bitiş Tarihi
                             </label>
@@ -2019,23 +2019,23 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Charts Grid */}
-                    <div style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
                       gap: '20px',
                       marginBottom: '24px'
                     }}>
                       {/* Show charts for all categorical columns */}
                       {(() => {
                         const columnsToShow: Array<{ name: string, type: 'pie' | 'bar' }> = []
-                        
+
                         // Add specific columns if found - status/durum columns should be pie charts
                         if (statusColumn) columnsToShow.push({ name: statusColumn, type: 'pie' })
                         if (userColumn && userColumn !== statusColumn) columnsToShow.push({ name: userColumn, type: 'bar' })
                         if (categoryColumn && categoryColumn !== statusColumn && categoryColumn !== userColumn) {
                           columnsToShow.push({ name: categoryColumn, type: 'pie' })
                         }
-                        
+
                         // Add other categorical columns (up to 6 total)
                         // First column should be pie, rest should be bar
                         const usedColumns = new Set(columnsToShow.map(c => c.name))
@@ -2047,11 +2047,11 @@ export default function AnalyticsPage() {
                             usedColumns.add(col)
                           }
                         })
-                        
+
                         return columnsToShow.map((colInfo, chartIdx) => {
                           const columnName = colInfo.name
                           const chartType = colInfo.type
-                          
+
                           const columnCounts: Record<string, number> = {}
                           filteredData.forEach(row => {
                             const value = row[columnName]
@@ -2061,15 +2061,15 @@ export default function AnalyticsPage() {
                               columnCounts[cleanValue] = (columnCounts[cleanValue] || 0) + 1
                             }
                           })
-                          
+
                           const columnEntries = Object.entries(columnCounts)
                             .sort((a, b) => b[1] - a[1])
                             .slice(0, chartType === 'pie' ? 10 : 10)
                           const total = Object.values(columnCounts).reduce((sum, count) => sum + count, 0)
                           const maxCount = Math.max(...columnEntries.map(([, count]) => count), 1)
-                          
+
                           if (columnEntries.length === 0) return null
-                          
+
                           // Generate conic gradient for pie chart
                           let conicGradient = ''
                           if (chartType === 'pie') {
@@ -2085,7 +2085,7 @@ export default function AnalyticsPage() {
                             })
                             conicGradient = `conic-gradient(${gradientParts.join(', ')})`
                           }
-                          
+
                           return (
                             <div
                               key={chartIdx}
@@ -2098,10 +2098,10 @@ export default function AnalyticsPage() {
                                 minWidth: 0
                               }}
                             >
-                              <h4 style={{ 
-                                fontSize: '14px', 
-                                fontWeight: '600', 
-                                color: 'var(--text-primary)', 
+                              <h4 style={{
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: 'var(--text-primary)',
                                 marginBottom: '16px',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -2110,17 +2110,17 @@ export default function AnalyticsPage() {
                                 {columnName} {chartType === 'pie' ? 'Dağılımı' : 'Dağılımı (Top 10)'}
                               </h4>
                               {chartType === 'pie' ? (
-                                <div style={{ 
-                                  display: 'flex', 
-                                  gap: '20px', 
+                                <div style={{
+                                  display: 'flex',
+                                  gap: '20px',
                                   alignItems: 'flex-start',
                                   minWidth: 0,
                                   overflow: 'hidden'
                                 }}>
                                   {/* Circular Pie Chart */}
-                                  <div style={{ 
-                                    width: '200px', 
-                                    height: '200px', 
+                                  <div style={{
+                                    width: '200px',
+                                    height: '200px',
                                     borderRadius: '50%',
                                     background: conicGradient,
                                     flexShrink: 0,
@@ -2153,10 +2153,10 @@ export default function AnalyticsPage() {
                                     </div>
                                   </div>
                                   {/* Legend */}
-                                  <div style={{ 
-                                    flex: 1, 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
+                                  <div style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
                                     gap: '10px',
                                     minWidth: 0,
                                     overflow: 'hidden'
@@ -2165,11 +2165,11 @@ export default function AnalyticsPage() {
                                       const percentage = (count / total) * 100
                                       const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1']
                                       const color = colors[idx % colors.length]
-                                      
+
                                       return (
-                                        <div key={idx} style={{ 
-                                          display: 'flex', 
-                                          alignItems: 'center', 
+                                        <div key={idx} style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
                                           gap: '8px',
                                           minWidth: 0,
                                           overflow: 'hidden'
@@ -2181,8 +2181,8 @@ export default function AnalyticsPage() {
                                             background: color,
                                             flexShrink: 0
                                           }} />
-                                          <span style={{ 
-                                            color: 'var(--text-primary)', 
+                                          <span style={{
+                                            color: 'var(--text-primary)',
                                             fontSize: '12px',
                                             flex: 1,
                                             minWidth: 0,
@@ -2192,9 +2192,9 @@ export default function AnalyticsPage() {
                                           }} title={String(value)}>
                                             {String(value)}
                                           </span>
-                                          <span style={{ 
-                                            color: 'var(--text-secondary)', 
-                                            fontSize: '12px', 
+                                          <span style={{
+                                            color: 'var(--text-secondary)',
+                                            fontSize: '12px',
                                             fontWeight: '600',
                                             flexShrink: 0,
                                             minWidth: '70px',
@@ -2208,27 +2208,27 @@ export default function AnalyticsPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <div style={{ 
-                                  display: 'flex', 
-                                  flexDirection: 'column', 
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
                                   gap: '10px',
                                   minWidth: 0,
                                   overflow: 'hidden'
                                 }}>
                                   {columnEntries.map(([value, count], idx) => {
                                     const percentage = (count / maxCount) * 100
-                                    
+
                                     return (
                                       <div key={idx} style={{ minWidth: 0, overflow: 'hidden' }}>
-                                        <div style={{ 
-                                          display: 'flex', 
-                                          justifyContent: 'space-between', 
+                                        <div style={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
                                           marginBottom: '4px',
                                           gap: '8px',
                                           minWidth: 0
                                         }}>
-                                          <span style={{ 
-                                            color: 'var(--text-primary)', 
+                                          <span style={{
+                                            color: 'var(--text-primary)',
                                             fontSize: '12px',
                                             flex: 1,
                                             minWidth: 0,
@@ -2238,9 +2238,9 @@ export default function AnalyticsPage() {
                                           }} title={String(value)}>
                                             {String(value)}
                                           </span>
-                                          <span style={{ 
-                                            color: 'var(--text-secondary)', 
-                                            fontSize: '12px', 
+                                          <span style={{
+                                            color: 'var(--text-secondary)',
+                                            fontSize: '12px',
                                             fontWeight: '600',
                                             flexShrink: 0
                                           }}>
@@ -2295,7 +2295,7 @@ export default function AnalyticsPage() {
                               const date = new Date(dateStr)
                               const dateKey = date.toISOString().split('T')[0]
                               dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1
-                            } catch {}
+                            } catch { }
                           }
                         })
                         const dateEntries = Object.entries(dateCounts)
@@ -2303,7 +2303,7 @@ export default function AnalyticsPage() {
                           .slice(-30) // Last 30 days
                         const maxCount = Math.max(...dateEntries.map(([, count]) => count), 1)
                         const totalTrend = dateEntries.reduce((sum, [, count]) => sum + count, 0)
-                        
+
                         return (
                           <div style={{
                             background: 'var(--surface)',
@@ -2314,10 +2314,10 @@ export default function AnalyticsPage() {
                             overflow: 'hidden',
                             minWidth: 0
                           }}>
-                            <h4 style={{ 
-                              fontSize: '14px', 
-                              fontWeight: '600', 
-                              color: 'var(--text-primary)', 
+                            <h4 style={{
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: 'var(--text-primary)',
                               marginBottom: '16px',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -2325,8 +2325,8 @@ export default function AnalyticsPage() {
                             }}>
                               {dateColumn} Trend Grafiği (Son 30 Gün) - Toplam: {totalTrend}
                             </h4>
-                            <div style={{ 
-                              height: '250px', 
+                            <div style={{
+                              height: '250px',
                               padding: '10px 40px 40px 50px',
                               position: 'relative',
                               overflow: 'hidden',
@@ -2349,7 +2349,7 @@ export default function AnalyticsPage() {
                                 <span>{Math.floor(maxCount / 2)}</span>
                                 <span>0</span>
                               </div>
-                              
+
                               {/* SVG for line chart */}
                               <svg width="100%" height="100%" style={{ position: 'absolute', top: '10px', left: '50px', right: '40px', bottom: '40px', overflow: 'visible' }}>
                                 {/* Grid lines */}
@@ -2366,7 +2366,7 @@ export default function AnalyticsPage() {
                                     opacity="0.3"
                                   />
                                 ))}
-                                
+
                                 {/* Area fill (gradient background) */}
                                 <defs>
                                   <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -2374,7 +2374,7 @@ export default function AnalyticsPage() {
                                     <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
                                   </linearGradient>
                                 </defs>
-                                
+
                                 {/* Area path */}
                                 {dateEntries.length > 0 && (() => {
                                   const points = dateEntries.map(([date, count], idx) => {
@@ -2382,17 +2382,17 @@ export default function AnalyticsPage() {
                                     const y = maxCount > 0 ? 100 - (count / maxCount) * 100 : 100
                                     return { x, y, count }
                                   })
-                                  
+
                                   // Create area path
                                   let areaPath = `M 0% 100% `
                                   points.forEach((p) => {
                                     areaPath += `L ${p.x}% ${p.y}% `
                                   })
                                   areaPath += `L ${points[points.length - 1].x}% 100% Z`
-                                  
+
                                   // Create line path
                                   const linePath = points.map(p => `${p.x}%,${p.y}%`).join(' ')
-                                  
+
                                   return (
                                     <>
                                       {/* Area fill */}
@@ -2413,13 +2413,13 @@ export default function AnalyticsPage() {
                                     </>
                                   )
                                 })()}
-                                
+
                                 {/* Data points */}
                                 {dateEntries.map(([date, count], idx) => {
                                   const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 0
                                   const y = maxCount > 0 ? 100 - (count / maxCount) * 100 : 100
                                   const isWeekend = new Date(date).getDay() === 0 || new Date(date).getDay() === 6
-                                  
+
                                   return (
                                     <g key={idx}>
                                       {/* Hover circle (larger, invisible) */}
@@ -2469,7 +2469,7 @@ export default function AnalyticsPage() {
                                   )
                                 })}
                               </svg>
-                              
+
                               {/* X-axis labels */}
                               <div style={{
                                 position: 'absolute',
@@ -2522,14 +2522,14 @@ export default function AnalyticsPage() {
               {/* CSV Data Table */}
               {csvData.length > 0 && (() => {
                 // Apply all filters
-                const dateColumn = csvHeaders.find(h => 
-                  h.toLowerCase().includes('tarih') || 
-                  h.toLowerCase().includes('date') || 
+                const dateColumn = csvHeaders.find(h =>
+                  h.toLowerCase().includes('tarih') ||
+                  h.toLowerCase().includes('date') ||
                   h.toLowerCase().includes('time') ||
                   h.toLowerCase().includes('created')
                 )
-                const userColumn = csvHeaders.find(h => 
-                  h.toLowerCase().includes('kullanıcı') || 
+                const userColumn = csvHeaders.find(h =>
+                  h.toLowerCase().includes('kullanıcı') ||
                   h.toLowerCase().includes('user') ||
                   h.toLowerCase().includes('atanan') ||
                   h.toLowerCase().includes('assigned')
@@ -2553,7 +2553,7 @@ export default function AnalyticsPage() {
                   }
                   // Search filter
                   if (csvSearchQuery) {
-                    if (!Object.values(row).some(value => 
+                    if (!Object.values(row).some(value =>
                       String(value).toLowerCase().includes(csvSearchQuery.toLowerCase())
                     )) return false
                   }
@@ -2566,7 +2566,7 @@ export default function AnalyticsPage() {
                 return (
                   <>
                     <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Veri Tablosu</h3>
-                    
+
                     {/* Search and Page Size Controls */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
                       <input
@@ -2904,7 +2904,7 @@ export default function AnalyticsPage() {
             const startIndex = (heatmapTeamPage - 1) * teamsPerPage
             const endIndex = startIndex + teamsPerPage
             const paginatedTeams = heatmapData.teams.slice(startIndex, endIndex)
-            
+
             return (
               <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Domain vs Team Heatmap</h2>
@@ -2918,10 +2918,10 @@ export default function AnalyticsPage() {
                     margin: '0 auto'
                   }}>
                     {/* Header Row */}
-                    <div style={{ 
-                      padding: '8px', 
-                      fontWeight: '600', 
-                      color: 'var(--text-secondary)', 
+                    <div style={{
+                      padding: '8px',
+                      fontWeight: '600',
+                      color: 'var(--text-secondary)',
                       fontSize: '12px',
                       position: 'sticky',
                       left: 0,
@@ -3052,13 +3052,13 @@ export default function AnalyticsPage() {
                       </React.Fragment>
                     ))}
                   </div>
-                  
+
                   {/* Pagination Controls */}
                   {totalTeamPages > 1 && (
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'flex-end', 
-                      alignItems: 'center', 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      alignItems: 'center',
                       gap: '12px',
                       marginTop: '16px',
                       paddingTop: '16px',
@@ -3171,29 +3171,29 @@ export default function AnalyticsPage() {
                       const isSorted = sortColumn === column
                       const uniqueValues = getUniqueColumnValues(column)
                       const searchQuery = columnFilterSearch[column] || ''
-                      const filteredValues = uniqueValues.filter(v => 
+                      const filteredValues = uniqueValues.filter(v =>
                         v.toLowerCase().includes(searchQuery.toLowerCase())
                       )
                       const selectedValues = columnFilters[column] || []
 
                       return (
-                        <th 
+                        <th
                           key={column}
                           data-column-filter
-                          style={{ 
-                            padding: '16px', 
-                            textAlign: 'left', 
-                            fontSize: '13px', 
-                            fontWeight: '600', 
+                          style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '600',
                             color: 'var(--text-secondary)',
                             width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
                             position: 'relative'
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span 
+                            <span
                               onClick={() => handleSort(column)}
-                              style={{ 
+                              style={{
                                 cursor: 'pointer',
                                 userSelect: 'none',
                                 display: 'flex',
@@ -3462,7 +3462,7 @@ export default function AnalyticsPage() {
           !showDomainFeatures && !loading && (
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
-              
+
               <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
@@ -3530,11 +3530,11 @@ export default function AnalyticsPage() {
                     }}
                   >
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionActionFilter.length === 0 
-                        ? 'All Actions' 
-                        : exceptionActionFilter.length === 1 
-                        ? exceptionActionFilter[0] 
-                        : `${exceptionActionFilter.length} selected`}
+                      {exceptionActionFilter.length === 0
+                        ? 'All Actions'
+                        : exceptionActionFilter.length === 1
+                          ? exceptionActionFilter[0]
+                          : `${exceptionActionFilter.length} selected`}
                     </span>
                     <span style={{ marginLeft: '8px' }}>{actionDropdownOpen ? '▲' : '▼'}</span>
                   </div>
@@ -3634,11 +3634,11 @@ export default function AnalyticsPage() {
                     }}
                   >
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionChannelFilter.length === 0 
-                        ? 'All Channels' 
-                        : exceptionChannelFilter.length === 1 
-                        ? exceptionChannelFilter[0] 
-                        : `${exceptionChannelFilter.length} selected`}
+                      {exceptionChannelFilter.length === 0
+                        ? 'All Channels'
+                        : exceptionChannelFilter.length === 1
+                          ? exceptionChannelFilter[0]
+                          : `${exceptionChannelFilter.length} selected`}
                     </span>
                     <span style={{ marginLeft: '8px' }}>{channelDropdownOpen ? '▲' : '▼'}</span>
                   </div>
@@ -3738,11 +3738,11 @@ export default function AnalyticsPage() {
                     }}
                   >
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionPolicyFilter.length === 0 
-                        ? 'All Policies' 
-                        : exceptionPolicyFilter.length === 1 
-                        ? exceptionPolicyFilter[0] 
-                        : `${exceptionPolicyFilter.length} selected`}
+                      {exceptionPolicyFilter.length === 0
+                        ? 'All Policies'
+                        : exceptionPolicyFilter.length === 1
+                          ? exceptionPolicyFilter[0]
+                          : `${exceptionPolicyFilter.length} selected`}
                     </span>
                     <span style={{ marginLeft: '8px' }}>{policyDropdownOpen ? '▲' : '▼'}</span>
                   </div>
@@ -3821,12 +3821,12 @@ export default function AnalyticsPage() {
               {/* Recommend Button and Clear Filters */}
               {(() => {
                 const hasUserQuery = userSearchQuery.trim()
-                const hasFilters = exceptionActionFilter.length > 0 || 
-                                 exceptionChannelFilter.length > 0 || 
-                                 exceptionPolicyFilter.length > 0 || 
-                                 exceptionDomainFilter.trim()
+                const hasFilters = exceptionActionFilter.length > 0 ||
+                  exceptionChannelFilter.length > 0 ||
+                  exceptionPolicyFilter.length > 0 ||
+                  exceptionDomainFilter.trim()
                 const canRecommend = hasUserQuery || hasFilters
-                
+
                 return (
                   <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                     <button
@@ -3896,19 +3896,19 @@ export default function AnalyticsPage() {
 
               {/* Summary Statistics */}
               {userIncidents.length > 0 && userReportData.length > 0 && (
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '24px', 
+                <div style={{
+                  display: 'flex',
+                  gap: '24px',
                   marginBottom: '24px',
                   padding: '16px',
                   background: 'var(--background-secondary)',
                   borderRadius: '8px',
                   border: '1px solid var(--border)'
                 }}>
-                  <div 
-                    style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
                       gap: '4px',
                       position: 'relative',
                       cursor: 'pointer'
@@ -3959,10 +3959,10 @@ export default function AnalyticsPage() {
                       {userIncidents.length}
                     </div>
                   </div>
-                  <div 
-                    style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
                       gap: '4px',
                       position: 'relative',
                       cursor: 'pointer'
@@ -4033,11 +4033,11 @@ export default function AnalyticsPage() {
                         boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                       }}>
                         {/* Policy Header - Clickable */}
-                        <div 
+                        <div
                           onClick={() => togglePolicy(pIdx)}
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
                             justifyContent: 'space-between',
                             marginBottom: isPolicyExpanded ? '16px' : '0',
                             paddingBottom: isPolicyExpanded ? '12px' : '0',
@@ -4101,11 +4101,11 @@ export default function AnalyticsPage() {
                                   borderRadius: '6px'
                                 }}>
                                   {/* Rule Header - Clickable */}
-                                  <div 
+                                  <div
                                     onClick={() => toggleRule(pIdx, rIdx)}
-                                    style={{ 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
                                       justifyContent: 'space-between',
                                       marginBottom: isRuleExpanded ? '12px' : '0',
                                       cursor: 'pointer',
@@ -4167,8 +4167,8 @@ export default function AnalyticsPage() {
                                     <>
                                       {/* Classifiers Statistics */}
                                       {rule.classifiers.length > 0 && (
-                                        <div style={{ 
-                                          paddingLeft: '8px', 
+                                        <div style={{
+                                          paddingLeft: '8px',
                                           marginTop: '12px',
                                           marginBottom: '12px'
                                         }}>
@@ -4178,10 +4178,10 @@ export default function AnalyticsPage() {
                                             borderRadius: '8px',
                                             border: '1px solid var(--border)'
                                           }}>
-                                            <h5 style={{ 
-                                              fontSize: '13px', 
-                                              fontWeight: '600', 
-                                              color: 'var(--text-primary)', 
+                                            <h5 style={{
+                                              fontSize: '13px',
+                                              fontWeight: '600',
+                                              color: 'var(--text-primary)',
                                               marginBottom: '12px',
                                               paddingBottom: '8px',
                                               borderBottom: '1px solid var(--border)'
@@ -4200,11 +4200,11 @@ export default function AnalyticsPage() {
                                                     borderRadius: '6px'
                                                   }}>
                                                     {/* Classifier Header - Clickable */}
-                                                    <div 
+                                                    <div
                                                       onClick={() => toggleClassifier(pIdx, rIdx, cIdx)}
-                                                      style={{ 
-                                                        display: 'flex', 
-                                                        alignItems: 'center', 
+                                                      style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
                                                         justifyContent: 'space-between',
                                                         marginBottom: isClassifierExpanded ? '8px' : '0',
                                                         cursor: 'pointer',
@@ -4233,9 +4233,9 @@ export default function AnalyticsPage() {
                                                         }}>
                                                           {isClassifierExpanded ? '−' : '+'}
                                                         </div>
-                                                        <div style={{ 
-                                                          fontSize: '12px', 
-                                                          fontWeight: '600', 
+                                                        <div style={{
+                                                          fontSize: '12px',
+                                                          fontWeight: '600',
                                                           color: 'var(--text-primary)'
                                                         }}>
                                                           {classifier.name}
@@ -4244,9 +4244,9 @@ export default function AnalyticsPage() {
                                                     </div>
                                                     {/* Classifier Content */}
                                                     {isClassifierExpanded && (
-                                                      <div style={{ 
-                                                        display: 'grid', 
-                                                        gridTemplateColumns: 'repeat(5, 1fr)', 
+                                                      <div style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: 'repeat(5, 1fr)',
                                                         gap: '12px',
                                                         fontSize: '11px',
                                                         marginTop: '8px'
@@ -4283,8 +4283,8 @@ export default function AnalyticsPage() {
 
                                       {/* Exceptions Statistics */}
                                       {rule.exceptions && rule.exceptions.length > 0 && (
-                                        <div style={{ 
-                                          paddingLeft: '8px', 
+                                        <div style={{
+                                          paddingLeft: '8px',
                                           marginTop: '12px',
                                           marginBottom: '12px'
                                         }}>
@@ -4294,10 +4294,10 @@ export default function AnalyticsPage() {
                                             borderRadius: '8px',
                                             border: '1px solid var(--border)'
                                           }}>
-                                            <h5 style={{ 
-                                              fontSize: '13px', 
-                                              fontWeight: '600', 
-                                              color: 'var(--text-primary)', 
+                                            <h5 style={{
+                                              fontSize: '13px',
+                                              fontWeight: '600',
+                                              color: 'var(--text-primary)',
                                               marginBottom: '12px',
                                               paddingBottom: '8px',
                                               borderBottom: '1px solid var(--border)'
@@ -4316,11 +4316,11 @@ export default function AnalyticsPage() {
                                                     borderRadius: '6px'
                                                   }}>
                                                     {/* Exception Header - Clickable */}
-                                                    <div 
+                                                    <div
                                                       onClick={() => toggleException(pIdx, rIdx, eIdx)}
-                                                      style={{ 
-                                                        display: 'flex', 
-                                                        alignItems: 'center', 
+                                                      style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
                                                         justifyContent: 'space-between',
                                                         marginBottom: isExceptionExpanded ? '8px' : '0',
                                                         cursor: 'pointer',
@@ -4349,9 +4349,9 @@ export default function AnalyticsPage() {
                                                         }}>
                                                           {isExceptionExpanded ? '−' : '+'}
                                                         </div>
-                                                        <span style={{ 
-                                                          fontSize: '12px', 
-                                                          fontWeight: '600', 
+                                                        <span style={{
+                                                          fontSize: '12px',
+                                                          fontWeight: '600',
                                                           color: '#f59e0b'
                                                         }}>
                                                           ⚠️ {exception.name}
@@ -4381,7 +4381,7 @@ export default function AnalyticsPage() {
                                                     </div>
                                                     {/* Exception Content */}
                                                     {isExceptionExpanded && exception.classifiers && exception.classifiers.length > 0 && (
-                                                      <div style={{ 
+                                                      <div style={{
                                                         marginTop: '8px',
                                                         paddingLeft: '8px'
                                                       }}>
@@ -4391,10 +4391,10 @@ export default function AnalyticsPage() {
                                                           borderRadius: '6px',
                                                           border: '1px solid var(--border)'
                                                         }}>
-                                                          <h6 style={{ 
-                                                            fontSize: '12px', 
-                                                            fontWeight: '600', 
-                                                            color: 'var(--text-primary)', 
+                                                          <h6 style={{
+                                                            fontSize: '12px',
+                                                            fontWeight: '600',
+                                                            color: 'var(--text-primary)',
                                                             marginBottom: '8px',
                                                             paddingBottom: '6px',
                                                             borderBottom: '1px solid var(--border)'
@@ -4409,17 +4409,17 @@ export default function AnalyticsPage() {
                                                                 border: '1px solid var(--border)',
                                                                 borderRadius: '4px'
                                                               }}>
-                                                                <div style={{ 
-                                                                  fontSize: '11px', 
-                                                                  fontWeight: '600', 
-                                                                  color: 'var(--text-primary)', 
-                                                                  marginBottom: '6px' 
+                                                                <div style={{
+                                                                  fontSize: '11px',
+                                                                  fontWeight: '600',
+                                                                  color: 'var(--text-primary)',
+                                                                  marginBottom: '6px'
                                                                 }}>
                                                                   {classifier.name}
                                                                 </div>
-                                                                <div style={{ 
-                                                                  display: 'grid', 
-                                                                  gridTemplateColumns: 'repeat(5, 1fr)', 
+                                                                <div style={{
+                                                                  display: 'grid',
+                                                                  gridTemplateColumns: 'repeat(5, 1fr)',
                                                                   gap: '8px',
                                                                   fontSize: '10px'
                                                                 }}>
@@ -4460,8 +4460,8 @@ export default function AnalyticsPage() {
 
                                       {/* Recommendations Box - Rule based recommendations */}
                                       {rule.classifiers.length > 0 && (
-                                        <div style={{ 
-                                          paddingLeft: '8px', 
+                                        <div style={{
+                                          paddingLeft: '8px',
                                           marginTop: '12px'
                                         }}>
                                           <div style={{
@@ -4470,10 +4470,10 @@ export default function AnalyticsPage() {
                                             borderRadius: '8px',
                                             border: '1px solid var(--border)'
                                           }}>
-                                            <h5 style={{ 
-                                              fontSize: '13px', 
-                                              fontWeight: '600', 
-                                              color: 'var(--text-primary)', 
+                                            <h5 style={{
+                                              fontSize: '13px',
+                                              fontWeight: '600',
+                                              color: 'var(--text-primary)',
                                               marginBottom: '12px',
                                               paddingBottom: '8px',
                                               borderBottom: '1px solid var(--border)'
@@ -4488,17 +4488,17 @@ export default function AnalyticsPage() {
                                                 border: '1px solid rgba(245, 158, 11, 0.3)',
                                                 borderRadius: '6px'
                                               }}>
-                                                <div style={{ 
-                                                  display: 'flex', 
-                                                  alignItems: 'center', 
+                                                <div style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
                                                   gap: '8px',
                                                   marginBottom: '8px'
                                                 }}>
                                                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
                                                   <strong style={{ color: '#f59e0b', fontSize: '13px' }}>Medium (Audit):</strong>
                                                 </div>
-                                                <div style={{ 
-                                                  fontSize: '12px', 
+                                                <div style={{
+                                                  fontSize: '12px',
                                                   color: 'var(--text-primary)',
                                                   lineHeight: '1.6',
                                                   paddingLeft: '18px'
@@ -4519,17 +4519,17 @@ export default function AnalyticsPage() {
                                                 border: '1px solid rgba(239, 68, 68, 0.3)',
                                                 borderRadius: '6px'
                                               }}>
-                                                <div style={{ 
-                                                  display: 'flex', 
-                                                  alignItems: 'center', 
+                                                <div style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
                                                   gap: '8px',
                                                   marginBottom: '8px'
                                                 }}>
                                                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
                                                   <strong style={{ color: '#ef4444', fontSize: '13px' }}>High (Block):</strong>
                                                 </div>
-                                                <div style={{ 
-                                                  fontSize: '12px', 
+                                                <div style={{
+                                                  fontSize: '12px',
                                                   color: 'var(--text-primary)',
                                                   lineHeight: '1.6',
                                                   paddingLeft: '18px'
