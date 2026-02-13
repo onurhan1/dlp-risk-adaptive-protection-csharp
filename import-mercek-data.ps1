@@ -77,46 +77,46 @@ $env:PGPASSWORD = $dbPassword
 $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
 
 $importSql = @"
--- Drop and recreate mercek_incidents table
-DROP TABLE IF EXISTS mercek_incidents;
+-- Drop and recreate merceks table
+DROP TABLE IF EXISTS merceks;
 
-CREATE TABLE mercek_incidents (
-    incident_id INTEGER PRIMARY KEY,
-    status_id VARCHAR(50),
-    flow_status_id VARCHAR(50),
-    assignment_group_id INTEGER,
-    summary_description VARCHAR(500),
-    incident_description TEXT,
-    impact_id VARCHAR(50),
-    priority_id VARCHAR(50),
-    category_id INTEGER,
-    assigned_user_code VARCHAR(100),
-    open_date TIMESTAMP,
-    close_date TIMESTAMP,
-    start_date TIMESTAMP,
-    solution_description TEXT,
-    request_type_id VARCHAR(50),
-    call_type_id VARCHAR(50),
-    solution_method VARCHAR(200),
-    user_name VARCHAR(200),
-    definition_category_id INTEGER,
-    definition_category_path VARCHAR(500)
+CREATE TABLE merceks (
+    incidentid INTEGER PRIMARY KEY,
+    statusid VARCHAR(50),
+    flowstatusid VARCHAR(50),
+    assignmentgroupid INTEGER,
+    summarydescription VARCHAR(500),
+    incidentdescription TEXT,
+    impactid VARCHAR(50),
+    priorityid VARCHAR(50),
+    categoryid INTEGER,
+    assignedusercode VARCHAR(100),
+    opendate TIMESTAMP,
+    closedate TIMESTAMP,
+    startdate TIMESTAMP,
+    solutiondescription TEXT,
+    requesttypeid VARCHAR(50),
+    calltypeid VARCHAR(50),
+    solutionmethod VARCHAR(200),
+    username VARCHAR(200),
+    definitioncategoryid INTEGER,
+    definitioncategorypath VARCHAR(500)
 );
 
 -- Create indexes
-CREATE INDEX idx_mercek_open_date ON mercek_incidents(open_date);
-CREATE INDEX idx_mercek_close_date ON mercek_incidents(close_date);
-CREATE INDEX idx_mercek_user_name ON mercek_incidents(user_name);
-CREATE INDEX idx_mercek_assigned_user ON mercek_incidents(assigned_user_code);
-CREATE INDEX idx_mercek_status ON mercek_incidents(status_id);
+CREATE INDEX idx_mercek_opendate ON merceks(opendate);
+CREATE INDEX idx_mercek_closedate ON merceks(closedate);
+CREATE INDEX idx_mercek_username ON merceks(username);
+CREATE INDEX idx_mercek_assignedusercode ON merceks(assignedusercode);
+CREATE INDEX idx_mercek_statusid ON merceks(statusid);
 
 -- Import CSV data
-COPY mercek_incidents (
-    incident_id, status_id, flow_status_id, assignment_group_id,
-    summary_description, incident_description, impact_id, priority_id,
-    category_id, assigned_user_code, open_date, close_date, start_date,
-    solution_description, request_type_id, call_type_id, solution_method,
-    user_name, definition_category_id, definition_category_path
+COPY merceks (
+    incidentid, statusid, flowstatusid, assignmentgroupid,
+    summarydescription, incidentdescription, impactid, priorityid,
+    categoryid, assignedusercode, opendate, closedate, startdate,
+    solutiondescription, requesttypeid, calltypeid, solutionmethod,
+    username, definitioncategoryid, definitioncategorypath
 )
 FROM '$($csvFullPath -replace '\\','/')'
 WITH (FORMAT csv, HEADER true, DELIMITER ',', NULL '', QUOTE '"');
@@ -134,7 +134,7 @@ try {
         Write-Host "`n✓ Import completed successfully!" -ForegroundColor $SuccessColor
         
         # Get record count
-        $countQuery = "SELECT COUNT(*) FROM mercek_incidents;"
+        $countQuery = "SELECT COUNT(*) FROM merceks;"
         $count = & psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -t -c $countQuery
         
         Write-Host "Total records imported: $($count.Trim())" -ForegroundColor $SuccessColor
