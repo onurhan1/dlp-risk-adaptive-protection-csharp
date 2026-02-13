@@ -25,6 +25,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<AzureAIExplanation> AzureAIExplanations { get; set; }
     public DbSet<ReleasedIncident> ReleasedIncidents { get; set; }
     public DbSet<MercekIncident> MercekIncidents { get; set; }
+    public DbSet<PolicyRuleException> PolicyRuleExceptions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -371,6 +372,23 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.UserName);
             entity.HasIndex(e => e.AssignedUserCode);
             entity.HasIndex(e => e.StatusId);
+        });
+
+        // Configure PolicyRuleException
+        modelBuilder.Entity<PolicyRuleException>(entity =>
+        {
+            entity.ToTable("policy_rule_exceptions");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.PolicyName).HasColumnName("policy_name").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.RuleName).HasColumnName("rule_name").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.ExceptionName).HasColumnName("exception_name").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.SyncedAt).HasColumnName("synced_at");
+
+            entity.HasIndex(e => e.PolicyName);
+            entity.HasIndex(e => e.ExceptionName);
+            entity.HasIndex(e => new { e.PolicyName, e.ExceptionName });
         });
     }
 }
