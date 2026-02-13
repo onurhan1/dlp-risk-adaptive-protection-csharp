@@ -536,7 +536,7 @@ export default function Home() {
           })
           const dates = sorted.map(d => {
             const ds = d.date || d.Date || ''
-            try { return new Date(ds).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) } catch { return ds }
+            try { return new Date(ds).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return ds }
           })
           const totals = sorted.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0)
           const highRisks = sorted.map(d => d.high_risk_count ?? d.highRiskCount ?? d.HighRiskCount ?? 0)
