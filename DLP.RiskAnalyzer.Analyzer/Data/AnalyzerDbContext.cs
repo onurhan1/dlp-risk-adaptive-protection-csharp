@@ -342,7 +342,7 @@ public class AnalyzerDbContext : DbContext
         // Configure MercekIncident
         modelBuilder.Entity<MercekIncident>(entity =>
         {
-            entity.ToTable("mercek_incidents");
+            entity.ToTable("merceks");
             entity.HasKey(e => e.IncidentId);
             
             entity.Property(e => e.IncidentId).HasColumnName("incident_id");

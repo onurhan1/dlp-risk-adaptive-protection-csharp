@@ -550,10 +550,20 @@ export default function AnalyticsPage() {
     }
   }
 
-  // Load filter options when CSV Analysis is opened
+  // Auto-load Mercek data when CSV Analysis is opened and refresh every 30 seconds
   useEffect(() => {
-    if (showCSVAnalysis && !mercekDataLoaded) {
+    if (showCSVAnalysis) {
+      // Initial load
       fetchMercekFilters()
+      fetchMercekData(1, csvPageSize)
+
+      // Auto-refresh every 30 seconds
+      const intervalId = setInterval(() => {
+        fetchMercekData(csvCurrentPage, csvPageSize)
+      }, 30000) // 30 seconds
+
+      // Cleanup interval on unmount or when CSV Analysis is closed
+      return () => clearInterval(intervalId)
     }
   }, [showCSVAnalysis])
 
@@ -1579,70 +1589,66 @@ export default function AnalyticsPage() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
-                <button
-                  onClick={() => setShowCSVAnalysis(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-hover)',
-                    color: 'var(--text-primary)',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Kapat
-                </button>
-              </div>
-
-              {/* Mercek Data Load Button */}
-              <div style={{ marginBottom: '24px' }}>
-                <button
-                  onClick={() => fetchMercekData(1)}
-                  disabled={mercekLoading}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: mercekLoading ? 'not-allowed' : 'pointer',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {mercekLoading ? (
-                    <>
-                      <span style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid white',
-                        borderTopColor: 'transparent',
-                        borderRadius: '50%',
-                        animation: 'spin 0.6s linear infinite'
-                      }} />
-                      Yükleniyor...
-                    </>
-                  ) : (
-                    <>
-                      📊 Mercek Verilerini Yükle
-                    </>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
+                  {mercekLoading && (
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid var(--border)',
+                      borderTopColor: 'var(--primary)',
+                      borderRadius: '50%',
+                      animation: 'spin 0.6s linear infinite'
+                    }} />
                   )}
-                </button>
-                <style jsx>{`
-                  @keyframes spin {
-                    to { transform: rotate(360deg); }
-                  }
-                `}</style>
+                  {mercekDataLoaded && !mercekLoading && (
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      (Otomatik güncelleniyor - Her 30 saniye)
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => fetchMercekData(csvCurrentPage, csvPageSize)}
+                    disabled={mercekLoading}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: mercekLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    🔄 Yenile
+                  </button>
+                  <button
+                    onClick={() => setShowCSVAnalysis(false)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-hover)',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Kapat
+                  </button>
+                </div>
               </div>
+              <style jsx>{`
+                @keyframes spin {
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
 
               {/* Error Message */}
               {mercekError && (
@@ -1656,26 +1662,6 @@ export default function AnalyticsPage() {
                   marginBottom: '16px'
                 }}>
                   ⚠️ {mercekError}
-                </div>
-              )}
-
-              {/* Loading Spinner */}
-              {mercekLoading && (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: 'var(--text-secondary)'
-                }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    border: '3px solid var(--border)',
-                    borderTopColor: 'var(--primary)',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                    margin: '0 auto 16px'
-                  }} />
-                  <p style={{ fontSize: '14px', margin: 0 }}>Mercek verileri yükleniyor...</p>
                 </div>
               )}
 
