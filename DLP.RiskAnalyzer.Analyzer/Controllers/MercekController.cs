@@ -10,7 +10,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 /// Provides endpoints for retrieving, filtering, and analyzing incident data
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/mercek")]
 public class MercekController : ControllerBase
 {
     private readonly AnalyzerDbContext _dbContext;
