@@ -131,7 +131,8 @@ export default function GridExport({
         setExporting('pdf')
         try {
             const { default: jsPDF } = await import('jspdf')
-            await import('jspdf-autotable')
+            // Import autoTable and extend jsPDF
+            const autoTable = (await import('jspdf-autotable')).default
 
             const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
@@ -151,26 +152,27 @@ export default function GridExport({
                 columns.map(col => getFormattedValue(row, col))
             )
 
-                ; (doc as any).autoTable({
-                    head: [headers],
-                    body: rows,
-                    startY: 25,
-                    styles: {
-                        fontSize: 7,
-                        cellPadding: 2,
-                        overflow: 'linebreak',
-                    },
-                    headStyles: {
-                        fillColor: [59, 130, 246],
-                        textColor: [255, 255, 255],
-                        fontStyle: 'bold',
-                        fontSize: 8,
-                    },
-                    alternateRowStyles: {
-                        fillColor: [248, 250, 252],
-                    },
-                    margin: { top: 25, left: 10, right: 10 },
-                })
+            // Use autoTable with proper typing
+            autoTable(doc, {
+                head: [headers],
+                body: rows,
+                startY: 25,
+                styles: {
+                    fontSize: 7,
+                    cellPadding: 2,
+                    overflow: 'linebreak',
+                },
+                headStyles: {
+                    fillColor: [59, 130, 246],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 8,
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252],
+                },
+                margin: { top: 25, left: 10, right: 10 },
+            })
 
             doc.save(`${fileName}.pdf`)
         } finally {
