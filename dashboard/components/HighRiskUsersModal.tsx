@@ -196,7 +196,22 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                         </div>
                     ) : users.length === 0 ? (
                         <div style={{
-                            display: 'flex',#</th>
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '40px',
+                            color: 'var(--text-muted)'
+                        }}>
+                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No high-risk users</div>
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>on {formattedDate}</div>
+                        </div>
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>#</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</th>
                                     <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk Score</th>
@@ -269,22 +284,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                             showTotalItems={true}
                         />
                     </div>
-                )}                          fontWeight: '600',
-                                                color: 'white',
-                                                backgroundColor: getRiskColor(user.max_risk_score)
-                                            }}>
-                                                {user.max_risk_score}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'right', fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                                            {user.incident_count}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+                )}
             </div>
         </>
     )
