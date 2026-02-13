@@ -396,7 +396,7 @@ export default function Home() {
           <h2>{t('dashboard.actionAnalysis')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
             {/* Donut Chart */}
-            <div style={{ height: '280px' }}>
+            <div style={{ height: '300px' }}>
               <Plot
                 data={[{
                   values: [
@@ -413,7 +413,7 @@ export default function Home() {
                     line: { color: 'rgba(0,0,0,0.1)', width: 1 }
                   },
                   textinfo: 'label+percent',
-                  textfont: { size: 11, color: '#fff' },
+                  textfont: { size: 13, color: '#fff' },
                   hoverinfo: 'label+value+percent',
                   sort: false,
                 }]}
@@ -423,12 +423,12 @@ export default function Home() {
                   paper_bgcolor: 'transparent',
                   plot_bgcolor: 'transparent',
                   annotations: [{
-                    text: `<b>${actionSummary.total}</b><br><span style="font-size:11px">${t('common.total')}</span>`,
+                    text: `<b>${actionSummary.total}</b><br><span style="font-size:13px">${t('common.total')}</span>`,
                     showarrow: false,
-                    font: { size: 20, color: 'var(--text-primary)' },
+                    font: { size: 24, color: 'var(--text-primary)' },
                     x: 0.5, y: 0.5,
                   }],
-                  height: 280,
+                  height: 300,
                 }}
                 config={{ displayModeBar: false, responsive: true }}
                 style={{ width: '100%', height: '100%' }}
@@ -469,8 +469,8 @@ export default function Home() {
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px', letterSpacing: '0.5px' }}>{action}</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700' }}>{value}</div>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px', letterSpacing: '0.5px' }}>{action}</div>
+                  <div style={{ fontSize: '32px', fontWeight: '700' }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -483,9 +483,9 @@ export default function Home() {
       <div className="card">
         <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ margin: 0 }}>📈 {t('dashboard.dailyTrends')}</h2>
-            <p className="chart-subtitle" style={{ margin: '4px 0 0 0' }}>
-              Showing {dailySummary.length} days • {trendsDateRange.start} to {trendsDateRange.end}
+            <h2 style={{ margin: 0, fontSize: '24px' }}>📈 {t('dashboard.dailyTrends')}</h2>
+            <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '15px' }}>
+              {t('dashboard.showing')} {dailySummary.length} {t('dashboard.days')} • {trendsDateRange.start} {t('common.to')} {trendsDateRange.end}
             </p>
           </div>
           <div className="filter-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
@@ -501,9 +501,9 @@ export default function Home() {
                   setTrendsDateRange(prev => ({ ...prev, start: newStart }))
                 }
               }}
-              style={{ padding: '6px 10px', minWidth: '130px' }}
+              style={{ padding: '6px 10px', minWidth: '130px', fontSize: '15px' }}
             />
-            <span style={{ color: '#666' }}>to</span>
+            <span style={{ color: '#666', fontSize: '15px' }}>{t('common.to')}</span>
             <input
               type="date"
               className="filter-input"
@@ -516,7 +516,7 @@ export default function Home() {
                   setTrendsDateRange(prev => ({ ...prev, end: newEnd }))
                 }
               }}
-              style={{ padding: '6px 10px', minWidth: '130px' }}
+              style={{ padding: '6px 10px', minWidth: '130px', fontSize: '15px' }}
             />
           </div>
         </div>
@@ -580,27 +580,27 @@ export default function Home() {
                 },
               ]}
               layout={{
-                margin: { t: 20, b: 50, l: 55, r: 55 },
+                margin: { t: 20, b: 60, l: 60, r: 60 },
                 paper_bgcolor: 'transparent',
                 plot_bgcolor: 'transparent',
                 xaxis: {
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  tickfont: { size: 12, color: 'var(--text-muted)' },
                   tickangle: -45,
                   showgrid: true,
                 },
                 yaxis: {
-                  title: { text: t('dashboard.incidents'), font: { size: 11, color: 'var(--text-muted)' } },
+                  title: { text: t('dashboard.incidents'), font: { size: 13, color: 'var(--text-muted)' } },
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  tickfont: { size: 12, color: 'var(--text-muted)' },
                   zeroline: false,
                 },
                 yaxis2: {
-                  title: { text: t('dashboard.avgRiskScore'), font: { size: 11, color: 'var(--text-muted)' } },
+                  title: { text: t('dashboard.avgRiskScore'), font: { size: 13, color: 'var(--text-muted)' } },
                   overlaying: 'y',
                   side: 'right',
                   gridcolor: 'rgba(128,128,128,0.05)',
-                  tickfont: { size: 10, color: '#f59e0b' },
+                  tickfont: { size: 12, color: '#f59e0b' },
                   zeroline: false,
                   range: [0, 100],
                 },
@@ -609,10 +609,10 @@ export default function Home() {
                   x: 0.5,
                   y: -0.25,
                   xanchor: 'center',
-                  font: { size: 11, color: 'var(--text-muted)' },
+                  font: { size: 13, color: 'var(--text-muted)' },
                   bgcolor: 'transparent',
                 },
-                height: 380,
+                height: 400,
                 hovermode: 'x unified',
               }}
               config={{ displayModeBar: false, responsive: true }}
@@ -652,21 +652,21 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>User</th>
-                <th className="text-center">Risk Score</th>
-                <th className="text-center">Days Active</th>
-                <th className="text-center">Incidents</th>
-                <th className="text-right">Action</th>
+                <th>{t('common.user')}</th>
+                <th className="text-center">{t('dashboard.riskScore')}</th>
+                <th className="text-center">{t('dashboard.daysActive')}</th>
+                <th className="text-center">{t('dashboard.incidents')}</th>
+                <th className="text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="loading-cell">Loading...</td>
+                  <td colSpan={5} className="loading-cell">{t('common.loading')}</td>
                 </tr>
               ) : topUsersPeriod.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="empty-cell">No data available</td>
+                  <td colSpan={5} className="empty-cell">{t('common.noData')}</td>
                 </tr>
               ) : (
                 topUsersPeriod.slice((topUsersPeriodPage - 1) * usersPerPage, topUsersPeriodPage * usersPerPage).map((user, idx) => (
@@ -746,21 +746,21 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>User</th>
-                <th className="text-center">Risk Score</th>
-                <th className="text-center">Blocks</th>
-                <th className="text-center">Incidents</th>
-                <th className="text-right">Action</th>
+                <th>{t('common.user')}</th>
+                <th className="text-center">{t('dashboard.riskScore')}</th>
+                <th className="text-center">{t('dashboard.blocks')}</th>
+                <th className="text-center">{t('dashboard.incidents')}</th>
+                <th className="text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="loading-cell">Loading...</td>
+                  <td colSpan={5} className="loading-cell">{t('common.loading')}</td>
                 </tr>
               ) : topUsers24h.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="empty-cell">No activity today</td>
+                  <td colSpan={5} className="empty-cell">{t('common.noData')}</td>
                 </tr>
               ) : (
                 topUsers24h.slice((topUsers24hPage - 1) * usersPerPage, topUsers24hPage * usersPerPage).map((user, idx) => (
@@ -790,12 +790,12 @@ export default function Home() {
                       <button
                         onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
                         style={{
-                          padding: '4px 10px',
+                          padding: '6px 12px',
                           borderRadius: '6px',
                           border: 'none',
                           background: '#f57c00',
                           color: 'white',
-                          fontSize: '11px',
+                          fontSize: '13px',
                           fontWeight: '600',
                           cursor: 'pointer',
                           whiteSpace: 'nowrap'
@@ -906,21 +906,21 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '24px' }}>🚨</span>
               <div>
-                <h2 style={{ margin: 0, color: '#dc2626' }}>{t('dashboard.potentialExfiltration')}</h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  High-volume data transfer events (max_matches ≥ 100, daily_score ≥ 80) - Last 30 days
+                <h2 style={{ margin: 0, color: '#dc2626', fontSize: '24px' }}>{t('dashboard.potentialExfiltration')}</h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: 'var(--text-muted)' }}>
+                  {t('dashboard.highVolumeTransfer')}
                 </p>
               </div>
             </div>
             <span style={{
-              fontSize: '12px',
+              fontSize: '14px',
               color: 'white',
               backgroundColor: '#dc2626',
-              padding: '4px 12px',
+              padding: '6px 14px',
               borderRadius: '12px',
               fontWeight: '600'
             }}>
-              {highImpactPagination.totalCount} Alert{highImpactPagination.totalCount !== 1 ? 's' : ''}
+              {highImpactPagination.totalCount} {t('dashboard.alerts')}{highImpactPagination.totalCount !== 1 ? 's' : ''}
             </span>
           </div>
 
@@ -966,15 +966,15 @@ export default function Home() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
                       <span style={{
-                        fontSize: '16px',
+                        fontSize: '18px',
                         transition: 'transform 0.2s',
                         transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
                       }}>▶</span>
 
                       <span style={{
-                        padding: '2px 8px',
+                        padding: '3px 10px',
                         borderRadius: '4px',
-                        fontSize: '10px',
+                        fontSize: '12px',
                         fontWeight: '700',
                         color: 'white',
                         backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' :
@@ -985,16 +985,16 @@ export default function Home() {
                         {alert.severity_level.toUpperCase()}
                       </span>
 
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px', minWidth: '200px' }}>
+                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '16px', minWidth: '200px' }}>
                         {alert.user_email}
                       </div>
 
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '16px' }}>
-                        <span><strong style={{ color: '#dc2626' }}>{alert.max_max_matches}</strong> matches</span>
-                        <span>Score: <strong>{Math.round(alert.daily_risk_score)}</strong></span>
+                      <div style={{ fontSize: '14px', color: 'var(--text-muted)', display: 'flex', gap: '16px' }}>
+                        <span><strong style={{ color: '#dc2626' }}>{alert.max_max_matches}</strong> {t('dashboard.matches')}</span>
+                        <span>{t('dashboard.score')}: <strong>{Math.round(alert.daily_risk_score)}</strong></span>
                         <span>{alert.highest_risk_date}</span>
                         {alert.is_single_day_event && (
-                          <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ Single-day</span>
+                          <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ {t('dashboard.singleDay')}</span>
                         )}
                       </div>
                     </div>
@@ -1005,18 +1005,18 @@ export default function Home() {
                         router.push(`/investigation?user=${encodeURIComponent(alert.user_email)}`)
                       }}
                       style={{
-                        padding: '6px 12px',
+                        padding: '8px 16px',
                         borderRadius: '6px',
                         border: 'none',
                         background: '#dc2626',
                         color: 'white',
-                        fontSize: '11px',
+                        fontSize: '14px',
                         fontWeight: '600',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      🔍 Investigate
+                      🔍 {t('dashboard.investigate')}
                     </button>
                   </div>
 
@@ -1034,66 +1034,66 @@ export default function Home() {
                         gap: '12px',
                         marginBottom: '16px'
                       }}>
-                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Impact Score</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc2626' }}>{Math.round(alert.impact_score)}</div>
+                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.impactScore')}</div>
+                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#dc2626' }}>{Math.round(alert.impact_score)}</div>
                         </div>
-                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Incidents</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{alert.incident_count}</div>
+                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.incidents')}</div>
+                          <div style={{ fontSize: '20px', fontWeight: '700' }}>{alert.incident_count}</div>
                         </div>
-                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Blocks</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#ef4444' }}>{alert.block_count}</div>
+                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.blocks')}</div>
+                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ef4444' }}>{alert.block_count}</div>
                         </div>
-                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Quarantines</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700', color: '#f59e0b' }}>{alert.quarantine_count}</div>
+                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.quarantines')}</div>
+                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#f59e0b' }}>{alert.quarantine_count}</div>
                         </div>
-                        <div style={{ textAlign: 'center', padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Active Days</div>
-                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{alert.days_with_activity}</div>
+                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.activeDays')}</div>
+                          <div style={{ fontSize: '20px', fontWeight: '700' }}>{alert.days_with_activity}</div>
                         </div>
                       </div>
 
                       {/* Incident Details Table */}
                       {alert.incident_details && alert.incident_details.length > 0 && (
                         <div>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-primary)' }}>
-                            📄 Top Incidents on {alert.highest_risk_date}
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: 'var(--text-primary)' }}>
+                            📄 {t('dashboard.incidentDetails')} - {alert.highest_risk_date}
                           </h4>
                           <div style={{
                             border: '1px solid var(--border)',
                             borderRadius: '6px',
                             overflow: 'hidden',
-                            fontSize: '12px'
+                            fontSize: '14px'
                           }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                               <thead>
                                 <tr style={{ background: 'var(--background)' }}>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>File</th>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Destination</th>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Channel</th>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Action</th>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Policy</th>
-                                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>Matches</th>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>Time</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.fileName')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.destination')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.channel')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.action')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.policy')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.matches')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.timestamp')}</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {alert.incident_details.map((detail, dIdx) => (
                                   <tr key={dIdx} style={{ borderBottom: dIdx < alert.incident_details.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                    <td style={{ padding: '8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.file_name}>
+                                    <td style={{ padding: '10px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.file_name}>
                                       {detail.file_name || '-'}
                                     </td>
-                                    <td style={{ padding: '8px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.destination}>
+                                    <td style={{ padding: '10px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.destination}>
                                       {detail.destination || '-'}
                                     </td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td style={{ padding: '10px' }}>
                                       <span style={{
-                                        padding: '2px 6px',
+                                        padding: '3px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '10px',
+                                        fontSize: '12px',
                                         background: detail.channel === 'Email' ? '#3b82f6' :
                                           detail.channel === 'USB' ? '#8b5cf6' :
                                             detail.channel === 'Cloud' ? '#06b6d4' : '#6b7280',
@@ -1102,11 +1102,11 @@ export default function Home() {
                                         {detail.channel || '-'}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '8px' }}>
+                                    <td style={{ padding: '10px' }}>
                                       <span style={{
-                                        padding: '2px 6px',
+                                        padding: '3px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '10px',
+                                        fontSize: '12px',
                                         background: (() => {
                                           const action = (detail.action || '').toUpperCase()
                                           if (action === 'BLOCK' || action === 'BLOCKED') return '#ef4444'
@@ -1119,13 +1119,13 @@ export default function Home() {
                                         {detail.action || '-'}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.policy}>
+                                    <td style={{ padding: '10px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.policy}>
                                       {detail.policy || '-'}
                                     </td>
-                                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600', color: '#dc2626' }}>
+                                    <td style={{ padding: '10px', textAlign: 'right', fontWeight: '600', color: '#dc2626', fontSize: '14px' }}>
                                       {detail.max_matches}
                                     </td>
-                                    <td style={{ padding: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                    <td style={{ padding: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
                                       {detail.timestamp?.split(' ')[1] || '-'}
                                     </td>
                                   </tr>

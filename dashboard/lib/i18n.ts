@@ -48,7 +48,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'loading.pleaseWait': 'Lütfen bekleyin...',
 
         // Sidebar / Navigation
-        'nav.dashboard': 'Kontrol Paneli',
+        'nav.dashboard': 'Anasayfa',
         'nav.investigation': 'Soruşturma',
         'nav.aiBehavioral': 'AI Davranışsal',
         'nav.exceptions': 'İstisnalar',
@@ -58,7 +58,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.help': 'Yardım & Destek',
 
         // Dashboard
-        'dashboard.title': 'Kontrol Paneli',
+        'dashboard.title': 'Anasayfa',
         'dashboard.subtitle': 'Gerçek zamanlı DLP olay analizi ve risk skorlama',
         'dashboard.dailyReport': 'Günlük Rapor',
         'dashboard.totalIncidents': 'Toplam Olay',
@@ -90,6 +90,18 @@ export const translations: Record<Locale, Record<string, string>> = {
         'dashboard.singleDay': 'Tek gün',
         'dashboard.riskScore': 'Risk Skoru',
         'dashboard.daysActive': 'Aktif Gün',
+        'dashboard.showing': 'Gösterilen',
+        'dashboard.days': 'gün',
+        'dashboard.highVolumeTransfer': 'Yüksek hacimli veri transfer olayları (max_matches ≥ 100, daily_score ≥ 80) - Son 30 gün',
+        'dashboard.viewDetails': 'Detayları Görüntüle',
+        'dashboard.hideDetails': 'Detayları Gizle',
+        'dashboard.incidentDetails': 'Olay Detayları',
+        'dashboard.fileName': 'Dosya Adı',
+        'dashboard.destination': 'Hedef',
+        'dashboard.channel': 'Kanal',
+        'dashboard.action': 'Aksiyon',
+        'dashboard.policy': 'Politika',
+        'dashboard.timestamp': 'Zaman Damgası',
 
         // Analytics
         'analytics.title': 'Analitik',
@@ -203,7 +215,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'loading.pleaseWait': 'Please wait...',
 
         // Sidebar / Navigation
-        'nav.dashboard': 'Dashboard',
+        'nav.dashboard': 'Home Page',
         'nav.investigation': 'Investigation',
         'nav.aiBehavioral': 'AI Behavioral',
         'nav.exceptions': 'Exceptions',
@@ -213,7 +225,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.help': 'Help & Support',
 
         // Dashboard
-        'dashboard.title': 'Dashboard',
+        'dashboard.title': 'Home Page',
         'dashboard.subtitle': 'Real-time data loss prevention incident analysis and risk scoring',
         'dashboard.dailyReport': 'Daily Report',
         'dashboard.totalIncidents': 'Total Incidents',
@@ -245,6 +257,18 @@ export const translations: Record<Locale, Record<string, string>> = {
         'dashboard.singleDay': 'Single-day',
         'dashboard.riskScore': 'Risk Score',
         'dashboard.daysActive': 'Days Active',
+        'dashboard.showing': 'Showing',
+        'dashboard.days': 'days',
+        'dashboard.highVolumeTransfer': 'High-volume data transfer events (max_matches ≥ 100, daily_score ≥ 80) - Last 30 days',
+        'dashboard.viewDetails': 'View Details',
+        'dashboard.hideDetails': 'Hide Details',
+        'dashboard.incidentDetails': 'Incident Details',
+        'dashboard.fileName': 'File Name',
+        'dashboard.destination': 'Destination',
+        'dashboard.channel': 'Channel',
+        'dashboard.action': 'Action',
+        'dashboard.policy': 'Policy',
+        'dashboard.timestamp': 'Timestamp',
 
         // Analytics
         'analytics.title': 'Analytics',
