@@ -24,7 +24,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<DomainFeatureValue> DomainFeatureValues { get; set; }
     public DbSet<AzureAIExplanation> AzureAIExplanations { get; set; }
     public DbSet<ReleasedIncident> ReleasedIncidents { get; set; }
-    public DbSet<PolicyRuleException> PolicyRuleExceptions { get; set; }
+    public DbSet<MercekIncident> MercekIncidents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -339,21 +339,38 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => new { e.IncidentId, e.UpdateTime }).IsUnique();
         });
 
-        // Configure PolicyRuleException
-        modelBuilder.Entity<PolicyRuleException>(entity =>
+        // Configure MercekIncident
+        modelBuilder.Entity<MercekIncident>(entity =>
         {
-            entity.ToTable("policy_rule_exceptions");
-            entity.HasKey(e => e.Id);
+            entity.ToTable("mercek_incidents");
+            entity.HasKey(e => e.IncidentId);
+            
+            entity.Property(e => e.IncidentId).HasColumnName("incident_id");
+            entity.Property(e => e.StatusId).HasColumnName("status_id").HasMaxLength(50);
+            entity.Property(e => e.FlowStatusId).HasColumnName("flow_status_id").HasMaxLength(50);
+            entity.Property(e => e.AssignmentGroupId).HasColumnName("assignment_group_id");
+            entity.Property(e => e.SummaryDescription).HasColumnName("summary_description").HasMaxLength(500);
+            entity.Property(e => e.IncidentDescription).HasColumnName("incident_description");
+            entity.Property(e => e.ImpactId).HasColumnName("impact_id").HasMaxLength(50);
+            entity.Property(e => e.PriorityId).HasColumnName("priority_id").HasMaxLength(50);
+            entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.Property(e => e.AssignedUserCode).HasColumnName("assigned_user_code").HasMaxLength(100);
+            entity.Property(e => e.OpenDate).HasColumnName("open_date");
+            entity.Property(e => e.CloseDate).HasColumnName("close_date");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.SolutionDescription).HasColumnName("solution_description");
+            entity.Property(e => e.RequestTypeId).HasColumnName("request_type_id").HasMaxLength(50);
+            entity.Property(e => e.CallTypeId).HasColumnName("call_type_id").HasMaxLength(50);
+            entity.Property(e => e.SolutionMethod).HasColumnName("solution_method").HasMaxLength(200);
+            entity.Property(e => e.UserName).HasColumnName("user_name").HasMaxLength(200);
+            entity.Property(e => e.DefinitionCategoryId).HasColumnName("definition_category_id");
+            entity.Property(e => e.DefinitionCategoryPath).HasColumnName("definition_category_path").HasMaxLength(500);
 
-            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
-            entity.Property(e => e.PolicyName).HasColumnName("policy_name").IsRequired();
-            entity.Property(e => e.RuleName).HasColumnName("rule_name").IsRequired();
-            entity.Property(e => e.ExceptionName).HasColumnName("exception_name").IsRequired();
-            entity.Property(e => e.SyncedAt).HasColumnName("synced_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-            entity.HasIndex(e => e.RuleName);
-            entity.HasIndex(e => e.ExceptionName);
-            entity.HasIndex(e => new { e.PolicyName, e.RuleName, e.ExceptionName }).IsUnique();
+            entity.HasIndex(e => e.OpenDate);
+            entity.HasIndex(e => e.CloseDate);
+            entity.HasIndex(e => e.UserName);
+            entity.HasIndex(e => e.AssignedUserCode);
+            entity.HasIndex(e => e.StatusId);
         });
     }
 }

@@ -99,13 +99,18 @@ export default function AnalyticsPage() {
   const [showCSVAnalysis, setShowCSVAnalysis] = useState(false)
   const [csvData, setCsvData] = useState<any[]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
-  const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvSearchQuery, setCsvSearchQuery] = useState('')
   const [csvPageSize, setCsvPageSize] = useState(10)
   const [csvCurrentPage, setCsvCurrentPage] = useState(1)
   const [csvDateFrom, setCsvDateFrom] = useState('')
   const [csvDateTo, setCsvDateTo] = useState('')
   const [csvSelectedUser, setCsvSelectedUser] = useState('')
+  const [mercekLoading, setMercekLoading] = useState(false)
+  const [mercekError, setMercekError] = useState<string | null>(null)
+  const [mercekTotalCount, setMercekTotalCount] = useState(0)
+  const [mercekTotalPages, setMercekTotalPages] = useState(0)
+  const [mercekAvailableUsers, setMercekAvailableUsers] = useState<string[]>([])
+  const [mercekDataLoaded, setMercekDataLoaded] = useState(false)
 
   // User Incident Analysis States
   const [userSearchQuery, setUserSearchQuery] = useState('')
@@ -465,6 +470,92 @@ export default function AnalyticsPage() {
 
     return filtered
   }, [incidents, dateRange, selectedDepartment, selectedTeam, selectedUser, selectedFullName, selectedPolicy, selectedDomain, selectedAction, columnFilters, sortColumn, sortDirection])
+
+  // Mercek API Functions
+  const fetchMercekData = async (page: number = 1, customPageSize?: number) => {
+    setMercekLoading(true)
+    setMercekError(null)
+    
+    try {
+      const params: any = {
+        page: page,
+        pageSize: customPageSize || csvPageSize
+      }
+      
+      if (csvSelectedUser) {
+        params.userName = csvSelectedUser
+      }
+      if (csvDateFrom) {
+        params.startDate = csvDateFrom
+      }
+      if (csvDateTo) {
+        params.endDate = csvDateTo
+      }
+      if (csvSearchQuery) {
+        params.searchTerm = csvSearchQuery
+      }
+      
+      const response = await apiClient.get('/api/mercek', { params })
+      const data = response.data
+      
+      // Map API response to table format
+      const mappedData = data.items.map((item: any) => ({
+        'incident_id': item.incidentId,
+        'status_id': item.statusId,
+        'flow_status_id': item.flowStatusId,
+        'assignment_group_id': item.assignmentGroupId,
+        'summary_description': item.summaryDescription,
+        'incident_description': item.incidentDescription,
+        'impact_id': item.impactId,
+        'priority_id': item.priorityId,
+        'category_id': item.categoryId,
+        'assigned_user_code': item.assignedUserCode,
+        'open_date': item.openDate,
+        'close_date': item.closeDate,
+        'start_date': item.startDate,
+        'solution_description': item.solutionDescription,
+        'request_type_id': item.requestTypeId,
+        'call_type_id': item.callTypeId,
+        'solution_method': item.solutionMethod,
+        'user_name': item.userName,
+        'definition_category_id': item.definitionCategoryId,
+        'definition_category_path': item.definitionCategoryPath
+      }))
+      
+      setCsvData(mappedData)
+      setMercekTotalCount(data.totalCount)
+      setMercekTotalPages(data.totalPages)
+      setCsvCurrentPage(data.page)
+      setMercekDataLoaded(true)
+      
+      // Set headers from first item if available
+      if (mappedData.length > 0) {
+        setCsvHeaders(Object.keys(mappedData[0]))
+      }
+    } catch (error: any) {
+      setMercekError(error.response?.data?.error || 'Mercek verileri yüklenirken hata oluştu')
+      console.error('Mercek fetch error:', error)
+    } finally {
+      setMercekLoading(false)
+    }
+  }
+
+  const fetchMercekFilters = async () => {
+    try {
+      const response = await apiClient.get('/api/mercek/filters')
+      const data = response.data
+      setMercekAvailableUsers(data.users || [])
+    } catch (error) {
+      console.error('Mercek filters fetch error:', error)
+    }
+  }
+
+  // Load filter options when CSV Analysis is opened
+  useEffect(() => {
+    if (showCSVAnalysis && !mercekDataLoaded) {
+      fetchMercekFilters()
+    }
+  }, [showCSVAnalysis])
 
   // Reset page when filters change
   useEffect(() => {
@@ -1506,178 +1597,87 @@ export default function AnalyticsPage() {
                 </button>
               </div>
 
-              {/* CSV File Upload */}
+              {/* Mercek Data Load Button */}
               <div style={{ marginBottom: '24px' }}>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      setCsvFile(file)
-                      const reader = new FileReader()
-                      reader.onload = (event) => {
-                        const text = event.target?.result as string
-
-                        // Normalize line endings
-                        const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-                        // Detect delimiter (comma or semicolon) - check first few lines
-                        // First, properly split lines respecting quotes
-                        const detectDelimiterLines: string[] = []
-                        let inQuotes = false
-                        let currentLine = ''
-                        for (let i = 0; i < normalizedText.length && detectDelimiterLines.length < 5; i++) {
-                          const char = normalizedText[i]
-                          const nextChar = i < normalizedText.length - 1 ? normalizedText[i + 1] : ''
-
-                          if (char === '"') {
-                            if (inQuotes && nextChar === '"') {
-                              currentLine += '"'
-                              i++ // Skip next quote
-                            } else {
-                              inQuotes = !inQuotes
-                              currentLine += char
-                            }
-                          } else if (char === '\n' && !inQuotes) {
-                            if (currentLine.trim()) {
-                              detectDelimiterLines.push(currentLine.trim())
-                            }
-                            currentLine = ''
-                          } else {
-                            currentLine += char
-                          }
-                        }
-
-                        let commaCount = 0
-                        let semicolonCount = 0
-                        detectDelimiterLines.forEach(line => {
-                          // Count delimiters outside quotes
-                          let inQuotesForCount = false
-                          for (let i = 0; i < line.length; i++) {
-                            if (line[i] === '"' && (i === 0 || line[i - 1] !== '"')) {
-                              inQuotesForCount = !inQuotesForCount
-                            } else if (!inQuotesForCount) {
-                              if (line[i] === ',') commaCount++
-                              if (line[i] === ';') semicolonCount++
-                            }
-                          }
-                        })
-                        const delimiter = semicolonCount > commaCount ? ';' : ','
-
-                        // CSV parser that handles quoted values, line breaks in quotes, and both delimiters
-                        const parseCSV = (text: string, delim: string): string[][] => {
-                          const rows: string[][] = []
-                          let currentRow: string[] = []
-                          let currentField = ''
-                          let inQuotes = false
-
-                          for (let i = 0; i < text.length; i++) {
-                            const char = text[i]
-                            const nextChar = i < text.length - 1 ? text[i + 1] : ''
-
-                            if (char === '"') {
-                              if (inQuotes && nextChar === '"') {
-                                // Escaped quote (double quote)
-                                currentField += '"'
-                                i++ // Skip next quote
-                              } else {
-                                // Toggle quote state
-                                inQuotes = !inQuotes
-                                // Don't add quote to field value
-                              }
-                            } else if (char === delim && !inQuotes) {
-                              // Field separator
-                              currentRow.push(currentField.trim())
-                              currentField = ''
-                            } else if (char === '\n' && !inQuotes) {
-                              // Row separator (only if not in quotes)
-                              currentRow.push(currentField.trim())
-                              if (currentRow.length > 0 && currentRow.some(f => f.trim() !== '')) {
-                                rows.push(currentRow)
-                              }
-                              currentRow = []
-                              currentField = ''
-                            } else {
-                              // Regular character (including newlines inside quotes)
-                              currentField += char
-                            }
-                          }
-
-                          // Add last field and row
-                          if (currentField.trim() || currentRow.length > 0) {
-                            currentRow.push(currentField.trim())
-                            if (currentRow.length > 0 && currentRow.some(f => f.trim() !== '')) {
-                              rows.push(currentRow)
-                            }
-                          }
-
-                          // Remove surrounding quotes from field values
-                          return rows.map(row =>
-                            row.map(field => {
-                              let cleaned = field
-                              // Remove surrounding quotes if present
-                              if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-                                cleaned = cleaned.slice(1, -1)
-                              }
-                              // Replace escaped quotes
-                              cleaned = cleaned.replace(/""/g, '"')
-                              return cleaned.trim()
-                            })
-                          )
-                        }
-
-                        const parsedRows = parseCSV(normalizedText, delimiter)
-                        if (parsedRows.length > 0) {
-                          const headers = parsedRows[0].map(h => h.trim()).filter(h => h)
-                          setCsvHeaders(headers)
-
-                          const data: any[] = []
-                          parsedRows.slice(1).forEach((row, rowIndex) => {
-                            try {
-                              const rowObj: any = {}
-                              let hasAnyValue = false
-
-                              headers.forEach((header, index) => {
-                                const value = row[index] !== undefined ? String(row[index]).trim() : ''
-                                rowObj[header] = value
-                                if (value) {
-                                  hasAnyValue = true
-                                }
-                              })
-
-                              // Only add row if it has at least one non-empty value
-                              if (hasAnyValue) {
-                                data.push(rowObj)
-                              }
-                            } catch (error) {
-                              // Skip malformed rows but continue parsing
-                              console.warn(`Skipping malformed row ${rowIndex + 2}:`, error)
-                            }
-                          })
-
-                          setCsvData(data)
-                          setCsvCurrentPage(1)
-                          setCsvSearchQuery('')
-                          setCsvDateFrom('')
-                          setCsvDateTo('')
-                          setCsvSelectedUser('')
-                        }
-                      }
-                      reader.readAsText(file, 'UTF-8')
-                    }
-                  }}
+                <button
+                  onClick={() => fetchMercekData(1)}
+                  disabled={mercekLoading}
                   style={{
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--background)',
-                    color: 'var(--text-primary)',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
                     fontSize: '14px',
-                    width: '100%'
+                    fontWeight: '600',
+                    cursor: mercekLoading ? 'not-allowed' : 'pointer',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s'
                   }}
-                />
+                >
+                  {mercekLoading ? (
+                    <>
+                      <span style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid white',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 0.6s linear infinite'
+                      }} />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    <>
+                      📊 Mercek Verilerini Yükle
+                    </>
+                  )}
+                </button>
+                <style jsx>{`
+                  @keyframes spin {
+                    to { transform: rotate(360deg); }
+                  }
+                `}</style>
               </div>
+
+              {/* Error Message */}
+              {mercekError && (
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444',
+                  fontSize: '14px',
+                  marginBottom: '16px'
+                }}>
+                  ⚠️ {mercekError}
+                </div>
+              )}
+
+              {/* Loading Spinner */}
+              {mercekLoading && (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  color: 'var(--text-secondary)'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    border: '3px solid var(--border)',
+                    borderTopColor: 'var(--primary)',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite',
+                    margin: '0 auto 16px'
+                  }} />
+                  <p style={{ fontSize: '14px', margin: 0 }}>Mercek verileri yükleniyor...</p>
+                </div>
+              )}
 
               {/* Number Cards */}
               {csvData.length > 0 && (() => {
@@ -1947,10 +1947,7 @@ export default function AnalyticsPage() {
                             <input
                               type="date"
                               value={csvDateFrom}
-                              onChange={(e) => {
-                                setCsvDateFrom(e.target.value)
-                                setCsvCurrentPage(1)
-                              }}
+                              onChange={(e) => setCsvDateFrom(e.target.value)}
                               style={{
                                 width: '100%',
                                 padding: '8px 12px',
@@ -1974,10 +1971,7 @@ export default function AnalyticsPage() {
                             <input
                               type="date"
                               value={csvDateTo}
-                              onChange={(e) => {
-                                setCsvDateTo(e.target.value)
-                                setCsvCurrentPage(1)
-                              }}
+                              onChange={(e) => setCsvDateTo(e.target.value)}
                               style={{
                                 width: '100%',
                                 padding: '8px 12px',
@@ -1991,6 +1985,30 @@ export default function AnalyticsPage() {
                           </div>
                         </>
                       )}
+                      {mercekDataLoaded && (
+                        <button
+                          onClick={() => {
+                            setCsvCurrentPage(1)
+                            fetchMercekData(1)
+                          }}
+                          disabled={mercekLoading}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: 'none',
+                            background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: mercekLoading ? 'not-allowed' : 'pointer',
+                            height: 'fit-content',
+                            alignSelf: 'flex-end',
+                            marginBottom: '2px'
+                          }}
+                        >
+                          {mercekLoading ? 'Yükleniyor...' : '🔍 Filtrele'}
+                        </button>
+                      )}
                       {(csvDateFrom || csvDateTo || csvSelectedUser) && (
                         <button
                           onClick={() => {
@@ -1998,6 +2016,9 @@ export default function AnalyticsPage() {
                             setCsvDateTo('')
                             setCsvSelectedUser('')
                             setCsvCurrentPage(1)
+                            if (mercekDataLoaded) {
+                              fetchMercekData(1)
+                            }
                           }}
                           style={{
                             padding: '8px 16px',
@@ -2532,79 +2553,76 @@ export default function AnalyticsPage() {
                   h.toLowerCase().includes('assigned')
                 )
 
-                let filteredData = csvData.filter(row => {
-                  // Date filters
-                  if (csvDateFrom && dateColumn) {
-                    const rowDate = new Date(row[dateColumn])
-                    const fromDate = new Date(csvDateFrom)
-                    if (rowDate < fromDate) return false
-                  }
-                  if (csvDateTo && dateColumn) {
-                    const rowDate = new Date(row[dateColumn])
-                    const toDate = new Date(csvDateTo)
-                    if (rowDate > toDate) return false
-                  }
-                  // User filter
-                  if (csvSelectedUser && userColumn) {
-                    if (row[userColumn] !== csvSelectedUser) return false
-                  }
-                  // Search filter
-                  if (csvSearchQuery) {
-                    if (!Object.values(row).some(value =>
+                // For API-loaded data, filtering is done server-side
+                // Only apply search filter client-side if search query is present
+                let displayData = csvData
+                if (csvSearchQuery && !mercekDataLoaded) {
+                  // Client-side search only for non-API data (fallback CSV upload)
+                  displayData = csvData.filter(row => {
+                    return Object.values(row).some(value =>
                       String(value).toLowerCase().includes(csvSearchQuery.toLowerCase())
-                    )) return false
-                  }
-                  return true
-                })
+                    )
+                  })
+                }
 
-                const totalPages = Math.ceil(filteredData.length / csvPageSize)
-                const paginatedData = filteredData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
+                // For API data, use server pagination
+                const totalPages = mercekDataLoaded ? mercekTotalPages : Math.ceil(displayData.length / csvPageSize)
+                const totalItems = mercekDataLoaded ? mercekTotalCount : displayData.length
+                
+                // For API data, data is already paginated by server
+                const paginatedData = mercekDataLoaded 
+                  ? displayData 
+                  : displayData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
 
                 return (
                   <>
                     <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Veri Tablosu</h3>
 
-                    {/* Search and Page Size Controls */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
-                      <input
-                        type="text"
-                        value={csvSearchQuery}
-                        onChange={(e) => {
-                          setCsvSearchQuery(e.target.value)
-                          setCsvCurrentPage(1)
-                        }}
-                        placeholder="Ara..."
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--background)',
-                          color: 'var(--text-primary)',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <select
-                        value={csvPageSize}
-                        onChange={(e) => {
-                          setCsvPageSize(Number(e.target.value))
-                          setCsvCurrentPage(1)
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--background)',
-                          color: 'var(--text-primary)',
-                          fontSize: '14px'
-                        }}
-                      >
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                      </select>
-                    </div>
+                    {/* Search Controls */}
+                    {mercekDataLoaded && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
+                        <input
+                          type="text"
+                          value={csvSearchQuery}
+                          onChange={(e) => setCsvSearchQuery(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              setCsvCurrentPage(1)
+                              fetchMercekData(1)
+                            }
+                          }}
+                          placeholder="Ara ve Enter'a bas..."
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--background)',
+                            color: 'var(--text-primary)',
+                            fontSize: '14px'
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            setCsvCurrentPage(1)
+                            fetchMercekData(1)
+                          }}
+                          disabled={mercekLoading}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            border: 'none',
+                            background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: mercekLoading ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {mercekLoading ? 'Aranıyor...' : '🔍 Ara'}
+                        </button>
+                      </div>
+                    )}
 
                     {/* Table */}
                     <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
@@ -2626,7 +2644,8 @@ export default function AnalyticsPage() {
                                   borderBottom: '2px solid var(--border)',
                                   color: 'var(--text-primary)',
                                   fontWeight: '600',
-                                  fontSize: '13px'
+                                  fontSize: '13px',
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 {header}
@@ -2649,8 +2668,13 @@ export default function AnalyticsPage() {
                                   style={{
                                     padding: '12px',
                                     color: 'var(--text-primary)',
-                                    fontSize: '13px'
+                                    fontSize: '13px',
+                                    maxWidth: '300px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
                                   }}
+                                  title={String(row[header] || '')}
                                 >
                                   {row[header] || ''}
                                 </td>
@@ -2665,9 +2689,21 @@ export default function AnalyticsPage() {
                     <Pagination
                       currentPage={csvCurrentPage}
                       totalPages={totalPages || 1}
-                      totalItems={filteredData.length}
+                      totalItems={totalItems}
                       pageSize={csvPageSize}
-                      onPageChange={setCsvCurrentPage}
+                      onPageChange={(page) => {
+                        setCsvCurrentPage(page)
+                        if (mercekDataLoaded) {
+                          fetchMercekData(page)
+                        }
+                      }}
+                      onPageSizeChange={(size) => {
+                        setCsvPageSize(size)
+                        setCsvCurrentPage(1)
+                        if (mercekDataLoaded) {
+                          fetchMercekData(1, size)
+                        }
+                      }}
                       showPageInput={true}
                       showFirstLast={true}
                       showTotalItems={true}
@@ -2676,7 +2712,7 @@ export default function AnalyticsPage() {
                 )
               })()}
 
-              {csvData.length === 0 && (
+              {csvData.length === 0 && !mercekLoading && (
                 <div style={{
                   padding: '40px',
                   textAlign: 'center',
