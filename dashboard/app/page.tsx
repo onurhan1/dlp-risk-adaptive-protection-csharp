@@ -479,6 +479,149 @@ export default function Home() {
       )
       }
 
+      {/* Daily Incident Trends - Full Width */}
+      <div className="card">
+        <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div>
+            <h2 style={{ margin: 0 }}>📈 {t('dashboard.dailyTrends')}</h2>
+            <p className="chart-subtitle" style={{ margin: '4px 0 0 0' }}>
+              Showing {dailySummary.length} days • {trendsDateRange.start} to {trendsDateRange.end}
+            </p>
+          </div>
+          <div className="filter-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="date"
+              className="filter-input"
+              value={trendsDateRange.start}
+              min={trendsDataMinDate || undefined}
+              max={trendsDateRange.end}
+              onChange={(e) => {
+                const newStart = e.target.value
+                if (newStart <= trendsDateRange.end) {
+                  setTrendsDateRange(prev => ({ ...prev, start: newStart }))
+                }
+              }}
+              style={{ padding: '6px 10px', minWidth: '130px' }}
+            />
+            <span style={{ color: '#666' }}>to</span>
+            <input
+              type="date"
+              className="filter-input"
+              value={trendsDateRange.end}
+              min={trendsDateRange.start}
+              max={todayStr}
+              onChange={(e) => {
+                const newEnd = e.target.value
+                if (newEnd >= trendsDateRange.start && newEnd <= todayStr) {
+                  setTrendsDateRange(prev => ({ ...prev, end: newEnd }))
+                }
+              }}
+              style={{ padding: '6px 10px', minWidth: '130px' }}
+            />
+          </div>
+        </div>
+        {dailySummaryLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+            {t('common.loading')}
+          </div>
+        ) : dailySummary.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+            {t('common.noData')}
+          </div>
+        ) : (() => {
+          const sorted = dailySummary.slice().sort((a, b) => {
+            const dateA = a.date || a.Date || ''
+            const dateB = b.date || b.Date || ''
+            return dateA.localeCompare(dateB)
+          })
+          const dates = sorted.map(d => {
+            const ds = d.date || d.Date || ''
+            try { return new Date(ds).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) } catch { return ds }
+          })
+          const totals = sorted.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0)
+          const highRisks = sorted.map(d => d.high_risk_count ?? d.highRiskCount ?? d.HighRiskCount ?? 0)
+          const avgScores = sorted.map(d => d.avg_risk_score ?? d.avgRiskScore ?? d.AvgRiskScore ?? 0)
+
+          return (
+            <Plot
+              data={[
+                {
+                  x: dates,
+                  y: totals,
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: t('dashboard.totalIncidents'),
+                  fill: 'tozeroy',
+                  fillcolor: 'rgba(59, 130, 246, 0.15)',
+                  line: { color: '#3b82f6', width: 2.5, shape: 'spline' },
+                  hovertemplate: '<b>%{x}</b><br>Incidents: %{y}<extra></extra>',
+                },
+                {
+                  x: dates,
+                  y: highRisks,
+                  type: 'scatter',
+                  mode: 'lines+markers',
+                  name: t('dashboard.highRiskUsers'),
+                  line: { color: '#ef4444', width: 2, dash: 'dot' },
+                  marker: { size: 5, color: '#ef4444' },
+                  hovertemplate: '<b>%{x}</b><br>High Risk: %{y}<extra></extra>',
+                },
+                {
+                  x: dates,
+                  y: avgScores,
+                  type: 'scatter',
+                  mode: 'lines',
+                  name: t('dashboard.avgRiskScore'),
+                  fill: 'tozeroy',
+                  fillcolor: 'rgba(245, 158, 11, 0.08)',
+                  line: { color: '#f59e0b', width: 1.5, shape: 'spline' },
+                  yaxis: 'y2',
+                  hovertemplate: '<b>%{x}</b><br>Avg Score: %{y:.1f}<extra></extra>',
+                },
+              ]}
+              layout={{
+                margin: { t: 20, b: 50, l: 55, r: 55 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                xaxis: {
+                  gridcolor: 'rgba(128,128,128,0.08)',
+                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  tickangle: -45,
+                  showgrid: true,
+                },
+                yaxis: {
+                  title: { text: t('dashboard.incidents'), font: { size: 11, color: 'var(--text-muted)' } },
+                  gridcolor: 'rgba(128,128,128,0.08)',
+                  tickfont: { size: 10, color: 'var(--text-muted)' },
+                  zeroline: false,
+                },
+                yaxis2: {
+                  title: { text: t('dashboard.avgRiskScore'), font: { size: 11, color: 'var(--text-muted)' } },
+                  overlaying: 'y',
+                  side: 'right',
+                  gridcolor: 'rgba(128,128,128,0.05)',
+                  tickfont: { size: 10, color: '#f59e0b' },
+                  zeroline: false,
+                  range: [0, 100],
+                },
+                legend: {
+                  orientation: 'h',
+                  x: 0.5,
+                  y: -0.25,
+                  xanchor: 'center',
+                  font: { size: 11, color: 'var(--text-muted)' },
+                  bgcolor: 'transparent',
+                },
+                height: 380,
+                hovermode: 'x unified',
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              style={{ width: '100%' }}
+            />
+          )
+        })()}
+      </div>
+
       {/* Two Column Layout - Period Top Users & 24h Top Users */}
       <div className="dashboard-grid">
         {/* Top Risky Users with Period Selector */}
@@ -754,149 +897,6 @@ export default function Home() {
             />
           )}
         </div>
-      </div>
-
-      {/* Daily Incident Trends - Full Width */}
-      <div className="card">
-        <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ margin: 0 }}>📈 {t('dashboard.dailyTrends')}</h2>
-            <p className="chart-subtitle" style={{ margin: '4px 0 0 0' }}>
-              Showing {dailySummary.length} days • {trendsDateRange.start} to {trendsDateRange.end}
-            </p>
-          </div>
-          <div className="filter-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="date"
-              className="filter-input"
-              value={trendsDateRange.start}
-              min={trendsDataMinDate || undefined}
-              max={trendsDateRange.end}
-              onChange={(e) => {
-                const newStart = e.target.value
-                if (newStart <= trendsDateRange.end) {
-                  setTrendsDateRange(prev => ({ ...prev, start: newStart }))
-                }
-              }}
-              style={{ padding: '6px 10px', minWidth: '130px' }}
-            />
-            <span style={{ color: '#666' }}>to</span>
-            <input
-              type="date"
-              className="filter-input"
-              value={trendsDateRange.end}
-              min={trendsDateRange.start}
-              max={todayStr}
-              onChange={(e) => {
-                const newEnd = e.target.value
-                if (newEnd >= trendsDateRange.start && newEnd <= todayStr) {
-                  setTrendsDateRange(prev => ({ ...prev, end: newEnd }))
-                }
-              }}
-              style={{ padding: '6px 10px', minWidth: '130px' }}
-            />
-          </div>
-        </div>
-        {dailySummaryLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
-            {t('common.loading')}
-          </div>
-        ) : dailySummary.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
-            {t('common.noData')}
-          </div>
-        ) : (() => {
-          const sorted = dailySummary.slice().sort((a, b) => {
-            const dateA = a.date || a.Date || ''
-            const dateB = b.date || b.Date || ''
-            return dateA.localeCompare(dateB)
-          })
-          const dates = sorted.map(d => {
-            const ds = d.date || d.Date || ''
-            try { return new Date(ds).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) } catch { return ds }
-          })
-          const totals = sorted.map(d => d.total_incidents ?? d.totalIncidents ?? d.TotalIncidents ?? 0)
-          const highRisks = sorted.map(d => d.high_risk_count ?? d.highRiskCount ?? d.HighRiskCount ?? 0)
-          const avgScores = sorted.map(d => d.avg_risk_score ?? d.avgRiskScore ?? d.AvgRiskScore ?? 0)
-
-          return (
-            <Plot
-              data={[
-                {
-                  x: dates,
-                  y: totals,
-                  type: 'scatter',
-                  mode: 'lines',
-                  name: t('dashboard.totalIncidents'),
-                  fill: 'tozeroy',
-                  fillcolor: 'rgba(59, 130, 246, 0.15)',
-                  line: { color: '#3b82f6', width: 2.5, shape: 'spline' },
-                  hovertemplate: '<b>%{x}</b><br>Incidents: %{y}<extra></extra>',
-                },
-                {
-                  x: dates,
-                  y: highRisks,
-                  type: 'scatter',
-                  mode: 'lines+markers',
-                  name: t('dashboard.highRiskUsers'),
-                  line: { color: '#ef4444', width: 2, dash: 'dot' },
-                  marker: { size: 5, color: '#ef4444' },
-                  hovertemplate: '<b>%{x}</b><br>High Risk: %{y}<extra></extra>',
-                },
-                {
-                  x: dates,
-                  y: avgScores,
-                  type: 'scatter',
-                  mode: 'lines',
-                  name: t('dashboard.avgRiskScore'),
-                  fill: 'tozeroy',
-                  fillcolor: 'rgba(245, 158, 11, 0.08)',
-                  line: { color: '#f59e0b', width: 1.5, shape: 'spline' },
-                  yaxis: 'y2',
-                  hovertemplate: '<b>%{x}</b><br>Avg Score: %{y:.1f}<extra></extra>',
-                },
-              ]}
-              layout={{
-                margin: { t: 20, b: 50, l: 55, r: 55 },
-                paper_bgcolor: 'transparent',
-                plot_bgcolor: 'transparent',
-                xaxis: {
-                  gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 10, color: 'var(--text-muted)' },
-                  tickangle: -45,
-                  showgrid: true,
-                },
-                yaxis: {
-                  title: { text: t('dashboard.incidents'), font: { size: 11, color: 'var(--text-muted)' } },
-                  gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 10, color: 'var(--text-muted)' },
-                  zeroline: false,
-                },
-                yaxis2: {
-                  title: { text: t('dashboard.avgRiskScore'), font: { size: 11, color: 'var(--text-muted)' } },
-                  overlaying: 'y',
-                  side: 'right',
-                  gridcolor: 'rgba(128,128,128,0.05)',
-                  tickfont: { size: 10, color: '#f59e0b' },
-                  zeroline: false,
-                  range: [0, 100],
-                },
-                legend: {
-                  orientation: 'h',
-                  x: 0.5,
-                  y: -0.25,
-                  xanchor: 'center',
-                  font: { size: 11, color: 'var(--text-muted)' },
-                  bgcolor: 'transparent',
-                },
-                height: 380,
-                hovermode: 'x unified',
-              }}
-              config={{ displayModeBar: false, responsive: true }}
-              style={{ width: '100%' }}
-            />
-          )
-        })()}
       </div>
 
       {/* High Impact Alerts - Potential Data Exfiltration with Accordion UI */}
