@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, ChangeEvent, MouseEvent } from 're
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
 import DomainFeaturesManager from '@/components/DomainFeaturesManager'
+import Pagination from '@/components/ui/Pagination'
 
 interface Incident {
   id: number
@@ -51,12 +52,10 @@ export default function AnalyticsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageInput, setPageInput] = useState('')
   const itemsPerPage = 10
 
   // Heatmap pagination
   const [heatmapTeamPage, setHeatmapTeamPage] = useState(1)
-  const [heatmapPageInput, setHeatmapPageInput] = useState('')
   const teamsPerPage = 8
 
   // Table sorting
@@ -154,14 +153,12 @@ export default function AnalyticsPage() {
     }
   }
 
-  // Clear heatmap page input when page changes
+  // Clear heatmap page when page changes
   useEffect(() => {
-    setHeatmapPageInput('')
   }, [heatmapTeamPage])
 
-  // Clear page input when page changes
+  // Clear page when page changes
   useEffect(() => {
-    setPageInput('')
   }, [currentPage])
 
   // Get unique values for each column for filtering
@@ -2665,43 +2662,16 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Pagination */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                        Toplam {filteredData.length} kayıt gösteriliyor (Sayfa {csvCurrentPage} / {totalPages || 1})
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => setCsvCurrentPage(prev => Math.max(prev - 1, 1))}
-                          disabled={csvCurrentPage === 1}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: csvCurrentPage === 1 ? 'var(--background-secondary)' : 'var(--surface)',
-                            color: csvCurrentPage === 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
-                            fontSize: '13px',
-                            cursor: csvCurrentPage === 1 ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          Önceki
-                        </button>
-                        <button
-                          onClick={() => setCsvCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                          disabled={csvCurrentPage >= totalPages}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: csvCurrentPage >= totalPages ? 'var(--background-secondary)' : 'var(--surface)',
-                            color: csvCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
-                            fontSize: '13px',
-                            cursor: csvCurrentPage >= totalPages ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          Sonraki
-                        </button>
-                      </div>
-                    </div>
+                    <Pagination
+                      currentPage={csvCurrentPage}
+                      totalPages={totalPages || 1}
+                      totalItems={filteredData.length}
+                      pageSize={csvPageSize}
+                      onPageChange={setCsvCurrentPage}
+                      showPageInput={true}
+                      showFirstLast={true}
+                      showTotalItems={true}
+                    />
                   </>
                 )
               })()}
@@ -3056,85 +3026,20 @@ export default function AnalyticsPage() {
                   {/* Pagination Controls */}
                   {totalTeamPages > 1 && (
                     <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      alignItems: 'center',
-                      gap: '12px',
                       marginTop: '16px',
                       paddingTop: '16px',
                       borderTop: '1px solid var(--border)'
                     }}>
-                      <button
-                        onClick={() => {
-                          setHeatmapTeamPage(prev => Math.max(prev - 1, 1))
-                          setHeatmapPageInput('')
-                        }}
-                        disabled={heatmapTeamPage === 1}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: heatmapTeamPage === 1 ? 'var(--background-secondary)' : 'var(--surface)',
-                          color: heatmapTeamPage === 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
-                          cursor: heatmapTeamPage === 1 ? 'not-allowed' : 'pointer',
-                          fontSize: '13px',
-                          fontWeight: '500'
-                        }}
-                      >
-                        Previous
-                      </button>
-                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        Page {heatmapTeamPage} of {totalTeamPages} ({startIndex + 1}-{Math.min(endIndex, heatmapData.teams.length)} of {heatmapData.teams.length} teams)
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Go to:</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max={totalTeamPages}
-                          value={heatmapPageInput}
-                          onChange={(e) => setHeatmapPageInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const page = parseInt(heatmapPageInput)
-                              if (page >= 1 && page <= totalTeamPages) {
-                                setHeatmapTeamPage(page)
-                                setHeatmapPageInput('')
-                              }
-                            }
-                          }}
-                          placeholder={heatmapTeamPage.toString()}
-                          style={{
-                            width: '50px',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-primary)',
-                            fontSize: '12px',
-                            textAlign: 'center'
-                          }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          setHeatmapTeamPage(prev => Math.min(prev + 1, totalTeamPages))
-                          setHeatmapPageInput('')
-                        }}
-                        disabled={heatmapTeamPage === totalTeamPages}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border)',
-                          background: heatmapTeamPage === totalTeamPages ? 'var(--background-secondary)' : 'var(--surface)',
-                          color: heatmapTeamPage === totalTeamPages ? 'var(--text-secondary)' : 'var(--text-primary)',
-                          cursor: heatmapTeamPage === totalTeamPages ? 'not-allowed' : 'pointer',
-                          fontSize: '13px',
-                          fontWeight: '500'
-                        }}
-                      >
-                        Next
-                      </button>
+                      <Pagination
+                        currentPage={heatmapTeamPage}
+                        totalPages={totalTeamPages}
+                        totalItems={heatmapData.teams.length}
+                        pageSize={teamsPerPage}
+                        onPageChange={setHeatmapTeamPage}
+                        showPageInput={true}
+                        showFirstLast={true}
+                        showTotalItems={true}
+                      />
                     </div>
                   )}
                 </div>
@@ -3381,76 +3286,17 @@ export default function AnalyticsPage() {
 
               {/* Pagination Controls */}
               {!loading && filteredIncidents.length > 0 && (
-                <div style={{ padding: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    onClick={() => {
-                      setCurrentPage(prev => Math.max(prev - 1, 1))
-                      setPageInput('')
-                    }}
-                    disabled={currentPage === 1}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: '4px',
-                      border: '1px solid var(--border)',
-                      background: currentPage === 1 ? 'var(--background-secondary)' : 'var(--surface)',
-                      color: currentPage === 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                      fontSize: '13px'
-                    }}
-                  >
-                    Previous
-                  </button>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Go to:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max={totalPages}
-                      value={pageInput}
-                      onChange={(e) => setPageInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const page = parseInt(pageInput)
-                          if (page >= 1 && page <= totalPages) {
-                            setCurrentPage(page)
-                            setPageInput('')
-                          }
-                        }
-                      }}
-                      placeholder={currentPage.toString()}
-                      style={{
-                        width: '50px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--background)',
-                        color: 'var(--text-primary)',
-                        fontSize: '12px',
-                        textAlign: 'center'
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setCurrentPage(prev => Math.min(prev + 1, totalPages))
-                      setPageInput('')
-                    }}
-                    disabled={currentPage === totalPages}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: '4px',
-                      border: '1px solid var(--border)',
-                      background: currentPage === totalPages ? 'var(--background-secondary)' : 'var(--surface)',
-                      color: currentPage === totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
-                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                      fontSize: '13px'
-                    }}
-                  >
-                    Next
-                  </button>
+                <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredIncidents.length}
+                    pageSize={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    showPageInput={true}
+                    showFirstLast={true}
+                    showTotalItems={true}
+                  />
                 </div>
               )}
             </div>

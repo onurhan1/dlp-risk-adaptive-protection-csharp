@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
+import Pagination from './ui/Pagination'
 
 interface ActionIncident {
     login_name: string
@@ -343,17 +344,6 @@ export default function ActionIncidentsModal({
         outline: 'none'
     }
 
-    const pageButtonStyle = (disabled: boolean) => ({
-        padding: '8px 16px',
-        fontSize: '13px',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        backgroundColor: disabled ? 'var(--background-secondary)' : 'var(--surface)',
-        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        fontWeight: '500' as const
-    })
-
     return (
         <>
             {/* Backdrop */}
@@ -688,55 +678,19 @@ export default function ActionIncidentsModal({
                     <div style={{
                         padding: '16px 24px',
                         borderTop: '1px solid var(--border)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
                         flexShrink: 0,
                         backgroundColor: 'var(--background-secondary)'
                     }}>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, totalCount)} of {totalCount.toLocaleString()}
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <button
-                                onClick={() => setPage(1)}
-                                disabled={page === 1}
-                                style={pageButtonStyle(page === 1)}
-                            >
-                                ⏮ First
-                            </button>
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                style={pageButtonStyle(page === 1)}
-                            >
-                                ← Prev
-                            </button>
-                            <span style={{
-                                padding: '8px 16px',
-                                backgroundColor: 'var(--primary)',
-                                color: 'white',
-                                borderRadius: '6px',
-                                fontWeight: '600',
-                                fontSize: '13px'
-                            }}>
-                                {page} / {totalPages}
-                            </span>
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                disabled={page === totalPages}
-                                style={pageButtonStyle(page === totalPages)}
-                            >
-                                Next →
-                            </button>
-                            <button
-                                onClick={() => setPage(totalPages)}
-                                disabled={page === totalPages}
-                                style={pageButtonStyle(page === totalPages)}
-                            >
-                                Last ⏭
-                            </button>
-                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            totalItems={totalCount}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                            showPageInput={true}
+                            showFirstLast={true}
+                            showTotalItems={true}
+                        />
                     </div>
                 )}
             </div>

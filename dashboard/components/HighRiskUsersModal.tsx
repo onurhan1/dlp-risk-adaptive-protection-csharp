@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
+import Pagination from './ui/Pagination'
 
 interface HighRiskUser {
     user_email: string
@@ -21,6 +22,21 @@ interface HighRiskUsersModalProps {
 export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUsersModalProps) {
     const [users, setUsers] = useState<HighRiskUser[]>([])
     const [loading, setLoading] = useState(false)
+    const [currentPage, setCurrentPage] = useState(1)
+    const pageSize = 10
+
+    // Reset to first page when modal opens or date changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [isOpen, date])
+
+    // Client-side pagination
+    const paginatedUsers = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize
+        return users.slice(startIndex, startIndex + pageSize)
+    }, [users, currentPage, pageSize])
+
+    const totalPages = Math.ceil(users.length / pageSize)
 
     useEffect(() => {
         if (isOpen && date) {
@@ -180,21 +196,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                         </div>
                     ) : users.length === 0 ? (
                         <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '40px',
-                            color: 'var(--text-muted)'
-                        }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No high-risk users</div>
-                            <div style={{ fontSize: '13px', marginTop: '4px' }}>on {formattedDate}</div>
-                        </div>
-                    ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+                            display: 'flex',#</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</th>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</th>
                                     <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk Score</th>
@@ -202,7 +204,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                 </tr>
                             </thead>
                             <tbody>
-                                {users.map((user, idx) => (
+                                {paginatedUsers.map((user, idx) => (
                                     <tr
                                         key={idx}
                                         style={{
@@ -212,6 +214,9 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-hover)'}
                                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                     >
+                                        <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                                            {(currentPage - 1) * pageSize + idx + 1}
+                                        </td>
                                         <td style={{ padding: '12px' }}>
                                             <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
                                                 {user.login_name}
@@ -230,6 +235,41 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                                 borderRadius: '12px',
                                                 fontSize: '13px',
                                                 fontWeight: '600',
+                                                color: 'white',
+                                                backgroundColor: getRiskColor(user.max_risk_score)
+                                            }}>
+                                                {user.max_risk_score}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '12px', textAlign: 'right', fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                                            {user.incident_count}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* Pagination Footer */}
+                {users.length > pageSize && (
+                    <div style={{
+                        padding: '16px 24px',
+                        borderTop: '1px solid var(--border)',
+                        backgroundColor: 'var(--background-secondary)'
+                    }}>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={users.length}
+                            pageSize={pageSize}
+                            onPageChange={setCurrentPage}
+                            showPageInput={true}
+                            showFirstLast={true}
+                            showTotalItems={true}
+                        />
+                    </div>
+                )}                          fontWeight: '600',
                                                 color: 'white',
                                                 backgroundColor: getRiskColor(user.max_risk_score)
                                             }}>

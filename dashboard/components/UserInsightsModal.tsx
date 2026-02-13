@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
+import Pagination from './ui/Pagination'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -74,6 +75,24 @@ export default function UserInsightsModal({
     const [data, setData] = useState<ComprehensiveInsights | null>(null)
     const [activePeriod, setActivePeriod] = useState<PeriodFilter>('monthly')
     const [error, setError] = useState<string | null>(null)
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1)
+    const pageSize = 10
+
+    // Reset to first page when period changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [activePeriod])
+
+    // Client-side pagination for daily scores
+    const paginatedDailyScores = useMemo(() => {
+        if (!data?.dailyScores) return []
+        const startIndex = (currentPage - 1) * pageSize
+        return data.dailyScores.slice(startIndex, startIndex + pageSize)
+    }, [data?.dailyScores, currentPage, pageSize])
+
+    const totalPages = data?.dailyScores ? Math.ceil(data.dailyScores.length / pageSize) : 0
 
     useEffect(() => {
         if (isOpen && userEmail) {
@@ -168,8 +187,8 @@ export default function UserInsightsModal({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>User Risk Insights</div>
-                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{userEmail}</h2>
-                            {data?.team && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.team}</div>}
+                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.fullName || userName || userEmail}</h2>
+                            {(data?.fullName || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
                         </div>
                         <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '28px', cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
                     </div>
@@ -290,6 +309,7 @@ export default function UserInsightsModal({
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                                <th style={{ textAlign: 'left', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>#</th>
                                                 <th style={{ textAlign: 'left', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Date</th>
                                                 <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Score</th>
                                                 <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Incidents</th>
@@ -303,8 +323,9 @@ export default function UserInsightsModal({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {data.dailyScores.map((row, idx) => (
+                                            {paginatedDailyScores.map((row, idx) => (
                                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{(currentPage - 1) * pageSize + idx + 1}</td>
                                                     <td style={{ padding: '10px', color: 'var(--text-primary)', fontWeight: '500' }}>{row.date}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center' }}><span style={{ fontWeight: '700', color: getRiskColor(row.dailyRiskScore), fontSize: '14px' }}>{row.dailyRiskScore.toFixed(1)}</span></td>
                                                     <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>{row.incidentCount}</td>
@@ -319,6 +340,22 @@ export default function UserInsightsModal({
                                             ))}
                                         </tbody>
                                     </table>
+                                    
+                                    {/* Pagination */}
+                                    {data.dailyScores.length > pageSize && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            <Pagination
+                                                currentPage={currentPage}
+                                                totalPages={totalPages}
+                                                totalItems={data.dailyScores.length}
+                                                pageSize={pageSize}
+                                                onPageChange={setCurrentPage}
+                                                showPageInput={true}
+                                                showFirstLast={true}
+                                                showTotalItems={true}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
+import Pagination from './ui/Pagination'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -104,15 +105,31 @@ export default function EntityDetailModal({
     const [data, setData] = useState<EntityDetailData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents' | 'azureai'>('overview')
+    const [activeView, setActiveView] = useState<'overview' | 'trends' | 'incidents'>('overview')
     const [selectedWeek, setSelectedWeek] = useState<TrendDataPoint | null>(null)
     const [selectedZScore, setSelectedZScore] = useState<{ key: string; detail: ZScoreDetail } | null>(null)
     const [showAllReferenceIncidents, setShowAllReferenceIncidents] = useState(false)
     const [hoveredIncident, setHoveredIncident] = useState<IncidentSummary | null>(null)
+    
+    // Pagination for incidents tab
+    const [incidentsPage, setIncidentsPage] = useState(1)
+    const incidentsPageSize = 10
 
-    // Azure AI Analysis state
-    const [azureAIData, setAzureAIData] = useState<any>(null)
-    const [azureAILoading, setAzureAILoading] = useState(false)
+    // Reset incidents page when switching to incidents tab
+    useEffect(() => {
+        if (activeView === 'incidents') {
+            setIncidentsPage(1)
+        }
+    }, [activeView])
+
+    // Client-side pagination for incidents
+    const paginatedIncidents = useMemo(() => {
+        if (!data?.topIncidents) return []
+        const startIndex = (incidentsPage - 1) * incidentsPageSize
+        return data.topIncidents.slice(startIndex, startIndex + incidentsPageSize)
+    }, [data?.topIncidents, incidentsPage, incidentsPageSize])
+
+    const incidentsTotalPages = data?.topIncidents ? Math.ceil(data.topIncidents.length / incidentsPageSize) : 0
 
     useEffect(() => {
         if (isOpen && entityType && entityId) {
@@ -140,28 +157,10 @@ export default function EntityDetailModal({
             ])
             setData(response30.data)
             setWeeklyData(response7.data)
-
-            // Also fetch Azure AI data if entityType is user
-            if (entityType === 'user') {
-                fetchAzureAIData()
-            }
         } catch (err: any) {
             setError(err.response?.data?.detail || 'Failed to load detail')
         } finally {
             setLoading(false)
-        }
-    }
-
-    // Fetch Azure AI explanations for this user
-    const fetchAzureAIData = async () => {
-        setAzureAILoading(true)
-        try {
-            const response = await apiClient.get(`/api/azure-ai/by-user/${encodeURIComponent(entityId)}`)
-            setAzureAIData(response.data)
-        } catch (err) {
-            console.error('Failed to fetch Azure AI data:', err)
-        } finally {
-            setAzureAILoading(false)
         }
     }
 
@@ -275,7 +274,7 @@ export default function EntityDetailModal({
 
                     {/* Tab Navigation */}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                        {(['overview', 'trends', 'incidents', 'azureai'] as const).map(view => (
+                        {(['overview', 'trends', 'incidents'] as const).map(view => (
                             <button
                                 key={view}
                                 onClick={() => setActiveView(view)}
@@ -292,8 +291,7 @@ export default function EntityDetailModal({
                             >
                                 {view === 'overview' ? '📊 Overview' :
                                     view === 'trends' ? '📈 Trends' :
-                                        view === 'incidents' ? '📋 Incidents' :
-                                            '🤖 Azure AI'}
+                                            '📋 Incidents'}
                             </button>
                         ))}
                     </div>
@@ -933,6 +931,7 @@ export default function EntityDetailModal({
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>#</th>
                                         <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>User</th>
                                         <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Destination</th>
                                         <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Channel</th>
@@ -942,8 +941,11 @@ export default function EntityDetailModal({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {data.topIncidents.map((inc, idx) => (
+                                    {paginatedIncidents.map((inc, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                                {(incidentsPage - 1) * incidentsPageSize + idx + 1}
+                                            </td>
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{inc.loginName}</td>
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.destination}</td>
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{inc.channel}</td>
@@ -969,151 +971,24 @@ export default function EntityDetailModal({
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
-                    ) : null}
-
-                    {/* Azure AI Analysis Tab */}
-                    {activeView === 'azureai' && (
-                        <div style={{ display: 'grid', gap: '24px' }}>
-                            {azureAILoading ? (
-                                <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                                    Loading Azure AI Analysis...
+                            
+                            {/* Pagination */}
+                            {data.topIncidents.length > incidentsPageSize && (
+                                <div style={{ marginTop: '16px' }}>
+                                    <Pagination
+                                        currentPage={incidentsPage}
+                                        totalPages={incidentsTotalPages}
+                                        totalItems={data.topIncidents.length}
+                                        pageSize={incidentsPageSize}
+                                        onPageChange={setIncidentsPage}
+                                        showPageInput={true}
+                                        showFirstLast={true}
+                                        showTotalItems={true}
+                                    />
                                 </div>
-                            ) : !azureAIData?.hasAnalysis ? (
-                                <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
-                                    No Azure AI analysis available for this entity
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Summary Card */}
-                                    <div style={{
-                                        background: 'linear-gradient(135deg, var(--background) 0%, var(--surface) 100%)',
-                                        borderRadius: '12px',
-                                        padding: '24px',
-                                        border: '2px solid var(--primary)'
-                                    }}>
-                                        <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                            🤖 Azure AI Analysis Summary
-                                        </h3>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Average Risk Score</div>
-                                                <div style={{
-                                                    fontSize: '32px',
-                                                    fontWeight: '800',
-                                                    color: azureAIData.averageRiskScore >= 70 ? '#ef4444' : azureAIData.averageRiskScore >= 40 ? '#f59e0b' : '#10b981'
-                                                }}>
-                                                    {azureAIData.averageRiskScore}
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Analyzed Incidents</div>
-                                                <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                                                    {azureAIData.totalAnalyzedIncidents}
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Anomalies Detected</div>
-                                                <div style={{ fontSize: '32px', fontWeight: '700', color: azureAIData.anomalyCount > 0 ? '#ef4444' : '#10b981' }}>
-                                                    {azureAIData.anomalyCount}
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Highest Risk Level</div>
-                                                <div style={{
-                                                    fontSize: '18px',
-                                                    fontWeight: '700',
-                                                    color: azureAIData.highestRiskLevel === 'kritik' ? '#7c2d12' :
-                                                        azureAIData.highestRiskLevel === 'yüksek' ? '#ef4444' :
-                                                            azureAIData.highestRiskLevel === 'orta' ? '#f59e0b' : '#10b981',
-                                                    textTransform: 'uppercase'
-                                                }}>
-                                                    {azureAIData.highestRiskLevel}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Incident Explanations */}
-                                    <div style={{
-                                        background: 'var(--background)',
-                                        borderRadius: '12px',
-                                        padding: '24px',
-                                        border: '1px solid var(--border)'
-                                    }}>
-                                        <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                            📋 Incident-Level AI Analysis ({azureAIData.incidents?.length || 0})
-                                        </h3>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto' }}>
-                                            {azureAIData.incidents?.map((inc: any, idx: number) => (
-                                                <div key={idx} style={{
-                                                    background: 'var(--surface)',
-                                                    borderRadius: '8px',
-                                                    padding: '16px',
-                                                    border: `2px solid ${inc.riskScore >= 70 ? '#ef4444' : inc.riskScore >= 40 ? '#f59e0b' : '#10b981'}`
-                                                }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                            <span style={{ fontWeight: '700', color: 'var(--primary)' }}>Incident #{inc.incidentId}</span>
-                                                            <span style={{
-                                                                padding: '4px 12px',
-                                                                borderRadius: '12px',
-                                                                fontSize: '11px',
-                                                                fontWeight: '600',
-                                                                color: 'white',
-                                                                background: inc.riskLevel === 'kritik' ? '#7c2d12' :
-                                                                    inc.riskLevel === 'yüksek' ? '#ef4444' :
-                                                                        inc.riskLevel === 'orta' ? '#f59e0b' : '#10b981',
-                                                                textTransform: 'uppercase'
-                                                            }}>
-                                                                {inc.riskLevel}
-                                                            </span>
-                                                            {inc.anomalyDetected && (
-                                                                <span style={{
-                                                                    padding: '4px 8px',
-                                                                    borderRadius: '4px',
-                                                                    fontSize: '10px',
-                                                                    fontWeight: '700',
-                                                                    background: '#fef2f2',
-                                                                    color: '#ef4444'
-                                                                }}>
-                                                                    ⚠️ ANOMALY
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div style={{
-                                                            fontSize: '24px',
-                                                            fontWeight: '800',
-                                                            color: inc.riskScore >= 70 ? '#ef4444' : inc.riskScore >= 40 ? '#f59e0b' : '#10b981'
-                                                        }}>
-                                                            {inc.riskScore}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ marginBottom: '12px' }}>
-                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>AI Explanation</div>
-                                                        <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                                                            {inc.explanation}
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Recommended Action</div>
-                                                        <div style={{ fontSize: '13px', color: 'var(--primary)', lineHeight: 1.5 }}>
-                                                            {inc.recommendedAction}
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'right' }}>
-                                                        {new Date(inc.timestamp).toLocaleString()}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
                             )}
                         </div>
-                    )}
+                    ) : null}
                 </div>
             </div>
         </>

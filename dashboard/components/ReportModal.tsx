@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import ActionIncidentsModal from './ActionIncidentsModal'
+import Pagination from './ui/Pagination'
 
 interface ActionSummary {
     authorized: number
@@ -71,6 +72,23 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
     const [loadingRiskyUsers, setLoadingRiskyUsers] = useState(false)
     const [showActionModal, setShowActionModal] = useState(false)
     const [selectedAction, setSelectedAction] = useState<string>('')
+    
+    // Pagination for risky users
+    const [riskyUsersPage, setRiskyUsersPage] = useState(1)
+    const riskyUsersPageSize = 15
+
+    // Reset page when period changes
+    useEffect(() => {
+        setRiskyUsersPage(1)
+    }, [period, reportView])
+
+    // Client-side pagination for risky users
+    const paginatedRiskyUsers = useMemo(() => {
+        const startIndex = (riskyUsersPage - 1) * riskyUsersPageSize
+        return riskyUsers.slice(startIndex, startIndex + riskyUsersPageSize)
+    }, [riskyUsers, riskyUsersPage, riskyUsersPageSize])
+
+    const riskyUsersTotalPages = Math.ceil(riskyUsers.length / riskyUsersPageSize)
 
     useEffect(() => {
         if (isOpen) {
@@ -587,9 +605,9 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {riskyUsers.map((user, idx) => (
+                                            {paginatedRiskyUsers.map((user, idx) => (
                                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ padding: '10px' }}>{idx + 1}</td>
+                                                    <td style={{ padding: '10px' }}>{(riskyUsersPage - 1) * riskyUsersPageSize + idx + 1}</td>
                                                     <td style={{ padding: '10px', fontWeight: '500' }}>{user.user_email}</td>
                                                     <td style={{ padding: '10px', textAlign: 'right' }}>
                                                         <span style={{
@@ -618,6 +636,22 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                             ))}
                                         </tbody>
                                     </table>
+                                    
+                                    {/* Pagination */}
+                                    {riskyUsers.length > riskyUsersPageSize && (
+                                        <div style={{ marginTop: '16px' }}>
+                                            <Pagination
+                                                currentPage={riskyUsersPage}
+                                                totalPages={riskyUsersTotalPages}
+                                                totalItems={riskyUsers.length}
+                                                pageSize={riskyUsersPageSize}
+                                                onPageChange={setRiskyUsersPage}
+                                                showPageInput={true}
+                                                showFirstLast={true}
+                                                showTotalItems={true}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )
                         )}
