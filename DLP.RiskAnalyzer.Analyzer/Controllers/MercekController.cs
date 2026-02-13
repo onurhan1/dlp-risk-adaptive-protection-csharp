@@ -215,34 +215,117 @@ public class MercekController : ControllerBase
     }
 
     /// <summary>
-    /// Get statistics summary for Mercek incidents
+    /// Get comprehensive statistics for Mercek incidents (for charts and cards)
     /// </summary>
     [HttpGet("statistics")]
-    public async Task<ActionResult<object>> GetStatistics()
+    public async Task<ActionResult<object>> GetStatistics(
+        [FromQuery] string? userName = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var totalIncidents = await _dbContext.MercekIncidents.CountAsync();
-            var openIncidents = await _dbContext.MercekIncidents
-                .Where(m => m.CloseDate == null)
-                .CountAsync();
+            var query = _dbContext.MercekIncidents.AsQueryable();
+
+            // Apply same filters as main list
+            if (!string.IsNullOrWhiteSpace(userName))
+                query = query.Where(m => m.UserName != null && m.UserName.Contains(userName));
+            if (startDate.HasValue)
+                query = query.Where(m => m.OpenDate >= startDate.Value);
+            if (endDate.HasValue)
+                query = query.Where(m => m.OpenDate <= endDate.Value);
+
+            var totalIncidents = await query.CountAsync();
+            var openIncidents = await query.Where(m => m.CloseDate == null).CountAsync();
             var closedIncidents = totalIncidents - openIncidents;
 
-            // Calculate average resolution time
-            var closedWithDates = await _dbContext.MercekIncidents
+            // Average resolution time (client-side calculation for dates)
+            var closedWithDates = await query
                 .Where(m => m.OpenDate.HasValue && m.CloseDate.HasValue)
+                .Select(m => new { m.OpenDate, m.CloseDate })
                 .ToListAsync();
 
             var avgResolutionDays = closedWithDates.Any()
                 ? closedWithDates.Average(m => (m.CloseDate!.Value - m.OpenDate!.Value).TotalDays)
                 : 0;
 
+            // Weekly comparison
+            var now = DateTime.UtcNow;
+            var oneWeekAgo = now.AddDays(-7);
+            var twoWeeksAgo = now.AddDays(-14);
+
+            var lastWeekCount = await query
+                .Where(m => m.OpenDate.HasValue && m.OpenDate >= oneWeekAgo && m.OpenDate <= now)
+                .CountAsync();
+            var previousWeekCount = await query
+                .Where(m => m.OpenDate.HasValue && m.OpenDate >= twoWeeksAgo && m.OpenDate < oneWeekAgo)
+                .CountAsync();
+
+            // Daily counts for timeline chart (last 90 days or all data)
+            var dailyCounts = await query
+                .Where(m => m.OpenDate.HasValue)
+                .GroupBy(m => m.OpenDate!.Value.Date)
+                .Select(g => new { Date = g.Key, Count = g.Count() })
+                .OrderBy(x => x.Date)
+                .ToListAsync();
+
+            // Status distribution
+            var statusDistribution = await query
+                .Where(m => m.StatusId != null)
+                .GroupBy(m => m.StatusId)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ToListAsync();
+
+            // User distribution (top 20)
+            var userDistribution = await query
+                .Where(m => m.UserName != null)
+                .GroupBy(m => m.UserName)
+                .Select(g => new { User = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(20)
+                .ToListAsync();
+
+            // Assigned user distribution (top 20)
+            var assignedUserDistribution = await query
+                .Where(m => m.AssignedUserCode != null)
+                .GroupBy(m => m.AssignedUserCode)
+                .Select(g => new { User = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(20)
+                .ToListAsync();
+
+            // Category distribution
+            var categoryDistribution = await query
+                .Where(m => m.CategoryId.HasValue)
+                .GroupBy(m => m.CategoryId)
+                .Select(g => new { Category = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(15)
+                .ToListAsync();
+
+            // Priority distribution
+            var priorityDistribution = await query
+                .Where(m => m.PriorityId != null)
+                .GroupBy(m => m.PriorityId)
+                .Select(g => new { Priority = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ToListAsync();
+
             var stats = new
             {
                 TotalIncidents = totalIncidents,
                 OpenIncidents = openIncidents,
                 ClosedIncidents = closedIncidents,
-                AverageResolutionDays = Math.Round(avgResolutionDays, 2)
+                AverageResolutionDays = Math.Round(avgResolutionDays, 2),
+                LastWeekCount = lastWeekCount,
+                PreviousWeekCount = previousWeekCount,
+                DailyCounts = dailyCounts.Select(d => new { date = d.Date.ToString("yyyy-MM-dd"), count = d.Count }),
+                StatusDistribution = statusDistribution.Select(s => new { label = s.Status ?? "Bilinmiyor", count = s.Count }),
+                UserDistribution = userDistribution.Select(u => new { label = u.User ?? "Bilinmiyor", count = u.Count }),
+                AssignedUserDistribution = assignedUserDistribution.Select(u => new { label = u.User ?? "Bilinmiyor", count = u.Count }),
+                CategoryDistribution = categoryDistribution.Select(c => new { label = c.Category?.ToString() ?? "Bilinmiyor", count = c.Count }),
+                PriorityDistribution = priorityDistribution.Select(p => new { label = p.Priority ?? "Bilinmiyor", count = p.Count })
             };
 
             return Ok(stats);
