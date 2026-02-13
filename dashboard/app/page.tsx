@@ -144,6 +144,8 @@ export default function Home() {
     start: '2023-01-01',
     end: format(new Date(), 'yyyy-MM-dd')
   })
+  const [trendsDataMinDate, setTrendsDataMinDate] = useState<string | null>(null)
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   // Modal state for action incidents
   const [showModal, setShowModal] = useState(false)
@@ -169,14 +171,25 @@ export default function Home() {
     setDailySummaryLoading(true)
     try {
       const apiUrl = getApiUrlDynamic()
-      // Use new optional parameters logic
-      const response = await axios.get(`${apiUrl}/api/risk/daily-summary`, {
+      // Use risk-trends endpoint which supports startDate/endDate parameters
+      const response = await axios.get(`${apiUrl}/api/risk-trends/daily-summary`, {
         params: {
           startDate: trendsDateRange.start,
           endDate: trendsDateRange.end
         }
       })
       setDailySummary(response.data)
+      // On first load, determine the earliest date in the data for calendar min constraint
+      if (!trendsDataMinDate && response.data && response.data.length > 0) {
+        const dates = response.data.map((d: any) => d.date || d.Date || '').filter(Boolean).sort()
+        if (dates.length > 0) {
+          setTrendsDataMinDate(dates[0])
+          // If current start is before data min, adjust it
+          if (trendsDateRange.start < dates[0]) {
+            setTrendsDateRange(prev => ({ ...prev, start: dates[0] }))
+          }
+        }
+      }
       console.log('Daily Trends Data:', response.data)
     } catch (error) {
       console.error('Error fetching daily trends:', error)
@@ -757,7 +770,14 @@ export default function Home() {
               type="date"
               className="filter-input"
               value={trendsDateRange.start}
-              onChange={(e) => setTrendsDateRange(prev => ({ ...prev, start: e.target.value }))}
+              min={trendsDataMinDate || undefined}
+              max={trendsDateRange.end}
+              onChange={(e) => {
+                const newStart = e.target.value
+                if (newStart <= trendsDateRange.end) {
+                  setTrendsDateRange(prev => ({ ...prev, start: newStart }))
+                }
+              }}
               style={{ padding: '6px 10px', minWidth: '130px' }}
             />
             <span style={{ color: '#666' }}>to</span>
@@ -765,7 +785,14 @@ export default function Home() {
               type="date"
               className="filter-input"
               value={trendsDateRange.end}
-              onChange={(e) => setTrendsDateRange(prev => ({ ...prev, end: e.target.value }))}
+              min={trendsDateRange.start}
+              max={todayStr}
+              onChange={(e) => {
+                const newEnd = e.target.value
+                if (newEnd >= trendsDateRange.start && newEnd <= todayStr) {
+                  setTrendsDateRange(prev => ({ ...prev, end: newEnd }))
+                }
+              }}
               style={{ padding: '6px 10px', minWidth: '130px' }}
             />
           </div>
