@@ -318,6 +318,15 @@ export default function AnalyticsPage() {
     }
   }
 
+  // Helper function to normalize team names - if ends with "Şubesi", normalize to "Şube"
+  // If team is "Unknown", return "Hesap Araştırmaları"
+  const normalizeTeamName = (team: string | undefined | null): string => {
+    if (!team) return 'Hesap Araştırmaları'
+    const trimmed = team.trim()
+    if (trimmed === 'Unknown' || trimmed === '') return 'Hesap Araştırmaları'
+    return trimmed.endsWith('Şubesi') ? 'Şube' : trimmed
+  }
+
 
 
   // Filter Logic with column filters and sorting
@@ -472,15 +481,6 @@ export default function AnalyticsPage() {
   }, [filteredIncidents, currentPage])
 
   const totalPages = Math.ceil(filteredIncidents.length / itemsPerPage)
-
-  // Helper function to normalize team names - if ends with "Şubesi", normalize to "Şube"
-  // If team is "Unknown", return "Hesap Araştırmaları"
-  const normalizeTeamName = (team: string | undefined | null): string => {
-    if (!team) return 'Hesap Araştırmaları'
-    const trimmed = team.trim()
-    if (trimmed === 'Unknown' || trimmed === '') return 'Hesap Araştırmaları'
-    return trimmed.endsWith('Şubesi') ? 'Şube' : trimmed
-  }
 
   // Get Unique Values for Selects
   const uniqueDepartments = useMemo(() => Array.from(new Set(incidents.map(i => i.department).filter(Boolean))).sort(), [incidents])
