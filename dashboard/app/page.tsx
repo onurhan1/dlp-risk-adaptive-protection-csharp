@@ -126,6 +126,9 @@ export default function Home() {
   const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
+  // Period selectors for Data Movement and Top Rules
+  const [dataMovementDays, setDataMovementDays] = useState<number>(30)
+  const [topRulesDays, setTopRulesDays] = useState<number>(30)
   // Pagination for Top Risky Users tables
   const [topUsersPeriodPage, setTopUsersPeriodPage] = useState(1)
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
@@ -393,7 +396,12 @@ export default function Home() {
       {/* Action Summary - Donut Chart + Cards */}
       {actionSummary && (
         <div className="card" style={{ marginBottom: '24px' }}>
-          <h2>{t('dashboard.actionAnalysis')}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>{t('dashboard.actionAnalysis')}</h2>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
+              {dateRange.start} — {dateRange.end}
+            </span>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
             {/* Donut Chart */}
             <div style={{ height: '300px' }}>
@@ -835,17 +843,94 @@ export default function Home() {
       {/* Data Movement Chart & Top Matched Rules - Side by Side */}
       <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
-          <h2>{t('dashboard.dataMovement')}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h2 style={{ margin: 0 }}>{t('dashboard.dataMovement')}</h2>
+            <select
+              value={dataMovementDays}
+              onChange={(e) => setDataMovementDays(Number(e.target.value))}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              <option value={7}>Last 1 Week</option>
+              <option value={14}>Last 2 Weeks</option>
+              <option value={30}>Last 1 Month</option>
+              <option value={90}>Last 3 Months</option>
+              <option value={180}>Last 6 Months</option>
+            </select>
+          </div>
           <div style={{ position: 'relative' }}>
-            <ChannelActivity days={30} />
+            <ChannelActivity days={dataMovementDays} />
           </div>
         </div>
 
         <div className="card">
-          <div className="card-header-row">
-            <h2>{t('dashboard.topRules')}</h2>
+          <div className="card-header-row" style={{ marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <h2 style={{ margin: 0 }}>{t('dashboard.topRules')}</h2>
+              <select
+                value={topRulesDays}
+                onChange={(e) => {
+                  const newDays = Number(e.target.value)
+                  setTopRulesDays(newDays)
+                  // Re-fetch incidents for this period
+                  const fetchRules = async () => {
+                    try {
+                      const apiUrl = getApiUrlDynamic()
+                      const endDate = new Date()
+                      const startDate = new Date()
+                      startDate.setDate(startDate.getDate() - newDays)
+                      const incidentsRes = await axios.get(`${apiUrl}/api/incidents`, {
+                        params: {
+                          startDate: format(startDate, 'yyyy-MM-dd'),
+                          endDate: format(endDate, 'yyyy-MM-dd'),
+                          limit: 5000,
+                          orderBy: 'risk_score_desc'
+                        }
+                      })
+                      const rulesMap = new Map<string, number>()
+                      ;(incidentsRes.data || []).forEach((incident: any) => {
+                        const ruleName = incident.policy || 'Unknown Rule'
+                        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
+                      })
+                      const topRulesData = Array.from(rulesMap.entries())
+                        .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
+                        .sort((a, b) => b.total_alerts - a.total_alerts)
+                        .slice(0, 10)
+                      setTopRules(topRulesData)
+                    } catch (error) {
+                      console.error('Error fetching rules:', error)
+                    }
+                  }
+                  fetchRules()
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value={7}>Last 1 Week</option>
+                <option value={14}>Last 2 Weeks</option>
+                <option value={30}>Last 1 Month</option>
+                <option value={90}>Last 3 Months</option>
+                <option value={180}>Last 6 Months</option>
+              </select>
+            </div>
             <div className="total-alerts">
-              <span className="total-label">Total alerts last 30 days: {totalAlerts}</span>
+              <span className="total-label">Total alerts last {topRulesDays} days: {totalAlerts}</span>
             </div>
           </div>
           {loading ? (
@@ -899,26 +984,32 @@ export default function Home() {
         </div>
       </div>
 
-      {/* High Impact Alerts - Potential Data Exfiltration with Accordion UI */}
+      {/* High Impact Alerts - Potential Data Exfiltration */}
       {highImpactAlerts.length > 0 && (
-        <div className="card" style={{ marginBottom: '24px', border: '1px solid #dc2626', background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.05) 0%, var(--surface) 100%)' }}>
+        <div className="card" style={{ marginBottom: '24px', border: '1px solid var(--border)', background: 'var(--surface)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '24px' }}>🚨</span>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '20px'
+              }}>🔍</div>
               <div>
-                <h2 style={{ margin: 0, color: '#dc2626', fontSize: '24px' }}>{t('dashboard.potentialExfiltration')}</h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: 'var(--text-muted)' }}>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '22px', fontWeight: '700' }}>{t('dashboard.potentialExfiltration')}</h2>
+                <p style={{ margin: '2px 0 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
                   {t('dashboard.highVolumeTransfer')}
                 </p>
               </div>
             </div>
             <span style={{
               fontSize: '14px',
-              color: 'white',
-              backgroundColor: '#dc2626',
-              padding: '6px 14px',
-              borderRadius: '12px',
-              fontWeight: '600'
+              color: '#6366f1',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontWeight: '600',
+              border: '1px solid rgba(99, 102, 241, 0.2)'
             }}>
               {highImpactPagination.totalCount} {t('dashboard.alerts')}{highImpactPagination.totalCount !== 1 ? 's' : ''}
             </span>
@@ -941,60 +1032,71 @@ export default function Home() {
                 })
               }
 
+              const severityConfig = alert.severity_level === 'Critical'
+                ? { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.2)' }
+                : alert.severity_level === 'High'
+                ? { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' }
+                : { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.2)' }
+
               return (
                 <div
                   key={idx}
                   style={{
-                    borderRadius: '8px',
-                    border: `1px solid ${alert.severity_level === 'Critical' ? '#dc2626' : alert.severity_level === 'High' ? '#f59e0b' : '#eab308'}`,
+                    borderRadius: '10px',
+                    border: `1px solid var(--border)`,
                     background: 'var(--background)',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    transition: 'box-shadow 0.2s'
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none' }}
                 >
-                  {/* Compact Header Row - Always Visible */}
+                  {/* Compact Header Row */}
                   <div
                     onClick={toggleExpand}
                     style={{
-                      padding: '12px 16px',
+                      padding: '14px 16px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
-                      background: isExpanded ? 'rgba(220, 38, 38, 0.05)' : 'transparent',
+                      background: isExpanded ? 'var(--background-secondary)' : 'transparent',
                       transition: 'background 0.2s'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
                       <span style={{
-                        fontSize: '18px',
+                        fontSize: '16px',
                         transition: 'transform 0.2s',
-                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                        color: 'var(--text-muted)'
                       }}>▶</span>
 
                       <span style={{
-                        padding: '3px 10px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        color: 'white',
-                        backgroundColor: alert.severity_level === 'Critical' ? '#dc2626' :
-                          alert.severity_level === 'High' ? '#f59e0b' : '#eab308',
-                        minWidth: '60px',
-                        textAlign: 'center'
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: severityConfig.color,
+                        backgroundColor: severityConfig.bg,
+                        border: `1px solid ${severityConfig.border}`,
+                        minWidth: '65px',
+                        textAlign: 'center',
+                        letterSpacing: '0.3px'
                       }}>
                         {alert.severity_level.toUpperCase()}
                       </span>
 
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '16px', minWidth: '200px' }}>
+                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '15px', minWidth: '200px' }}>
                         {alert.user_email}
                       </div>
 
-                      <div style={{ fontSize: '14px', color: 'var(--text-muted)', display: 'flex', gap: '16px' }}>
-                        <span><strong style={{ color: '#dc2626' }}>{alert.max_max_matches}</strong> {t('dashboard.matches')}</span>
-                        <span>{t('dashboard.score')}: <strong>{Math.round(alert.daily_risk_score)}</strong></span>
-                        <span>{alert.highest_risk_date}</span>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <span><strong style={{ color: 'var(--text-primary)' }}>{alert.max_max_matches}</strong> {t('dashboard.matches')}</span>
+                        <span>{t('dashboard.score')}: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(alert.daily_risk_score)}</strong></span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{alert.highest_risk_date}</span>
                         {alert.is_single_day_event && (
-                          <span style={{ color: '#dc2626', fontWeight: '500' }}>⚠️ {t('dashboard.singleDay')}</span>
+                          <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '12px' }}>⚡ {t('dashboard.singleDay')}</span>
                         )}
                       </div>
                     </div>
@@ -1006,15 +1108,18 @@ export default function Home() {
                       }}
                       style={{
                         padding: '8px 16px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: '#dc2626',
-                        color: 'white',
-                        fontSize: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        color: '#6366f1',
+                        fontSize: '13px',
                         fontWeight: '600',
                         cursor: 'pointer',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s'
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)' }}
                     >
                       🔍 {t('dashboard.investigate')}
                     </button>
@@ -1025,7 +1130,7 @@ export default function Home() {
                     <div style={{
                       padding: '16px',
                       borderTop: '1px solid var(--border)',
-                      background: 'var(--surface)'
+                      background: 'var(--background-secondary)'
                     }}>
                       {/* Summary Stats */}
                       <div style={{
@@ -1034,70 +1139,65 @@ export default function Home() {
                         gap: '12px',
                         marginBottom: '16px'
                       }}>
-                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.impactScore')}</div>
-                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#dc2626' }}>{Math.round(alert.impact_score)}</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.incidents')}</div>
-                          <div style={{ fontSize: '20px', fontWeight: '700' }}>{alert.incident_count}</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.blocks')}</div>
-                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ef4444' }}>{alert.block_count}</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.quarantines')}</div>
-                          <div style={{ fontSize: '20px', fontWeight: '700', color: '#f59e0b' }}>{alert.quarantine_count}</div>
-                        </div>
-                        <div style={{ textAlign: 'center', padding: '10px', background: 'var(--background)', borderRadius: '6px' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.activeDays')}</div>
-                          <div style={{ fontSize: '20px', fontWeight: '700' }}>{alert.days_with_activity}</div>
-                        </div>
+                        {[
+                          { label: t('dashboard.impactScore'), value: Math.round(alert.impact_score), color: '#6366f1' },
+                          { label: t('dashboard.incidents'), value: alert.incident_count, color: 'var(--text-primary)' },
+                          { label: t('dashboard.blocks'), value: alert.block_count, color: '#ef4444' },
+                          { label: t('dashboard.quarantines'), value: alert.quarantine_count, color: '#f59e0b' },
+                          { label: t('dashboard.activeDays'), value: alert.days_with_activity, color: 'var(--text-primary)' },
+                        ].map((stat, sIdx) => (
+                          <div key={sIdx} style={{ textAlign: 'center', padding: '12px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{stat.label}</div>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: stat.color }}>{stat.value}</div>
+                          </div>
+                        ))}
                       </div>
 
                       {/* Incident Details Table */}
                       {alert.incident_details && alert.incident_details.length > 0 && (
                         <div>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: 'var(--text-primary)' }}>
-                            📄 {t('dashboard.incidentDetails')} - {alert.highest_risk_date}
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600' }}>
+                            📄 {t('dashboard.incidentDetails')} — {alert.highest_risk_date}
                           </h4>
                           <div style={{
                             border: '1px solid var(--border)',
-                            borderRadius: '6px',
+                            borderRadius: '8px',
                             overflow: 'hidden',
-                            fontSize: '14px'
+                            fontSize: '13px'
                           }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                               <thead>
                                 <tr style={{ background: 'var(--background)' }}>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.fileName')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.destination')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.channel')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.action')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.policy')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.matches')}</th>
-                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '14px' }}>{t('dashboard.timestamp')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '18%' }}>{t('dashboard.fileName')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '18%' }}>{t('dashboard.destination')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '10%' }}>{t('dashboard.channel')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '10%' }}>{t('dashboard.action')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '20%' }}>{t('dashboard.policy')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '10%' }}>{t('dashboard.matches')}</th>
+                                  <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '13px', width: '14%' }}>{t('dashboard.timestamp')}</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {alert.incident_details.map((detail, dIdx) => (
                                   <tr key={dIdx} style={{ borderBottom: dIdx < alert.incident_details.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                    <td style={{ padding: '10px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.file_name}>
+                                    <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.file_name}>
                                       {detail.file_name || '-'}
                                     </td>
-                                    <td style={{ padding: '10px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.destination}>
-                                      {detail.destination || '-'}
+                                    <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.destination}>
+                                      {detail.destination ? (detail.destination.length > 25 ? detail.destination.substring(0, 22) + '...' : detail.destination) : '-'}
                                     </td>
                                     <td style={{ padding: '10px' }}>
                                       <span style={{
                                         padding: '3px 8px',
-                                        borderRadius: '4px',
-                                        fontSize: '12px',
-                                        background: detail.channel === 'Email' ? '#3b82f6' :
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        background: detail.channel === 'Email' ? 'rgba(59, 130, 246, 0.1)' :
+                                          detail.channel === 'USB' ? 'rgba(139, 92, 246, 0.1)' :
+                                            detail.channel === 'Cloud' ? 'rgba(6, 182, 212, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                                        color: detail.channel === 'Email' ? '#3b82f6' :
                                           detail.channel === 'USB' ? '#8b5cf6' :
                                             detail.channel === 'Cloud' ? '#06b6d4' : '#6b7280',
-                                        color: 'white'
+                                        fontWeight: '500'
                                       }}>
                                         {detail.channel || '-'}
                                       </span>
@@ -1105,27 +1205,34 @@ export default function Home() {
                                     <td style={{ padding: '10px' }}>
                                       <span style={{
                                         padding: '3px 8px',
-                                        borderRadius: '4px',
-                                        fontSize: '12px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '500',
                                         background: (() => {
+                                          const action = (detail.action || '').toUpperCase()
+                                          if (action === 'BLOCK' || action === 'BLOCKED') return 'rgba(239, 68, 68, 0.1)'
+                                          if (action === 'QUARANTINE' || action === 'QUARANTINED') return 'rgba(245, 158, 11, 0.1)'
+                                          if (action === 'AUTHORIZED' || action === 'RELEASED' || action === 'PERMIT' || action === 'ALLOWED') return 'rgba(34, 197, 94, 0.1)'
+                                          return 'rgba(107, 114, 128, 0.1)'
+                                        })(),
+                                        color: (() => {
                                           const action = (detail.action || '').toUpperCase()
                                           if (action === 'BLOCK' || action === 'BLOCKED') return '#ef4444'
                                           if (action === 'QUARANTINE' || action === 'QUARANTINED') return '#f59e0b'
                                           if (action === 'AUTHORIZED' || action === 'RELEASED' || action === 'PERMIT' || action === 'ALLOWED') return '#22c55e'
                                           return '#6b7280'
-                                        })(),
-                                        color: 'white'
+                                        })()
                                       }}>
                                         {detail.action || '-'}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '10px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.policy}>
+                                    <td style={{ padding: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detail.policy}>
                                       {detail.policy || '-'}
                                     </td>
-                                    <td style={{ padding: '10px', textAlign: 'right', fontWeight: '600', color: '#dc2626', fontSize: '14px' }}>
+                                    <td style={{ padding: '10px', textAlign: 'right', fontWeight: '600', color: '#6366f1', fontSize: '14px' }}>
                                       {detail.max_matches}
                                     </td>
-                                    <td style={{ padding: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                    <td style={{ padding: '10px', fontSize: '12px', color: 'var(--text-muted)' }}>
                                       {detail.timestamp?.split(' ')[1] || '-'}
                                     </td>
                                   </tr>

@@ -51,7 +51,6 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
         const endDate = new Date()
         const startDate = new Date()
         startDate.setDate(startDate.getDate() - days)
-
         const [channelRes, incidentsRes] = await Promise.all([
           axios.get(`${apiUrl}/api/risk/channel-activity`, {
             params: { days },
@@ -280,9 +279,10 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                       color: 'var(--text-primary)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      maxWidth: '160px'
                     }}>
-                    {name}
+                    {name.length > 25 ? name.substring(0, 22) + '...' : name}
                   </div>
                   <div style={{ fontSize: '18px', fontWeight: '700', color, margin: '2px 0' }}>
                     {percentage}%
