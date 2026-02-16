@@ -110,8 +110,12 @@ export default function AnalyticsPage() {
   const [mercekTotalCount, setMercekTotalCount] = useState(0)
   const [mercekTotalPages, setMercekTotalPages] = useState(0)
   const [mercekAvailableUsers, setMercekAvailableUsers] = useState<string[]>([])
+  const [mercekAssignedUsers, setMercekAssignedUsers] = useState<string[]>([])
+  const [mercekAssignedUserFilter, setMercekAssignedUserFilter] = useState('')
   const [mercekDataLoaded, setMercekDataLoaded] = useState(false)
   const [mercekStatistics, setMercekStatistics] = useState<any>(null)
+  const [userChartPage, setUserChartPage] = useState(1)
+  const [assignedUserChartPage, setAssignedUserChartPage] = useState(1)
 
   // User Incident Analysis States
   const [userSearchQuery, setUserSearchQuery] = useState('')
@@ -486,6 +490,9 @@ export default function AnalyticsPage() {
       if (csvSelectedUser) {
         params.userName = csvSelectedUser
       }
+      if (mercekAssignedUserFilter) {
+        params.assignedUserCode = mercekAssignedUserFilter
+      }
       if (csvDateFrom) {
         params.startDate = csvDateFrom
       }
@@ -499,28 +506,16 @@ export default function AnalyticsPage() {
       const response = await apiClient.get('/api/mercek', { params })
       const data = response.data
       
-      // Map API response to table format
+      // Map API response to table format with Turkish column names
       const mappedData = data.items.map((item: any) => ({
-        'incident_id': item.incidentId,
-        'status_id': item.statusId,
-        'flow_status_id': item.flowStatusId,
-        'assignment_group_id': item.assignmentGroupId,
-        'summary_description': item.summaryDescription,
-        'incident_description': item.incidentDescription,
-        'impact_id': item.impactId,
-        'priority_id': item.priorityId,
-        'category_id': item.categoryId,
-        'assigned_user_code': item.assignedUserCode,
-        'open_date': item.openDate,
-        'close_date': item.closeDate,
-        'start_date': item.startDate,
-        'solution_description': item.solutionDescription,
-        'request_type_id': item.requestTypeId,
-        'call_type_id': item.callTypeId,
-        'solution_method': item.solutionMethod,
-        'user_name': item.userName,
-        'definition_category_id': item.definitionCategoryId,
-        'definition_category_path': item.definitionCategoryPath
+        'Olay No': item.incidentId,
+        'Olay Açıklaması': item.incidentDescription,
+        'Atanan Kullanıcı': item.assignedUserCode,
+        'Açılış Tarihi': item.openDate ? new Date(item.openDate).toLocaleString('tr-TR') : '',
+        'Kapanış Tarihi': item.closeDate ? new Date(item.closeDate).toLocaleString('tr-TR') : '',
+        'Başlangıç Tarihi': item.startDate ? new Date(item.startDate).toLocaleString('tr-TR') : '',
+        'Çözüm Yöntemi': item.solutionMethod,
+        'Kullanıcı Adı': item.userName
       }))
       
       setCsvData(mappedData)
@@ -546,6 +541,7 @@ export default function AnalyticsPage() {
       const response = await apiClient.get('/api/mercek/filters')
       const data = response.data
       setMercekAvailableUsers(data.users || [])
+      setMercekAssignedUsers(data.assignedUsers || [])
     } catch (error) {
       console.error('Mercek filters fetch error:', error)
     }
@@ -555,6 +551,7 @@ export default function AnalyticsPage() {
     try {
       const params: any = {}
       if (csvSelectedUser) params.userName = csvSelectedUser
+      if (mercekAssignedUserFilter) params.assignedUserCode = mercekAssignedUserFilter
       if (csvDateFrom) params.startDate = csvDateFrom
       if (csvDateTo) params.endDate = csvDateTo
       
@@ -1786,19 +1783,32 @@ export default function AnalyticsPage() {
 
               {/* Charts Section */}
               {mercekStatistics && (() => {
-                // Build chart data from statistics API
-                const chartSections: Array<{ title: string, data: Array<{label: string, count: number}>, type: 'pie' | 'bar' }> = []
-                
-                if (mercekStatistics.statusDistribution?.length > 0)
-                  chartSections.push({ title: 'Durum Dağılımı', data: mercekStatistics.statusDistribution, type: 'pie' })
-                if (mercekStatistics.priorityDistribution?.length > 0)
-                  chartSections.push({ title: 'Öncelik Dağılımı', data: mercekStatistics.priorityDistribution, type: 'pie' })
-                if (mercekStatistics.userDistribution?.length > 0)
-                  chartSections.push({ title: 'Kullanıcı Dağılımı (Top 20)', data: mercekStatistics.userDistribution, type: 'bar' })
-                if (mercekStatistics.assignedUserDistribution?.length > 0)
-                  chartSections.push({ title: 'Atanan Kullanıcı Dağılımı (Top 20)', data: mercekStatistics.assignedUserDistribution, type: 'bar' })
-                if (mercekStatistics.categoryDistribution?.length > 0)
-                  chartSections.push({ title: 'Kategori Dağılımı', data: mercekStatistics.categoryDistribution, type: 'bar' })
+                const userDist: Array<{label: string, count: number}> = mercekStatistics.userDistribution || []
+                const assignedDist: Array<{label: string, count: number}> = mercekStatistics.assignedUserDistribution || []
+                const userChartPageSize = 5
+                const assignedChartPageSize = 5
+                const userTotalPages = Math.ceil(userDist.length / userChartPageSize)
+                const assignedTotalPages = Math.ceil(assignedDist.length / assignedChartPageSize)
+                const userPage = Math.min(userChartPage, userTotalPages || 1)
+                const assignedPage = Math.min(assignedUserChartPage, assignedTotalPages || 1)
+                const paginatedUsers = userDist.slice((userPage - 1) * userChartPageSize, userPage * userChartPageSize)
+                const paginatedAssigned = assignedDist.slice((assignedPage - 1) * assignedChartPageSize, assignedPage * assignedChartPageSize)
+                const userMaxCount = Math.max(...userDist.map(d => d.count), 1)
+                const assignedMaxCount = Math.max(...assignedDist.map(d => d.count), 1)
+
+                const renderMiniPagination = (current: number, total: number, onChange: (p: number) => void) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginTop: '12px' }}>
+                    <button onClick={() => onChange(1)} disabled={current <= 1}
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current <= 1 ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current <= 1 ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current <= 1 ? 0.5 : 1 }}>«</button>
+                    <button onClick={() => onChange(current - 1)} disabled={current <= 1}
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current <= 1 ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current <= 1 ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current <= 1 ? 0.5 : 1 }}>‹</button>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', minWidth: '60px', textAlign: 'center' }}>{current} / {total}</span>
+                    <button onClick={() => onChange(current + 1)} disabled={current >= total}
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current >= total ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current >= total ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current >= total ? 0.5 : 1 }}>›</button>
+                    <button onClick={() => onChange(total)} disabled={current >= total}
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current >= total ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current >= total ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current >= total ? 0.5 : 1 }}>»</button>
+                  </div>
+                )
 
                 return (
                   <div style={{ marginBottom: '24px' }}>
@@ -1812,361 +1822,181 @@ export default function AnalyticsPage() {
                       flexWrap: 'wrap',
                       alignItems: 'flex-end'
                     }}>
-                      <div style={{ flex: '1', minWidth: '200px' }}>
-                        <label style={{
-                          display: 'block',
-                          color: 'var(--text-secondary)',
-                          fontSize: '12px',
-                          marginBottom: '4px'
-                        }}>
-                          Kullanıcı
-                        </label>
-                        <select
-                          value={csvSelectedUser}
-                          onChange={(e) => {
-                            setCsvSelectedUser(e.target.value)
-                            setCsvCurrentPage(1)
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-primary)',
-                            fontSize: '14px'
-                          }}
-                        >
+                      <div style={{ flex: '1', minWidth: '180px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Kullanıcı</label>
+                        <select value={csvSelectedUser} onChange={(e) => { setCsvSelectedUser(e.target.value); setCsvCurrentPage(1) }}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
                           <option value="">Tümü</option>
-                          {mercekAvailableUsers.map((user, idx) => (
-                            <option key={idx} value={user}>{user}</option>
-                          ))}
+                          {mercekAvailableUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
                         </select>
                       </div>
-                      <div style={{ flex: '1', minWidth: '150px' }}>
-                        <label style={{
-                          display: 'block',
-                          color: 'var(--text-secondary)',
-                          fontSize: '12px',
-                          marginBottom: '4px'
-                        }}>
-                          Başlangıç Tarihi
-                        </label>
-                        <input
-                          type="date"
-                          value={csvDateFrom}
-                          onChange={(e) => setCsvDateFrom(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-primary)',
-                            fontSize: '14px'
-                          }}
-                        />
+                      <div style={{ flex: '1', minWidth: '180px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Atanan Kullanıcı</label>
+                        <select value={mercekAssignedUserFilter} onChange={(e) => { setMercekAssignedUserFilter(e.target.value); setCsvCurrentPage(1) }}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          <option value="">Tümü</option>
+                          {mercekAssignedUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
+                        </select>
                       </div>
-                      <div style={{ flex: '1', minWidth: '150px' }}>
-                        <label style={{
-                          display: 'block',
-                          color: 'var(--text-secondary)',
-                          fontSize: '12px',
-                          marginBottom: '4px'
-                        }}>
-                          Bitiş Tarihi
-                        </label>
-                        <input
-                          type="date"
-                          value={csvDateTo}
-                          onChange={(e) => setCsvDateTo(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-primary)',
-                            fontSize: '14px'
-                          }}
-                        />
+                      <div style={{ flex: '1', minWidth: '140px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Başlangıç Tarihi</label>
+                        <input type="date" value={csvDateFrom} onChange={(e) => setCsvDateFrom(e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                       </div>
-                      <button
-                        onClick={() => {
-                          setCsvCurrentPage(1)
-                          fetchMercekData(1)
-                          fetchMercekStatistics()
-                        }}
-                        disabled={mercekLoading}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          color: 'white',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          cursor: mercekLoading ? 'not-allowed' : 'pointer',
-                          height: 'fit-content',
-                          alignSelf: 'flex-end',
-                          marginBottom: '2px'
-                        }}
-                      >
+                      <div style={{ flex: '1', minWidth: '140px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Bitiş Tarihi</label>
+                        <input type="date" value={csvDateTo} onChange={(e) => setCsvDateTo(e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                      </div>
+                      <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
+                        style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '14px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer', height: 'fit-content', alignSelf: 'flex-end', marginBottom: '2px' }}>
                         {mercekLoading ? 'Yükleniyor...' : 'Filtrele'}
                       </button>
-                      {(csvDateFrom || csvDateTo || csvSelectedUser) && (
-                        <button
-                          onClick={() => {
-                            setCsvDateFrom('')
-                            setCsvDateTo('')
-                            setCsvSelectedUser('')
-                            setCsvCurrentPage(1)
-                            fetchMercekData(1)
-                            fetchMercekStatistics()
-                          }}
-                          style={{
-                            padding: '8px 16px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--surface-hover)',
-                            color: 'var(--text-primary)',
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                            height: 'fit-content'
-                          }}
-                        >
+                      {(csvDateFrom || csvDateTo || csvSelectedUser || mercekAssignedUserFilter) && (
+                        <button onClick={() => { setCsvDateFrom(''); setCsvDateTo(''); setCsvSelectedUser(''); setMercekAssignedUserFilter(''); setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }}
+                          style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer', height: 'fit-content' }}>
                           Filtreleri Temizle
                         </button>
                       )}
                     </div>
 
                     {/* Charts Grid */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                      gap: '20px',
-                      marginBottom: '24px'
-                    }}>
-                      {chartSections.map((section, chartIdx) => {
-                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1']
-                        const total = section.data.reduce((sum, item) => sum + item.count, 0)
-                        const maxCount = Math.max(...section.data.map(item => item.count), 1)
-
-                        if (section.type === 'pie') {
-                          // Generate conic gradient
-                          let currentAngle = 0
-                          const gradientParts: string[] = []
-                          section.data.forEach((item, idx) => {
-                            const percentage = (item.count / total) * 100
-                            const angle = (percentage / 100) * 360
-                            const color = colors[idx % colors.length]
-                            gradientParts.push(`${color} ${currentAngle}deg ${currentAngle + angle}deg`)
-                            currentAngle += angle
-                          })
-                          const conicGradient = `conic-gradient(${gradientParts.join(', ')})`
-
-                          return (
-                            <div key={chartIdx} style={{
-                              background: 'var(--surface)',
-                              borderRadius: '8px',
-                              padding: '20px',
-                              border: '1px solid var(--border)',
-                              overflow: 'hidden',
-                              minWidth: 0
-                            }}>
-                              <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                                {section.title}
-                              </h4>
-                              <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', minWidth: 0, overflow: 'hidden' }}>
-                                <div style={{
-                                  width: '200px', height: '200px', borderRadius: '50%',
-                                  background: conicGradient, flexShrink: 0, position: 'relative',
-                                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)', minWidth: '200px'
-                                }}>
-                                  <div style={{
-                                    position: 'absolute', top: '50%', left: '50%',
-                                    transform: 'translate(-50%, -50%)', width: '80px', height: '80px',
-                                    borderRadius: '50%', background: 'var(--surface)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                  }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)' }}>{total}</div>
-                                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Toplam</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '24px' }}>
+                      
+                      {/* Kullanıcı Dağılımı */}
+                      {userDist.length > 0 && (
+                        <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                            Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '12px' }}>({userDist.length} kullanıcı)</span>
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {paginatedUsers.map((item, idx) => {
+                              const percentage = (item.count / userMaxCount) * 100
+                              return (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>{item.count}</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '22px', background: 'var(--background-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '11px', fontWeight: '600' }}>{item.count}</span>}
                                     </div>
                                   </div>
                                 </div>
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
-                                  {section.data.map((item, idx) => {
-                                    const percentage = (item.count / total) * 100
-                                    return (
-                                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
-                                        <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: colors[idx % colors.length], flexShrink: 0 }} />
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '12px', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.label}>
-                                          {item.label}
-                                        </span>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: '600', flexShrink: 0, minWidth: '70px', textAlign: 'right' }}>
-                                          {item.count} ({percentage.toFixed(1)}%)
-                                        </span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        } else {
-                          // Bar chart
-                          return (
-                            <div key={chartIdx} style={{
-                              background: 'var(--surface)',
-                              borderRadius: '8px',
-                              padding: '20px',
-                              border: '1px solid var(--border)',
-                              overflow: 'hidden',
-                              minWidth: 0
-                            }}>
-                              <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                                {section.title}
-                              </h4>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
-                                {section.data.map((item, idx) => {
-                                  const percentage = (item.count / maxCount) * 100
-                                  return (
-                                    <div key={idx} style={{ minWidth: 0, overflow: 'hidden' }}>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '8px', minWidth: 0 }}>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '12px', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.label}>
-                                          {item.label}
-                                        </span>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontWeight: '600', flexShrink: 0 }}>
-                                          {item.count}
-                                        </span>
-                                      </div>
-                                      <div style={{ width: '100%', height: '20px', background: 'var(--background-secondary)', borderRadius: '5px', overflow: 'hidden', position: 'relative', minWidth: 0 }}>
-                                        <div style={{
-                                          width: `${percentage}%`, height: '100%',
-                                          background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                                          transition: 'width 0.3s',
-                                          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                                          paddingRight: percentage > 15 ? '8px' : '0', minWidth: 0
-                                        }}>
-                                          {percentage > 15 && (
-                                            <span style={{ color: 'white', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap' }}>{item.count}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )
-                        }
-                      })}
+                              )
+                            })}
+                          </div>
+                          {userTotalPages > 1 && renderMiniPagination(userPage, userTotalPages, setUserChartPage)}
+                        </div>
+                      )}
 
-                      {/* Trend Chart */}
+                      {/* Atanan Kullanıcı Dağılımı */}
+                      {assignedDist.length > 0 && (
+                        <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                            Atanan Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '12px' }}>({assignedDist.length} kullanıcı)</span>
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {paginatedAssigned.map((item, idx) => {
+                              const percentage = (item.count / assignedMaxCount) * 100
+                              return (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>{item.count}</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '22px', background: 'var(--background-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '11px', fontWeight: '600' }}>{item.count}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {assignedTotalPages > 1 && renderMiniPagination(assignedPage, assignedTotalPages, setAssignedUserChartPage)}
+                        </div>
+                      )}
+
+                      {/* Trend Chart - full width */}
                       {mercekStatistics.dailyCounts?.length > 0 && (() => {
-                        const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-60) // Last 60 days
+                        const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-60)
                         const maxCount = Math.max(...dateEntries.map((d: any) => d.count), 1)
                         const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0)
 
                         return (
-                          <div style={{
-                            background: 'var(--surface)',
-                            borderRadius: '8px',
-                            padding: '20px',
-                            border: '1px solid var(--border)',
-                            gridColumn: '1 / -1',
-                            overflow: 'hidden',
-                            minWidth: 0
-                          }}>
+                          <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', gridColumn: '1 / -1', overflow: 'hidden' }}>
                             <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
                               Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün)
                             </h4>
-                            <div style={{
-                              height: '250px',
-                              padding: '10px 40px 40px 50px',
-                              position: 'relative',
-                              overflow: 'hidden',
-                              minWidth: 0
-                            }}>
-                              {/* Y-axis labels */}
-                              <div style={{
-                                position: 'absolute', left: '0', top: '10px', bottom: '40px',
-                                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                                fontSize: '10px', color: 'var(--text-secondary)', width: '45px'
-                              }}>
+                            <div style={{ height: '250px', padding: '10px 40px 40px 50px', position: 'relative', overflow: 'hidden' }}>
+                              {/* Y-axis */}
+                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', width: '45px' }}>
                                 <span>{maxCount}</span>
-                                <span>{Math.floor(maxCount / 2)}</span>
+                                <span>{Math.floor(maxCount * 0.75)}</span>
+                                <span>{Math.floor(maxCount * 0.5)}</span>
+                                <span>{Math.floor(maxCount * 0.25)}</span>
                                 <span>0</span>
                               </div>
 
-                              {/* SVG for line chart */}
                               <svg width="100%" height="100%" style={{ position: 'absolute', top: '10px', left: '50px', right: '40px', bottom: '40px', overflow: 'visible' }}>
                                 {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
-                                  <line key={ratio} x1="0" y1={`${ratio * 100}%`} x2="100%" y2={`${ratio * 100}%`} stroke="var(--border)" strokeWidth="1" strokeDasharray="2,2" opacity="0.3" />
+                                  <line key={ratio} x1="0" y1={`${ratio * 100}%`} x2="100%" y2={`${ratio * 100}%`} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
                                 ))}
                                 <defs>
-                                  <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-                                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+                                  <linearGradient id="trendAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
                                   </linearGradient>
                                 </defs>
                                 {dateEntries.length > 0 && (() => {
                                   const points = dateEntries.map((d: any, idx: number) => {
-                                    const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 0
+                                    const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 50
                                     const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
                                     return { x, y, count: d.count }
                                   })
-                                  let areaPath = `M 0% 100% `
+                                  // Area fill
+                                  let areaPath = `M ${points[0].x}% 100% `
                                   points.forEach((p) => { areaPath += `L ${p.x}% ${p.y}% ` })
                                   areaPath += `L ${points[points.length - 1].x}% 100% Z`
+                                  // Line
                                   const linePath = points.map(p => `${p.x}%,${p.y}%`).join(' ')
                                   return (
                                     <>
-                                      <path d={areaPath} fill="url(#areaGradient)" opacity="0.6" />
-                                      <polyline points={linePath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                      <path d={areaPath} fill="url(#trendAreaGradient)" />
+                                      <polyline points={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                                     </>
                                   )
                                 })()}
+                                {/* Dots on line */}
                                 {dateEntries.map((d: any, idx: number) => {
-                                  const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 0
+                                  const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 50
                                   const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
-                                  const isWeekend = new Date(d.date).getDay() === 0 || new Date(d.date).getDay() === 6
                                   return (
                                     <g key={idx}>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="8" fill="transparent" style={{ cursor: 'pointer' }}>
+                                      <circle cx={`${x}%`} cy={`${y}%`} r="10" fill="transparent" style={{ cursor: 'pointer' }}>
                                         <title>{`${new Date(d.date).toLocaleDateString('tr-TR')}: ${d.count} kayıt`}</title>
                                       </circle>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="4" fill={isWeekend ? '#f59e0b' : '#3b82f6'} stroke="white" strokeWidth="2.5"
+                                      <circle cx={`${x}%`} cy={`${y}%`} r="3.5" fill="#3b82f6" stroke="white" strokeWidth="2"
                                         style={{ cursor: 'pointer', transition: 'r 0.2s' }}
                                         onMouseEnter={(e) => { e.currentTarget.setAttribute('r', '6') }}
-                                        onMouseLeave={(e) => { e.currentTarget.setAttribute('r', '4') }}
-                                      >
+                                        onMouseLeave={(e) => { e.currentTarget.setAttribute('r', '3.5') }}>
                                         <title>{`${new Date(d.date).toLocaleDateString('tr-TR')}: ${d.count} kayıt`}</title>
                                       </circle>
-                                      {d.count > 0 && (
-                                        <text x={`${x}%`} y={`${y}%`} dy="-15" textAnchor="middle" fontSize="10px" fill="var(--text-primary)" fontWeight="600" style={{ pointerEvents: 'none' }}>
-                                          {d.count}
-                                        </text>
-                                      )}
                                     </g>
                                   )
                                 })}
                               </svg>
 
-                              {/* X-axis labels */}
-                              <div style={{
-                                position: 'absolute', bottom: '0', left: '50px', right: '40px',
-                                display: 'flex', justifyContent: 'space-between',
-                                fontSize: '9px', color: 'var(--text-secondary)',
-                                height: '30px', paddingTop: '5px', overflow: 'hidden', minWidth: 0
-                              }}>
+                              {/* X-axis */}
+                              <div style={{ position: 'absolute', bottom: '0', left: '50px', right: '40px', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-secondary)', height: '30px', paddingTop: '5px', overflow: 'hidden' }}>
                                 {dateEntries.map((d: any, idx: number) => {
-                                  if (idx % Math.ceil(dateEntries.length / 12) === 0 || idx === dateEntries.length - 1) {
-                                    const dateLabel = new Date(d.date).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })
+                                  const step = Math.max(1, Math.ceil(dateEntries.length / 10))
+                                  if (idx % step === 0 || idx === dateEntries.length - 1) {
                                     return (
-                                      <div key={idx} style={{ transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap', textAlign: 'left', flex: 1, minWidth: 0, overflow: 'hidden', maxWidth: '60px' }} title={dateLabel}>
-                                        {dateLabel}
+                                      <div key={idx} style={{ transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap', fontSize: '9px' }}>
+                                        {new Date(d.date).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })}
                                       </div>
                                     )
                                   }
@@ -2184,40 +2014,10 @@ export default function AnalyticsPage() {
 
               {/* CSV Data Table */}
               {csvData.length > 0 && (() => {
-                // Apply all filters
-                const dateColumn = csvHeaders.find(h =>
-                  h.toLowerCase().includes('tarih') ||
-                  h.toLowerCase().includes('date') ||
-                  h.toLowerCase().includes('time') ||
-                  h.toLowerCase().includes('created')
-                )
-                const userColumn = csvHeaders.find(h =>
-                  h.toLowerCase().includes('kullanıcı') ||
-                  h.toLowerCase().includes('user') ||
-                  h.toLowerCase().includes('atanan') ||
-                  h.toLowerCase().includes('assigned')
-                )
-
-                // For API-loaded data, filtering is done server-side
-                // Only apply search filter client-side if search query is present
-                let displayData = csvData
-                if (csvSearchQuery && !mercekDataLoaded) {
-                  // Client-side search only for non-API data (fallback CSV upload)
-                  displayData = csvData.filter(row => {
-                    return Object.values(row).some(value =>
-                      String(value).toLowerCase().includes(csvSearchQuery.toLowerCase())
-                    )
-                  })
-                }
-
                 // For API data, use server pagination
-                const totalPages = mercekDataLoaded ? mercekTotalPages : Math.ceil(displayData.length / csvPageSize)
-                const totalItems = mercekDataLoaded ? mercekTotalCount : displayData.length
-                
-                // For API data, data is already paginated by server
-                const paginatedData = mercekDataLoaded 
-                  ? displayData 
-                  : displayData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
+                const totalPages = mercekDataLoaded ? mercekTotalPages : Math.ceil(csvData.length / csvPageSize)
+                const totalItems = mercekDataLoaded ? mercekTotalCount : csvData.length
+                const paginatedData = mercekDataLoaded ? csvData : csvData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
 
                 return (
                   <>
@@ -2236,7 +2036,7 @@ export default function AnalyticsPage() {
                               fetchMercekData(1)
                             }
                           }}
-                          placeholder="Ara ve Enter'a bas..."
+                          placeholder="Olay No, Kullanıcı Adı veya Atanan Kullanıcı ile ara..."
                           style={{
                             flex: 1,
                             padding: '8px 12px',

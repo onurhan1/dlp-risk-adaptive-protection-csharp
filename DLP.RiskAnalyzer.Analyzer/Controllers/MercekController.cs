@@ -83,10 +83,22 @@ public class MercekController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                query = query.Where(m => 
-                    (m.SummaryDescription != null && m.SummaryDescription.Contains(searchTerm)) ||
-                    (m.IncidentDescription != null && m.IncidentDescription.Contains(searchTerm))
-                );
+                // Search by incident_id (numeric), user_name, assigned_user_code
+                if (int.TryParse(searchTerm, out var incidentIdSearch))
+                {
+                    query = query.Where(m => 
+                        m.IncidentId == incidentIdSearch ||
+                        (m.UserName != null && m.UserName.Contains(searchTerm)) ||
+                        (m.AssignedUserCode != null && m.AssignedUserCode.Contains(searchTerm))
+                    );
+                }
+                else
+                {
+                    query = query.Where(m => 
+                        (m.UserName != null && m.UserName.Contains(searchTerm)) ||
+                        (m.AssignedUserCode != null && m.AssignedUserCode.Contains(searchTerm))
+                    );
+                }
             }
 
             // Get total count
@@ -220,6 +232,7 @@ public class MercekController : ControllerBase
     [HttpGet("statistics")]
     public async Task<ActionResult<object>> GetStatistics(
         [FromQuery] string? userName = null,
+        [FromQuery] string? assignedUserCode = null,
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null)
     {
@@ -230,6 +243,8 @@ public class MercekController : ControllerBase
             // Apply same filters as main list
             if (!string.IsNullOrWhiteSpace(userName))
                 query = query.Where(m => m.UserName != null && m.UserName.Contains(userName));
+            if (!string.IsNullOrWhiteSpace(assignedUserCode))
+                query = query.Where(m => m.AssignedUserCode == assignedUserCode);
             if (startDate.HasValue)
                 query = query.Where(m => m.OpenDate >= startDate.Value);
             if (endDate.HasValue)
@@ -269,46 +284,19 @@ public class MercekController : ControllerBase
                 .OrderBy(x => x.Date)
                 .ToListAsync();
 
-            // Status distribution
-            var statusDistribution = await query
-                .Where(m => m.StatusId != null)
-                .GroupBy(m => m.StatusId)
-                .Select(g => new { Status = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .ToListAsync();
-
-            // User distribution (top 20)
+            // User distribution (all users, sorted by count)
             var userDistribution = await query
                 .Where(m => m.UserName != null)
                 .GroupBy(m => m.UserName)
                 .Select(g => new { User = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
-                .Take(20)
                 .ToListAsync();
 
-            // Assigned user distribution (top 20)
+            // Assigned user distribution (all users, sorted by count)
             var assignedUserDistribution = await query
                 .Where(m => m.AssignedUserCode != null)
                 .GroupBy(m => m.AssignedUserCode)
                 .Select(g => new { User = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(20)
-                .ToListAsync();
-
-            // Category distribution
-            var categoryDistribution = await query
-                .Where(m => m.CategoryId.HasValue)
-                .GroupBy(m => m.CategoryId)
-                .Select(g => new { Category = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(15)
-                .ToListAsync();
-
-            // Priority distribution
-            var priorityDistribution = await query
-                .Where(m => m.PriorityId != null)
-                .GroupBy(m => m.PriorityId)
-                .Select(g => new { Priority = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .ToListAsync();
 
@@ -321,11 +309,8 @@ public class MercekController : ControllerBase
                 LastWeekCount = lastWeekCount,
                 PreviousWeekCount = previousWeekCount,
                 DailyCounts = dailyCounts.Select(d => new { date = d.Date.ToString("yyyy-MM-dd"), count = d.Count }),
-                StatusDistribution = statusDistribution.Select(s => new { label = s.Status ?? "Bilinmiyor", count = s.Count }),
                 UserDistribution = userDistribution.Select(u => new { label = u.User ?? "Bilinmiyor", count = u.Count }),
-                AssignedUserDistribution = assignedUserDistribution.Select(u => new { label = u.User ?? "Bilinmiyor", count = u.Count }),
-                CategoryDistribution = categoryDistribution.Select(c => new { label = c.Category?.ToString() ?? "Bilinmiyor", count = c.Count }),
-                PriorityDistribution = priorityDistribution.Select(p => new { label = p.Priority ?? "Bilinmiyor", count = p.Count })
+                AssignedUserDistribution = assignedUserDistribution.Select(u => new { label = u.User ?? "Bilinmiyor", count = u.Count })
             };
 
             return Ok(stats);
