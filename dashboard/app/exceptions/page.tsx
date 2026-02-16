@@ -1941,11 +1941,11 @@ export default function AnalyticsPage() {
                               {/* Y-axis */}
                               <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '60px', width: '55px' }}>
                                 {[
-                                  { label: String(maxCount), pct: 0 },
-                                  { label: String(Math.floor(maxCount * 0.75)), pct: 25 },
+                                  { label: String(maxCount), pct: 3 },
+                                  { label: String(Math.floor(maxCount * 0.75)), pct: 26.5 },
                                   { label: String(Math.floor(maxCount * 0.5)), pct: 50 },
-                                  { label: String(Math.floor(maxCount * 0.25)), pct: 75 },
-                                  { label: '0', pct: 100 }
+                                  { label: String(Math.floor(maxCount * 0.25)), pct: 73.5 },
+                                  { label: '0', pct: 97 }
                                 ].map((item, idx) => (
                                   <span key={idx} style={{
                                     position: 'absolute',
@@ -1959,9 +1959,10 @@ export default function AnalyticsPage() {
                                 ))}
                               </div>
 
-                              <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="none" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'visible' }}>
-                                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
-                                  <line key={ratio} x1="0" y1={ratio * 500} x2="1000" y2={ratio * 500} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
+                              <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="none" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'hidden' }}>
+                                {/* Grid lines aligned to padded data area */}
+                                {[15, 132.5, 250, 367.5, 485].map((yPos, idx) => (
+                                  <line key={idx} x1="0" y1={yPos} x2="1000" y2={yPos} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
                                 ))}
                                 <defs>
                                   <linearGradient id="trendAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1970,14 +1971,18 @@ export default function AnalyticsPage() {
                                   </linearGradient>
                                 </defs>
                                 {dateEntries.length > 0 && (() => {
+                                  const padY = 15
+                                  const dataTop = padY
+                                  const dataBottom = 500 - padY
+                                  const dataHeight = dataBottom - dataTop
                                   const points = dateEntries.map((d: any, idx: number) => {
                                     const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
-                                    const y = maxCount > 0 ? 500 - (d.count / maxCount) * 500 : 500
+                                    const y = maxCount > 0 ? dataBottom - (d.count / maxCount) * dataHeight : dataBottom
                                     return { x, y, count: d.count }
                                   })
-                                  let areaPath = `M ${points[0].x} 500 `
+                                  let areaPath = `M ${points[0].x} ${dataBottom} `
                                   points.forEach((p) => { areaPath += `L ${p.x} ${p.y} ` })
-                                  areaPath += `L ${points[points.length - 1].x} 500 Z`
+                                  areaPath += `L ${points[points.length - 1].x} ${dataBottom} Z`
                                   const linePath = points.map(p => `${p.x},${p.y}`).join(' ')
                                   return (
                                     <>
@@ -1987,8 +1992,11 @@ export default function AnalyticsPage() {
                                   )
                                 })()}
                                 {dateEntries.map((d: any, idx: number) => {
+                                  const padY = 15
+                                  const dataBottom = 500 - padY
+                                  const dataHeight = dataBottom - padY
                                   const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
-                                  const y = maxCount > 0 ? 500 - (d.count / maxCount) * 500 : 500
+                                  const y = maxCount > 0 ? dataBottom - (d.count / maxCount) * dataHeight : dataBottom
                                   return (
                                     <g key={idx}>
                                       <circle cx={x} cy={y} r="15" fill="transparent" style={{ cursor: 'pointer' }}>
