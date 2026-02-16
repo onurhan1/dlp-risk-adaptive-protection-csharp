@@ -1,10 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, ChangeEvent, MouseEvent } from 'react'
+import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
 import DomainFeaturesManager from '@/components/DomainFeaturesManager'
 import Pagination from '@/components/ui/Pagination'
+
+const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
 interface Incident {
   id: number
@@ -1926,106 +1929,60 @@ export default function AnalyticsPage() {
                         </div>
                       )}
 
-                      {/* Trend Chart - full width */}
+                      {/* Trend Chart - full width (Plotly) */}
                       {mercekStatistics.dailyCounts?.length > 0 && (() => {
                         const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-90)
-                        const maxCount = Math.max(...dateEntries.map((d: any) => d.count), 1)
                         const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0)
+                        const dates = dateEntries.map((d: any) => {
+                          try { return new Date(d.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return d.date }
+                        })
+                        const counts = dateEntries.map((d: any) => d.count)
 
                         return (
-                          <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1', overflow: 'hidden' }}>
-                            <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                          <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
                               Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün)
                             </h4>
-                            <div style={{ height: '400px', padding: '10px 30px 60px 60px', position: 'relative', overflow: 'visible', minWidth: `${dateEntries.length * 28}px` }}>
-                              {/* Y-axis */}
-                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '60px', width: '55px' }}>
-                                {[
-                                  { label: String(maxCount), pct: 3 },
-                                  { label: String(Math.floor(maxCount * 0.75)), pct: 26.5 },
-                                  { label: String(Math.floor(maxCount * 0.5)), pct: 50 },
-                                  { label: String(Math.floor(maxCount * 0.25)), pct: 73.5 },
-                                  { label: '0', pct: 97 }
-                                ].map((item, idx) => (
-                                  <span key={idx} style={{
-                                    position: 'absolute',
-                                    top: `${item.pct}%`,
-                                    transform: 'translateY(-50%)',
-                                    right: '4px',
-                                    fontSize: '13px',
-                                    color: 'var(--text-secondary)',
-                                    fontWeight: '500'
-                                  }}>{item.label}</span>
-                                ))}
-                              </div>
-
-                              <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="none" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'hidden' }}>
-                                {/* Grid lines aligned to padded data area */}
-                                {[15, 132.5, 250, 367.5, 485].map((yPos, idx) => (
-                                  <line key={idx} x1="0" y1={yPos} x2="1000" y2={yPos} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
-                                ))}
-                                <defs>
-                                  <linearGradient id="trendAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
-                                  </linearGradient>
-                                </defs>
-                                {dateEntries.length > 0 && (() => {
-                                  const padY = 15
-                                  const dataTop = padY
-                                  const dataBottom = 500 - padY
-                                  const dataHeight = dataBottom - dataTop
-                                  const points = dateEntries.map((d: any, idx: number) => {
-                                    const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
-                                    const y = maxCount > 0 ? dataBottom - (d.count / maxCount) * dataHeight : dataBottom
-                                    return { x, y, count: d.count }
-                                  })
-                                  let areaPath = `M ${points[0].x} ${dataBottom} `
-                                  points.forEach((p) => { areaPath += `L ${p.x} ${p.y} ` })
-                                  areaPath += `L ${points[points.length - 1].x} ${dataBottom} Z`
-                                  const linePath = points.map(p => `${p.x},${p.y}`).join(' ')
-                                  return (
-                                    <>
-                                      <path d={areaPath} fill="url(#trendAreaGradient)" />
-                                      <polyline points={linePath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-                                    </>
-                                  )
-                                })()}
-                                {dateEntries.map((d: any, idx: number) => {
-                                  const padY = 15
-                                  const dataBottom = 500 - padY
-                                  const dataHeight = dataBottom - padY
-                                  const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
-                                  const y = maxCount > 0 ? dataBottom - (d.count / maxCount) * dataHeight : dataBottom
-                                  return (
-                                    <g key={idx}>
-                                      <circle cx={x} cy={y} r="15" fill="transparent" style={{ cursor: 'pointer' }}>
-                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
-                                      </circle>
-                                      <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"
-                                        style={{ cursor: 'pointer' }}>
-                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
-                                      </circle>
-                                    </g>
-                                  )
-                                })}
-                              </svg>
-
-                              {/* X-axis - show every date */}
-                              <div style={{ position: 'absolute', bottom: '0', left: '60px', right: '30px', display: 'flex', justifyContent: 'space-between', height: '50px', paddingTop: '8px', overflow: 'visible' }}>
-                                {dateEntries.map((d: any, idx: number) => {
-                                  const showEvery = dateEntries.length > 30 ? Math.ceil(dateEntries.length / 20) : (dateEntries.length > 15 ? 2 : 1)
-                                  if (idx % showEvery === 0 || idx === dateEntries.length - 1) {
-                                    return (
-                                      <div key={idx} style={{ transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                                        {new Date(d.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
-                                      </div>
-                                    )
-                                  }
-                                  return <div key={idx} />
-                                })}
-                              </div>
-                            </div>
+                            <Plot
+                              data={[
+                                {
+                                  x: dates,
+                                  y: counts,
+                                  type: 'scatter',
+                                  mode: 'lines+markers',
+                                  name: 'Kayıt Sayısı',
+                                  fill: 'tozeroy',
+                                  fillcolor: 'rgba(59, 130, 246, 0.15)',
+                                  line: { color: '#3b82f6', width: 2.5, shape: 'spline' },
+                                  marker: { size: 6, color: '#3b82f6' },
+                                  hovertemplate: '<b>%{x}</b><br>Kayıt: %{y}<extra></extra>',
+                                }
+                              ]}
+                              layout={{
+                                margin: { t: 10, b: 80, l: 50, r: 20 },
+                                paper_bgcolor: 'transparent',
+                                plot_bgcolor: 'transparent',
+                                height: 400,
+                                xaxis: {
+                                  gridcolor: 'rgba(128,128,128,0.1)',
+                                  tickfont: { size: 12, color: '#888' },
+                                  tickangle: -45,
+                                  showgrid: true,
+                                },
+                                yaxis: {
+                                  title: { text: 'Kayıt Sayısı', font: { size: 13, color: '#888' } },
+                                  gridcolor: 'rgba(128,128,128,0.1)',
+                                  tickfont: { size: 12, color: '#888' },
+                                  zeroline: true,
+                                  zerolinecolor: 'rgba(128,128,128,0.3)',
+                                  rangemode: 'tozero',
+                                },
+                                showlegend: false,
+                                hovermode: 'x unified',
+                              }}
+                              config={{ displayModeBar: false, responsive: true }}
+                              style={{ width: '100%', height: '400px' }}
+                            />
                           </div>
                         )
                       })()}
