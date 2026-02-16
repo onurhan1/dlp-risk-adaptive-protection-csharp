@@ -1397,7 +1397,7 @@ export default function AnalyticsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Analytics Report</h1>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -1598,13 +1598,11 @@ export default function AnalyticsPage() {
             <div style={{
               background: 'var(--surface)',
               borderRadius: '8px',
-              border: '1px solid var(--border)',
-              padding: '24px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              padding: '24px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
+                  <h2 style={{ fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
                   {mercekLoading && (
                     <div style={{
                       width: '16px',
@@ -1689,80 +1687,75 @@ export default function AnalyticsPage() {
                 const weekChangePositive = Number(weekChange) >= 0
 
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '28px' }}>
                     <div style={{
                       background: 'var(--background-secondary)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '32px' }}>📊</div>
+                      <div style={{ fontSize: '36px' }}>📊</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Toplam Kayıt</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '28px', fontWeight: '600' }}>{mercekStatistics.totalIncidents}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
                       </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '32px' }}>🟢</div>
+                      <div style={{ fontSize: '36px' }}>🟢</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Açık İnsident</div>
-                        <div style={{ color: '#10b981', fontSize: '28px', fontWeight: '600' }}>{mercekStatistics.openIncidents}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık İnsident</div>
+                        <div style={{ color: '#10b981', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
                       </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '32px' }}>🔴</div>
+                      <div style={{ fontSize: '36px' }}>🔴</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Kapatılmış İnsident</div>
-                        <div style={{ color: '#ef4444', fontSize: '28px', fontWeight: '600' }}>{mercekStatistics.closedIncidents}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış İnsident</div>
+                        <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
                       </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '32px' }}>⏱️</div>
+                      <div style={{ fontSize: '36px' }}>⏱️</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Ort. Çözüm Süresi</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '28px', fontWeight: '600' }}>{mercekStatistics.averageResolutionDays} gün</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
                       </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      padding: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '32px' }}>📈</div>
+                      <div style={{ fontSize: '36px' }}>📈</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Son 1 Haftadaki Kayıt</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '28px', fontWeight: '600' }}>{lastWeekCount}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Son 1 Haftadaki Kayıt</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{lastWeekCount}</div>
                         {previousWeekCount > 0 && (
                           <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px' }}>
                             {previousWeekCount} (önceki hafta)
@@ -1796,23 +1789,9 @@ export default function AnalyticsPage() {
                 const userMaxCount = Math.max(...userDist.map(d => d.count), 1)
                 const assignedMaxCount = Math.max(...assignedDist.map(d => d.count), 1)
 
-                const renderMiniPagination = (current: number, total: number, onChange: (p: number) => void) => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginTop: '12px' }}>
-                    <button onClick={() => onChange(1)} disabled={current <= 1}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current <= 1 ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current <= 1 ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current <= 1 ? 0.5 : 1 }}>«</button>
-                    <button onClick={() => onChange(current - 1)} disabled={current <= 1}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current <= 1 ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current <= 1 ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current <= 1 ? 0.5 : 1 }}>‹</button>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', minWidth: '60px', textAlign: 'center' }}>{current} / {total}</span>
-                    <button onClick={() => onChange(current + 1)} disabled={current >= total}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current >= total ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current >= total ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current >= total ? 0.5 : 1 }}>›</button>
-                    <button onClick={() => onChange(total)} disabled={current >= total}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: current >= total ? 'var(--background-secondary)' : 'var(--background)', color: 'var(--text-primary)', cursor: current >= total ? 'not-allowed' : 'pointer', fontSize: '11px', opacity: current >= total ? 0.5 : 1 }}>»</button>
-                  </div>
-                )
-
                 return (
-                  <div style={{ marginBottom: '24px' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Grafik Görselleştirme</h3>
+                  <div style={{ marginBottom: '28px' }}>
+                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Grafik Görselleştirme</h3>
 
                     {/* Filters */}
                     <div style={{
@@ -1823,30 +1802,30 @@ export default function AnalyticsPage() {
                       alignItems: 'flex-end'
                     }}>
                       <div style={{ flex: '1', minWidth: '180px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Kullanıcı</label>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Kullanıcı</label>
                         <select value={csvSelectedUser} onChange={(e) => { setCsvSelectedUser(e.target.value); setCsvCurrentPage(1) }}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
                           <option value="">Tümü</option>
                           {mercekAvailableUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
                         </select>
                       </div>
                       <div style={{ flex: '1', minWidth: '180px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Atanan Kullanıcı</label>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Atanan Kullanıcı</label>
                         <select value={mercekAssignedUserFilter} onChange={(e) => { setMercekAssignedUserFilter(e.target.value); setCsvCurrentPage(1) }}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
                           <option value="">Tümü</option>
                           {mercekAssignedUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
                         </select>
                       </div>
                       <div style={{ flex: '1', minWidth: '140px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Başlangıç Tarihi</label>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Başlangıç Tarihi</label>
                         <input type="date" value={csvDateFrom} onChange={(e) => setCsvDateFrom(e.target.value)}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                       </div>
                       <div style={{ flex: '1', minWidth: '140px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '4px' }}>Bitiş Tarihi</label>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Bitiş Tarihi</label>
                         <input type="date" value={csvDateTo} onChange={(e) => setCsvDateTo(e.target.value)}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                       </div>
                       <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
                         style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '14px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer', height: 'fit-content', alignSelf: 'flex-end', marginBottom: '2px' }}>
@@ -1861,78 +1840,106 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Charts Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '24px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginBottom: '28px' }}>
                       
                       {/* Kullanıcı Dağılımı */}
                       {userDist.length > 0 && (
-                        <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                            Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '12px' }}>({userDist.length} kullanıcı)</span>
+                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                            Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({userDist.length} kullanıcı)</span>
                           </h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {paginatedUsers.map((item, idx) => {
                               const percentage = (item.count / userMaxCount) * 100
                               return (
                                 <div key={idx}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: '500' }}>{item.label}</span>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>{item.count}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '600' }}>{item.count}</span>
                                   </div>
-                                  <div style={{ width: '100%', height: '22px', background: 'var(--background-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                                  <div style={{ width: '100%', height: '26px', background: 'var(--background)', borderRadius: '6px', overflow: 'hidden' }}>
                                     <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
-                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '11px', fontWeight: '600' }}>{item.count}</span>}
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>{item.count}</span>}
                                     </div>
                                   </div>
                                 </div>
                               )
                             })}
                           </div>
-                          {userTotalPages > 1 && renderMiniPagination(userPage, userTotalPages, setUserChartPage)}
+                          {userTotalPages > 1 && (
+                            <div style={{ marginTop: '16px' }}>
+                              <Pagination
+                                currentPage={userPage}
+                                totalPages={userTotalPages}
+                                totalItems={userDist.length}
+                                pageSize={userChartPageSize}
+                                onPageChange={setUserChartPage}
+                                showPageInput={false}
+                                showFirstLast={true}
+                                showTotalItems={true}
+                                compact={true}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* Atanan Kullanıcı Dağılımı */}
                       {assignedDist.length > 0 && (
-                        <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                            Atanan Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '12px' }}>({assignedDist.length} kullanıcı)</span>
+                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                            Atanan Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({assignedDist.length} kullanıcı)</span>
                           </h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {paginatedAssigned.map((item, idx) => {
                               const percentage = (item.count / assignedMaxCount) * 100
                               return (
                                 <div key={idx}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: '500' }}>{item.label}</span>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>{item.count}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '600' }}>{item.count}</span>
                                   </div>
-                                  <div style={{ width: '100%', height: '22px', background: 'var(--background-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                                  <div style={{ width: '100%', height: '26px', background: 'var(--background)', borderRadius: '6px', overflow: 'hidden' }}>
                                     <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
-                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '11px', fontWeight: '600' }}>{item.count}</span>}
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>{item.count}</span>}
                                     </div>
                                   </div>
                                 </div>
                               )
                             })}
                           </div>
-                          {assignedTotalPages > 1 && renderMiniPagination(assignedPage, assignedTotalPages, setAssignedUserChartPage)}
+                          {assignedTotalPages > 1 && (
+                            <div style={{ marginTop: '16px' }}>
+                              <Pagination
+                                currentPage={assignedPage}
+                                totalPages={assignedTotalPages}
+                                totalItems={assignedDist.length}
+                                pageSize={assignedChartPageSize}
+                                onPageChange={setAssignedUserChartPage}
+                                showPageInput={false}
+                                showFirstLast={true}
+                                showTotalItems={true}
+                                compact={true}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* Trend Chart - full width */}
                       {mercekStatistics.dailyCounts?.length > 0 && (() => {
-                        const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-60)
+                        const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-90)
                         const maxCount = Math.max(...dateEntries.map((d: any) => d.count), 1)
                         const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0)
 
                         return (
-                          <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '20px', border: '1px solid var(--border)', gridColumn: '1 / -1', overflow: 'hidden' }}>
-                            <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                          <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1', overflow: 'hidden' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
                               Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün)
                             </h4>
-                            <div style={{ height: '250px', padding: '10px 40px 40px 50px', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ height: '400px', padding: '10px 30px 60px 60px', position: 'relative', overflow: 'visible', minWidth: `${dateEntries.length * 28}px` }}>
                               {/* Y-axis */}
-                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', width: '45px' }}>
+                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '60px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', width: '55px', fontWeight: '500' }}>
                                 <span>{maxCount}</span>
                                 <span>{Math.floor(maxCount * 0.75)}</span>
                                 <span>{Math.floor(maxCount * 0.5)}</span>
@@ -1940,7 +1947,7 @@ export default function AnalyticsPage() {
                                 <span>0</span>
                               </div>
 
-                              <svg width="100%" height="100%" style={{ position: 'absolute', top: '10px', left: '50px', right: '40px', bottom: '40px', overflow: 'visible' }}>
+                              <svg width="100%" height="100%" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'visible' }}>
                                 {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
                                   <line key={ratio} x1="0" y1={`${ratio * 100}%`} x2="100%" y2={`${ratio * 100}%`} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
                                 ))}
@@ -1956,11 +1963,9 @@ export default function AnalyticsPage() {
                                     const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
                                     return { x, y, count: d.count }
                                   })
-                                  // Area fill
                                   let areaPath = `M ${points[0].x}% 100% `
                                   points.forEach((p) => { areaPath += `L ${p.x}% ${p.y}% ` })
                                   areaPath += `L ${points[points.length - 1].x}% 100% Z`
-                                  // Line
                                   const linePath = points.map(p => `${p.x}%,${p.y}%`).join(' ')
                                   return (
                                     <>
@@ -1969,38 +1974,37 @@ export default function AnalyticsPage() {
                                     </>
                                   )
                                 })()}
-                                {/* Dots on line */}
                                 {dateEntries.map((d: any, idx: number) => {
                                   const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 50
                                   const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
                                   return (
                                     <g key={idx}>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="10" fill="transparent" style={{ cursor: 'pointer' }}>
-                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR')}: ${d.count} kayıt`}</title>
+                                      <circle cx={`${x}%`} cy={`${y}%`} r="12" fill="transparent" style={{ cursor: 'pointer' }}>
+                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
                                       </circle>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="3.5" fill="#3b82f6" stroke="white" strokeWidth="2"
+                                      <circle cx={`${x}%`} cy={`${y}%`} r="4" fill="#3b82f6" stroke="white" strokeWidth="2"
                                         style={{ cursor: 'pointer', transition: 'r 0.2s' }}
-                                        onMouseEnter={(e) => { e.currentTarget.setAttribute('r', '6') }}
-                                        onMouseLeave={(e) => { e.currentTarget.setAttribute('r', '3.5') }}>
-                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR')}: ${d.count} kayıt`}</title>
+                                        onMouseEnter={(e) => { e.currentTarget.setAttribute('r', '7') }}
+                                        onMouseLeave={(e) => { e.currentTarget.setAttribute('r', '4') }}>
+                                        <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
                                       </circle>
                                     </g>
                                   )
                                 })}
                               </svg>
 
-                              {/* X-axis */}
-                              <div style={{ position: 'absolute', bottom: '0', left: '50px', right: '40px', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--text-secondary)', height: '30px', paddingTop: '5px', overflow: 'hidden' }}>
+                              {/* X-axis - show every date */}
+                              <div style={{ position: 'absolute', bottom: '0', left: '60px', right: '30px', display: 'flex', justifyContent: 'space-between', height: '50px', paddingTop: '8px', overflow: 'visible' }}>
                                 {dateEntries.map((d: any, idx: number) => {
-                                  const step = Math.max(1, Math.ceil(dateEntries.length / 10))
-                                  if (idx % step === 0 || idx === dateEntries.length - 1) {
+                                  const showEvery = dateEntries.length > 30 ? Math.ceil(dateEntries.length / 20) : (dateEntries.length > 15 ? 2 : 1)
+                                  if (idx % showEvery === 0 || idx === dateEntries.length - 1) {
                                     return (
-                                      <div key={idx} style={{ transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap', fontSize: '9px' }}>
-                                        {new Date(d.date).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })}
+                                      <div key={idx} style={{ transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                        {new Date(d.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
                                       </div>
                                     )
                                   }
-                                  return null
+                                  return <div key={idx} />
                                 })}
                               </div>
                             </div>
@@ -2021,7 +2025,7 @@ export default function AnalyticsPage() {
 
                 return (
                   <>
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Veri Tablosu</h3>
+                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Veri Tablosu</h3>
 
                     {/* Search Controls */}
                     {mercekDataLoaded && (
