@@ -404,7 +404,7 @@ export default function Home() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
             {/* Donut Chart */}
-            <div style={{ height: '300px' }}>
+            <div style={{ height: '300px', position: 'relative' }}>
               <Plot
                 data={[{
                   values: [
@@ -420,8 +420,7 @@ export default function Home() {
                     colors: ['#10b981', '#ef4444', '#a855f7', '#f59e0b'],
                     line: { color: 'rgba(0,0,0,0.1)', width: 1 }
                   },
-                  textinfo: 'label+percent',
-                  textfont: { size: 13, color: '#fff' },
+                  textinfo: 'none',
                   hoverinfo: 'label+value+percent',
                   sort: false,
                 }]}
@@ -440,12 +439,22 @@ export default function Home() {
                 }}
                 config={{ displayModeBar: false, responsive: true }}
                 style={{ width: '100%', height: '100%' }}
-                onClick={(data: any) => {
-                  if (data?.points?.[0]) {
-                    const label = data.points[0].label
-                    fetchActionIncidents(label)
-                  }
+              />
+              {/* Clickable Total center overlay */}
+              <div
+                onClick={() => fetchActionIncidents('TOTAL')}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  zIndex: 10,
                 }}
+                title="View all incidents"
               />
             </div>
 
@@ -660,11 +669,11 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{t('common.user')}</th>
-                <th className="text-center">{t('dashboard.riskScore')}</th>
-                <th className="text-center">{t('dashboard.daysActive')}</th>
-                <th className="text-center">{t('dashboard.incidents')}</th>
-                <th className="text-right">{t('common.actions')}</th>
+                <th style={{ width: '40%' }}>{t('common.user')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.riskScore')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.daysActive')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.incidents')}</th>
+                <th className="text-right" style={{ width: '18%' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -754,11 +763,11 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{t('common.user')}</th>
-                <th className="text-center">{t('dashboard.riskScore')}</th>
-                <th className="text-center">{t('dashboard.blocks')}</th>
-                <th className="text-center">{t('dashboard.incidents')}</th>
-                <th className="text-right">{t('common.actions')}</th>
+                <th style={{ width: '40%' }}>{t('common.user')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.riskScore')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.blocks')}</th>
+                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.incidents')}</th>
+                <th className="text-right" style={{ width: '18%' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -930,7 +939,7 @@ export default function Home() {
               </select>
             </div>
             <div className="total-alerts">
-              <span className="total-label">Total alerts last {topRulesDays} days: {totalAlerts}</span>
+              <span className="total-label">Total alerts: {totalAlerts}</span>
             </div>
           </div>
           {loading ? (

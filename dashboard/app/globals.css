@@ -127,6 +127,7 @@ a {
   border: 1px solid var(--border);
   transition: all 0.2s ease;
   color: var(--text-primary);
+  overflow: hidden;
 }
 
 .card:hover {
@@ -249,6 +250,46 @@ a {
 
 .input::placeholder {
   color: var(--text-muted);
+}
+
+/* Data Table - flexible layout */
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table th {
+  background: var(--surface-hover);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border);
+}
+
+.data-table td {
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.data-table tr:hover {
+  background: var(--surface-hover);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
 }
 
 /* Table */
