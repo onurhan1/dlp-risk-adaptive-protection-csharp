@@ -1947,9 +1947,9 @@ export default function AnalyticsPage() {
                                 <span>0</span>
                               </div>
 
-                              <svg width="100%" height="100%" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'visible' }}>
+                              <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="none" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'visible' }}>
                                 {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
-                                  <line key={ratio} x1="0" y1={`${ratio * 100}%`} x2="100%" y2={`${ratio * 100}%`} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
+                                  <line key={ratio} x1="0" y1={ratio * 500} x2="1000" y2={ratio * 500} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.4" />
                                 ))}
                                 <defs>
                                   <linearGradient id="trendAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1959,33 +1959,31 @@ export default function AnalyticsPage() {
                                 </defs>
                                 {dateEntries.length > 0 && (() => {
                                   const points = dateEntries.map((d: any, idx: number) => {
-                                    const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 50
-                                    const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
+                                    const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
+                                    const y = maxCount > 0 ? 500 - (d.count / maxCount) * 500 : 500
                                     return { x, y, count: d.count }
                                   })
-                                  let areaPath = `M ${points[0].x}% 100% `
-                                  points.forEach((p) => { areaPath += `L ${p.x}% ${p.y}% ` })
-                                  areaPath += `L ${points[points.length - 1].x}% 100% Z`
-                                  const linePath = points.map(p => `${p.x}%,${p.y}%`).join(' ')
+                                  let areaPath = `M ${points[0].x} 500 `
+                                  points.forEach((p) => { areaPath += `L ${p.x} ${p.y} ` })
+                                  areaPath += `L ${points[points.length - 1].x} 500 Z`
+                                  const linePath = points.map(p => `${p.x},${p.y}`).join(' ')
                                   return (
                                     <>
                                       <path d={areaPath} fill="url(#trendAreaGradient)" />
-                                      <polyline points={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                      <polyline points={linePath} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                                     </>
                                   )
                                 })()}
                                 {dateEntries.map((d: any, idx: number) => {
-                                  const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 100 : 50
-                                  const y = maxCount > 0 ? 100 - (d.count / maxCount) * 100 : 100
+                                  const x = dateEntries.length > 1 ? (idx / (dateEntries.length - 1)) * 1000 : 500
+                                  const y = maxCount > 0 ? 500 - (d.count / maxCount) * 500 : 500
                                   return (
                                     <g key={idx}>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="12" fill="transparent" style={{ cursor: 'pointer' }}>
+                                      <circle cx={x} cy={y} r="15" fill="transparent" style={{ cursor: 'pointer' }}>
                                         <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
                                       </circle>
-                                      <circle cx={`${x}%`} cy={`${y}%`} r="4" fill="#3b82f6" stroke="white" strokeWidth="2"
-                                        style={{ cursor: 'pointer', transition: 'r 0.2s' }}
-                                        onMouseEnter={(e) => { e.currentTarget.setAttribute('r', '7') }}
-                                        onMouseLeave={(e) => { e.currentTarget.setAttribute('r', '4') }}>
+                                      <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" vectorEffect="non-scaling-stroke"
+                                        style={{ cursor: 'pointer' }}>
                                         <title>{`${new Date(d.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}: ${d.count} kayıt`}</title>
                                       </circle>
                                     </g>
