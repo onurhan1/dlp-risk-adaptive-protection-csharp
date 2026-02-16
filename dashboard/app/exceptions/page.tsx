@@ -1939,12 +1939,24 @@ export default function AnalyticsPage() {
                             </h4>
                             <div style={{ height: '400px', padding: '10px 30px 60px 60px', position: 'relative', overflow: 'visible', minWidth: `${dateEntries.length * 28}px` }}>
                               {/* Y-axis */}
-                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '60px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', width: '55px', fontWeight: '500' }}>
-                                <span>{maxCount}</span>
-                                <span>{Math.floor(maxCount * 0.75)}</span>
-                                <span>{Math.floor(maxCount * 0.5)}</span>
-                                <span>{Math.floor(maxCount * 0.25)}</span>
-                                <span>0</span>
+                              <div style={{ position: 'absolute', left: '0', top: '10px', bottom: '60px', width: '55px' }}>
+                                {[
+                                  { label: String(maxCount), pct: 0 },
+                                  { label: String(Math.floor(maxCount * 0.75)), pct: 25 },
+                                  { label: String(Math.floor(maxCount * 0.5)), pct: 50 },
+                                  { label: String(Math.floor(maxCount * 0.25)), pct: 75 },
+                                  { label: '0', pct: 100 }
+                                ].map((item, idx) => (
+                                  <span key={idx} style={{
+                                    position: 'absolute',
+                                    top: `${item.pct}%`,
+                                    transform: 'translateY(-50%)',
+                                    right: '4px',
+                                    fontSize: '13px',
+                                    color: 'var(--text-secondary)',
+                                    fontWeight: '500'
+                                  }}>{item.label}</span>
+                                ))}
                               </div>
 
                               <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="none" style={{ position: 'absolute', top: '10px', left: '60px', right: '30px', bottom: '60px', overflow: 'visible' }}>
