@@ -1874,7 +1874,7 @@ export default function AnalyticsPage() {
                                 totalItems={userDist.length}
                                 pageSize={userChartPageSize}
                                 onPageChange={setUserChartPage}
-                                showPageInput={false}
+                                showPageInput={true}
                                 showFirstLast={true}
                                 showTotalItems={true}
                                 compact={true}
@@ -1916,7 +1916,7 @@ export default function AnalyticsPage() {
                                 totalItems={assignedDist.length}
                                 pageSize={assignedChartPageSize}
                                 onPageChange={setAssignedUserChartPage}
-                                showPageInput={false}
+                                showPageInput={true}
                                 showFirstLast={true}
                                 showTotalItems={true}
                                 compact={true}
