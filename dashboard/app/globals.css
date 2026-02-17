@@ -17,14 +17,24 @@
 
 /* Dark Theme (Default) */
 .dark-theme {
-  --background: #1a1f2e; /* Dark Blue-Gray */
-  --background-secondary: #252b3d; /* Slightly Lighter */
-  --surface: #2d3447; /* Card Background */
-  --surface-hover: #353b4f;
-  --surface-active: #3d4457;
+  --background: #222839; /* Ana ekran - daha açık */
+  --background-secondary: #2a3045;
+  --surface: #313750; /* Card Background - daha açık */
+  --surface-hover: #3a4058;
+  --surface-active: #424862;
+  
+  /* Sidebar specific - çok koyu */
+  --sidebar-bg: #0d1017;
+  --sidebar-bg-end: #12151e;
+  --sidebar-text: #9aa3b0;
+  --sidebar-text-hover: #e8eaed;
+  --sidebar-text-active: #00a8e8;
+  --sidebar-border: #1e2230;
+  --sidebar-hover-bg: #171b26;
+  --sidebar-active-bg: #141824;
   
   /* Text Colors */
-  --text-primary: #e8eaed; /* Light Gray */
+  --text-primary: #e8eaed;
   --text-secondary: #b0b8c4;
   --text-muted: #8a9199;
   --text-inverse: #1a1f2e;
@@ -49,6 +59,16 @@
   --surface: #ffffff; /* White */
   --surface-hover: #f8fafc;
   --surface-active: #f1f5f9;
+  
+  /* Sidebar specific - koyu sidebar aydınlık modda */
+  --sidebar-bg: #1a2332;
+  --sidebar-bg-end: #1f2938;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-hover: #ffffff;
+  --sidebar-text-active: #00d4ff;
+  --sidebar-border: #263345;
+  --sidebar-hover-bg: #223040;
+  --sidebar-active-bg: #1c2836;
   
   /* Text Colors */
   --text-primary: #1e293b; /* Dark Gray */
@@ -333,56 +353,57 @@ a {
   top: 0;
   height: 100vh;
   width: 240px;
-  background: var(--background-secondary);
+  background: linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-end) 100%);
   display: flex;
   flex-direction: column;
   padding: 0;
   z-index: 1000;
   box-shadow: var(--shadow-lg);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--sidebar-border);
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .dark-theme .sidebar {
-  background: linear-gradient(180deg, #1a1f2e 0%, #252b3d 100%);
+  background: linear-gradient(180deg, #0d1017 0%, #12151e 100%);
 }
 
 .light-theme .sidebar {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(180deg, #1a2332 0%, #1f2938 100%);
 }
 
 .sidebar-logo {
   padding: 20px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--sidebar-border);
   margin-bottom: 8px;
 }
 
 .sidebar-icon {
   width: 100%;
-  height: 58px; /* Increased from 56px */
+  height: 58px;
   border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  color: var(--text-secondary);
+  color: var(--sidebar-text);
   cursor: pointer;
   transition: all 0.2s;
   padding: 0 16px;
   gap: 12px;
-  font-size: 18px; /* Increased from 17px */
+  font-size: 18px;
   font-weight: 500;
   border-left: 3px solid transparent;
+  text-decoration: none;
 }
 
 .sidebar-icon:hover {
-  background-color: var(--surface);
-  color: var(--text-primary);
+  background-color: var(--sidebar-hover-bg);
+  color: var(--sidebar-text-hover);
   border-left-color: var(--primary);
 }
 
 .sidebar-icon.active {
-  background-color: var(--surface-active);
-  color: var(--primary);
+  background-color: var(--sidebar-active-bg);
+  color: var(--sidebar-text-active);
   border-left-color: var(--primary);
   font-weight: 600;
 }
@@ -406,7 +427,7 @@ a {
   padding: 8px 16px 8px 44px;
   font-size: 14px;
   font-weight: 400;
-  color: var(--text-secondary);
+  color: var(--sidebar-text);
   cursor: pointer;
   transition: all 0.2s;
   text-decoration: none;
@@ -414,14 +435,14 @@ a {
 }
 
 .sidebar-subitem:hover {
-  background-color: var(--surface);
-  color: var(--text-primary);
+  background-color: var(--sidebar-hover-bg);
+  color: var(--sidebar-text-hover);
   border-left-color: var(--primary);
 }
 
 .sidebar-subitem.active {
-  background-color: var(--surface-active);
-  color: var(--primary);
+  background-color: var(--sidebar-active-bg);
+  color: var(--sidebar-text-active);
   border-left-color: var(--primary);
   font-weight: 600;
 }
