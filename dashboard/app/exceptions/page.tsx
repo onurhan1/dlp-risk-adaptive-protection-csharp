@@ -117,6 +117,9 @@ export default function AnalyticsPage() {
   const [mercekAssignedUserFilter, setMercekAssignedUserFilter] = useState('')
   const [mercekDataLoaded, setMercekDataLoaded] = useState(false)
   const [mercekStatistics, setMercekStatistics] = useState<any>(null)
+  const [mercekSortColumn, setMercekSortColumn] = useState<string | null>(null)
+  const [mercekSortDirection, setMercekSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [mercekColumnFilters, setMercekColumnFilters] = useState<Record<string, string>>({})
   const [userChartPage, setUserChartPage] = useState(1)
   const [assignedUserChartPage, setAssignedUserChartPage] = useState(1)
 
@@ -216,6 +219,64 @@ export default function AnalyticsPage() {
       setSortColumn(column)
       setSortDirection('asc')
     }
+  }
+
+  const handleMercekSort = (column: string) => {
+    if (mercekSortColumn === column) {
+      setMercekSortDirection(mercekSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setMercekSortColumn(column)
+      setMercekSortDirection('asc')
+    }
+  }
+
+  const handleMercekColumnFilter = (column: string, value: string) => {
+    setMercekColumnFilters(prev => ({
+      ...prev,
+      [column]: value
+    }))
+  }
+
+  const getFilteredAndSortedMercekData = (data: any[]) => {
+    let filtered = [...data]
+
+    // Apply column filters
+    Object.entries(mercekColumnFilters).forEach(([column, filterValue]) => {
+      if (filterValue.trim()) {
+        filtered = filtered.filter(row => {
+          const cellValue = String(row[column] || '').toLowerCase()
+          return cellValue.includes(filterValue.toLowerCase().trim())
+        })
+      }
+    })
+
+    // Apply sorting
+    if (mercekSortColumn) {
+      filtered.sort((a, b) => {
+        const aVal = String(a[mercekSortColumn!] || '')
+        const bVal = String(b[mercekSortColumn!] || '')
+
+        // Try numeric comparison
+        const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''))
+        const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''))
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return mercekSortDirection === 'asc' ? aNum - bNum : bNum - aNum
+        }
+
+        // Try date comparison
+        const aDate = Date.parse(aVal)
+        const bDate = Date.parse(bVal)
+        if (!isNaN(aDate) && !isNaN(bDate)) {
+          return mercekSortDirection === 'asc' ? aDate - bDate : bDate - aDate
+        }
+
+        // String comparison
+        const cmp = aVal.localeCompare(bVal, 'tr')
+        return mercekSortDirection === 'asc' ? cmp : -cmp
+      })
+    }
+
+    return filtered
   }
 
   const toggleColumnFilter = (column: string) => {
@@ -2157,57 +2218,31 @@ export default function AnalyticsPage() {
                 // For API data, use server pagination
                 const totalPages = mercekDataLoaded ? mercekTotalPages : Math.ceil(csvData.length / csvPageSize)
                 const totalItems = mercekDataLoaded ? mercekTotalCount : csvData.length
-                const paginatedData = mercekDataLoaded ? csvData : csvData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
+                const rawPaginatedData = mercekDataLoaded ? csvData : csvData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
+                const paginatedData = getFilteredAndSortedMercekData(rawPaginatedData)
+                const hasActiveFilters = Object.values(mercekColumnFilters).some(v => v.trim())
 
                 return (
                   <>
-                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Veri Tablosu</h3>
-
-                    {/* Search Controls */}
-                    {mercekDataLoaded && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
-                        <input
-                          type="text"
-                          value={csvSearchQuery}
-                          onChange={(e) => setCsvSearchQuery(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              setCsvCurrentPage(1)
-                              fetchMercekData(1)
-                            }
-                          }}
-                          placeholder="Olay No, Kullanıcı Adı veya Atanan Kullanıcı ile ara..."
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
+                      {hasActiveFilters && (
+                        <button
+                          onClick={() => { setMercekColumnFilters({}); setMercekSortColumn(null); }}
                           style={{
-                            flex: 1,
-                            padding: '8px 12px',
+                            padding: '6px 14px',
                             borderRadius: '4px',
                             border: '1px solid var(--border)',
                             background: 'var(--background)',
-                            color: 'var(--text-primary)',
-                            fontSize: '14px'
-                          }}
-                        />
-                        <button
-                          onClick={() => {
-                            setCsvCurrentPage(1)
-                            fetchMercekData(1)
-                          }}
-                          disabled={mercekLoading}
-                          style={{
-                            padding: '8px 16px',
-                            borderRadius: '4px',
-                            border: 'none',
-                            background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            color: 'white',
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            cursor: mercekLoading ? 'not-allowed' : 'pointer'
+                            color: 'var(--text-secondary)',
+                            fontSize: '12px',
+                            cursor: 'pointer'
                           }}
                         >
-                          {mercekLoading ? 'Aranıyor...' : '🔍 Ara'}
+                          ✕ Filtreleri Temizle
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
                     {/* Table */}
                     <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
@@ -2219,27 +2254,70 @@ export default function AnalyticsPage() {
                         overflow: 'hidden'
                       }}>
                         <thead>
+                          {/* Sort headers */}
+                          <tr style={{ background: 'var(--background-secondary)' }}>
+                            {csvHeaders.map((header, index) => {
+                              const isSorted = mercekSortColumn === header
+                              return (
+                                <th
+                                  key={index}
+                                  onClick={() => handleMercekSort(header)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    textAlign: 'left',
+                                    borderBottom: '1px solid var(--border)',
+                                    color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                                    fontWeight: '600',
+                                    fontSize: '13px',
+                                    whiteSpace: 'nowrap',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    position: 'relative'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {header}
+                                    <span style={{ fontSize: '11px', opacity: isSorted ? 1 : 0.3 }}>
+                                      {isSorted ? (mercekSortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                                    </span>
+                                  </div>
+                                </th>
+                              )
+                            })}
+                          </tr>
+                          {/* Column search row */}
                           <tr style={{ background: 'var(--background-secondary)' }}>
                             {csvHeaders.map((header, index) => (
-                              <th
-                                key={index}
-                                style={{
-                                  padding: '12px',
-                                  textAlign: 'left',
-                                  borderBottom: '2px solid var(--border)',
-                                  color: 'var(--text-primary)',
-                                  fontWeight: '600',
-                                  fontSize: '13px',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {header}
+                              <th key={`search-${index}`} style={{ padding: '4px 8px', borderBottom: '2px solid var(--border)' }}>
+                                <input
+                                  type="text"
+                                  value={mercekColumnFilters[header] || ''}
+                                  onChange={(e) => handleMercekColumnFilter(header, e.target.value)}
+                                  placeholder="🔍"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '3px',
+                                    border: `1px solid ${mercekColumnFilters[header] ? '#3b82f6' : 'var(--border)'}`,
+                                    background: 'var(--background)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
                               </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {paginatedData.map((row, rowIndex) => (
+                          {paginatedData.length === 0 ? (
+                            <tr>
+                              <td colSpan={csvHeaders.length} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                                Filtre sonucu kayıt bulunamadı
+                              </td>
+                            </tr>
+                          ) : paginatedData.map((row, rowIndex) => (
                             <tr
                               key={rowIndex}
                               style={{
