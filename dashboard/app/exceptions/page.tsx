@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef, useCallback, ChangeEvent, MouseEvent } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, ChangeEvent, MouseEvent } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams, useRouter } from 'next/navigation'
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
 import DomainFeaturesManager from '@/components/DomainFeaturesManager'
@@ -52,6 +53,16 @@ interface ReleasedIncident {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
+      <AnalyticsPageContent />
+    </Suspense>
+  )
+}
+
+function AnalyticsPageContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -656,6 +667,30 @@ export default function AnalyticsPage() {
       return () => clearInterval(intervalId)
     }
   }, [showCSVAnalysis])
+
+  // Sync URL search params with view state
+  useEffect(() => {
+    const view = searchParams.get('view')
+    if (view === 'domain-features') {
+      setShowDomainFeatures(true)
+      setShowCSVAnalysis(false)
+    } else if (view === 'mercek-analiz') {
+      setShowCSVAnalysis(true)
+      setShowDomainFeatures(false)
+    } else {
+      setShowDomainFeatures(false)
+      setShowCSVAnalysis(false)
+    }
+  }, [searchParams])
+
+  // Helper to update URL when buttons are clicked
+  const navigateToView = (view: string | null) => {
+    if (view) {
+      router.push(`/exceptions?view=${view}`)
+    } else {
+      router.push('/exceptions')
+    }
+  }
 
   // Reset page when filters change
   useEffect(() => {
@@ -1440,7 +1475,7 @@ export default function AnalyticsPage() {
       }).filter(f => f.domain) // Boş domain'leri filtrele
 
       setDomainFeatures(features)
-      setShowDomainFeatures(true)
+      navigateToView('domain-features')
     }
 
     reader.readAsText(file, 'UTF-8')
@@ -1502,10 +1537,7 @@ export default function AnalyticsPage() {
           <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Analytics Report</h1>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
-              onClick={() => {
-                setShowDomainFeatures(!showDomainFeatures)
-                if (!showDomainFeatures) setShowCSVAnalysis(false)
-              }}
+              onClick={() => navigateToView(showDomainFeatures ? null : 'domain-features')}
               style={{
                 padding: '10px 20px',
                 borderRadius: '6px',
@@ -1521,10 +1553,7 @@ export default function AnalyticsPage() {
               Domain Features
             </button>
             <button
-              onClick={() => {
-                setShowCSVAnalysis(!showCSVAnalysis)
-                if (!showCSVAnalysis) setShowDomainFeatures(false)
-              }}
+              onClick={() => navigateToView(showCSVAnalysis ? null : 'mercek-analiz')}
               style={{
                 padding: '10px 20px',
                 borderRadius: '6px',
@@ -1546,7 +1575,7 @@ export default function AnalyticsPage() {
         {/* Domain Features - New API-based Manager */}
         {showDomainFeatures && (
           <div style={{ marginBottom: '24px' }}>
-            <DomainFeaturesManager onClose={() => setShowDomainFeatures(false)} />
+            <DomainFeaturesManager onClose={() => navigateToView(null)} />
           </div>
         )}
 
@@ -1740,7 +1769,7 @@ export default function AnalyticsPage() {
                     🔄 Yenile
                   </button>
                   <button
-                    onClick={() => setShowCSVAnalysis(false)}
+                    onClick={() => navigateToView(null)}
                     style={{
                       padding: '8px 16px',
                       borderRadius: '6px',
