@@ -17,45 +17,37 @@ export default function Sidebar() {
   const [exceptionsOpen, setExceptionsOpen] = useState(false)
   const [currentView, setCurrentView] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Client-side only: read query param to avoid hydration mismatch
+  const readViewParam = () => {
     const params = new URLSearchParams(window.location.search)
-    setCurrentView(params.get('view'))
+    return params.get('view')
+  }
 
+  useEffect(() => {
+    setCurrentView(readViewParam())
     if (isExceptionsPage) {
       setExceptionsOpen(true)
     }
   }, [isExceptionsPage])
 
-  // Listen to popstate for browser back/forward
+  // Poll for URL changes to sync sidebar active state
   useEffect(() => {
+    let lastSearch = window.location.search
+    const interval = setInterval(() => {
+      if (window.location.search !== lastSearch) {
+        lastSearch = window.location.search
+        setCurrentView(readViewParam())
+      }
+    }, 200)
+
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search)
-      setCurrentView(params.get('view'))
+      lastSearch = window.location.search
+      setCurrentView(readViewParam())
     }
     window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
-
-  // Listen to URL changes via pushState/replaceState (Next.js router)
-  useEffect(() => {
-    const originalPushState = history.pushState.bind(history)
-    const originalReplaceState = history.replaceState.bind(history)
-
-    history.pushState = (...args) => {
-      originalPushState(...args)
-      const params = new URLSearchParams(window.location.search)
-      setCurrentView(params.get('view'))
-    }
-    history.replaceState = (...args) => {
-      originalReplaceState(...args)
-      const params = new URLSearchParams(window.location.search)
-      setCurrentView(params.get('view'))
-    }
 
     return () => {
-      history.pushState = originalPushState
-      history.replaceState = originalReplaceState
+      clearInterval(interval)
+      window.removeEventListener('popstate', handlePopState)
     }
   }, [])
 
@@ -65,17 +57,23 @@ export default function Sidebar() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          gap: '12px'
         }}>
           <img
             src={theme === 'dark' ? '/radar-karanlik.png' : '/radar-aydinlik.png'}
             alt="RADAR"
             style={{
-              width: '100px',
-              height: '100px',
+              width: '44px',
+              height: '44px',
               objectFit: 'contain'
             }}
           />
+          <span style={{
+            fontSize: '22px',
+            fontWeight: '700',
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.02em'
+          }}>RADAR</span>
         </div>
       </div>
 

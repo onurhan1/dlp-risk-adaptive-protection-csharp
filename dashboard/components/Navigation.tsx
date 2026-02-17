@@ -3,14 +3,41 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
+import { useTranslation } from './LanguageProvider'
+import { usePathname } from 'next/navigation'
+
+const getPageTitleKey = (pathname: string, search: string): string => {
+  if (pathname === '/' || pathname === '') return 'nav.dashboard'
+  if (pathname.startsWith('/investigation')) return 'nav.investigation'
+  if (pathname.startsWith('/ai-behavioral')) return 'nav.aiBehavioral'
+  if (pathname.startsWith('/exceptions')) {
+    if (search.includes('view=domain-features')) return 'nav.domainFeatures'
+    if (search.includes('view=mercek-analiz')) return 'nav.mercekAnaliz'
+    return 'nav.exceptionsAnalytics'
+  }
+  if (pathname.startsWith('/settings')) return 'nav.settings'
+  if (pathname.startsWith('/faq')) return 'nav.faq'
+  if (pathname.startsWith('/release-notes')) return 'nav.releaseNotes'
+  return 'nav.dashboard'
+}
 
 export default function Navigation() {
   const [mounted, setMounted] = useState(false)
+  const [currentSearch, setCurrentSearch] = useState('')
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { t } = useTranslation()
+  const pathname = usePathname()
 
   useEffect(() => {
     setMounted(true)
+    setCurrentSearch(window.location.search)
+
+    // Poll for search param changes (URL query changes without navigation)
+    const interval = setInterval(() => {
+      setCurrentSearch(window.location.search)
+    }, 200)
+    return () => clearInterval(interval)
   }, [])
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -18,11 +45,13 @@ export default function Navigation() {
     return null
   }
 
+  const pageTitle = t(getPageTitleKey(pathname, currentSearch))
+
   return (
     <nav className="main-header">
       <div className="header-content">
         <div className="header-brand">
-          RADAR
+          {pageTitle}
         </div>
         <div className="header-nav">
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>

@@ -1535,40 +1535,6 @@ function AnalyticsPageContent() {
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Analytics Report</h1>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => navigateToView(showDomainFeatures ? null : 'domain-features')}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                background: showDomainFeatures ? 'var(--surface-hover)' : 'var(--surface)',
-                color: 'var(--text-primary)',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Domain Features
-            </button>
-            <button
-              onClick={() => navigateToView(showCSVAnalysis ? null : 'mercek-analiz')}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                background: showCSVAnalysis ? 'var(--surface-hover)' : 'var(--surface)',
-                color: 'var(--text-primary)',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Mercek Analiz
-            </button>
-          </div>
         </div>
 
 
