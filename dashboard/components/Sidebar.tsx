@@ -2,27 +2,62 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const { isAdmin } = useAuth()
   const { theme } = useTheme()
   const { locale, setLocale, t } = useTranslation()
 
   const isExceptionsPage = pathname === '/exceptions'
-  const currentView = searchParams.get('view')
-  const [exceptionsOpen, setExceptionsOpen] = useState(isExceptionsPage)
+  const [exceptionsOpen, setExceptionsOpen] = useState(false)
+  const [currentView, setCurrentView] = useState<string | null>(null)
 
   useEffect(() => {
+    // Client-side only: read query param to avoid hydration mismatch
+    const params = new URLSearchParams(window.location.search)
+    setCurrentView(params.get('view'))
+
     if (isExceptionsPage) {
       setExceptionsOpen(true)
     }
   }, [isExceptionsPage])
+
+  // Listen to popstate for browser back/forward
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      setCurrentView(params.get('view'))
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // Listen to URL changes via pushState/replaceState (Next.js router)
+  useEffect(() => {
+    const originalPushState = history.pushState.bind(history)
+    const originalReplaceState = history.replaceState.bind(history)
+
+    history.pushState = (...args) => {
+      originalPushState(...args)
+      const params = new URLSearchParams(window.location.search)
+      setCurrentView(params.get('view'))
+    }
+    history.replaceState = (...args) => {
+      originalReplaceState(...args)
+      const params = new URLSearchParams(window.location.search)
+      setCurrentView(params.get('view'))
+    }
+
+    return () => {
+      history.pushState = originalPushState
+      history.replaceState = originalReplaceState
+    }
+  }, [])
 
   return (
     <div className="sidebar">
