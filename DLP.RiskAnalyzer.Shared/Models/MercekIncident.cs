@@ -24,6 +24,7 @@ public class MercekIncident
     public string? CallTypeId { get; set; }
     public string? SolutionMethod { get; set; }
     public string? UserName { get; set; }
+    public DateTime? SystemDate { get; set; }
     public int? DefinitionCategoryId { get; set; }
     public string? DefinitionCategoryPath { get; set; }
 }

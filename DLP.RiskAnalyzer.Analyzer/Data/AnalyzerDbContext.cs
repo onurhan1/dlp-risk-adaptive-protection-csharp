@@ -364,11 +364,13 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.CallTypeId).HasColumnName("calltypeid").HasMaxLength(50);
             entity.Property(e => e.SolutionMethod).HasColumnName("solutionmethod").HasMaxLength(200);
             entity.Property(e => e.UserName).HasColumnName("username").HasMaxLength(200);
+            entity.Property(e => e.SystemDate).HasColumnName("systemdate");
             entity.Property(e => e.DefinitionCategoryId).HasColumnName("definitioncategoryid");
             entity.Property(e => e.DefinitionCategoryPath).HasColumnName("definitioncategorypath").HasMaxLength(500);
 
             entity.HasIndex(e => e.OpenDate);
             entity.HasIndex(e => e.CloseDate);
+            entity.HasIndex(e => e.SystemDate);
             entity.HasIndex(e => e.UserName);
             entity.HasIndex(e => e.AssignedUserCode);
             entity.HasIndex(e => e.StatusId);

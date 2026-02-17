@@ -30,8 +30,8 @@ public class MercekController : ControllerBase
     /// <param name="userName">Filter by user name (partial match)</param>
     /// <param name="assignedUserCode">Filter by assigned user code</param>
     /// <param name="statusId">Filter by status ID</param>
-    /// <param name="startDate">Filter by incidents opened after this date</param>
-    /// <param name="endDate">Filter by incidents opened before this date</param>
+    /// <param name="startDate">Filter by incidents system date after this date</param>
+    /// <param name="endDate">Filter by incidents system date before this date</param>
     /// <param name="searchTerm">Search in summary and incident description</param>
     /// <returns>Paginated list of Mercek incidents</returns>
     [HttpGet]
@@ -73,12 +73,12 @@ public class MercekController : ControllerBase
 
             if (startDate.HasValue)
             {
-                query = query.Where(m => m.OpenDate >= startDate.Value);
+                query = query.Where(m => m.SystemDate >= startDate.Value);
             }
 
             if (endDate.HasValue)
             {
-                query = query.Where(m => m.OpenDate <= endDate.Value);
+                query = query.Where(m => m.SystemDate <= endDate.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -107,7 +107,7 @@ public class MercekController : ControllerBase
 
             // Get paginated data
             var items = await query
-                .OrderByDescending(m => m.OpenDate)
+                .OrderByDescending(m => m.SystemDate)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -202,12 +202,12 @@ public class MercekController : ControllerBase
 
             // Get date range
             var dateRange = await _dbContext.MercekIncidents
-                .Where(m => m.OpenDate.HasValue)
+                .Where(m => m.SystemDate.HasValue)
                 .GroupBy(m => 1)
                 .Select(g => new 
                 {
-                    Min = g.Min(m => m.OpenDate),
-                    Max = g.Max(m => m.OpenDate)
+                    Min = g.Min(m => m.SystemDate),
+                    Max = g.Max(m => m.SystemDate)
                 })
                 .FirstOrDefaultAsync();
 
@@ -246,9 +246,9 @@ public class MercekController : ControllerBase
             if (!string.IsNullOrWhiteSpace(assignedUserCode))
                 query = query.Where(m => m.AssignedUserCode == assignedUserCode);
             if (startDate.HasValue)
-                query = query.Where(m => m.OpenDate >= startDate.Value);
+                query = query.Where(m => m.SystemDate >= startDate.Value);
             if (endDate.HasValue)
-                query = query.Where(m => m.OpenDate <= endDate.Value);
+                query = query.Where(m => m.SystemDate <= endDate.Value);
 
             var totalIncidents = await query.CountAsync();
             var openIncidents = await query.Where(m => m.CloseDate == null).CountAsync();
@@ -270,16 +270,16 @@ public class MercekController : ControllerBase
             var twoWeeksAgo = now.AddDays(-14);
 
             var lastWeekCount = await query
-                .Where(m => m.OpenDate.HasValue && m.OpenDate >= oneWeekAgo && m.OpenDate <= now)
+                .Where(m => m.SystemDate.HasValue && m.SystemDate >= oneWeekAgo && m.SystemDate <= now)
                 .CountAsync();
             var previousWeekCount = await query
-                .Where(m => m.OpenDate.HasValue && m.OpenDate >= twoWeeksAgo && m.OpenDate < oneWeekAgo)
+                .Where(m => m.SystemDate.HasValue && m.SystemDate >= twoWeeksAgo && m.SystemDate < oneWeekAgo)
                 .CountAsync();
 
             // Daily counts for timeline chart (last 90 days or all data)
             var dailyCounts = await query
-                .Where(m => m.OpenDate.HasValue)
-                .GroupBy(m => m.OpenDate!.Value.Date)
+                .Where(m => m.SystemDate.HasValue)
+                .GroupBy(m => m.SystemDate!.Value.Date)
                 .Select(g => new { Date = g.Key, Count = g.Count() })
                 .OrderBy(x => x.Date)
                 .ToListAsync();

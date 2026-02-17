@@ -99,6 +99,7 @@ CREATE TABLE merceks (
     calltypeid VARCHAR(50),
     solutionmethod VARCHAR(200),
     username VARCHAR(200),
+    systemdate TIMESTAMP,
     definitioncategoryid INTEGER,
     definitioncategorypath VARCHAR(500)
 );
@@ -106,6 +107,7 @@ CREATE TABLE merceks (
 -- Create indexes
 CREATE INDEX idx_mercek_opendate ON merceks(opendate);
 CREATE INDEX idx_mercek_closedate ON merceks(closedate);
+CREATE INDEX idx_mercek_systemdate ON merceks(systemdate);
 CREATE INDEX idx_mercek_username ON merceks(username);
 CREATE INDEX idx_mercek_assignedusercode ON merceks(assignedusercode);
 CREATE INDEX idx_mercek_statusid ON merceks(statusid);
@@ -116,7 +118,7 @@ COPY merceks (
     summarydescription, incidentdescription, impactid, priorityid,
     categoryid, assignedusercode, opendate, closedate, startdate,
     solutiondescription, requesttypeid, calltypeid, solutionmethod,
-    username, definitioncategoryid, definitioncategorypath
+    username, systemdate, definitioncategoryid, definitioncategorypath
 )
 FROM '$($csvFullPath -replace '\\','/')'
 WITH (FORMAT csv, HEADER true, DELIMITER ',', NULL '', QUOTE '"');

@@ -514,6 +514,7 @@ export default function AnalyticsPage() {
         'Olay No': item.incidentId,
         'Olay Açıklaması': item.incidentDescription,
         'Atanan Kullanıcı': item.assignedUserCode,
+        'Sistem Tarihi': item.systemDate ? new Date(item.systemDate).toLocaleString('tr-TR') : '',
         'Açılış Tarihi': item.openDate ? new Date(item.openDate).toLocaleString('tr-TR') : '',
         'Kapanış Tarihi': item.closeDate ? new Date(item.closeDate).toLocaleString('tr-TR') : '',
         'Başlangıç Tarihi': item.startDate ? new Date(item.startDate).toLocaleString('tr-TR') : '',
