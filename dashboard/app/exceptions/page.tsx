@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, ChangeEvent, MouseEvent } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback, ChangeEvent, MouseEvent } from 'react'
 import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
     try {
       const response = await apiClient.get('/api/incidents', {
         params: {
-          limit: 10000, // Fetch significantly more records to approximate "all" for analytics
+          limit: 1000000000, // Fetch significantly more records to approximate "all" for analytics
           order_by: 'timestamp_desc'
         }
       })
@@ -567,6 +567,17 @@ export default function AnalyticsPage() {
   }
 
   // Auto-load Mercek data when CSV Analysis is opened and refresh every 30 seconds
+  // Use refs to avoid stale closures - so interval always uses latest filter values
+  const fetchMercekDataRef = useRef(fetchMercekData)
+  const fetchMercekStatisticsRef = useRef(fetchMercekStatistics)
+  const csvCurrentPageRef = useRef(csvCurrentPage)
+  const csvPageSizeRef = useRef(csvPageSize)
+
+  useEffect(() => { fetchMercekDataRef.current = fetchMercekData }, [fetchMercekData])
+  useEffect(() => { fetchMercekStatisticsRef.current = fetchMercekStatistics }, [fetchMercekStatistics])
+  useEffect(() => { csvCurrentPageRef.current = csvCurrentPage }, [csvCurrentPage])
+  useEffect(() => { csvPageSizeRef.current = csvPageSize }, [csvPageSize])
+
   useEffect(() => {
     if (showCSVAnalysis) {
       // Initial load
@@ -574,10 +585,10 @@ export default function AnalyticsPage() {
       fetchMercekData(1, csvPageSize)
       fetchMercekStatistics()
 
-      // Auto-refresh every 30 seconds
+      // Auto-refresh every 30 seconds - uses refs to always get latest filter values
       const intervalId = setInterval(() => {
-        fetchMercekData(csvCurrentPage, csvPageSize)
-        fetchMercekStatistics()
+        fetchMercekDataRef.current(csvCurrentPageRef.current, csvPageSizeRef.current)
+        fetchMercekStatisticsRef.current()
       }, 30000) // 30 seconds
 
       // Cleanup interval on unmount or when CSV Analysis is closed
@@ -689,9 +700,33 @@ export default function AnalyticsPage() {
 
     // Sort teams by total count descending
     const sortedTeams = Array.from(teams).sort((a, b) => (teamTotalCounts[b] || 0) - (teamTotalCounts[a] || 0))
-    // Sort domains by total count descending
-    const sortedDomains = Array.from(domains).sort((a, b) => (domainTotalCounts[b] || 0) - (domainTotalCounts[a] || 0)).slice(0, 10)
-
+    // Sort domains by total count descending - top 10 + "Diğer" (top 10 dışındaki tüm domainler)
+    const allSortedDomains = Array.from(domains).sort((a, b) => (domainTotalCounts[b] || 0) - (domainTotalCounts[a] || 0))
+    const topDomains = allSortedDomains.slice(0, 10)
+    const otherDomains = allSortedDomains.slice(10)
+    const sortedDomains = otherDomains.length > 0 ? [...topDomains, 'Diğer'] : topDomains
+    if (otherDomains.length > 0) {
+      sortedTeams.forEach(t => {
+        let otherCount = 0
+        const otherBd = { block: 0, permit: 0, authorized: 0, quarantine: 0, maxMatchTotal: 0, incidentCount: 0 }
+        otherDomains.forEach(d => {
+          otherCount += counts[t]?.[d] || 0
+          const bd = breakdown[t]?.[d]
+          if (bd) {
+            otherBd.block += bd.block
+            otherBd.permit += bd.permit
+            otherBd.authorized += bd.authorized
+            otherBd.quarantine += bd.quarantine
+            otherBd.maxMatchTotal += bd.maxMatchTotal
+            otherBd.incidentCount += bd.incidentCount
+          }
+        })
+        if (!counts[t]) counts[t] = {}
+        counts[t]['Diğer'] = otherCount
+        if (!breakdown[t]) breakdown[t] = {}
+        breakdown[t]['Diğer'] = otherBd
+      })
+    }
     let maxCount = 0
     sortedTeams.forEach(t => {
       sortedDomains.forEach(d => {
@@ -1454,9 +1489,11 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* Released Incidents Section - CSV'nin üstünde */}
+        {/* Mercek Analiz (en üst) + Released Incidents (ikinci) - order ile sıra */}
         {showCSVAnalysis && (
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+        {/* Released Incidents Section - order: 2 ile ikinci sırada */}
+        <div style={{ order: 2, marginBottom: '24px' }}>
             <div style={{
               background: 'var(--surface)',
               borderRadius: '8px',
@@ -1594,11 +1631,9 @@ export default function AnalyticsPage() {
               )}
             </div>
           </div>
-        )}
 
-        {/* CSV Analysis Section */}
-        {showCSVAnalysis && (
-          <div style={{ marginBottom: '24px' }}>
+        {/* Mercek Analiz Section - order: 1 ile en üstte */}
+        <div style={{ order: 1, marginBottom: '24px' }}>
             <div style={{
               background: 'var(--surface)',
               borderRadius: '8px',
@@ -1690,6 +1725,21 @@ export default function AnalyticsPage() {
                   : '0'
                 const weekChangePositive = Number(weekChange) >= 0
 
+                const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                const todayKey = toDateKey(new Date())
+                const dailyCounts = mercekStatistics.dailyCounts || []
+                const todayCount = dailyCounts.find((d: any) => {
+                  const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date))
+                  return dt === todayKey
+                })?.count ?? 0
+                const weekdayEntries = dailyCounts.filter((d: any) => {
+                  const dt = typeof d.date === 'string' ? new Date(d.date + 'T12:00:00') : new Date(d.date)
+                  const day = dt.getDay()
+                  return day >= 1 && day <= 5
+                })
+                const weekdayTotal = weekdayEntries.reduce((s: number, d: any) => s + (d.count || 0), 0)
+                const weekdayDailyAvg = weekdayEntries.length > 0 ? (weekdayTotal / weekdayEntries.length).toFixed(1) : '0'
+
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '28px' }}>
                     <div style={{
@@ -1772,6 +1822,34 @@ export default function AnalyticsPage() {
                             </span>
                           </div>
                         )}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📅</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Bugün Gelen</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{todayCount}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📆</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Haftaiçi Günlük Ort.</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{weekdayDailyAvg}</div>
                       </div>
                     </div>
                   </div>
@@ -1930,44 +2008,126 @@ export default function AnalyticsPage() {
                         </div>
                       )}
 
-                      {/* Trend Chart - full width (Plotly) */}
-                      {mercekStatistics.dailyCounts?.length > 0 && (() => {
-                        const dateEntries: Array<{date: string, count: number}> = mercekStatistics.dailyCounts.slice(-90)
-                        const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0)
-                        const dates = dateEntries.map((d: any) => {
-                          try { return new Date(d.date).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return d.date }
-                        })
-                        const counts = dateEntries.map((d: any) => d.count)
+                      {/* Trend Chart - full width (Plotly) - Filtre varsa o aralık, yoksa son 90 gün */}
+                      {mercekStatistics && (() => {
+                        const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        const getMonday = (d: Date) => {
+                          const x = new Date(d);
+                          const day = x.getDay();
+                          const diff = day === 0 ? -6 : 1 - day;
+                          x.setDate(x.getDate() + diff);
+                          return toDateKey(x);
+                        };
+                        const today = new Date();
+                        const hasFilter = !!(csvDateFrom || csvDateTo);
+                        let rangeStart: Date;
+                        let rangeEnd: Date;
+                        if (csvDateFrom && csvDateTo) {
+                          const d1 = new Date(csvDateFrom);
+                          const d2 = new Date(csvDateTo);
+                          rangeStart = d1 <= d2 ? d1 : d2;
+                          rangeEnd = d1 <= d2 ? d2 : d1;
+                        } else if (csvDateFrom) {
+                          rangeStart = new Date(csvDateFrom);
+                          rangeEnd = new Date(today);
+                        } else if (csvDateTo) {
+                          rangeEnd = new Date(csvDateTo);
+                          rangeStart = new Date(rangeEnd);
+                          rangeStart.setDate(rangeStart.getDate() - 89);
+                        } else {
+                          rangeStart = new Date(today);
+                          rangeStart.setDate(today.getDate() - 89);
+                          rangeEnd = new Date(today);
+                        }
+                        const days: Date[] = [];
+                        for (const d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+                          days.push(new Date(d));
+                        }
+                        const countMap = new Map<string, number>();
+                        (mercekStatistics.dailyCounts || []).forEach((d: any) => {
+                          const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date));
+                          countMap.set(dt, d.count);
+                        });
+                        const dateEntries = days.map((d) => {
+                          const key = toDateKey(d);
+                          return { date: key, count: countMap.get(key) ?? 0 };
+                        });
+                        const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0);
+                        const formatDateLabel = (s: string) => {
+                          try { return new Date(s).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return s }
+                        };
+                        const dates = dateEntries.map((d: any) => formatDateLabel(d.date));
+                        const maxCount = Math.max(...dateEntries.map((d: any) => d.count), 1);
+                        const WEEK_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7', '#eab308'];
+                        const weekGroups = new Map<string, typeof dateEntries>();
+                        dateEntries.forEach((e: any) => {
+                          const mondayKey = getMonday(new Date(e.date));
+                          if (!weekGroups.has(mondayKey)) weekGroups.set(mondayKey, []);
+                          weekGroups.get(mondayKey)!.push(e);
+                        });
+                        const sortedWeekKeys = [...weekGroups.keys()].sort();
+                        const traces: any[] = [];
+                        const annotations: any[] = [];
+                        sortedWeekKeys.forEach((mondayKey, colorIdx) => {
+                          const weekEntries = weekGroups.get(mondayKey)!;
+                          const prevMondayKey = colorIdx > 0 ? sortedWeekKeys[colorIdx - 1] : null;
+                          const prevWeekEntries = prevMondayKey ? weekGroups.get(prevMondayKey)! : [];
+                          const bridgeEntry = prevWeekEntries.length > 0 ? prevWeekEntries[prevWeekEntries.length - 1] : null;
+                          const weekDatesExt = bridgeEntry ? [formatDateLabel(bridgeEntry.date), ...weekEntries.map((d: any) => formatDateLabel(d.date))] : weekEntries.map((d: any) => formatDateLabel(d.date));
+                          const weekCountsExt = bridgeEntry ? [bridgeEntry.count, ...weekEntries.map((d: any) => d.count)] : weekEntries.map((d: any) => d.count);
+                          const weekTotal = weekEntries.reduce((a: number, e: any) => a + e.count, 0);
+                          const color = WEEK_COLORS[colorIdx % WEEK_COLORS.length];
+                          const fillRgba = color.replace('#', '').match(/.{2}/g)!.reduce((acc: string, hex: string) => acc + parseInt(hex, 16) + ',', 'rgba(').slice(0, -1) + ', 0.2)';
+                          traces.push({
+                            x: weekDatesExt,
+                            y: weekCountsExt,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            fill: 'tozeroy',
+                            fillcolor: fillRgba,
+                            line: { color, width: 2.5, shape: 'spline' },
+                            marker: { size: 5, color },
+                            connectgaps: true,
+                            hovertemplate: '<b>%{x}</b><br>Kayıt: %{y}<extra></extra>',
+                            showlegend: false,
+                          });
+                          const midIdx = Math.floor(weekEntries.length / 2);
+                          const annotX = formatDateLabel(weekEntries[midIdx].date);
+                          annotations.push({
+                            x: annotX,
+                            y: 1,
+                            text: `<b>${weekTotal}</b>`,
+                            showarrow: false,
+                            xref: 'x',
+                            yref: 'y',
+                            font: { size: 13, color, family: 'inherit' },
+                            bgcolor: 'rgba(255,255,255,0.7)',
+                            bordercolor: color,
+                            borderwidth: 1,
+                            borderpad: 4,
+                          });
+                        });
 
                         return (
                           <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1' }}>
                             <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                              Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün)
+                              Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün) • Haftalar Pazartesi-Pazar
                             </h4>
                             <Plot
-                              data={[
-                                {
-                                  x: dates,
-                                  y: counts,
-                                  type: 'scatter',
-                                  mode: 'lines+markers',
-                                  name: 'Kayıt Sayısı',
-                                  fill: 'tozeroy',
-                                  fillcolor: 'rgba(59, 130, 246, 0.15)',
-                                  line: { color: '#3b82f6', width: 2.5, shape: 'spline' },
-                                  marker: { size: 6, color: '#3b82f6' },
-                                  hovertemplate: '<b>%{x}</b><br>Kayıt: %{y}<extra></extra>',
-                                }
-                              ]}
+                              data={traces}
                               layout={{
-                                margin: { t: 10, b: 80, l: 50, r: 20 },
+                                margin: { t: 10, b: 120, l: 50, r: 20 },
                                 paper_bgcolor: 'transparent',
                                 plot_bgcolor: 'transparent',
                                 height: 400,
+                                annotations,
                                 xaxis: {
                                   gridcolor: 'rgba(128,128,128,0.1)',
-                                  tickfont: { size: 12, color: '#888' },
-                                  tickangle: -45,
+                                  tickvals: dates,
+                                  tickmode: 'array',
+                                  ticktext: dates,
+                                  tickfont: { size: 10, color: '#888' },
+                                  tickangle: -90,
                                   showgrid: true,
                                 },
                                 yaxis: {
@@ -1985,7 +2145,7 @@ export default function AnalyticsPage() {
                               style={{ width: '100%', height: '400px' }}
                             />
                           </div>
-                        )
+                        );
                       })()}
                     </div>
                   </div>
@@ -2148,6 +2308,7 @@ export default function AnalyticsPage() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
 
@@ -2766,7 +2927,7 @@ export default function AnalyticsPage() {
 
         {/* User Incident Report Section */}
         {
-          !showDomainFeatures && !loading && (
+          !showDomainFeatures && !showCSVAnalysis && !loading && (
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
 
