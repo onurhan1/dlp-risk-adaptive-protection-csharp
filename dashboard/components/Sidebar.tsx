@@ -11,7 +11,7 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { isAdmin } = useAuth()
   const { theme } = useTheme()
-  const { locale, setLocale, t } = useTranslation()
+  const { t } = useTranslation()
 
   const isExceptionsPage = pathname === '/exceptions'
   const [exceptionsOpen, setExceptionsOpen] = useState(false)
@@ -60,7 +60,7 @@ export default function Sidebar() {
           gap: '12px'
         }}>
           <img
-            src={theme === 'dark' ? '/radar-karanlik.png' : '/radar-aydinlik.png'}
+            src="/radar-karanlik.png"
             alt="RADAR"
             style={{
               width: '44px',
@@ -71,7 +71,7 @@ export default function Sidebar() {
           <span style={{
             fontSize: '22px',
             fontWeight: '700',
-            color: 'var(--text-primary)',
+            color: 'var(--sidebar-text-hover)',
             letterSpacing: '-0.02em'
           }}>RADAR</span>
         </div>
@@ -195,34 +195,9 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      <div style={{ padding: '16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {/* Language Toggle */}
-        <button
-          onClick={() => setLocale(locale === 'tr' ? 'en' : 'tr')}
-          className="sidebar-icon"
-          style={{
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: 'var(--text-primary)',
-            fontSize: '13px',
-            fontWeight: '500',
-            transition: 'all 0.2s ease',
-            width: '100%',
-            justifyContent: 'center',
-          }}
-        >
-          <span style={{ fontSize: '18px' }}>{locale === 'tr' ? '🇬🇧' : '🇹🇷'}</span>
-          <span>{locale === 'tr' ? 'English' : 'Türkçe'}</span>
-        </button>
-
+      <div style={{ padding: '16px', borderTop: '1px solid var(--sidebar-border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {/* Help */}
-        <div className="sidebar-icon" style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+        <div className="sidebar-icon" style={{ color: 'var(--sidebar-text)', fontSize: '14px' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>

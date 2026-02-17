@@ -26,7 +26,7 @@ export default function Navigation() {
   const [currentSearch, setCurrentSearch] = useState('')
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
-  const { t } = useTranslation()
+  const { locale, setLocale, t } = useTranslation()
   const pathname = usePathname()
 
   useEffect(() => {
@@ -54,6 +54,14 @@ export default function Navigation() {
           {pageTitle}
         </div>
         <div className="header-nav">
+          <button
+            onClick={() => setLocale(locale === 'tr' ? 'en' : 'tr')}
+            className="lang-toggle-btn"
+            title={locale === 'tr' ? 'Switch to English' : 'Türkçe\'ye geç'}
+          >
+            <span style={{ fontSize: '16px' }}>{locale === 'tr' ? '🇬🇧' : '🇹🇷'}</span>
+            <span className="lang-label">{locale === 'tr' ? 'EN' : 'TR'}</span>
+          </button>
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
             {theme === 'dark' ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -95,6 +103,9 @@ export default function Navigation() {
           padding: 0;
           box-shadow: var(--shadow);
           border-bottom: 1px solid var(--border);
+          position: sticky;
+          top: 0;
+          z-index: 900;
         }
         
         .header-content {
@@ -172,6 +183,36 @@ export default function Navigation() {
         .theme-toggle-btn svg {
           width: 20px;
           height: 20px;
+        }
+
+        .lang-toggle-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          height: 40px;
+          padding: 0 14px;
+          background: var(--surface-hover);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          cursor: pointer;
+          color: var(--text-primary);
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.2s;
+          margin-right: 4px;
+        }
+
+        .lang-toggle-btn:hover {
+          background: var(--surface-active);
+          border-color: var(--primary);
+          color: var(--primary);
+        }
+
+        .lang-label {
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
         }
 
         .user-menu {
