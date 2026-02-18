@@ -81,7 +81,7 @@ function AnalyticsPageContent() {
   const [columnFilterSearch, setColumnFilterSearch] = useState<Record<string, string>>({})
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({})
 
-  // Filter States
+  // Filter States (pending - form values, not yet applied)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [dateError, setDateError] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('')
@@ -91,6 +91,53 @@ function AnalyticsPageContent() {
   const [selectedPolicy, setSelectedPolicy] = useState('')
   const [selectedDomain, setSelectedDomain] = useState('')
   const [selectedAction, setSelectedAction] = useState('')
+
+  // Applied filter snapshot - filteredIncidents uses this
+  const [appliedFilters, setAppliedFilters] = useState({
+    dateRange: { start: '', end: '' },
+    selectedDepartment: '',
+    selectedTeam: '',
+    selectedUser: '',
+    selectedFullName: '',
+    selectedPolicy: '',
+    selectedDomain: '',
+    selectedAction: ''
+  })
+
+  const applyFilters = () => {
+    setAppliedFilters({
+      dateRange: { ...dateRange },
+      selectedDepartment,
+      selectedTeam,
+      selectedUser,
+      selectedFullName,
+      selectedPolicy,
+      selectedDomain,
+      selectedAction
+    })
+  }
+
+  const resetFilters = () => {
+    setDateRange({ start: '', end: '' })
+    setDateError('')
+    setSelectedDepartment('')
+    setSelectedTeam('')
+    setSelectedUser('')
+    setSelectedFullName('')
+    setSelectedPolicy('')
+    setSelectedDomain('')
+    setSelectedAction('')
+    setAppliedFilters({
+      dateRange: { start: '', end: '' },
+      selectedDepartment: '',
+      selectedTeam: '',
+      selectedUser: '',
+      selectedFullName: '',
+      selectedPolicy: '',
+      selectedDomain: '',
+      selectedAction: ''
+    })
+  }
 
 
   // Domain Features States
@@ -415,36 +462,35 @@ function AnalyticsPageContent() {
   const filteredIncidents = useMemo(() => {
     let filtered = incidents.filter(incident => {
       // Date Filter
-      if (dateRange.start && dateRange.end) {
+      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
         try {
           const incidentDate = parseISO(incident.timestamp)
-          const start = startOfDay(parseISO(dateRange.start))
-          const end = endOfDay(parseISO(dateRange.end))
+          const start = startOfDay(parseISO(appliedFilters.dateRange.start))
+          const end = endOfDay(parseISO(appliedFilters.dateRange.end))
 
           if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            // If dates are invalid, don't filter (or handle as error but don't crash)
             return true
           }
           if (!isWithinInterval(incidentDate, { start, end })) return false
         } catch (e) {
           console.warn("Invalid date encountered during filtering", e);
-          return true; // Skip filtering if error
+          return true;
         }
       }
 
       // Department Filter
-      if (selectedDepartment && incident.department !== selectedDepartment) return false
+      if (appliedFilters.selectedDepartment && incident.department !== appliedFilters.selectedDepartment) return false
 
       // Team Filter - normalize team names for comparison
-      if (selectedTeam) {
+      if (appliedFilters.selectedTeam) {
         const normalizedIncidentTeam = normalizeTeamName(incident.team)
-        const normalizedSelectedTeam = normalizeTeamName(selectedTeam)
+        const normalizedSelectedTeam = normalizeTeamName(appliedFilters.selectedTeam)
         if (normalizedIncidentTeam !== normalizedSelectedTeam) return false
       }
 
       // User Filter (Broad search)
-      if (selectedUser) {
-        const search = selectedUser.toLowerCase()
+      if (appliedFilters.selectedUser) {
+        const search = appliedFilters.selectedUser.toLowerCase()
         const match = incident.userEmail?.toLowerCase().includes(search) ||
           incident.loginName?.toLowerCase().includes(search) ||
           incident.emailAddress?.toLowerCase().includes(search)
@@ -452,16 +498,16 @@ function AnalyticsPageContent() {
       }
 
       // Full Name Filter
-      if (selectedFullName && !incident.fullName?.toLowerCase().includes(selectedFullName.toLowerCase())) return false
+      if (appliedFilters.selectedFullName && !incident.fullName?.toLowerCase().includes(appliedFilters.selectedFullName.toLowerCase())) return false
 
       // Policy Filter (Text search)
-      if (selectedPolicy && !incident.policy?.toLowerCase().includes(selectedPolicy.toLowerCase())) return false
+      if (appliedFilters.selectedPolicy && !incident.policy?.toLowerCase().includes(appliedFilters.selectedPolicy.toLowerCase())) return false
 
       // Domain Filter (Text search)
-      if (selectedDomain && !incident.domain?.toLowerCase().includes(selectedDomain.toLowerCase())) return false
+      if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
 
       // Action Filter
-      if (selectedAction && incident.action !== selectedAction) return false
+      if (appliedFilters.selectedAction && incident.action !== appliedFilters.selectedAction) return false
 
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
@@ -549,7 +595,7 @@ function AnalyticsPageContent() {
     }
 
     return filtered
-  }, [incidents, dateRange, selectedDepartment, selectedTeam, selectedUser, selectedFullName, selectedPolicy, selectedDomain, selectedAction, columnFilters, sortColumn, sortDirection])
+  }, [incidents, appliedFilters, columnFilters, sortColumn, sortDirection])
 
   // Mercek API Functions
   const fetchMercekData = async (page: number = 1, customPageSize?: number) => {
@@ -947,10 +993,10 @@ function AnalyticsPageContent() {
 
     const filtered = incidents.filter(incident => {
       // Date filter
-      if (dateRange.start && dateRange.end) {
+      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
         const incidentDate = parseISO(incident.timestamp)
-        const start = startOfDay(parseISO(dateRange.start))
-        const end = endOfDay(parseISO(dateRange.end))
+        const start = startOfDay(parseISO(appliedFilters.dateRange.start))
+        const end = endOfDay(parseISO(appliedFilters.dateRange.end))
         if (!isWithinInterval(incidentDate, { start, end })) return false
       }
 
@@ -2386,17 +2432,17 @@ function AnalyticsPageContent() {
         )}
 
 
-        {/* Filters Section */}
+        {/* Heatmap Section */}
         {
           !showDomainFeatures && !showCSVAnalysis && (
-            <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '20px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Filters</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+            <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Domain vs Team Heatmap</h2>
 
-                {/* Date Range */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0', zIndex: 10 }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Date Range</label>
-                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                {/* Inline Filters Row */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  {/* Date Range */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start</label>
                     <input
                       type="date"
                       value={dateRange.start}
@@ -2404,17 +2450,19 @@ function AnalyticsPageContent() {
                         const val = e.target.value
                         setDateRange(prev => {
                           const newer = { ...prev, start: val }
-                          // Validate
                           if (newer.start && newer.end && newer.start > newer.end) {
-                            setDateError('Start date cannot be after end date')
+                            setDateError('Start > End')
                           } else {
                             setDateError('')
                           }
                           return newer
                         })
                       }}
-                      style={{ flex: 1, minWidth: '0', padding: '8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
                     />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End</label>
                     <input
                       type="date"
                       value={dateRange.end}
@@ -2422,158 +2470,156 @@ function AnalyticsPageContent() {
                         const val = e.target.value
                         setDateRange(prev => {
                           const newer = { ...prev, end: val }
-                          // Validate
                           if (newer.start && newer.end && newer.start > newer.end) {
-                            setDateError('Start date cannot be after end date')
+                            setDateError('Start > End')
                           } else {
                             setDateError('')
                           }
                           return newer
                         })
                       }}
-                      style={{ flex: 1, minWidth: '0', padding: '8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
                     />
                   </div>
-                  {dateError && <span style={{ color: '#ef4444', fontSize: '11px' }}>{dateError}</span>}
+
+                  {/* Department */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedDepartment(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '120px' }}
+                    >
+                      <option value="">All</option>
+                      {uniqueDepartments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Team */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Team</label>
+                    <select
+                      value={selectedTeam}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedTeam(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '120px' }}
+                    >
+                      <option value="">All</option>
+                      {uniqueTeams.map(team => (
+                        <option key={team} value={team}>{team}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* User */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</label>
+                    <input
+                      type="text"
+                      placeholder="User..."
+                      value={selectedUser}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                    />
+                  </div>
+
+                  {/* Full Name */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="Name..."
+                      value={selectedFullName}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                    />
+                  </div>
+
+                  {/* Policy */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy</label>
+                    <input
+                      type="text"
+                      placeholder="Policy..."
+                      value={selectedPolicy}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                    />
+                  </div>
+
+                  {/* Domain */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Domain</label>
+                    <input
+                      type="text"
+                      placeholder="Domain..."
+                      value={selectedDomain}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                    />
+                  </div>
+
+                  {/* Action */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</label>
+                    <select
+                      value={selectedAction}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedAction(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '100px' }}
+                    >
+                      <option value="">All</option>
+                      {uniqueActions.map(action => (
+                        <option key={action} value={action}>{action}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Buttons */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+                    <button
+                      onClick={applyFilters}
+                      style={{
+                        padding: '5px 14px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        background: '#3b82f6',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Filtrele
+                    </button>
+                    <button
+                      onClick={resetFilters}
+                      style={{
+                        padding: '5px 14px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface-hover)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Temizle
+                    </button>
+                  </div>
+                  {dateError && <span style={{ color: '#ef4444', fontSize: '10px', alignSelf: 'center' }}>{dateError}</span>}
                 </div>
 
-                {/* Department Select */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Department</label>
-                  <select
-                    value={selectedDepartment}
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedDepartment(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  >
-                    <option value="">All Departments</option>
-                    {uniqueDepartments.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Team Select */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Team</label>
-                  <select
-                    value={selectedTeam}
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedTeam(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  >
-                    <option value="">All Teams</option>
-                    {uniqueTeams.map(team => (
-                      <option key={team} value={team}>{team}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* User Search */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>User</label>
-                  <input
-                    type="text"
-                    placeholder="Search user..."
-                    value={selectedUser}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  />
-                </div>
-
-                {/* Full Name Search */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Full Name</label>
-                  <input
-                    type="text"
-                    placeholder="Search full name..."
-                    value={selectedFullName}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  />
-                </div>
-
-                {/* Policy Search */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Policy</label>
-                  <input
-                    type="text"
-                    placeholder="Search policy..."
-                    value={selectedPolicy}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  />
-                </div>
-
-                {/* Domain Search */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Domain</label>
-                  <input
-                    type="text"
-                    placeholder="Search domain..."
-                    value={selectedDomain}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  />
-                </div>
-
-                {/* Action Select */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '0' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Action</label>
-                  <select
-                    value={selectedAction}
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedAction(e.target.value)}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px', width: '100%', minWidth: '0' }}
-                  >
-                    <option value="">All Actions</option>
-                    {uniqueActions.map(action => (
-                      <option key={action} value={action}>{action}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Reset Button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button
-                  onClick={() => {
-                    setDateRange({ start: '', end: '' })
-                    setSelectedDepartment('')
-                    setSelectedTeam('')
-                    setSelectedUser('')
-                    setSelectedFullName('')
-                    setSelectedPolicy('')
-                    setSelectedDomain('')
-                    setSelectedAction('')
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '4px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-hover)',
-                    color: 'var(--text-primary)',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: '500'
-                  }}
-                >
-                  Reset Filters
-                </button>
-              </div>
-            </div>
-          )
-        }
-
-        {/* Heatmap Section */}
-        {
-          !showDomainFeatures && !showCSVAnalysis && !loading && filteredIncidents.length > 0 && (() => {
-            const totalTeamPages = Math.ceil(heatmapData.teams.length / teamsPerPage)
-            const startIndex = (heatmapTeamPage - 1) * teamsPerPage
-            const endIndex = startIndex + teamsPerPage
-            const paginatedTeams = heatmapData.teams.slice(startIndex, endIndex)
-
-            return (
-              <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Domain vs Team Heatmap</h2>
-
+                {/* Heatmap Grid - only show when data available */}
+                {!loading && filteredIncidents.length > 0 && (() => {
+                  const totalTeamPages = Math.ceil(heatmapData.teams.length / teamsPerPage)
+                  const startIndex = (heatmapTeamPage - 1) * teamsPerPage
+                  const endIndex = startIndex + teamsPerPage
+                  const paginatedTeams = heatmapData.teams.slice(startIndex, endIndex)
+                  return (
                 <div style={{ position: 'relative', overflowX: 'auto', maxWidth: '100%' }}>
                   <div style={{
                     display: 'grid',
@@ -2738,9 +2784,10 @@ function AnalyticsPageContent() {
                     </div>
                   )}
                 </div>
+                  )
+                })()}
               </div>
-            )
-          })()
+          )
         }
 
         {/* Incidents Table */}

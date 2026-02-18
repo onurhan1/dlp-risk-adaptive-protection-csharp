@@ -24,6 +24,7 @@ const getPageTitleKey = (pathname: string, search: string): string => {
 export default function Navigation() {
   const [mounted, setMounted] = useState(false)
   const [currentSearch, setCurrentSearch] = useState('')
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { locale, setLocale, t } = useTranslation()
@@ -33,11 +34,22 @@ export default function Navigation() {
     setMounted(true)
     setCurrentSearch(window.location.search)
 
-    // Poll for search param changes (URL query changes without navigation)
     const interval = setInterval(() => {
       setCurrentSearch(window.location.search)
     }, 200)
     return () => clearInterval(interval)
+  }, [])
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.user-menu-wrapper')) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -59,8 +71,15 @@ export default function Navigation() {
             className="lang-toggle-btn"
             title={locale === 'tr' ? 'Switch to English' : 'Türkçe\'ye geç'}
           >
-            <span style={{ fontSize: '16px' }}>{locale === 'tr' ? '🇬🇧' : '🇹🇷'}</span>
-            <span className="lang-label">{locale === 'tr' ? 'EN' : 'TR'}</span>
+            <span style={{ fontSize: '16px' }}>{locale === 'tr' ? '��' : '��'}</span>
+            <span className="lang-label">{locale === 'tr' ? 'TR' : 'EN'}</span>
+          </button>
+          <button className="help-btn" title={t('nav.help')} onClick={() => window.open('/faq', '_self')}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
           </button>
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
             {theme === 'dark' ? (
@@ -82,16 +101,29 @@ export default function Navigation() {
             )}
           </button>
           {username && (
-            <div className="user-menu">
-              <span className="username">{username}</span>
-              <button onClick={logout} className="logout-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                  <polyline points="16 17 21 12 16 7"></polyline>
-                  <line x1="21" y1="12" x2="9" y2="12"></line>
+            <div className="user-menu-wrapper">
+              <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <span>Logout</span>
+                <span>{username}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="chevron-icon">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </button>
+              {userMenuOpen && (
+                <div className="user-dropdown">
+                  <button onClick={() => { logout(); setUserMenuOpen(false); }} className="dropdown-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                      <polyline points="16 17 21 12 16 7"></polyline>
+                      <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -215,42 +247,112 @@ export default function Navigation() {
           letter-spacing: 0.02em;
         }
 
-        .user-menu {
+        .help-btn {
           display: flex;
           align-items: center;
-          gap: 12px;
-          margin-left: 24px;
-          padding-left: 24px;
-          border-left: 1px solid var(--border);
-        }
-
-        .username {
-          font-size: 14px;
-          color: var(--text-secondary);
-          font-weight: 500;
-        }
-
-        .logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
           background: var(--surface-hover);
           border: 1px solid var(--border);
-          color: var(--text-primary);
-          padding: 6px 12px;
-          border-radius: 6px;
+          border-radius: 8px;
           cursor: pointer;
-          font-size: 14px;
+          color: var(--text-primary);
           transition: all 0.2s;
+          margin-right: 4px;
         }
 
-        .logout-btn:hover {
+        .help-btn:hover {
           background: var(--surface-active);
           border-color: var(--primary);
           color: var(--primary);
         }
 
-        .logout-btn svg {
+        .help-btn svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        .user-menu-wrapper {
+          position: relative;
+          margin-left: 16px;
+          padding-left: 16px;
+          border-left: 1px solid var(--border);
+        }
+
+        .user-menu-trigger {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--surface-hover);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
+          padding: 8px 14px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+
+        .user-menu-trigger:hover {
+          background: var(--surface-active);
+          border-color: var(--primary);
+        }
+
+        .user-menu-trigger svg {
+          width: 20px;
+          height: 20px;
+          flex-shrink: 0;
+        }
+
+        .chevron-icon {
+          width: 14px !important;
+          height: 14px !important;
+          opacity: 0.6;
+        }
+
+        .user-dropdown {
+          position: absolute;
+          top: calc(100% + 6px);
+          right: 0;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          box-shadow: var(--shadow-lg);
+          min-width: 160px;
+          padding: 4px;
+          z-index: 1000;
+          animation: dropdownFade 0.15s ease;
+        }
+
+        @keyframes dropdownFade {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+          background: none;
+          border: none;
+          color: var(--text-primary);
+          padding: 10px 14px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+
+        .dropdown-item:hover {
+          background: var(--surface-hover);
+          color: var(--danger);
+        }
+
+        .dropdown-item svg {
           width: 16px;
           height: 16px;
         }
@@ -261,23 +363,27 @@ export default function Navigation() {
           }
           
           .header-nav {
-            gap: 12px;
+            gap: 6px;
           }
           
           .nav-item span {
             display: none;
           }
 
-          .user-menu {
-            margin-left: 12px;
-            padding-left: 12px;
+          .user-menu-wrapper {
+            margin-left: 8px;
+            padding-left: 8px;
           }
 
-          .username {
+          .user-menu-trigger span {
             display: none;
           }
 
-          .logout-btn span {
+          .chevron-icon {
+            display: none;
+          }
+
+          .lang-label {
             display: none;
           }
         }
