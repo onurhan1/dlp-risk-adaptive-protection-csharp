@@ -135,9 +135,6 @@ export default function Navigation() {
           padding: 0;
           box-shadow: var(--shadow);
           border-bottom: 1px solid var(--border);
-          position: sticky;
-          top: 0;
-          z-index: 900;
         }
         
         .header-content {
