@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { isAdmin } = useAuth()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -109,7 +110,12 @@ export default function Sidebar() {
             <div>
               <div
                 className={`sidebar-icon ${isExceptionsPage ? 'active' : ''}`}
-                onClick={() => setExceptionsOpen(!exceptionsOpen)}
+                onClick={() => {
+                  setExceptionsOpen(!exceptionsOpen)
+                  if (!isExceptionsPage) {
+                    router.push('/exceptions')
+                  }
+                }}
                 style={{ cursor: 'pointer' }}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

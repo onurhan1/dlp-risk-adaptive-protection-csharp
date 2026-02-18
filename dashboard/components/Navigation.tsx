@@ -71,7 +71,6 @@ export default function Navigation() {
             className="lang-toggle-btn"
             title={locale === 'tr' ? 'Switch to English' : 'Türkçe\'ye geç'}
           >
-            <span style={{ fontSize: '16px' }}>{locale === 'tr' ? '��' : '��'}</span>
             <span className="lang-label">{locale === 'tr' ? 'TR' : 'EN'}</span>
           </button>
           <button className="help-btn" title={t('nav.help')} onClick={() => window.open('/faq', '_self')}>

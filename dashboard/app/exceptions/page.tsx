@@ -84,58 +84,63 @@ function AnalyticsPageContent() {
   // Filter States (pending - form values, not yet applied)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [dateError, setDateError] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState('')
-  const [selectedTeam, setSelectedTeam] = useState('')
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([])
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedFullName, setSelectedFullName] = useState('')
   const [selectedPolicy, setSelectedPolicy] = useState('')
   const [selectedDomain, setSelectedDomain] = useState('')
-  const [selectedAction, setSelectedAction] = useState('')
+  const [selectedActions, setSelectedActions] = useState<string[]>([])
+
+  // Multi-select dropdown open states for heatmap filters
+  const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
+  const [teamDropdownOpen2, setTeamDropdownOpen2] = useState(false)
+  const [actionDropdownOpen2, setActionDropdownOpen2] = useState(false)
 
   // Applied filter snapshot - filteredIncidents uses this
   const [appliedFilters, setAppliedFilters] = useState({
     dateRange: { start: '', end: '' },
-    selectedDepartment: '',
-    selectedTeam: '',
+    selectedDepartments: [] as string[],
+    selectedTeams: [] as string[],
     selectedUser: '',
     selectedFullName: '',
     selectedPolicy: '',
     selectedDomain: '',
-    selectedAction: ''
+    selectedActions: [] as string[]
   })
 
   const applyFilters = () => {
     setAppliedFilters({
       dateRange: { ...dateRange },
-      selectedDepartment,
-      selectedTeam,
+      selectedDepartments,
+      selectedTeams,
       selectedUser,
       selectedFullName,
       selectedPolicy,
       selectedDomain,
-      selectedAction
+      selectedActions
     })
   }
 
   const resetFilters = () => {
     setDateRange({ start: '', end: '' })
     setDateError('')
-    setSelectedDepartment('')
-    setSelectedTeam('')
+    setSelectedDepartments([])
+    setSelectedTeams([])
     setSelectedUser('')
     setSelectedFullName('')
     setSelectedPolicy('')
     setSelectedDomain('')
-    setSelectedAction('')
+    setSelectedActions([])
     setAppliedFilters({
       dateRange: { start: '', end: '' },
-      selectedDepartment: '',
-      selectedTeam: '',
+      selectedDepartments: [],
+      selectedTeams: [],
       selectedUser: '',
       selectedFullName: '',
       selectedPolicy: '',
       selectedDomain: '',
-      selectedAction: ''
+      selectedActions: []
     })
   }
 
@@ -362,10 +367,13 @@ function AnalyticsPageContent() {
   useEffect(() => {
     const handleClickOutside = (event: Event) => {
       const target = event.target as HTMLElement
-      if (!target.closest('[data-dropdown]')) {
+      if (!target.closest('[data-dropdown]') && !target.closest('[data-heatmap-filter]')) {
         setActionDropdownOpen(false)
         setChannelDropdownOpen(false)
         setPolicyDropdownOpen(false)
+        setDeptDropdownOpen(false)
+        setTeamDropdownOpen2(false)
+        setActionDropdownOpen2(false)
       }
       if (!target.closest('[data-column-filter]')) {
         setOpenColumnFilter(null)
@@ -478,14 +486,13 @@ function AnalyticsPageContent() {
         }
       }
 
-      // Department Filter
-      if (appliedFilters.selectedDepartment && incident.department !== appliedFilters.selectedDepartment) return false
+      // Department Filter (multi-select)
+      if (appliedFilters.selectedDepartments.length > 0 && !appliedFilters.selectedDepartments.includes(incident.department || '')) return false
 
-      // Team Filter - normalize team names for comparison
-      if (appliedFilters.selectedTeam) {
+      // Team Filter - normalize team names for comparison (multi-select)
+      if (appliedFilters.selectedTeams.length > 0) {
         const normalizedIncidentTeam = normalizeTeamName(incident.team)
-        const normalizedSelectedTeam = normalizeTeamName(appliedFilters.selectedTeam)
-        if (normalizedIncidentTeam !== normalizedSelectedTeam) return false
+        if (!appliedFilters.selectedTeams.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) return false
       }
 
       // User Filter (Broad search)
@@ -506,8 +513,8 @@ function AnalyticsPageContent() {
       // Domain Filter (Text search)
       if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
 
-      // Action Filter
-      if (appliedFilters.selectedAction && incident.action !== appliedFilters.selectedAction) return false
+      // Action Filter (multi-select)
+      if (appliedFilters.selectedActions.length > 0 && !appliedFilters.selectedActions.includes(incident.action || '')) return false
 
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
@@ -1580,7 +1587,7 @@ function AnalyticsPageContent() {
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Analytics Report</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Team Based Analysis</h1>
         </div>
 
 
@@ -2436,11 +2443,11 @@ function AnalyticsPageContent() {
         {
           !showDomainFeatures && !showCSVAnalysis && (
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Domain vs Team Heatmap</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Team Based Analysis Heatmap</h2>
 
                 {/* Inline Filters Row */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                  {/* Date Range */}
+                  {/* Date Range - Start */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start</label>
                     <input
@@ -2461,6 +2468,7 @@ function AnalyticsPageContent() {
                       style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
                     />
                   </div>
+                  {/* Date Range - End */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End</label>
                     <input
@@ -2482,34 +2490,58 @@ function AnalyticsPageContent() {
                     />
                   </div>
 
-                  {/* Department */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {/* Department - Multi Select */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</label>
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedDepartment(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '120px' }}
+                    <button
+                      onClick={() => { setDeptDropdownOpen(!deptDropdownOpen); setTeamDropdownOpen2(false); setActionDropdownOpen2(false) }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedDepartments.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
                     >
-                      <option value="">All</option>
-                      {uniqueDepartments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedDepartments.length === 0 ? 'All' : `${selectedDepartments.length} selected`}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    {deptDropdownOpen && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                          <button onClick={() => { if (selectedDepartments.length === uniqueDepartments.length) { setSelectedDepartments([]) } else { setSelectedDepartments([...uniqueDepartments]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                            {selectedDepartments.length === uniqueDepartments.length ? 'Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+                        {uniqueDepartments.map(dept => (
+                          <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                            <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => { setSelectedDepartments(prev => prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]) }} style={{ accentColor: '#3b82f6' }} />
+                            {dept}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Team */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {/* Team - Multi Select */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Team</label>
-                    <select
-                      value={selectedTeam}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedTeam(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '120px' }}
+                    <button
+                      onClick={() => { setTeamDropdownOpen2(!teamDropdownOpen2); setDeptDropdownOpen(false); setActionDropdownOpen2(false) }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedTeams.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
                     >
-                      <option value="">All</option>
-                      {uniqueTeams.map(team => (
-                        <option key={team} value={team}>{team}</option>
-                      ))}
-                    </select>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedTeams.length === 0 ? 'All' : `${selectedTeams.length} selected`}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    {teamDropdownOpen2 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                          <button onClick={() => { if (selectedTeams.length === uniqueTeams.length) { setSelectedTeams([]) } else { setSelectedTeams([...uniqueTeams]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                            {selectedTeams.length === uniqueTeams.length ? 'Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+                        {uniqueTeams.map(team => (
+                          <label key={team} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                            <input type="checkbox" checked={selectedTeams.includes(team)} onChange={() => { setSelectedTeams(prev => prev.includes(team) ? prev.filter(t => t !== team) : [...prev, team]) }} style={{ accentColor: '#3b82f6' }} />
+                            {team}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* User */}
@@ -2520,7 +2552,7 @@ function AnalyticsPageContent() {
                       placeholder="User..."
                       value={selectedUser}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
                     />
                   </div>
 
@@ -2532,7 +2564,7 @@ function AnalyticsPageContent() {
                       placeholder="Name..."
                       value={selectedFullName}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
                     />
                   </div>
 
@@ -2544,7 +2576,7 @@ function AnalyticsPageContent() {
                       placeholder="Policy..."
                       value={selectedPolicy}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
                     />
                   </div>
 
@@ -2556,23 +2588,35 @@ function AnalyticsPageContent() {
                       placeholder="Domain..."
                       value={selectedDomain}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '100px' }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
                     />
                   </div>
 
-                  {/* Action */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {/* Action - Multi Select */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
                     <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</label>
-                    <select
-                      value={selectedAction}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedAction(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '100px' }}
+                    <button
+                      onClick={() => { setActionDropdownOpen2(!actionDropdownOpen2); setDeptDropdownOpen(false); setTeamDropdownOpen2(false) }}
+                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedActions.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '110px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
                     >
-                      <option value="">All</option>
-                      {uniqueActions.map(action => (
-                        <option key={action} value={action}>{action}</option>
-                      ))}
-                    </select>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{selectedActions.length === 0 ? 'All' : `${selectedActions.length} selected`}</span>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    {actionDropdownOpen2 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '160px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                          <button onClick={() => { if (selectedActions.length === uniqueActions.length) { setSelectedActions([]) } else { setSelectedActions([...uniqueActions]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                            {selectedActions.length === uniqueActions.length ? 'Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+                        {uniqueActions.map(action => (
+                          <label key={action} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                            <input type="checkbox" checked={selectedActions.includes(action)} onChange={() => { setSelectedActions(prev => prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]) }} style={{ accentColor: '#3b82f6' }} />
+                            {action}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Buttons */}
