@@ -65,6 +65,9 @@ function AnalyticsPageContent() {
   const router = useRouter()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [totalLoaded, setTotalLoaded] = useState(0)
+  const [allDataLoaded, setAllDataLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
@@ -386,71 +389,97 @@ function AnalyticsPageContent() {
     }
   }, [])
 
+  const mapIncidentData = (item: any): Incident => {
+    const dest = item.destination || ''
+
+    // Birden fazla email adresi varsa (noktalı virgülle ayrılmış), her birinden domain çıkar
+    let domain = 'Unknown'
+    if (dest.includes(';')) {
+      const emails = dest.split(';').map((e: string) => e.trim()).filter((e: string) => e)
+      const domains: string[] = []
+      emails.forEach((email: string) => {
+        if (email.includes('@')) {
+          const parts = email.split('@')
+          if (parts.length > 1) {
+            const extractedDomain = parts[1].trim()
+            if (extractedDomain && !domains.includes(extractedDomain)) {
+              domains.push(extractedDomain)
+            }
+          }
+        }
+      })
+      domain = domains.length > 0 ? domains.join(', ') : 'Unknown'
+    } else if (dest.includes('@')) {
+      const parts = dest.split('@')
+      domain = parts.length > 1 ? parts[1].trim() : dest
+    } else {
+      domain = dest
+    }
+
+    return {
+      id: item.id,
+      timestamp: item.timestamp,
+      userEmail: item.userEmail,
+      policy: item.policy,
+      action: item.action || 'Permit',
+      severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
+      destination: dest,
+      domain: domain || 'Unknown',
+      department: item.department || item.user_department,
+      team: item.team,
+      fullName: item.fullName,
+      maxMatches: item.maxMatches || 0,
+      loginName: item.loginName,
+      emailAddress: item.emailAddress,
+      violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
+      channel: item.channel
+    }
+  }
+
   const fetchIncidents = async () => {
     setLoading(true)
+    setAllDataLoaded(false)
     try {
-      const response = await apiClient.get('/api/incidents', {
+      // Phase 1: Fast initial load - first 500 records for immediate display
+      const initialResponse = await apiClient.get('/api/incidents', {
         params: {
-          limit: 1000000000, // Fetch significantly more records to approximate "all" for analytics
+          limit: 500,
           order_by: 'timestamp_desc'
         }
       })
 
-      const data = Array.isArray(response.data) ? response.data : []
+      const initialData = Array.isArray(initialResponse.data) ? initialResponse.data : []
+      const initialMapped = initialData.map(mapIncidentData)
+      setIncidents(initialMapped)
+      setTotalLoaded(initialMapped.length)
+      setLoading(false) // UI is now interactive
 
-      const mappedIncidents: Incident[] = data.map((item: any) => {
-        const dest = item.destination || ''
-
-        // Birden fazla email adresi varsa (noktalı virgülle ayrılmış), her birinden domain çıkar
-        let domain = 'Unknown'
-        if (dest.includes(';')) {
-          // Noktalı virgülle ayrılmış email adresleri
-          const emails = dest.split(';').map((e: string) => e.trim()).filter((e: string) => e)
-          const domains: string[] = []
-          emails.forEach((email: string) => {
-            if (email.includes('@')) {
-              const parts = email.split('@')
-              if (parts.length > 1) {
-                const extractedDomain = parts[1].trim()
-                if (extractedDomain && !domains.includes(extractedDomain)) {
-                  domains.push(extractedDomain)
-                }
-              }
+      // Phase 2: Load remaining data in background
+      if (initialMapped.length >= 500) {
+        setLoadingMore(true)
+        try {
+          const fullResponse = await apiClient.get('/api/incidents', {
+            params: {
+              limit: 1000000000,
+              order_by: 'timestamp_desc'
             }
           })
-          domain = domains.length > 0 ? domains.join(', ') : 'Unknown'
-        } else if (dest.includes('@')) {
-          // Tek email adresi
-          const parts = dest.split('@')
-          domain = parts.length > 1 ? parts[1].trim() : dest
-        } else {
-          domain = dest
-        }
 
-        return {
-          id: item.id,
-          timestamp: item.timestamp,
-          userEmail: item.userEmail,
-          policy: item.policy,
-          action: item.action || 'Permit',
-          severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
-          destination: dest,
-          domain: domain || 'Unknown',
-          department: item.department || item.user_department,
-          team: item.team,
-          fullName: item.fullName,
-          maxMatches: item.maxMatches || 0,
-          loginName: item.loginName,
-          emailAddress: item.emailAddress,
-          violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
-          channel: item.channel
+          const fullData = Array.isArray(fullResponse.data) ? fullResponse.data : []
+          const fullMapped = fullData.map(mapIncidentData)
+          setIncidents(fullMapped)
+          setTotalLoaded(fullMapped.length)
+        } catch (error) {
+          console.error('Error fetching remaining incidents:', error)
+        } finally {
+          setLoadingMore(false)
+          setAllDataLoaded(true)
         }
-      })
-
-      setIncidents(mappedIncidents)
+      } else {
+        setAllDataLoaded(true)
+      }
     } catch (error) {
       console.error('Error fetching incidents:', error)
-    } finally {
       setLoading(false)
     }
   }
@@ -1590,6 +1619,65 @@ function AnalyticsPageContent() {
           <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Team Based Analysis</h1>
         </div>
 
+        {/* Loading More Indicator */}
+        {loadingMore && (
+          <div style={{
+            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+            borderRadius: '8px',
+            padding: '10px 20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: '500',
+            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+            animation: 'fadeIn 0.3s ease'
+          }}>
+            <div style={{
+              width: '18px',
+              height: '18px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderTop: '2px solid #fff',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <span>Kalan veriler arka planda yükleniyor... ({totalLoaded} kayıt yüklendi)</span>
+          </div>
+        )}
+
+        {/* Full Page Loading Screen */}
+        {loading && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+            gap: '24px'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              border: '4px solid var(--border)',
+              borderTop: '4px solid #3b82f6',
+              borderRadius: '50%',
+              animation: 'spin 0.9s linear infinite'
+            }} />
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600', margin: '0 0 6px 0' }}>
+                Veriler yükleniyor...
+              </p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                Team Based Analysis verileri hazırlanıyor
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content - Hidden during initial loading */}
+        {!loading && (<>
 
         {/* Domain Features - New API-based Manager */}
         {showDomainFeatures && (
@@ -2839,9 +2927,17 @@ function AnalyticsPageContent() {
           !showDomainFeatures && !showCSVAnalysis && (
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Incidents List</h2>
+                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                  Incidents List
+                  {loadingMore && (
+                    <span style={{ fontSize: '11px', fontWeight: '400', color: '#3b82f6', marginLeft: '8px' }}>
+                      (yükleniyor...)
+                    </span>
+                  )}
+                </h2>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                   Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
+                  {!allDataLoaded && <span style={{ color: '#3b82f6', marginLeft: '4px' }}>(kısmi veri)</span>}
                 </span>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -4193,6 +4289,8 @@ function AnalyticsPageContent() {
             </div>
           )
         }
+
+        </>)}
 
       </div>
     </div>
