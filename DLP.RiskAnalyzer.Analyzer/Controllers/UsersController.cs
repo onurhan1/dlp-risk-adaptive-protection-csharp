@@ -75,6 +75,41 @@ public class UsersController : ControllerBase
         var testVerify = VerifyPassword(defaultPassword, hash, salt);
         logger?.LogInformation("Password hash verification test: {Result}", testVerify ? "SUCCESS" : "FAILED");
         
+        // Add default platform users
+        var defaultUsers = new[]
+        {
+            ("absaglam", "absaglam123", "standard"),
+            ("hatasoy", "hatasoy123", "standard"),
+            ("keskinme", "keskinme123", "standard"),
+            ("scakici", "scakici123", "standard"),
+            ("onurhany", "onurhany123", "standard"),
+            ("keremt", "keremt123", "standard"),
+            ("ysezer", "ysezer123", "standard"),
+            ("sezgina", "sezgina123", "standard"),
+        };
+
+        var nextId = _users.Count + 1;
+        foreach (var (uname, upass, urole) in defaultUsers)
+        {
+            if (_users.Any(u => u.Username.Equals(uname, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var (h, s) = CreatePasswordHash(upass);
+            _users.Add(new UserModel
+            {
+                Id = nextId++,
+                Username = uname,
+                Email = $"{uname}@company.com",
+                Role = urole,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true,
+                PasswordHash = h,
+                PasswordSalt = s
+            });
+        }
+
+        logger?.LogInformation("Total users after initialization: {Count}", _users.Count);
+
         _initialized = true;
     }
 

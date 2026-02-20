@@ -167,7 +167,7 @@ export default function LoginPage() {
         </form>
 
         <div className="login-footer">
-          <p>Default credentials: admin / admin123</p>
+          <p>RADAR - Risk Adaptive Protection</p>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ const getPageTitleKey = (pathname: string, search: string): string => {
     if (search.includes('view=mercek-analiz')) return 'nav.mercekAnaliz'
     return 'nav.exceptionsAnalytics'
   }
+  if (pathname.startsWith('/user-management')) return 'nav.userManagement'
   if (pathname.startsWith('/settings')) return 'nav.settings'
   if (pathname.startsWith('/faq')) return 'nav.faq'
   if (pathname.startsWith('/release-notes')) return 'nav.releaseNotes'
