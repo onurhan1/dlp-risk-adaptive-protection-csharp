@@ -14,6 +14,7 @@ import Pagination from '../components/ui/Pagination'
 import LoadingOverlay from '../components/ui/LoadingOverlay'
 import GridExport, { ExportColumn } from '../components/ui/GridExport'
 import { useTranslation } from '../components/LanguageProvider'
+import { useTheme } from '../components/ThemeProvider'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -117,6 +118,12 @@ interface ActionSummary {
 export default function Home() {
   const router = useRouter()
   const { t } = useTranslation()
+  const { theme } = useTheme()
+
+  // Plotly.js renders to SVG and cannot resolve CSS custom properties.
+  // We must pass actual hex color values based on the current theme.
+  const plotTextPrimary = theme === 'dark' ? '#e8eaed' : '#1e293b'
+  const plotTextMuted = theme === 'dark' ? '#8a9199' : '#94a3b8'
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
@@ -432,7 +439,7 @@ export default function Home() {
                   annotations: [{
                     text: `<b>${actionSummary.total}</b><br><span style="font-size:13px">${t('common.total')}</span>`,
                     showarrow: false,
-                    font: { size: 24, color: 'var(--text-primary)' },
+                    font: { size: 24, color: plotTextPrimary },
                     x: 0.5, y: 0.5,
                   }],
                   height: 300,
@@ -602,18 +609,18 @@ export default function Home() {
                 plot_bgcolor: 'transparent',
                 xaxis: {
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 12, color: 'var(--text-muted)' },
+                  tickfont: { size: 12, color: plotTextMuted },
                   tickangle: -45,
                   showgrid: true,
                 },
                 yaxis: {
-                  title: { text: t('dashboard.incidents'), font: { size: 13, color: 'var(--text-muted)' } },
+                  title: { text: t('dashboard.incidents'), font: { size: 13, color: plotTextMuted } },
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 12, color: 'var(--text-muted)' },
+                  tickfont: { size: 12, color: plotTextMuted },
                   zeroline: false,
                 },
                 yaxis2: {
-                  title: { text: t('dashboard.avgRiskScore'), font: { size: 13, color: 'var(--text-muted)' } },
+                  title: { text: t('dashboard.avgRiskScore'), font: { size: 13, color: plotTextMuted } },
                   overlaying: 'y',
                   side: 'right',
                   gridcolor: 'rgba(128,128,128,0.05)',
@@ -626,7 +633,7 @@ export default function Home() {
                   x: 0.5,
                   y: -0.25,
                   xanchor: 'center',
-                  font: { size: 13, color: 'var(--text-muted)' },
+                  font: { size: 13, color: plotTextMuted },
                   bgcolor: 'transparent',
                 },
                 height: 400,
@@ -959,7 +966,7 @@ export default function Home() {
                 x: topRules.slice().reverse().map(r => r.total_alerts),
                 text: topRules.slice().reverse().map(r => r.total_alerts.toString()),
                 textposition: 'outside',
-                textfont: { size: 11, color: 'var(--text-primary)' },
+                textfont: { size: 11, color: plotTextPrimary },
                 hovertext: topRules.slice().reverse().map(r => `${r.rule_name}: ${r.total_alerts} alerts`),
                 hoverinfo: 'text',
                 marker: {
@@ -977,10 +984,10 @@ export default function Home() {
                 xaxis: {
                   gridcolor: 'rgba(128,128,128,0.1)',
                   zeroline: false,
-                  tickfont: { size: 11, color: 'var(--text-muted)' },
+                  tickfont: { size: 11, color: plotTextMuted },
                 },
                 yaxis: {
-                  tickfont: { size: 10, color: 'var(--text-primary)' },
+                  tickfont: { size: 10, color: plotTextPrimary },
                   automargin: true,
                 },
                 height: Math.max(200, topRules.length * 32 + 40),

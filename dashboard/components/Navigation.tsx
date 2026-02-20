@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 const getPageTitleKey = (pathname: string, search: string): string => {
   if (pathname === '/' || pathname === '') return 'nav.dashboard'
@@ -24,22 +24,17 @@ const getPageTitleKey = (pathname: string, search: string): string => {
 
 export default function Navigation() {
   const [mounted, setMounted] = useState(false)
-  const [currentSearch, setCurrentSearch] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { locale, setLocale, t } = useTranslation()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentSearch = searchParams.toString() ? `?${searchParams.toString()}` : ''
 
   useEffect(() => {
     setMounted(true)
-    setCurrentSearch(window.location.search)
-
-    const interval = setInterval(() => {
-      setCurrentSearch(window.location.search)
-    }, 200)
-    return () => clearInterval(interval)
   }, [])
 
   // Close menus when clicking outside

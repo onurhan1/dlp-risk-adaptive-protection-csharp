@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
@@ -15,42 +15,15 @@ export default function Sidebar() {
   const { t } = useTranslation()
 
   const isExceptionsPage = pathname === '/exceptions'
+  const searchParams = useSearchParams()
   const [exceptionsOpen, setExceptionsOpen] = useState(false)
-  const [currentView, setCurrentView] = useState<string | null>(null)
-
-  const readViewParam = () => {
-    const params = new URLSearchParams(window.location.search)
-    return params.get('view')
-  }
+  const currentView = searchParams.get('view')
 
   useEffect(() => {
-    setCurrentView(readViewParam())
     if (isExceptionsPage) {
       setExceptionsOpen(true)
     }
   }, [isExceptionsPage])
-
-  // Poll for URL changes to sync sidebar active state
-  useEffect(() => {
-    let lastSearch = window.location.search
-    const interval = setInterval(() => {
-      if (window.location.search !== lastSearch) {
-        lastSearch = window.location.search
-        setCurrentView(readViewParam())
-      }
-    }, 200)
-
-    const handlePopState = () => {
-      lastSearch = window.location.search
-      setCurrentView(readViewParam())
-    }
-    window.addEventListener('popstate', handlePopState)
-
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('popstate', handlePopState)
-    }
-  }, [])
 
   return (
     <div className="sidebar">
