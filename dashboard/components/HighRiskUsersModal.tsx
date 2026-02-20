@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
+import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
 
 interface HighRiskUser {
@@ -47,7 +48,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
     const fetchHighRiskUsers = async () => {
         setLoading(true)
         try {
-            const apiUrl = `${window.location.protocol}//${window.location.hostname}:5001`
+            const apiUrl = getApiUrlDynamic()
             const response = await axios.get(`${apiUrl}/api/risk/high-risk-users`, {
                 params: { date }
             })

@@ -332,6 +332,14 @@ catch (Exception ex)
 }
 
 // Configure the HTTP request pipeline
+// Forward proxy headers (X-Forwarded-For, X-Forwarded-Proto) so the app
+// sees the real client IP and scheme when sitting behind a reverse proxy.
+app.UseForwardedHeaders(new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                     | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
+
 app.UseRouting();
 
 app.UseCors();
