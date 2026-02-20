@@ -26,6 +26,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<ReleasedIncident> ReleasedIncidents { get; set; }
     public DbSet<MercekIncident> MercekIncidents { get; set; }
     public DbSet<PolicyRuleException> PolicyRuleExceptions { get; set; }
+    public DbSet<UserEntity> Users { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -392,6 +393,24 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.ExceptionName);
             entity.HasIndex(e => new { e.PolicyName, e.ExceptionName });
         });
+
+        // Configure UserEntity
+        modelBuilder.Entity<UserEntity>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Username).HasColumnName("username").IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Email).HasColumnName("email").HasMaxLength(255);
+            entity.Property(e => e.Role).HasColumnName("role").IsRequired().HasMaxLength(20).HasDefaultValue("standard");
+            entity.Property(e => e.PasswordHash).HasColumnName("password_hash").IsRequired();
+            entity.Property(e => e.PasswordSalt).HasColumnName("password_salt").IsRequired();
+            entity.Property(e => e.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+
+            entity.HasIndex(e => e.Username).IsUnique();
+        });
     }
 }
 
@@ -401,4 +420,17 @@ public class SystemSetting
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
+}
+
+// UserEntity - persisted in the "users" table
+public class UserEntity
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = "standard";
+    public string PasswordHash { get; set; } = string.Empty;
+    public string PasswordSalt { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

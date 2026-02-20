@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using Microsoft.EntityFrameworkCore;
+using DLP.RiskAnalyzer.Analyzer.Data;
 using System.Security.Cryptography;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
@@ -11,136 +9,105 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/users")]
 public class UsersController : ControllerBase
 {
+    private readonly AnalyzerDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UsersController> _logger;
-    private static readonly List<UserModel> _users = new();
-    private static bool _initialized = false;
 
-    public static List<UserModel> Users => _users;
-
-    public static UserModel? GetUserByUsername(string username) =>
-        _users.FirstOrDefault(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase) && u.IsActive);
-
-    public static bool TryValidateCredentials(string username, string password, out UserModel? user)
+    public UsersController(AnalyzerDbContext db, IConfiguration configuration, ILogger<UsersController> logger)
     {
-        user = GetUserByUsername(username);
-        if (user == null)
-        {
-            return false;
-        }
-        
-        if (string.IsNullOrWhiteSpace(password))
-        {
-            return false;
-        }
+        _db = db;
+        _configuration = configuration;
+        _logger = logger;
+    }
 
-        var isValid = VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
-        return isValid;
+    // ── Static helpers used by AuthController ───────────────────────────
+
+    public static UserEntity? GetUserByUsername(AnalyzerDbContext db, string username) =>
+        db.Users.FirstOrDefault(u => u.Username.ToLower() == username.ToLower() && u.IsActive);
+
+    public static bool TryValidateCredentials(AnalyzerDbContext db, string username, string password, out UserEntity? user)
+    {
+        user = GetUserByUsername(db, username);
+        if (user == null || string.IsNullOrWhiteSpace(password))
+            return false;
+
+        return VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
     }
 
     /// <summary>
-    /// Initialize default admin user - called from Program.cs on application startup
-    /// This ensures the user list is populated before any login attempts
+    /// Seed the default admin user if the users table is empty.
+    /// Called from Program.cs on application startup.
     /// </summary>
-    public static void InitializeDefaultAdmin(IConfiguration configuration, ILogger<UsersController>? logger = null)
+    public static async Task SeedDefaultAdminAsync(AnalyzerDbContext db, IConfiguration configuration, ILogger? logger = null)
     {
-        if (_initialized)
+        // Ensure the users table exists (EnsureCreated won't help with migrations,
+        // but we can safely try — if the table doesn't exist yet the migration will create it)
+        try
         {
-            return; // Already initialized
-        }
-
-        var defaultAdmin = configuration["Authentication:Username"] ?? "admin";
-        var defaultPassword = configuration["Authentication:Password"] ?? "admin123";
-        
-        logger?.LogInformation("Initializing default admin user - Username: {Username}, Password Length: {PassLen}", 
-            defaultAdmin, defaultPassword.Length);
-        
-        var (hash, salt) = CreatePasswordHash(defaultPassword);
-        _users.Add(new UserModel
-        {
-            Id = 1,
-            Username = defaultAdmin,
-            Email = $"{defaultAdmin}@company.com",
-            Role = "admin",
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true,
-            PasswordHash = hash,
-            PasswordSalt = salt
-        });
-        
-        logger?.LogInformation("Default admin user created - Username: {Username}, Hash Length: {HashLen}, Salt Length: {SaltLen}", 
-            defaultAdmin, hash.Length, salt.Length);
-        
-        // Verify the password hash works
-        var testVerify = VerifyPassword(defaultPassword, hash, salt);
-        logger?.LogInformation("Password hash verification test: {Result}", testVerify ? "SUCCESS" : "FAILED");
-        
-        // Add default platform users
-        var defaultUsers = new[]
-        {
-            ("absaglam", "absaglam123", "standard"),
-            ("hatasoy", "hatasoy123", "standard"),
-            ("keskinme", "keskinme123", "standard"),
-            ("scakici", "scakici123", "standard"),
-            ("onurhany", "onurhany123", "standard"),
-            ("keremt", "keremt123", "standard"),
-            ("ysezer", "ysezer123", "standard"),
-            ("sezgina", "sezgina123", "standard"),
-        };
-
-        var nextId = _users.Count + 1;
-        foreach (var (uname, upass, urole) in defaultUsers)
-        {
-            if (_users.Any(u => u.Username.Equals(uname, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            var (h, s) = CreatePasswordHash(upass);
-            _users.Add(new UserModel
+            if (await db.Users.AnyAsync())
             {
-                Id = nextId++,
-                Username = uname,
-                Email = $"{uname}@company.com",
-                Role = urole,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
-                PasswordHash = h,
-                PasswordSalt = s
-            });
+                logger?.LogInformation("Users table already has data — skipping seed.");
+                return;
+            }
         }
-
-        logger?.LogInformation("Total users after initialization: {Count}", _users.Count);
-
-        _initialized = true;
-    }
-
-    public UsersController(IConfiguration configuration, ILogger<UsersController> logger)
-    {
-        _configuration = configuration;
-        _logger = logger;
-        
-        // Initialize with default admin user if not already done (fallback for backward compatibility)
-        // Note: This should already be initialized in Program.cs, but we keep this as a safety net
-        if (!_initialized)
+        catch (Exception ex)
         {
-            InitializeDefaultAdmin(configuration, logger);
+            // Table might not exist yet — create it via raw SQL as fallback
+            logger?.LogWarning("Users table check failed ({Message}), creating table...", ex.Message);
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    email VARCHAR(255),
+                    role VARCHAR(20) NOT NULL DEFAULT 'standard',
+                    password_hash TEXT NOT NULL,
+                    password_salt TEXT NOT NULL,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            ");
         }
+
+        var adminUser = configuration["Authentication:Username"] ?? "admin";
+        var adminPass = configuration["Authentication:Password"] ?? "admin123";
+
+        // Re-check after possible table creation
+        if (await db.Users.AnyAsync())
+        {
+            logger?.LogInformation("Users table already has data — skipping seed.");
+            return;
+        }
+
+        var (hash, salt) = CreatePasswordHash(adminPass);
+
+        db.Users.Add(new UserEntity
+        {
+            Username = adminUser,
+            Email = $"{adminUser}@company.com",
+            Role = "admin",
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+        logger?.LogInformation("Default admin user '{Username}' seeded into the database.", adminUser);
     }
+
+    // ── CRUD endpoints ──────────────────────────────────────────────────
 
     [HttpGet]
-    public ActionResult<Dictionary<string, object>> GetUsers()
+    public async Task<ActionResult> GetUsers()
     {
         try
         {
-            return Ok(new 
-            { 
-                users = _users.Select(UserResponse.FromModel).ToList(), 
-                total = _users.Count 
-            });
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogWarning(ex, "Validation error while creating user");
-            return BadRequest(new { detail = ex.Message });
+            var users = await _db.Users
+                .OrderBy(u => u.Id)
+                .Select(u => UserResponse.FromEntity(u))
+                .ToListAsync();
+
+            return Ok(new { users, total = users.Count });
         }
         catch (Exception ex)
         {
@@ -150,21 +117,15 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public ActionResult<UserModel> GetUser(int id)
+    public async Task<ActionResult> GetUser(int id)
     {
         try
         {
-            var user = _users.FirstOrDefault(u => u.Id == id);
+            var user = await _db.Users.FindAsync(id);
             if (user == null)
-            {
                 return NotFound(new { detail = "User not found" });
-            }
-            return Ok(UserResponse.FromModel(user));
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogWarning(ex, "Validation error while updating user");
-            return BadRequest(new { detail = ex.Message });
+
+            return Ok(UserResponse.FromEntity(user));
         }
         catch (Exception ex)
         {
@@ -174,45 +135,38 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<UserModel> CreateUser([FromBody] CreateUserRequest request)
+    public async Task<ActionResult> CreateUser([FromBody] CreateUserRequest request)
     {
         try
         {
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
-            {
                 return BadRequest(new { detail = "Username and password are required" });
-            }
 
-            if (_users.Any(u => u.Username == request.Username))
-            {
+            if (await _db.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower()))
                 return Conflict(new { detail = "Username already exists" });
-            }
 
-            if (request.Role != "admin" && request.Role != "standard")
-            {
+            var role = request.Role ?? "standard";
+            if (role != "admin" && role != "standard")
                 return BadRequest(new { detail = "Role must be 'admin' or 'standard'" });
-            }
 
-            ValidatePasswordStrength(request.Password);
             var (hash, salt) = CreatePasswordHash(request.Password);
 
-            var newUser = new UserModel
+            var user = new UserEntity
             {
-                Id = _users.Count > 0 ? _users.Max(u => u.Id) + 1 : 1,
-                Username = request.Username,
-                Email = request.Email ?? $"{request.Username}@company.com",
-                Role = request.Role ?? "standard",
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
+                Username = request.Username.Trim(),
+                Email = request.Email ?? $"{request.Username.Trim()}@company.com",
+                Role = role,
                 PasswordHash = hash,
-                PasswordSalt = salt
+                PasswordSalt = salt,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
             };
 
-            _users.Add(newUser);
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
 
-            _logger.LogInformation("User created: {Username} with role {Role}", newUser.Username, newUser.Role);
-
-            return CreatedAtAction(nameof(GetUser), new { id = newUser.Id }, UserResponse.FromModel(newUser));
+            _logger.LogInformation("User created: {Username} with role {Role}", user.Username, user.Role);
+            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, UserResponse.FromEntity(user));
         }
         catch (Exception ex)
         {
@@ -222,55 +176,44 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public ActionResult<UserModel> UpdateUser(int id, [FromBody] UpdateUserRequest request)
+    public async Task<ActionResult> UpdateUser(int id, [FromBody] UpdateUserRequest request)
     {
         try
         {
-            var user = _users.FirstOrDefault(u => u.Id == id);
+            var user = await _db.Users.FindAsync(id);
             if (user == null)
-            {
                 return NotFound(new { detail = "User not found" });
-            }
 
             if (!string.IsNullOrWhiteSpace(request.Username) && request.Username != user.Username)
             {
-                if (_users.Any(u => u.Username == request.Username && u.Id != id))
-                {
+                if (await _db.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower() && u.Id != id))
                     return Conflict(new { detail = "Username already exists" });
-                }
-                user.Username = request.Username;
+                user.Username = request.Username.Trim();
             }
 
             if (!string.IsNullOrWhiteSpace(request.Email))
-            {
                 user.Email = request.Email;
-            }
 
             if (!string.IsNullOrWhiteSpace(request.Role))
             {
                 if (request.Role != "admin" && request.Role != "standard")
-                {
                     return BadRequest(new { detail = "Role must be 'admin' or 'standard'" });
-                }
                 user.Role = request.Role;
             }
 
             if (request.IsActive.HasValue)
-            {
                 user.IsActive = request.IsActive.Value;
-            }
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {
-                ValidatePasswordStrength(request.Password);
                 var (hash, salt) = CreatePasswordHash(request.Password);
                 user.PasswordHash = hash;
                 user.PasswordSalt = salt;
             }
 
+            await _db.SaveChangesAsync();
             _logger.LogInformation("User updated: {Username}", user.Username);
-
-            return Ok(UserResponse.FromModel(user));
+            return Ok(UserResponse.FromEntity(user));
         }
         catch (Exception ex)
         {
@@ -280,27 +223,22 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public ActionResult DeleteUser(int id)
+    public async Task<ActionResult> DeleteUser(int id)
     {
         try
         {
-            var user = _users.FirstOrDefault(u => u.Id == id);
+            var user = await _db.Users.FindAsync(id);
             if (user == null)
-            {
                 return NotFound(new { detail = "User not found" });
-            }
 
-            // Don't allow deleting the default admin user
             var defaultAdmin = _configuration["Authentication:Username"] ?? "admin";
-            if (user.Username == defaultAdmin)
-            {
+            if (user.Username.Equals(defaultAdmin, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { detail = "Cannot delete default admin user" });
-            }
 
-            _users.Remove(user);
+            _db.Users.Remove(user);
+            await _db.SaveChangesAsync();
 
             _logger.LogInformation("User deleted: {Username}", user.Username);
-
             return NoContent();
         }
         catch (Exception ex)
@@ -310,18 +248,9 @@ public class UsersController : ControllerBase
         }
     }
 
-    private static void ValidatePasswordStrength(string password)
-    {
-        if (password.Length < 12 ||
-            !password.Any(char.IsUpper) ||
-            !password.Any(char.IsLower) ||
-            !password.Any(char.IsDigit))
-        {
-            throw new ArgumentException("Password must be at least 12 characters and include upper, lower case letters and digits.");
-        }
-    }
+    // ── Password helpers ────────────────────────────────────────────────
 
-    private static (string Hash, string Salt) CreatePasswordHash(string password)
+    public static (string Hash, string Salt) CreatePasswordHash(string password)
     {
         var saltBytes = RandomNumberGenerator.GetBytes(16);
         var hashBytes = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
@@ -331,37 +260,20 @@ public class UsersController : ControllerBase
     private static bool VerifyPassword(string password, string hash, string salt)
     {
         if (string.IsNullOrWhiteSpace(hash) || string.IsNullOrWhiteSpace(salt))
-        {
             return false;
-        }
 
         try
         {
             var saltBytes = Convert.FromBase64String(salt);
             var expectedHash = Convert.FromBase64String(hash);
             var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
-            var isValid = CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
-            return isValid;
+            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
         }
-        catch (Exception ex)
+        catch
         {
-            // Log error but don't expose details to caller
-            System.Diagnostics.Debug.WriteLine($"Password verification error: {ex.Message}");
             return false;
         }
     }
-}
-
-public class UserModel
-{
-    public int Id { get; set; }
-    public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string Role { get; set; } = "standard"; // "admin" or "standard"
-    public DateTime CreatedAt { get; set; }
-    public bool IsActive { get; set; }
-    public string PasswordHash { get; set; } = string.Empty;
-    public string PasswordSalt { get; set; } = string.Empty;
 }
 
 public class CreateUserRequest
@@ -390,14 +302,14 @@ public class UserResponse
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; }
 
-    public static UserResponse FromModel(UserModel model) => new()
+    public static UserResponse FromEntity(UserEntity e) => new()
     {
-        Id = model.Id,
-        Username = model.Username,
-        Email = model.Email,
-        Role = model.Role,
-        CreatedAt = model.CreatedAt,
-        IsActive = model.IsActive
+        Id = e.Id,
+        Username = e.Username,
+        Email = e.Email,
+        Role = e.Role,
+        CreatedAt = e.CreatedAt,
+        IsActive = e.IsActive
     };
 }
 

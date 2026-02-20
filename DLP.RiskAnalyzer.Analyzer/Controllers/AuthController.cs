@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
+using DLP.RiskAnalyzer.Analyzer.Data;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -15,9 +16,11 @@ public class AuthController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthController> _logger;
+    private readonly AnalyzerDbContext _db;
 
-    public AuthController(IConfiguration configuration, ILogger<AuthController> logger)
+    public AuthController(AnalyzerDbContext db, IConfiguration configuration, ILogger<AuthController> logger)
     {
+        _db = db;
         _configuration = configuration;
         _logger = logger;
     }
@@ -59,7 +62,7 @@ public class AuthController : ControllerBase
                 normalizedUsername, normalizedUsername.Length, normalizedPassword.Length);
             
             // Check if user exists first
-            var userExists = UsersController.GetUserByUsername(normalizedUsername);
+            var userExists = UsersController.GetUserByUsername(_db, normalizedUsername);
             if (userExists == null)
             {
                 _logger.LogWarning("Login failed - User not found: {Username}", normalizedUsername);
@@ -69,7 +72,7 @@ public class AuthController : ControllerBase
             _logger.LogInformation("User found - Username: {Username}, HasPasswordHash: {HasHash}, HasPasswordSalt: {HasSalt}", 
                 userExists.Username, !string.IsNullOrEmpty(userExists.PasswordHash), !string.IsNullOrEmpty(userExists.PasswordSalt));
 
-            if (!UsersController.TryValidateCredentials(normalizedUsername, normalizedPassword, out var user))
+            if (!UsersController.TryValidateCredentials(_db, normalizedUsername, normalizedPassword, out var user))
             {
                 _logger.LogWarning("Login failed - Password validation failed for username: {Username}", normalizedUsername);
                 return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));

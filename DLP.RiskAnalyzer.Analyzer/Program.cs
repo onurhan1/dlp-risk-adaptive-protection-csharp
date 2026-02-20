@@ -311,25 +311,25 @@ else
 }
 
 // Initialize default admin user on application startup
-// This ensures the user list is populated before any login attempts
+// This ensures the users table is populated before any login attempts
 // CRITICAL: This must be done before any HTTP requests are processed
-startupLogger.LogInformation("=== INITIALIZING DEFAULT ADMIN USER ===");
+startupLogger.LogInformation("=== SEEDING DEFAULT ADMIN USER ===");
 try
 {
     using (var scope = app.Services.CreateScope())
     {
+        var dbContext = scope.ServiceProvider.GetRequiredService<DLP.RiskAnalyzer.Analyzer.Data.AnalyzerDbContext>();
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<DLP.RiskAnalyzer.Analyzer.Controllers.UsersController>>();
-        
-        DLP.RiskAnalyzer.Analyzer.Controllers.UsersController.InitializeDefaultAdmin(configuration, logger);
-        startupLogger.LogInformation("=== DEFAULT ADMIN USER INITIALIZED SUCCESSFULLY ===");
+
+        await DLP.RiskAnalyzer.Analyzer.Controllers.UsersController.SeedDefaultAdminAsync(dbContext, configuration, logger);
+        startupLogger.LogInformation("=== DEFAULT ADMIN USER SEED COMPLETED ===");
     }
 }
 catch (Exception ex)
 {
-    startupLogger.LogError(ex, "Failed to initialize default admin user: {Message}", ex.Message);
+    startupLogger.LogError(ex, "Failed to seed default admin user: {Message}", ex.Message);
     // Don't fail the application startup - allow it to continue
-    // User initialization will be attempted when UsersController is first accessed
 }
 
 // Configure the HTTP request pipeline
