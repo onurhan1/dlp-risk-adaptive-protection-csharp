@@ -4,6 +4,7 @@ using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Helpers;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -334,10 +335,9 @@ catch (Exception ex)
 // Configure the HTTP request pipeline
 // Forward proxy headers (X-Forwarded-For, X-Forwarded-Proto) so the app
 // sees the real client IP and scheme when sitting behind a reverse proxy.
-app.UseForwardedHeaders(new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
-                     | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
 app.UseRouting();
