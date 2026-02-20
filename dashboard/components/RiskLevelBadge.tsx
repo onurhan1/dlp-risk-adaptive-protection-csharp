@@ -53,7 +53,7 @@ export default function RiskLevelBadge({
       {showScore && (
         <span style={{ 
           fontSize: '12px', 
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontWeight: 500
         }}>
           {getRiskLabel(riskScore)}

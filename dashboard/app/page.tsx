@@ -357,7 +357,7 @@ export default function Home() {
     type: 'scatter',
     mode: 'lines+markers',
     name: 'Incidents',
-    line: { color: '#283593', width: 2 },
+    line: { color: '#5c6bc0', width: 2 },
     marker: { size: 4 }
   }
 
@@ -418,7 +418,7 @@ export default function Home() {
                   hole: 0.55,
                   marker: {
                     colors: ['#10b981', '#ef4444', '#a855f7', '#f59e0b'],
-                    line: { color: 'rgba(0,0,0,0.1)', width: 1 }
+                    line: { color: 'rgba(128,128,128,0.3)', width: 1 }
                   },
                   textinfo: 'none',
                   hoverinfo: 'label+value+percent',
@@ -520,7 +520,7 @@ export default function Home() {
               }}
               style={{ padding: '6px 10px', minWidth: '130px', fontSize: '15px' }}
             />
-            <span style={{ color: '#666', fontSize: '15px' }}>{t('common.to')}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '15px' }}>{t('common.to')}</span>
             <input
               type="date"
               className="filter-input"
@@ -538,11 +538,11 @@ export default function Home() {
           </div>
         </div>
         {dailySummaryLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: 'var(--text-muted)' }}>
             {t('common.loading')}
           </div>
         ) : dailySummary.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: 'var(--text-muted)' }}>
             {t('common.noData')}
           </div>
         ) : (() => {
@@ -943,11 +943,11 @@ export default function Home() {
             </div>
           </div>
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)' }}>
               {t('common.loading')}
             </div>
           ) : topRules.length === 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#999' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)' }}>
               {t('common.noData')}
             </div>
           ) : (

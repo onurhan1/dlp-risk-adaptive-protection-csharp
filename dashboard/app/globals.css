@@ -60,15 +60,15 @@
   --surface-hover: #f8fafc;
   --surface-active: #f1f5f9;
   
-  /* Sidebar specific - koyu sidebar aydınlık modda */
-  --sidebar-bg: #1a2332;
-  --sidebar-bg-end: #1f2938;
-  --sidebar-text: #94a3b8;
-  --sidebar-text-hover: #ffffff;
-  --sidebar-text-active: #00d4ff;
-  --sidebar-border: #263345;
-  --sidebar-hover-bg: #223040;
-  --sidebar-active-bg: #1c2836;
+  /* Sidebar specific - aydınlık modda da koyu sidebar */
+  --sidebar-bg: #0d1017;
+  --sidebar-bg-end: #12151e;
+  --sidebar-text: #9aa3b0;
+  --sidebar-text-hover: #e8eaed;
+  --sidebar-text-active: #00a8e8;
+  --sidebar-border: #1e2230;
+  --sidebar-hover-bg: #171b26;
+  --sidebar-active-bg: #141824;
   
   /* Text Colors */
   --text-primary: #1e293b; /* Dark Gray */
@@ -369,7 +369,7 @@ a {
 }
 
 .light-theme .sidebar {
-  background: linear-gradient(180deg, #1a2332 0%, #1f2938 100%);
+  background: linear-gradient(180deg, #0d1017 0%, #12151e 100%);
 }
 
 .sidebar-logo {

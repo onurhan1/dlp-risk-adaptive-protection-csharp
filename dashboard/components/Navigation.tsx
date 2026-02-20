@@ -26,6 +26,7 @@ export default function Navigation() {
   const [mounted, setMounted] = useState(false)
   const [currentSearch, setCurrentSearch] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const { locale, setLocale, t } = useTranslation()
@@ -41,12 +42,15 @@ export default function Navigation() {
     return () => clearInterval(interval)
   }, [])
 
-  // Close user menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target.closest('.user-menu-wrapper')) {
         setUserMenuOpen(false)
+      }
+      if (!target.closest('.settings-menu-wrapper')) {
+        setSettingsMenuOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -74,13 +78,6 @@ export default function Navigation() {
           >
             <span className="lang-label">{locale === 'tr' ? 'TR' : 'EN'}</span>
           </button>
-          <button className="help-btn" title={t('nav.help')} onClick={() => window.open('/faq', '_self')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-          </button>
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
             {theme === 'dark' ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,6 +97,42 @@ export default function Navigation() {
               </svg>
             )}
           </button>
+          <div className="settings-menu-wrapper">
+            <button className="settings-btn" title={t('nav.settings')} onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+            {settingsMenuOpen && (
+              <div className="settings-dropdown">
+                <a href="/settings" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                  <span>{t('nav.settings')}</span>
+                </a>
+                <a href="/release-notes" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                  </svg>
+                  <span>{t('nav.releaseNotes')}</span>
+                </a>
+                <a href="/faq" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  <span>{t('nav.faq')}</span>
+                </a>
+              </div>
+            )}
+          </div>
           {username && (
             <div className="user-menu-wrapper">
               <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
@@ -244,7 +277,12 @@ export default function Navigation() {
           letter-spacing: 0.02em;
         }
 
-        .help-btn {
+        .settings-menu-wrapper {
+          position: relative;
+          margin-right: 4px;
+        }
+
+        .settings-btn {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -256,18 +294,40 @@ export default function Navigation() {
           cursor: pointer;
           color: var(--text-primary);
           transition: all 0.2s;
-          margin-right: 4px;
         }
 
-        .help-btn:hover {
+        .settings-btn:hover {
           background: var(--surface-active);
           border-color: var(--primary);
           color: var(--primary);
         }
 
-        .help-btn svg {
+        .settings-btn svg {
           width: 20px;
           height: 20px;
+        }
+
+        .settings-dropdown {
+          position: absolute;
+          top: calc(100% + 6px);
+          right: 0;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          box-shadow: var(--shadow-lg);
+          min-width: 200px;
+          padding: 4px;
+          z-index: 1000;
+          animation: dropdownFade 0.15s ease;
+        }
+
+        .settings-dropdown .dropdown-item {
+          text-decoration: none;
+        }
+
+        .settings-dropdown .dropdown-item:hover {
+          background: var(--surface-hover);
+          color: var(--primary);
         }
 
         .user-menu-wrapper {

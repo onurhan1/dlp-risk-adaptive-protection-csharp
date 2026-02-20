@@ -626,7 +626,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                                     <td style={{ padding: '10px', textAlign: 'right' }}>{user.incident_count || 0}</td>
                                                     <td style={{ padding: '10px', textAlign: 'center' }}>
                                                         <span style={{
-                                                            color: user.trend_change > 0 ? '#ef4444' : user.trend_change < 0 ? '#10b981' : '#6b7280',
+                                                            color: user.trend_change > 0 ? '#ef4444' : user.trend_change < 0 ? '#10b981' : 'var(--text-muted)',
                                                             fontWeight: '600'
                                                         }}>
                                                             {user.trend_change > 0 ? '↗' : user.trend_change < 0 ? '↘' : '➡'} {Math.abs(user.trend_change || 0).toFixed(0)}

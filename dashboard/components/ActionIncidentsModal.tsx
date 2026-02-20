@@ -516,7 +516,7 @@ export default function ActionIncidentsModal({
                                     padding: '8px 16px',
                                     fontSize: '12px',
                                     backgroundColor: 'var(--warning)',
-                                    color: '#000',
+                                    color: '#fff',
                                     border: 'none',
                                     borderRadius: '6px',
                                     cursor: 'pointer',
