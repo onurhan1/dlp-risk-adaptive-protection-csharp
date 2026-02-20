@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, Cha
 import dynamic from 'next/dynamic'
 import { useSearchParams, useRouter } from 'next/navigation'
 import apiClient from '@/lib/axios'
-import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
+import { format, isWithinInterval, parseISO, startOfDay, endOfDay, subDays } from 'date-fns'
 import DomainFeaturesManager from '@/components/DomainFeaturesManager'
 import Pagination from '@/components/ui/Pagination'
 
@@ -84,8 +84,12 @@ function AnalyticsPageContent() {
   const [columnFilterSearch, setColumnFilterSearch] = useState<Record<string, string>>({})
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({})
 
+  // Default 1-week date range
+  const defaultStart = format(subDays(new Date(), 7), 'yyyy-MM-dd')
+  const defaultEnd = format(new Date(), 'yyyy-MM-dd')
+
   // Filter States (pending - form values, not yet applied)
-  const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  const [dateRange, setDateRange] = useState({ start: defaultStart, end: defaultEnd })
   const [dateError, setDateError] = useState('')
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
@@ -102,7 +106,7 @@ function AnalyticsPageContent() {
 
   // Applied filter snapshot - filteredIncidents uses this
   const [appliedFilters, setAppliedFilters] = useState({
-    dateRange: { start: '', end: '' },
+    dateRange: { start: defaultStart, end: defaultEnd },
     selectedDepartments: [] as string[],
     selectedTeams: [] as string[],
     selectedUser: '',
@@ -112,7 +116,11 @@ function AnalyticsPageContent() {
     selectedActions: [] as string[]
   })
 
+  // Filter loading overlay state
+  const [filterLoading, setFilterLoading] = useState(false)
+
   const applyFilters = () => {
+    setFilterLoading(true)
     setAppliedFilters({
       dateRange: { ...dateRange },
       selectedDepartments,
@@ -123,10 +131,12 @@ function AnalyticsPageContent() {
       selectedDomain,
       selectedActions
     })
+    // Brief delay to show overlay while UI re-renders with new filter results
+    setTimeout(() => setFilterLoading(false), 400)
   }
 
   const resetFilters = () => {
-    setDateRange({ start: '', end: '' })
+    setDateRange({ start: defaultStart, end: defaultEnd })
     setDateError('')
     setSelectedDepartments([])
     setSelectedTeams([])
@@ -136,7 +146,7 @@ function AnalyticsPageContent() {
     setSelectedDomain('')
     setSelectedActions([])
     setAppliedFilters({
-      dateRange: { start: '', end: '' },
+      dateRange: { start: defaultStart, end: defaultEnd },
       selectedDepartments: [],
       selectedTeams: [],
       selectedUser: '',
@@ -734,19 +744,10 @@ function AnalyticsPageContent() {
 
   useEffect(() => {
     if (showCSVAnalysis) {
-      // Initial load
+      // Load data once when CSV Analysis is opened (no auto-refresh)
       fetchMercekFilters()
       fetchMercekData(1, csvPageSize)
       fetchMercekStatistics()
-
-      // Auto-refresh every 30 seconds - uses refs to always get latest filter values
-      const intervalId = setInterval(() => {
-        fetchMercekDataRef.current(csvCurrentPageRef.current, csvPageSizeRef.current)
-        fetchMercekStatisticsRef.current()
-      }, 30000) // 30 seconds
-
-      // Cleanup interval on unmount or when CSV Analysis is closed
-      return () => clearInterval(intervalId)
     }
   }, [showCSVAnalysis])
 
@@ -1613,39 +1614,52 @@ function AnalyticsPageContent() {
   }, [releasedIncidents])
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px', position: 'relative' }}>
+      {/* Filter Loading Overlay */}
+      {filterLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          backdropFilter: 'blur(2px)'
+        }}>
+          <div style={{
+            background: 'var(--surface)',
+            borderRadius: '12px',
+            padding: '32px 48px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid var(--border)',
+              borderTop: '3px solid #3b82f6',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite'
+            }} />
+            <p style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '600', margin: 0 }}>
+              Filtreler uygulanıyor...
+            </p>
+          </div>
+        </div>
+      )}
+
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Team Based Analysis</h1>
         </div>
-
-        {/* Loading More Indicator */}
-        {loadingMore && (
-          <div style={{
-            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-            borderRadius: '8px',
-            padding: '10px 20px',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            color: '#fff',
-            fontSize: '13px',
-            fontWeight: '500',
-            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
-            animation: 'fadeIn 0.3s ease'
-          }}>
-            <div style={{
-              width: '18px',
-              height: '18px',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderTop: '2px solid #fff',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite'
-            }} />
-            <span>Kalan veriler arka planda yükleniyor... ({totalLoaded} kayıt yüklendi)</span>
-          </div>
-        )}
 
         {/* Full Page Loading Screen */}
         {loading && (
@@ -2929,15 +2943,9 @@ function AnalyticsPageContent() {
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
                   Incidents List
-                  {loadingMore && (
-                    <span style={{ fontSize: '11px', fontWeight: '400', color: '#3b82f6', marginLeft: '8px' }}>
-                      (yükleniyor...)
-                    </span>
-                  )}
                 </h2>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                   Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
-                  {!allDataLoaded && <span style={{ color: '#3b82f6', marginLeft: '4px' }}>(kısmi veri)</span>}
                 </span>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>

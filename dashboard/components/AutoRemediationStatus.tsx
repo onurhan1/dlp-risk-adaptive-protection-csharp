@@ -26,8 +26,6 @@ export default function AutoRemediationStatus() {
 
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(fetchStatus, 30000) // Refresh every 30 seconds
-    return () => clearInterval(interval)
   }, [])
 
   const fetchStatus = async () => {
