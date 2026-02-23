@@ -208,6 +208,7 @@ function AnalyticsPageContent() {
   const [exceptionActionFilter, setExceptionActionFilter] = useState<string[]>([])
   const [exceptionChannelFilter, setExceptionChannelFilter] = useState<string[]>([])
   const [exceptionPolicyFilter, setExceptionPolicyFilter] = useState<string[]>([])
+  const [exceptionDateRange, setExceptionDateRange] = useState({ start: defaultStart, end: defaultEnd })
   const [userIncidents, setUserIncidents] = useState<Incident[]>([])
   const [loadingUserIncidents, setLoadingUserIncidents] = useState(false)
 
@@ -966,17 +967,22 @@ function AnalyticsPageContent() {
 
   const getHeatmapColor = (count: number, max: number) => {
     if (count === 0) return 'transparent'
-    const intensity = max > 0 ? count / max : 0
-    // Daha koyu renkler: 85'ten 25'e kadar (açık maviden koyu maviye)
-    const lightness = 85 - (intensity * 60)
-    return `hsl(210, 90%, ${lightness}%)`
+    // Tier bazlı renklendirme
+    if (count > 100) return 'hsl(210, 90%, 20%)'  // En koyu
+    if (count > 75) return 'hsl(210, 90%, 28%)'
+    if (count > 50) return 'hsl(210, 90%, 35%)'
+    if (count > 30) return 'hsl(210, 90%, 42%)'
+    if (count > 20) return 'hsl(210, 90%, 50%)'
+    if (count > 15) return 'hsl(210, 90%, 58%)'
+    if (count > 10) return 'hsl(210, 90%, 65%)'
+    if (count > 5) return 'hsl(210, 90%, 73%)'
+    return 'hsl(210, 90%, 82%)'  // 1-5 arası en açık
   }
 
   const getTextColor = (count: number, max: number) => {
     if (count === 0) return 'var(--text-primary)'
-    const intensity = max > 0 ? count / max : 0
-    // Açık arka planlarda (intensity < 0.4) siyah, koyu arka planlarda beyaz
-    return intensity > 0.4 ? '#ffffff' : '#1e293b'
+    // Koyu arka planlarda (count > 20) beyaz, açıklarda siyah
+    return count > 20 ? '#ffffff' : '#1e293b'
   }
 
   const getYesNoColor = (value: string) => {
@@ -1011,6 +1017,7 @@ function AnalyticsPageContent() {
     setExceptionActionFilter([])
     setExceptionChannelFilter([])
     setExceptionPolicyFilter([])
+    setExceptionDateRange({ start: defaultStart, end: defaultEnd })
     setUserIncidents([])
     setExpandedPolicies(new Set())
     setExpandedRules(new Set())
@@ -1076,11 +1083,11 @@ function AnalyticsPageContent() {
     const domainQuery = exceptionDomainFilter.toLowerCase().trim()
 
     const filtered = incidents.filter(incident => {
-      // Date filter
-      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
+      // Date filter (independent from other sections)
+      if (exceptionDateRange.start && exceptionDateRange.end) {
         const incidentDate = parseISO(incident.timestamp)
-        const start = startOfDay(parseISO(appliedFilters.dateRange.start))
-        const end = endOfDay(parseISO(appliedFilters.dateRange.end))
+        const start = startOfDay(parseISO(exceptionDateRange.start))
+        const end = endOfDay(parseISO(exceptionDateRange.end))
         if (!isWithinInterval(incidentDate, { start, end })) return false
       }
 
@@ -3263,7 +3270,42 @@ function AnalyticsPageContent() {
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
 
-              <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
+              <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+                    Date Range
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <input
+                      type="date"
+                      value={exceptionDateRange.start}
+                      onChange={(e) => setExceptionDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      style={{
+                        flex: 1,
+                        padding: '9px 6px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--background)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <input
+                      type="date"
+                      value={exceptionDateRange.end}
+                      onChange={(e) => setExceptionDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      style={{
+                        flex: 1,
+                        padding: '9px 6px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--background)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px'
+                      }}
+                    />
+                  </div>
+                </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
                     Search User
