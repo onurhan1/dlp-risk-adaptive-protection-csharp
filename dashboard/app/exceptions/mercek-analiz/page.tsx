@@ -28,7 +28,7 @@ export default function MercekAnalyzePage() {
   const [csvData, setCsvData] = useState<any[]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvSearchQuery, setCsvSearchQuery] = useState('')
-  const [csvPageSize, setCsvPageSize] = useState(10)
+  const [csvPageSize, setCsvPageSize] = useState(25)
   const [csvCurrentPage, setCsvCurrentPage] = useState(1)
   const [csvDateFrom, setCsvDateFrom] = useState('')
   const [csvDateTo, setCsvDateTo] = useState('')
@@ -330,7 +330,7 @@ export default function MercekAnalyzePage() {
 
   useEffect(() => {
     fetchMercekFilters()
-    fetchMercekData(1, csvPageSize)
+    fetchMercekData(1, 10000) // Fetch all data for client-side filtering
     fetchMercekStatistics()
     fetchReleasedIncidents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,7 +528,7 @@ export default function MercekAnalyzePage() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    onClick={() => fetchMercekData(csvCurrentPage, csvPageSize)}
+                    onClick={() => fetchMercekData(1, 10000)} // Fetch all data for client-side filtering
                     disabled={mercekLoading}
                     style={{
                       padding: '8px 16px',
@@ -1382,16 +1382,10 @@ export default function MercekAnalyzePage() {
                       pageSize={csvPageSize}
                       onPageChange={(page) => {
                         setCsvCurrentPage(page)
-                        if (mercekDataLoaded) {
-                          fetchMercekData(page)
-                        }
                       }}
                       onPageSizeChange={(size) => {
                         setCsvPageSize(size)
                         setCsvCurrentPage(1)
-                        if (mercekDataLoaded) {
-                          fetchMercekData(1, size)
-                        }
                       }}
                       showPageInput={true}
                       showFirstLast={true}
