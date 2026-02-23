@@ -46,6 +46,8 @@ export default function MercekAnalyzePage() {
   const [mercekSortDirection, setMercekSortDirection] = useState<'asc' | 'desc'>('asc')
   const [mercekColumnFilters, setMercekColumnFilters] = useState<Record<string, string[]>>({})
   const [mercekTextFilters, setMercekTextFilters] = useState<Record<string, string>>({})
+  const [mercekTagFilters, setMercekTagFilters] = useState<Record<string, string[]>>({})
+  const [tagSearchInput, setTagSearchInput] = useState<Record<string, string>>({})
   const [mercekDateFilters, setMercekDateFilters] = useState<Record<string, { from: string; to: string }>>({})
   const [openDropdownColumn, setOpenDropdownColumn] = useState<string | null>(null)
   const [dropdownSearchQuery, setDropdownSearchQuery] = useState<Record<string, string>>({})
@@ -193,8 +195,36 @@ export default function MercekAnalyzePage() {
 
   // Column type definitions
   const listboxColumns = ['Olay No', 'Atanan Kullanıcı', 'Kullanıcı Adı', 'Çözüm Yöntemi']
-  const textSearchColumns = ['Olay Açıklaması']
+  const tagSearchColumns = ['Olay Açıklaması'] // Multi-select tag-based search
+  const textSearchColumns: string[] = [] // Regular text search (empty - all use tags or listbox)
   const dateColumns = ['Sistem Tarihi', 'Açılış Tarihi', 'Kapanış Tarihi', 'Başlangıç Tarihi']
+
+  // Tag filter handlers
+  const addTagFilter = (column: string, tag: string) => {
+    const trimmedTag = tag.trim()
+    if (!trimmedTag) return
+    setMercekTagFilters((prev: Record<string, string[]>) => {
+      const current = prev[column] || []
+      if (current.includes(trimmedTag)) return prev
+      return { ...prev, [column]: [...current, trimmedTag] }
+    })
+    setTagSearchInput((prev: Record<string, string>) => ({ ...prev, [column]: '' }))
+    setCsvCurrentPage(1)
+  }
+
+  const removeTagFilter = (column: string, tag: string) => {
+    setMercekTagFilters((prev: Record<string, string[]>) => {
+      const current = prev[column] || []
+      return { ...prev, [column]: current.filter((t: string) => t !== tag) }
+    })
+    setCsvCurrentPage(1)
+  }
+
+  const clearTagFilters = (column: string) => {
+    setMercekTagFilters((prev: Record<string, string[]>) => ({ ...prev, [column]: [] }))
+    setTagSearchInput((prev: Record<string, string>) => ({ ...prev, [column]: '' }))
+    setCsvCurrentPage(1)
+  }
 
   // Get unique values for listbox columns
   const uniqueColumnValues = useMemo(() => {
@@ -233,6 +263,18 @@ export default function MercekAnalyzePage() {
         filtered = filtered.filter(row => {
           const cellValue = String(row[column] || '').toLowerCase()
           return cellValue.includes(filterValue.toLowerCase().trim())
+        })
+      }
+    }
+
+    // Apply tag filters (OR logic - match any tag)
+    for (const column of Object.keys(mercekTagFilters)) {
+      const tags = mercekTagFilters[column]
+      if (tags && tags.length > 0) {
+        filtered = filtered.filter(row => {
+          const cellValue = String(row[column] || '').toLowerCase()
+          // Return true if cell contains ANY of the tags
+          return tags.some((tag: string) => cellValue.includes(tag.toLowerCase()))
         })
       }
     }
@@ -1015,6 +1057,7 @@ export default function MercekAnalyzePage() {
                 const hasActiveFilters = 
                   Object.values(mercekColumnFilters).some(v => v && v.length > 0) ||
                   Object.values(mercekTextFilters).some(v => v && v.trim()) ||
+                  Object.values(mercekTagFilters).some(v => v && v.length > 0) ||
                   Object.values(mercekDateFilters).some(v => v && (v.from || v.to))
 
                 return (
@@ -1026,6 +1069,8 @@ export default function MercekAnalyzePage() {
                           onClick={() => { 
                             setMercekColumnFilters({})
                             setMercekTextFilters({})
+                            setMercekTagFilters({})
+                            setTagSearchInput({})
                             setMercekDateFilters({})
                             setMercekSortColumn(null)
                             setOpenDropdownColumn(null)
@@ -1061,18 +1106,23 @@ export default function MercekAnalyzePage() {
                               const isSorted = mercekSortColumn === header
                               const isListbox = listboxColumns.includes(header)
                               const isTextSearch = textSearchColumns.includes(header)
+                              const isTagSearch = tagSearchColumns.includes(header)
                               const isDate = dateColumns.includes(header)
                               const isDropdownOpen = openDropdownColumn === header
                               const selectedValues = mercekColumnFilters[header] || []
                               const searchQuery = dropdownSearchQuery[header] || ''
                               const dateFilter = mercekDateFilters[header] || { from: '', to: '' }
                               const textFilterValue = mercekTextFilters[header] || ''
+                              const tagFilterValues = mercekTagFilters[header] || []
+                              const tagInput = tagSearchInput[header] || ''
                               
                               // Check if this column has an active filter
                               const hasActiveFilter = isListbox 
                                 ? selectedValues.length > 0 
-                                : isDate 
-                                  ? (dateFilter.from || dateFilter.to) 
+                                : isTagSearch
+                                  ? tagFilterValues.length > 0
+                                  : isDate 
+                                    ? (dateFilter.from || dateFilter.to) 
                                   : textFilterValue.length > 0
                               
                               // Filter unique values by search query
@@ -1132,9 +1182,11 @@ export default function MercekAnalyzePage() {
                                     >
                                       {isListbox && selectedValues.length > 0 
                                         ? `${selectedValues.length}` 
-                                        : hasActiveFilter 
-                                          ? '✓' 
-                                          : '⋯'}
+                                        : isTagSearch && tagFilterValues.length > 0
+                                          ? `${tagFilterValues.length}`
+                                          : hasActiveFilter 
+                                            ? '✓' 
+                                            : '⋯'}
                                     </span>
                                   </div>
                                   {isDropdownOpen && (
@@ -1232,6 +1284,106 @@ export default function MercekAnalyzePage() {
                                             </div>
                                           )}
                                         </>
+                                      ) : isTagSearch ? (
+                                        /* Tag-based multi-select search filter */
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                          <div style={{ display: 'flex', gap: '4px' }}>
+                                            <input
+                                              type="text"
+                                              value={tagInput}
+                                              onChange={(e) => setTagSearchInput((prev: Record<string, string>) => ({ ...prev, [header]: e.target.value }))}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && tagInput.trim()) {
+                                                  addTagFilter(header, tagInput)
+                                                }
+                                              }}
+                                              placeholder="Kelime girin + Enter"
+                                              autoFocus
+                                              style={{
+                                                flex: 1,
+                                                padding: '6px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--border)',
+                                                background: 'var(--surface)',
+                                                color: 'var(--text-primary)',
+                                                fontSize: '12px',
+                                                boxSizing: 'border-box'
+                                              }}
+                                            />
+                                            <button
+                                              onClick={() => addTagFilter(header, tagInput)}
+                                              disabled={!tagInput.trim()}
+                                              style={{
+                                                padding: '6px 10px',
+                                                borderRadius: '4px',
+                                                border: 'none',
+                                                background: tagInput.trim() ? '#3b82f6' : 'var(--border)',
+                                                color: 'white',
+                                                fontSize: '11px',
+                                                cursor: tagInput.trim() ? 'pointer' : 'not-allowed'
+                                              }}
+                                            >
+                                              Ekle
+                                            </button>
+                                          </div>
+                                          {tagFilterValues.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                              {tagFilterValues.map((tag: string, tagIdx: number) => (
+                                                <span
+                                                  key={tagIdx}
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    padding: '4px 8px',
+                                                    background: 'rgba(59, 130, 246, 0.15)',
+                                                    color: '#3b82f6',
+                                                    borderRadius: '12px',
+                                                    fontSize: '11px',
+                                                    fontWeight: '500'
+                                                  }}
+                                                >
+                                                  {tag}
+                                                  <button
+                                                    onClick={() => removeTagFilter(header, tag)}
+                                                    style={{
+                                                      background: 'none',
+                                                      border: 'none',
+                                                      color: '#3b82f6',
+                                                      cursor: 'pointer',
+                                                      padding: '0',
+                                                      fontSize: '14px',
+                                                      lineHeight: '1',
+                                                      display: 'flex',
+                                                      alignItems: 'center'
+                                                    }}
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {tagFilterValues.length > 0 && (
+                                            <button
+                                              onClick={() => clearTagFilters(header)}
+                                              style={{
+                                                padding: '6px 8px',
+                                                borderRadius: '4px',
+                                                border: 'none',
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                color: '#ef4444',
+                                                fontSize: '11px',
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              ✕ Tümünü Temizle
+                                            </button>
+                                          )}
+                                          <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                            Birden fazla kelime ekleyebilirsiniz. Herhangi birini içeren kayıtlar gösterilir.
+                                          </div>
+                                        </div>
                                       ) : isDate ? (
                                         /* Date range filter */
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
