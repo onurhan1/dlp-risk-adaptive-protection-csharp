@@ -44,7 +44,11 @@ export default function MercekAnalyzePage() {
   const [mercekStatistics, setMercekStatistics] = useState<any>(null)
   const [mercekSortColumn, setMercekSortColumn] = useState<string | null>(null)
   const [mercekSortDirection, setMercekSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [mercekColumnFilters, setMercekColumnFilters] = useState<Record<string, string>>({})
+  const [mercekColumnFilters, setMercekColumnFilters] = useState<Record<string, string[]>>({})
+  const [mercekTextFilters, setMercekTextFilters] = useState<Record<string, string>>({})
+  const [mercekDateFilters, setMercekDateFilters] = useState<Record<string, { from: string; to: string }>>({})
+  const [openDropdownColumn, setOpenDropdownColumn] = useState<string | null>(null)
+  const [dropdownSearchQuery, setDropdownSearchQuery] = useState<Record<string, string>>({})
   const [userChartPage, setUserChartPage] = useState(1)
   const [assignedUserChartPage, setAssignedUserChartPage] = useState(1)
 
@@ -151,22 +155,106 @@ export default function MercekAnalyzePage() {
     }
   }
 
-  const handleMercekColumnFilter = (column: string, value: string) => {
+  const handleMercekColumnFilter = (column: string, values: string[]) => {
     setMercekColumnFilters(prev => ({
+      ...prev,
+      [column]: values
+    }))
+  }
+
+  const handleMercekTextFilter = (column: string, value: string) => {
+    setMercekTextFilters(prev => ({
       ...prev,
       [column]: value
     }))
   }
 
+  const handleMercekDateFilter = (column: string, type: 'from' | 'to', value: string) => {
+    setMercekDateFilters(prev => ({
+      ...prev,
+      [column]: { ...(prev[column] || { from: '', to: '' }), [type]: value }
+    }))
+  }
+
+  const toggleDropdownValue = (column: string, value: string) => {
+    setMercekColumnFilters(prev => {
+      const current = prev[column] || []
+      if (current.includes(value)) {
+        return { ...prev, [column]: current.filter(v => v !== value) }
+      } else {
+        return { ...prev, [column]: [...current, value] }
+      }
+    })
+  }
+
+  // Column type definitions
+  const listboxColumns = ['Olay No', 'Atanan Kullanıcı', 'Kullanıcı Adı', 'Çözüm Yöntemi']
+  const textSearchColumns = ['Olay Açıklaması']
+  const dateColumns = ['Sistem Tarihi', 'Açılış Tarihi', 'Kapanış Tarihi', 'Başlangıç Tarihi']
+
+  // Get unique values for listbox columns
+  const uniqueColumnValues = useMemo(() => {
+    const values: Record<string, string[]> = {}
+    listboxColumns.forEach(col => {
+      const uniqueSet = new Set<string>()
+      csvData.forEach(row => {
+        const val = row[col]
+        if (val !== null && val !== undefined && String(val).trim()) {
+          uniqueSet.add(String(val))
+        }
+      })
+      values[col] = Array.from(uniqueSet).sort((a, b) => a.localeCompare(b, 'tr'))
+    })
+    return values
+  }, [csvData])
+
   const getFilteredAndSortedMercekData = (data: any[]) => {
     let filtered = [...data]
 
-    // Apply column filters
-    Object.entries(mercekColumnFilters).forEach(([column, filterValue]) => {
-      if (filterValue.trim()) {
+    // Apply listbox column filters (multi-select)
+    Object.entries(mercekColumnFilters).forEach(([column, selectedValues]: [string, string[]]) => {
+      if (selectedValues && selectedValues.length > 0) {
+        filtered = filtered.filter(row => {
+          const cellValue = String(row[column] || '')
+          return selectedValues.includes(cellValue)
+        })
+      }
+    })
+
+    // Apply text filters
+    Object.entries(mercekTextFilters).forEach(([column, filterValue]: [string, string]) => {
+      if (filterValue && filterValue.trim()) {
         filtered = filtered.filter(row => {
           const cellValue = String(row[column] || '').toLowerCase()
           return cellValue.includes(filterValue.toLowerCase().trim())
+        })
+      }
+    })
+
+    // Apply date filters
+    Object.entries(mercekDateFilters).forEach(([column, dateRange]: [string, { from: string; to: string }]) => {
+      if (dateRange.from || dateRange.to) {
+        filtered = filtered.filter(row => {
+          const cellValue = row[column]
+          if (!cellValue) return false
+          
+          // Parse the Turkish formatted date (dd.MM.yyyy HH:mm:ss)
+          const parts = String(cellValue).match(/(\d{2})\.(\d{2})\.(\d{4})/)
+          if (!parts) return false
+          
+          const rowDate = new Date(`${parts[3]}-${parts[2]}-${parts[1]}`)
+          if (isNaN(rowDate.getTime())) return false
+          
+          if (dateRange.from) {
+            const fromDate = new Date(dateRange.from)
+            if (rowDate < fromDate) return false
+          }
+          if (dateRange.to) {
+            const toDate = new Date(dateRange.to)
+            toDate.setHours(23, 59, 59, 999)
+            if (rowDate > toDate) return false
+          }
+          return true
         })
       }
     })
@@ -240,6 +328,19 @@ export default function MercekAnalyzePage() {
     fetchReleasedIncidents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (openDropdownColumn && !target.closest('[data-column-dropdown]')) {
+        setOpenDropdownColumn(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openDropdownColumn])
 
   // ─── Render ──────────────────────────────────────────────────
 
@@ -903,7 +1004,10 @@ export default function MercekAnalyzePage() {
                 const totalItems = mercekDataLoaded ? mercekTotalCount : csvData.length
                 const rawPaginatedData = mercekDataLoaded ? csvData : csvData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
                 const paginatedData = getFilteredAndSortedMercekData(rawPaginatedData)
-                const hasActiveFilters = Object.values(mercekColumnFilters).some(v => v.trim())
+                const hasActiveFilters = 
+                  Object.values(mercekColumnFilters).some(v => v && v.length > 0) ||
+                  Object.values(mercekTextFilters).some(v => v && v.trim()) ||
+                  Object.values(mercekDateFilters).some(v => v && (v.from || v.to))
 
                 return (
                   <>
@@ -911,7 +1015,13 @@ export default function MercekAnalyzePage() {
                       <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
                       {hasActiveFilters && (
                         <button
-                          onClick={() => { setMercekColumnFilters({}); setMercekSortColumn(null); }}
+                          onClick={() => { 
+                            setMercekColumnFilters({})
+                            setMercekTextFilters({})
+                            setMercekDateFilters({})
+                            setMercekSortColumn(null)
+                            setOpenDropdownColumn(null)
+                          }}
                           style={{
                             padding: '6px 14px',
                             borderRadius: '4px',
@@ -970,27 +1080,224 @@ export default function MercekAnalyzePage() {
                           </tr>
                           {/* Column search row */}
                           <tr style={{ background: 'var(--background-secondary)' }}>
-                            {csvHeaders.map((header, index) => (
-                              <th key={`search-${index}`} style={{ padding: '4px 8px', borderBottom: '2px solid var(--border)' }}>
-                                <input
-                                  type="text"
-                                  value={mercekColumnFilters[header] || ''}
-                                  onChange={(e) => handleMercekColumnFilter(header, e.target.value)}
-                                  placeholder="🔍"
-                                  style={{
-                                    width: '100%',
-                                    padding: '4px 6px',
-                                    borderRadius: '3px',
-                                    border: `1px solid ${mercekColumnFilters[header] ? '#3b82f6' : 'var(--border)'}`,
-                                    background: 'var(--background)',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '12px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box'
-                                  }}
-                                />
-                              </th>
-                            ))}
+                            {csvHeaders.map((header, index) => {
+                              const isListbox = listboxColumns.includes(header)
+                              const isTextSearch = textSearchColumns.includes(header)
+                              const isDate = dateColumns.includes(header)
+                              const isDropdownOpen = openDropdownColumn === header
+                              const selectedValues = mercekColumnFilters[header] || []
+                              const searchQuery = dropdownSearchQuery[header] || ''
+                              const dateFilter = mercekDateFilters[header] || { from: '', to: '' }
+                              
+                              // Filter unique values by search query
+                              const filteredOptions = (uniqueColumnValues[header] || []).filter(v => 
+                                v.toLowerCase().includes(searchQuery.toLowerCase())
+                              )
+
+                              return (
+                                <th key={`search-${index}`} style={{ padding: '4px 8px', borderBottom: '2px solid var(--border)', position: 'relative', verticalAlign: 'top' }}>
+                                  {isListbox ? (
+                                    // Listbox with search
+                                    <div style={{ position: 'relative' }} data-column-dropdown>
+                                      <button
+                                        onClick={() => setOpenDropdownColumn(isDropdownOpen ? null : header)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '4px 6px',
+                                          borderRadius: '3px',
+                                          border: `1px solid ${selectedValues.length > 0 ? '#3b82f6' : 'var(--border)'}`,
+                                          background: selectedValues.length > 0 ? 'rgba(59, 130, 246, 0.1)' : 'var(--background)',
+                                          color: 'var(--text-primary)',
+                                          fontSize: '11px',
+                                          cursor: 'pointer',
+                                          textAlign: 'left',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          gap: '4px',
+                                          minWidth: '80px'
+                                        }}
+                                      >
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {selectedValues.length > 0 ? `${selectedValues.length} seçili` : '🔍 Seç'}
+                                        </span>
+                                        <span style={{ fontSize: '10px' }}>{isDropdownOpen ? '▲' : '▼'}</span>
+                                      </button>
+                                      {isDropdownOpen && (
+                                        <div 
+                                          style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            minWidth: '180px',
+                                            maxHeight: '250px',
+                                            background: 'var(--surface)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '4px',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                            zIndex: 1000,
+                                            overflow: 'hidden'
+                                          }}
+                                        >
+                                          <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setDropdownSearchQuery(prev => ({ ...prev, [header]: e.target.value }))}
+                                            placeholder="Ara..."
+                                            autoFocus
+                                            style={{
+                                              width: '100%',
+                                              padding: '8px',
+                                              border: 'none',
+                                              borderBottom: '1px solid var(--border)',
+                                              background: 'var(--background)',
+                                              color: 'var(--text-primary)',
+                                              fontSize: '12px',
+                                              outline: 'none',
+                                              boxSizing: 'border-box'
+                                            }}
+                                          />
+                                          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                            {selectedValues.length > 0 && (
+                                              <button
+                                                onClick={() => handleMercekColumnFilter(header, [])}
+                                                style={{
+                                                  width: '100%',
+                                                  padding: '6px 8px',
+                                                  border: 'none',
+                                                  background: 'rgba(239, 68, 68, 0.1)',
+                                                  color: '#ef4444',
+                                                  fontSize: '11px',
+                                                  cursor: 'pointer',
+                                                  textAlign: 'left'
+                                                }}
+                                              >
+                                                ✕ Seçimleri Temizle
+                                              </button>
+                                            )}
+                                            {filteredOptions.length === 0 ? (
+                                              <div style={{ padding: '10px', color: 'var(--text-secondary)', fontSize: '11px', textAlign: 'center' }}>
+                                                Sonuç bulunamadı
+                                              </div>
+                                            ) : (
+                                              filteredOptions.slice(0, 100).map((option, optIdx) => {
+                                                const isSelected = selectedValues.includes(option)
+                                                return (
+                                                  <label
+                                                    key={optIdx}
+                                                    style={{
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '6px',
+                                                      padding: '6px 8px',
+                                                      cursor: 'pointer',
+                                                      background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                                      borderBottom: '1px solid var(--border)'
+                                                    }}
+                                                  >
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={isSelected}
+                                                      onChange={() => toggleDropdownValue(header, option)}
+                                                      style={{ margin: 0 }}
+                                                    />
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                      {option}
+                                                    </span>
+                                                  </label>
+                                                )
+                                              })
+                                            )}
+                                            {filteredOptions.length > 100 && (
+                                              <div style={{ padding: '6px 8px', fontSize: '10px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                                                +{filteredOptions.length - 100} daha...
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : isTextSearch ? (
+                                    // Text search only
+                                    <input
+                                      type="text"
+                                      value={mercekTextFilters[header] || ''}
+                                      onChange={(e) => handleMercekTextFilter(header, e.target.value)}
+                                      placeholder="🔍"
+                                      style={{
+                                        width: '100%',
+                                        padding: '4px 6px',
+                                        borderRadius: '3px',
+                                        border: `1px solid ${mercekTextFilters[header] ? '#3b82f6' : 'var(--border)'}`,
+                                        background: 'var(--background)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '12px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
+                                      }}
+                                    />
+                                  ) : isDate ? (
+                                    // Date range picker
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <input
+                                        type="date"
+                                        value={dateFilter.from}
+                                        onChange={(e) => handleMercekDateFilter(header, 'from', e.target.value)}
+                                        title="Başlangıç"
+                                        style={{
+                                          width: '100%',
+                                          padding: '2px 4px',
+                                          borderRadius: '3px',
+                                          border: `1px solid ${dateFilter.from ? '#3b82f6' : 'var(--border)'}`,
+                                          background: 'var(--background)',
+                                          color: 'var(--text-primary)',
+                                          fontSize: '10px',
+                                          outline: 'none',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      />
+                                      <input
+                                        type="date"
+                                        value={dateFilter.to}
+                                        onChange={(e) => handleMercekDateFilter(header, 'to', e.target.value)}
+                                        title="Bitiş"
+                                        style={{
+                                          width: '100%',
+                                          padding: '2px 4px',
+                                          borderRadius: '3px',
+                                          border: `1px solid ${dateFilter.to ? '#3b82f6' : 'var(--border)'}`,
+                                          background: 'var(--background)',
+                                          color: 'var(--text-primary)',
+                                          fontSize: '10px',
+                                          outline: 'none',
+                                          boxSizing: 'border-box'
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    // Default: text search for any other column
+                                    <input
+                                      type="text"
+                                      value={mercekTextFilters[header] || ''}
+                                      onChange={(e) => handleMercekTextFilter(header, e.target.value)}
+                                      placeholder="🔍"
+                                      style={{
+                                        width: '100%',
+                                        padding: '4px 6px',
+                                        borderRadius: '3px',
+                                        border: `1px solid ${mercekTextFilters[header] ? '#3b82f6' : 'var(--border)'}`,
+                                        background: 'var(--background)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '12px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
+                                      }}
+                                    />
+                                  )}
+                                </th>
+                              )
+                            })}
                           </tr>
                         </thead>
                         <tbody>

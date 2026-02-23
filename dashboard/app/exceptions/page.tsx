@@ -48,6 +48,10 @@ function AnalyticsPageContent() {
   // Heatmap domain count (initially show 10, click "Diğer" to load 10 more)
   const [heatmapDomainCount, setHeatmapDomainCount] = useState(10)
 
+  // Heatmap hidden items - click to toggle visibility
+  const [hiddenDomains, setHiddenDomains] = useState<Set<string>>(new Set())
+  const [hiddenTeams, setHiddenTeams] = useState<Set<string>>(new Set())
+
   // Table sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -1590,12 +1594,80 @@ function AnalyticsPageContent() {
                   {dateError && <span style={{ color: '#ef4444', fontSize: '10px', alignSelf: 'center' }}>{dateError}</span>}
                 </div>
 
+                {/* Heatmap Controls - Hidden items and collapse */}
+                {(hiddenDomains.size > 0 || hiddenTeams.size > 0 || heatmapDomainCount > 10) && (
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {hiddenDomains.size > 0 && (
+                      <button
+                        onClick={() => setHiddenDomains(new Set())}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          border: '1px solid #f59e0b',
+                          background: 'rgba(245, 158, 11, 0.1)',
+                          color: '#f59e0b',
+                          fontSize: '11px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span>🔄</span> {hiddenDomains.size} gizli domain göster
+                      </button>
+                    )}
+                    {hiddenTeams.size > 0 && (
+                      <button
+                        onClick={() => setHiddenTeams(new Set())}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          border: '1px solid #8b5cf6',
+                          background: 'rgba(139, 92, 246, 0.1)',
+                          color: '#8b5cf6',
+                          fontSize: '11px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span>🔄</span> {hiddenTeams.size} gizli team göster
+                      </button>
+                    )}
+                    {heatmapDomainCount > 10 && (
+                      <button
+                        onClick={() => setHeatmapDomainCount(10)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          border: '1px solid #3b82f6',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          color: '#3b82f6',
+                          fontSize: '11px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span>▲</span> Domain listesini daralt (ilk 10)
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Heatmap Grid - only show when data available */}
                 {!loading && heatmapFilteredIncidents.length > 0 && (() => {
-                  const totalTeamPages = Math.ceil(heatmapData.teams.length / teamsPerPage)
+                  const totalTeamPages = Math.ceil(heatmapData.teams.filter(t => !hiddenTeams.has(t)).length / teamsPerPage)
+                  const visibleTeams = heatmapData.teams.filter(t => !hiddenTeams.has(t))
                   const startIndex = (heatmapTeamPage - 1) * teamsPerPage
                   const endIndex = startIndex + teamsPerPage
-                  const paginatedTeams = heatmapData.teams.slice(startIndex, endIndex)
+                  const paginatedTeams = visibleTeams.slice(startIndex, endIndex)
+                  const visibleDomains = heatmapData.domains.filter(d => !hiddenDomains.has(d))
                   return (
                 <div style={{ position: 'relative', overflowX: 'auto', maxWidth: '100%' }}>
                   <div style={{
@@ -1630,8 +1702,11 @@ function AnalyticsPageContent() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '100px'
-                      }} title={team}>
+                        width: '100px',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s'
+                      }} title={`${team} - Gizlemek için tıklayın`}
+                        onClick={() => setHiddenTeams(prev => new Set([...prev, team]))}>
                         <span style={{
                           wordWrap: 'break-word',
                           wordBreak: 'break-word',
@@ -1650,7 +1725,7 @@ function AnalyticsPageContent() {
                     ))}
 
                     {/* Data Rows */}
-                    {heatmapData.domains.map(domain => (
+                    {visibleDomains.map(domain => (
                       <React.Fragment key={domain}>
                         {/* Row Header - Sticky */}
                         <div key={`row-${domain}`} style={{
@@ -1668,12 +1743,15 @@ function AnalyticsPageContent() {
                           position: 'sticky',
                           left: 0,
                           zIndex: 5,
-                          cursor: domain === 'Diğer' ? 'pointer' : 'default',
-                          gap: '4px'
-                        }} title={domain === 'Diğer' ? 'Tıklayarak 10 domain daha göster' : domain}
+                          cursor: 'pointer',
+                          gap: '4px',
+                          transition: 'opacity 0.2s'
+                        }} title={domain === 'Diğer' ? 'Tıklayarak 10 domain daha göster' : `${domain} - Gizlemek için tıklayın`}
                           onClick={() => {
                             if (domain === 'Diğer') {
                               setHeatmapDomainCount(prev => prev + 10)
+                            } else {
+                              setHiddenDomains(prev => new Set([...prev, domain]))
                             }
                           }}
                         >
