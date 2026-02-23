@@ -368,56 +368,11 @@ function AnalyticsPageContent() {
 
 
 
-  // Filter Logic with column filters and sorting
+  // Filter Logic with column filters and sorting - INDEPENDENT from heatmap filters
   const filteredIncidents = useMemo(() => {
     let filtered = incidents.filter(incident => {
-      // Date Filter
-      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
-        try {
-          const incidentDate = parseISO(incident.timestamp)
-          const start = startOfDay(parseISO(appliedFilters.dateRange.start))
-          const end = endOfDay(parseISO(appliedFilters.dateRange.end))
-
-          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            return true
-          }
-          if (!isWithinInterval(incidentDate, { start, end })) return false
-        } catch (e) {
-          console.warn("Invalid date encountered during filtering", e);
-          return true;
-        }
-      }
-
-      // Department Filter (multi-select)
-      if (appliedFilters.selectedDepartments.length > 0 && !appliedFilters.selectedDepartments.includes(incident.department || '')) return false
-
-      // Team Filter - normalize team names for comparison (multi-select)
-      if (appliedFilters.selectedTeams.length > 0) {
-        const normalizedIncidentTeam = normalizeTeamName(incident.team)
-        if (!appliedFilters.selectedTeams.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) return false
-      }
-
-      // User Filter (Broad search)
-      if (appliedFilters.selectedUser) {
-        const search = appliedFilters.selectedUser.toLowerCase()
-        const match = incident.userEmail?.toLowerCase().includes(search) ||
-          incident.loginName?.toLowerCase().includes(search) ||
-          incident.emailAddress?.toLowerCase().includes(search)
-        if (!match) return false
-      }
-
-      // Full Name Filter
-      if (appliedFilters.selectedFullName && !incident.fullName?.toLowerCase().includes(appliedFilters.selectedFullName.toLowerCase())) return false
-
-      // Policy Filter (Text search)
-      if (appliedFilters.selectedPolicy && !incident.policy?.toLowerCase().includes(appliedFilters.selectedPolicy.toLowerCase())) return false
-
-      // Domain Filter (Text search)
-      if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
-
-      // Action Filter (multi-select)
-      if (appliedFilters.selectedActions.length > 0 && !appliedFilters.selectedActions.includes(incident.action || '')) return false
-
+      // Only apply table column filters, NOT heatmap appliedFilters
+      
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
         const userMatch = columnFilters.user.some(filter =>
@@ -504,7 +459,7 @@ function AnalyticsPageContent() {
     }
 
     return filtered
-  }, [incidents, appliedFilters, columnFilters, sortColumn, sortDirection])
+  }, [incidents, columnFilters, sortColumn, sortDirection])
 
   // Heatmap uses only top-level applied filters, NOT table column filters
   const heatmapFilteredIncidents = useMemo(() => {
