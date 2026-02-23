@@ -1812,9 +1812,34 @@ function AnalyticsPageContent() {
         {/* Incidents Table */}
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                  Incidents List
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                    Incidents List
+                  </h2>
+                  {Object.values(columnFilters).some(v => v && v.length > 0) && (
+                    <button
+                      onClick={() => {
+                        setColumnFilters({})
+                        setColumnFilterSearch({})
+                        setOpenColumnFilter(null)
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--background)',
+                        color: 'var(--text-secondary)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      ✕ Filtreleri Temizle
+                    </button>
+                  )}
+                </div>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                   Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
                 </span>
