@@ -438,7 +438,11 @@ function AnalyticsPageContent() {
       severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
       destination: dest,
       domain: domain || 'Unknown',
-      department: item.department || item.user_department,
+      department: (() => {
+        const dept = item.department || item.user_department
+        if (dept && dept.trim().endsWith('Şubesi')) return 'Şube'
+        return dept
+      })(),
       team: item.team,
       fullName: item.fullName,
       maxMatches: item.maxMatches || 0,
@@ -646,6 +650,46 @@ function AnalyticsPageContent() {
     return filtered
   }, [incidents, appliedFilters, columnFilters, sortColumn, sortDirection])
 
+  // Heatmap uses only top-level applied filters, NOT table column filters
+  const heatmapFilteredIncidents = useMemo(() => {
+    return incidents.filter(incident => {
+      // Date Filter
+      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
+        try {
+          const incidentDate = parseISO(incident.timestamp)
+          const start = startOfDay(parseISO(appliedFilters.dateRange.start))
+          const end = endOfDay(parseISO(appliedFilters.dateRange.end))
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) return true
+          if (!isWithinInterval(incidentDate, { start, end })) return false
+        } catch { return true }
+      }
+      // Department Filter
+      if (appliedFilters.selectedDepartments.length > 0 && !appliedFilters.selectedDepartments.includes(incident.department || '')) return false
+      // Team Filter
+      if (appliedFilters.selectedTeams.length > 0) {
+        const normalizedIncidentTeam = normalizeTeamName(incident.team)
+        if (!appliedFilters.selectedTeams.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) return false
+      }
+      // User Filter
+      if (appliedFilters.selectedUser) {
+        const search = appliedFilters.selectedUser.toLowerCase()
+        const match = incident.userEmail?.toLowerCase().includes(search) ||
+          incident.loginName?.toLowerCase().includes(search) ||
+          incident.emailAddress?.toLowerCase().includes(search)
+        if (!match) return false
+      }
+      // Full Name Filter
+      if (appliedFilters.selectedFullName && !incident.fullName?.toLowerCase().includes(appliedFilters.selectedFullName.toLowerCase())) return false
+      // Policy Filter
+      if (appliedFilters.selectedPolicy && !incident.policy?.toLowerCase().includes(appliedFilters.selectedPolicy.toLowerCase())) return false
+      // Domain Filter
+      if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
+      // Action Filter
+      if (appliedFilters.selectedActions.length > 0 && !appliedFilters.selectedActions.includes(incident.action || '')) return false
+      return true
+    })
+  }, [incidents, appliedFilters])
+
   // Mercek API Functions
   const fetchMercekData = async (page: number = 1, customPageSize?: number) => {
     setMercekLoading(true)
@@ -841,7 +885,7 @@ function AnalyticsPageContent() {
     return Array.from(policySet).sort()
   }, [incidents])
 
-  // Heatmap Data Calculation (using filtered incidents - ALL matching records, not just current page)
+  // Heatmap Data Calculation (using heatmap filtered incidents - independent from table column filters)
   const heatmapData = useMemo(() => {
     const teams = new Set<string>()
     const domains = new Set<string>()
@@ -850,7 +894,7 @@ function AnalyticsPageContent() {
     const domainTotalCounts: Record<string, number> = {}
     const teamTotalCounts: Record<string, number> = {}
 
-    filteredIncidents.forEach(incident => {
+    heatmapFilteredIncidents.forEach(incident => {
       // Use team, fallback to department if team is missing
       const rawTeam = incident.team || incident.department || 'Unknown'
       const team = normalizeTeamName(rawTeam) || 'Hesap Araştırmaları'
@@ -917,7 +961,7 @@ function AnalyticsPageContent() {
     })
 
     return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount, hasMoreDomains: otherDomains.length > 0 }
-  }, [filteredIncidents, heatmapDomainCount])
+  }, [heatmapFilteredIncidents, heatmapDomainCount])
 
 
   const getHeatmapColor = (count: number, max: number) => {
@@ -1334,21 +1378,23 @@ function AnalyticsPageContent() {
           const sortedMatches = [...data.matches].sort((a, b) => a - b)
           const avgMatches = data.matches.length > 0 ? data.matches.reduce((a, b) => a + b, 0) / data.matches.length : 0
           const p25 = calculatePercentile(data.matches, 25)
+          const p50 = calculatePercentile(data.matches, 50)
           const p70 = calculatePercentile(data.matches, 70)
           const p75 = calculatePercentile(data.matches, 75)
           const p90 = calculatePercentile(data.matches, 90)
 
           // Calculate recommendations
-          // Medium (Audit): P70 or P25 üstü
-          // High (Block): P90 or P75 üstü
-          const mediumThreshold = Math.max(p70, p25)
-          const highThreshold = Math.max(p90, p75)
+          // Medium (Audit): P50 - 1
+          // High (Block): P90 + 1
+          const mediumThreshold = Math.max(p50 - 1, 1)
+          const highThreshold = p90 + 1
 
           return {
             name: classifierName,
             incidentCount: data.incidentIds.size,
             avgMatches,
             p25,
+            p50,
             p70,
             p75,
             p90,
@@ -1373,18 +1419,22 @@ function AnalyticsPageContent() {
             const sortedMatches = [...data.matches].sort((a, b) => a - b)
             const avgMatches = data.matches.length > 0 ? data.matches.reduce((a, b) => a + b, 0) / data.matches.length : 0
             const p25 = calculatePercentile(data.matches, 25)
+            const p50 = calculatePercentile(data.matches, 50)
             const p70 = calculatePercentile(data.matches, 70)
             const p75 = calculatePercentile(data.matches, 75)
             const p90 = calculatePercentile(data.matches, 90)
 
-            const mediumThreshold = Math.max(p70, p25)
-            const highThreshold = Math.max(p90, p75)
+            // Medium (Audit): P50 - 1
+            // High (Block): P90 + 1
+            const mediumThreshold = Math.max(p50 - 1, 1)
+            const highThreshold = p90 + 1
 
             return {
               name: classifierName,
               incidentCount: data.incidentIds.size,
               avgMatches,
               p25,
+              p50,
               p70,
               p75,
               p90,
@@ -2661,9 +2711,9 @@ function AnalyticsPageContent() {
                     />
                   </div>
 
-                  {/* Full Name */}
+                  {/* Manager Name */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Full Name</label>
+                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Manager Name</label>
                     <input
                       type="text"
                       placeholder="Name..."
@@ -2763,7 +2813,7 @@ function AnalyticsPageContent() {
                 </div>
 
                 {/* Heatmap Grid - only show when data available */}
-                {!loading && filteredIncidents.length > 0 && (() => {
+                {!loading && heatmapFilteredIncidents.length > 0 && (() => {
                   const totalTeamPages = Math.ceil(heatmapData.teams.length / teamsPerPage)
                   const startIndex = (heatmapTeamPage - 1) * teamsPerPage
                   const endIndex = startIndex + teamsPerPage
@@ -2969,7 +3019,7 @@ function AnalyticsPageContent() {
                       const columnLabels: Record<string, string> = {
                         time: 'Time',
                         user: 'User',
-                        fullName: 'Full Name',
+                        fullName: 'Manager Name',
                         department: 'Department',
                         team: 'Team',
                         policy: 'Policy',
@@ -3644,8 +3694,43 @@ function AnalyticsPageContent() {
                 )
               })()}
 
+              {/* Not Approved - Incident count <= 5 */}
+              {userIncidents.length > 0 && userIncidents.length <= 5 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginBottom: '24px',
+                  padding: '20px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <span style={{ fontSize: '20px' }}>✕</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#ef4444', marginBottom: '4px' }}>
+                      İstisna Uygun Görülmemiştir
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Filtreleme sonucu bulunan incident sayısı ({userIncidents.length}) 5 ve altında olduğu için istisna uygun görülmemiştir.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Summary Statistics */}
-              {userIncidents.length > 0 && userReportData.length > 0 && (
+              {userIncidents.length > 5 && userReportData.length > 0 && (
                 <div style={{
                   display: 'flex',
                   gap: '24px',
@@ -3766,6 +3851,8 @@ function AnalyticsPageContent() {
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   No incidents found matching the selected filters
                 </div>
+              ) : userIncidents.length <= 5 ? (
+                null
               ) : userReportData.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   No policy data available
