@@ -1,0 +1,1077 @@
+'use client'
+
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import apiClient from '@/lib/axios'
+import Pagination from '@/components/ui/Pagination'
+
+const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
+
+interface ReleasedIncident {
+  id: number
+  incident_id: number
+  incident_timestamp: string
+  action: string
+  task_name: string
+  admin_name: string
+  comments: string
+  update_time: string
+  created_at: string
+}
+
+export default function MercekAnalyzePage() {
+  // Released Incidents States
+  const [releasedIncidents, setReleasedIncidents] = useState<ReleasedIncident[]>([])
+  const [loadingReleasedIncidents, setLoadingReleasedIncidents] = useState(false)
+
+  // CSV / Mercek Analysis States
+  const [csvData, setCsvData] = useState<any[]>([])
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [csvSearchQuery, setCsvSearchQuery] = useState('')
+  const [csvPageSize, setCsvPageSize] = useState(10)
+  const [csvCurrentPage, setCsvCurrentPage] = useState(1)
+  const [csvDateFrom, setCsvDateFrom] = useState('')
+  const [csvDateTo, setCsvDateTo] = useState('')
+  const [csvSelectedUser, setCsvSelectedUser] = useState('')
+  const [mercekLoading, setMercekLoading] = useState(false)
+  const [mercekError, setMercekError] = useState<string | null>(null)
+  const [mercekTotalCount, setMercekTotalCount] = useState(0)
+  const [mercekTotalPages, setMercekTotalPages] = useState(0)
+  const [mercekAvailableUsers, setMercekAvailableUsers] = useState<string[]>([])
+  const [mercekAssignedUsers, setMercekAssignedUsers] = useState<string[]>([])
+  const [mercekAssignedUserFilter, setMercekAssignedUserFilter] = useState('')
+  const [mercekDataLoaded, setMercekDataLoaded] = useState(false)
+  const [mercekStatistics, setMercekStatistics] = useState<any>(null)
+  const [mercekSortColumn, setMercekSortColumn] = useState<string | null>(null)
+  const [mercekSortDirection, setMercekSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [mercekColumnFilters, setMercekColumnFilters] = useState<Record<string, string>>({})
+  const [userChartPage, setUserChartPage] = useState(1)
+  const [assignedUserChartPage, setAssignedUserChartPage] = useState(1)
+
+  // ─── Data Fetching ───────────────────────────────────────────
+
+  const fetchReleasedIncidents = async () => {
+    setLoadingReleasedIncidents(true)
+    try {
+      const response = await apiClient.get('/api/released-incidents', {
+        params: { page: 1, pageSize: 10000 }
+      })
+      const data = response.data?.data || []
+      setReleasedIncidents(data)
+    } catch (error) {
+      console.error('Error fetching released incidents:', error)
+      setReleasedIncidents([])
+    } finally {
+      setLoadingReleasedIncidents(false)
+    }
+  }
+
+  const fetchMercekData = async (page: number = 1, customPageSize?: number) => {
+    setMercekLoading(true)
+    setMercekError(null)
+
+    try {
+      const params: any = {
+        page: page,
+        pageSize: customPageSize || csvPageSize
+      }
+
+      if (csvSelectedUser) params.userName = csvSelectedUser
+      if (mercekAssignedUserFilter) params.assignedUserCode = mercekAssignedUserFilter
+      if (csvDateFrom) params.startDate = csvDateFrom
+      if (csvDateTo) params.endDate = csvDateTo
+      if (csvSearchQuery) params.searchTerm = csvSearchQuery
+
+      const response = await apiClient.get('/api/mercek', { params })
+      const data = response.data
+
+      const mappedData = data.items.map((item: any) => ({
+        'Olay No': item.incidentId,
+        'Olay Açıklaması': item.incidentDescription,
+        'Atanan Kullanıcı': item.assignedUserCode,
+        'Sistem Tarihi': item.systemDate ? new Date(item.systemDate).toLocaleString('tr-TR') : '',
+        'Açılış Tarihi': item.openDate ? new Date(item.openDate).toLocaleString('tr-TR') : '',
+        'Kapanış Tarihi': item.closeDate ? new Date(item.closeDate).toLocaleString('tr-TR') : '',
+        'Başlangıç Tarihi': item.startDate ? new Date(item.startDate).toLocaleString('tr-TR') : '',
+        'Çözüm Yöntemi': item.solutionMethod,
+        'Kullanıcı Adı': item.userName
+      }))
+
+      setCsvData(mappedData)
+      setMercekTotalCount(data.totalCount)
+      setMercekTotalPages(data.totalPages)
+      setCsvCurrentPage(data.page)
+      setMercekDataLoaded(true)
+
+      if (mappedData.length > 0) {
+        setCsvHeaders(Object.keys(mappedData[0]))
+      }
+    } catch (error: any) {
+      setMercekError(error.response?.data?.error || 'Mercek verileri yüklenirken hata oluştu')
+      console.error('Mercek fetch error:', error)
+    } finally {
+      setMercekLoading(false)
+    }
+  }
+
+  const fetchMercekFilters = async () => {
+    try {
+      const response = await apiClient.get('/api/mercek/filters')
+      const data = response.data
+      setMercekAvailableUsers(data.users || [])
+      setMercekAssignedUsers(data.assignedUsers || [])
+    } catch (error) {
+      console.error('Mercek filters fetch error:', error)
+    }
+  }
+
+  const fetchMercekStatistics = async () => {
+    try {
+      const params: any = {}
+      if (csvSelectedUser) params.userName = csvSelectedUser
+      if (mercekAssignedUserFilter) params.assignedUserCode = mercekAssignedUserFilter
+      if (csvDateFrom) params.startDate = csvDateFrom
+      if (csvDateTo) params.endDate = csvDateTo
+
+      const response = await apiClient.get('/api/mercek/statistics', { params })
+      setMercekStatistics(response.data)
+    } catch (error) {
+      console.error('Mercek statistics fetch error:', error)
+    }
+  }
+
+  // ─── Sort / Filter helpers ──────────────────────────────────
+
+  const handleMercekSort = (column: string) => {
+    if (mercekSortColumn === column) {
+      setMercekSortDirection(mercekSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setMercekSortColumn(column)
+      setMercekSortDirection('asc')
+    }
+  }
+
+  const handleMercekColumnFilter = (column: string, value: string) => {
+    setMercekColumnFilters(prev => ({
+      ...prev,
+      [column]: value
+    }))
+  }
+
+  const getFilteredAndSortedMercekData = (data: any[]) => {
+    let filtered = [...data]
+
+    // Apply column filters
+    Object.entries(mercekColumnFilters).forEach(([column, filterValue]) => {
+      if (filterValue.trim()) {
+        filtered = filtered.filter(row => {
+          const cellValue = String(row[column] || '').toLowerCase()
+          return cellValue.includes(filterValue.toLowerCase().trim())
+        })
+      }
+    })
+
+    // Apply sorting
+    if (mercekSortColumn) {
+      filtered.sort((a, b) => {
+        const aVal = String(a[mercekSortColumn!] || '')
+        const bVal = String(b[mercekSortColumn!] || '')
+
+        // Try numeric comparison
+        const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''))
+        const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''))
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return mercekSortDirection === 'asc' ? aNum - bNum : bNum - aNum
+        }
+
+        // Try date comparison
+        const aDate = Date.parse(aVal)
+        const bDate = Date.parse(bVal)
+        if (!isNaN(aDate) && !isNaN(bDate)) {
+          return mercekSortDirection === 'asc' ? aDate - bDate : bDate - aDate
+        }
+
+        // String comparison
+        const cmp = aVal.localeCompare(bVal, 'tr')
+        return mercekSortDirection === 'asc' ? cmp : -cmp
+      })
+    }
+
+    return filtered
+  }
+
+  // ─── Released Incidents Stats ───────────────────────────────
+
+  const releasedIncidentsStats = useMemo(() => {
+    const adminCounts: Record<string, number> = {}
+    let incStartingCount = 0
+    let nonIncStartingCount = 0
+
+    releasedIncidents.forEach(incident => {
+      const admin = incident.admin_name || 'Unknown'
+      adminCounts[admin] = (adminCounts[admin] || 0) + 1
+
+      const comments = incident.comments || ''
+      if (comments.trim().toUpperCase().startsWith('INC')) {
+        incStartingCount++
+      } else {
+        nonIncStartingCount++
+      }
+    })
+
+    const adminData = Object.entries(adminCounts)
+      .map(([admin, count]) => ({ admin, count }))
+      .sort((a, b) => b.count - a.count)
+
+    return {
+      adminData,
+      incStartingCount,
+      nonIncStartingCount,
+      totalCount: releasedIncidents.length
+    }
+  }, [releasedIncidents])
+
+  // ─── Auto-load on mount ─────────────────────────────────────
+
+  useEffect(() => {
+    fetchMercekFilters()
+    fetchMercekData(1, csvPageSize)
+    fetchMercekStatistics()
+    fetchReleasedIncidents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ─── Render ──────────────────────────────────────────────────
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
+      <div style={{ maxWidth: '100%', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Mercek Analysis</h1>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
+
+          {/* ══════════════ Released Incidents Section (order: 2) ══════════════ */}
+          <div style={{ order: 2, marginBottom: '24px' }}>
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              padding: '24px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                Released Incidents İstatistikleri
+              </h2>
+
+              {loadingReleasedIncidents ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Yükleniyor...
+                </div>
+              ) : (
+                <>
+                  {/* Toplam Sayı ve INC İstatistikleri */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        Toplam Released Incident
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {releasedIncidentsStats.totalCount}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        INC ile Başlayan
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>
+                        {releasedIncidentsStats.incStartingCount}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        INC ile Başlamayan
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>
+                        {releasedIncidentsStats.nonIncStartingCount}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admin Bazlı Sütun Grafik */}
+                  {releasedIncidentsStats.adminData.length > 0 && (
+                    <div style={{ marginTop: '24px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                        Admin Bazlı Released Incident Sayıları
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
+                          const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
+                          const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
+
+                          return (
+                            <div key={admin} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{
+                                minWidth: '150px',
+                                fontSize: '13px',
+                                color: 'var(--text-primary)',
+                                fontWeight: '500'
+                              }}>
+                                {admin}
+                              </div>
+                              <div style={{
+                                flex: 1,
+                                height: '32px',
+                                background: 'var(--background-secondary)',
+                                borderRadius: '4px',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                border: '1px solid var(--border)'
+                              }}>
+                                <div style={{
+                                  height: '100%',
+                                  width: `${percentage}%`,
+                                  background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
+                                  borderRadius: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  paddingRight: '8px',
+                                  transition: 'width 0.3s ease',
+                                  minWidth: 'fit-content'
+                                }}>
+                                  <span style={{
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    color: '#fff',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {count}
+                                  </span>
+                                </div>
+                              </div>
+                              <div style={{
+                                minWidth: '50px',
+                                textAlign: 'right',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: 'var(--text-primary)'
+                              }}>
+                                {count}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {releasedIncidentsStats.adminData.length === 0 && (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      Released incident verisi bulunamadı.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ══════════════ Mercek Analiz Section (order: 1) ══════════════ */}
+          <div style={{ order: 1, marginBottom: '24px' }}>
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '8px',
+              padding: '24px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
+                  {mercekLoading && (
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid var(--border)',
+                      borderTopColor: 'var(--primary)',
+                      borderRadius: '50%',
+                      animation: 'spin 0.6s linear infinite'
+                    }} />
+                  )}
+                  {mercekDataLoaded && !mercekLoading && (
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      (Otomatik güncelleniyor - Her 30 saniye)
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => fetchMercekData(csvCurrentPage, csvPageSize)}
+                    disabled={mercekLoading}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: mercekLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    🔄 Yenile
+                  </button>
+                </div>
+              </div>
+              <style jsx>{`
+                @keyframes spin {
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+
+              {/* Error Message */}
+              {mercekError && (
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444',
+                  fontSize: '14px',
+                  marginBottom: '16px'
+                }}>
+                  ⚠️ {mercekError}
+                </div>
+              )}
+
+              {/* Number Cards */}
+              {mercekStatistics && (() => {
+                const lastWeekCount = mercekStatistics.lastWeekCount || 0
+                const previousWeekCount = mercekStatistics.previousWeekCount || 0
+                const weekChange = previousWeekCount > 0
+                  ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
+                  : '0'
+                const weekChangePositive = Number(weekChange) >= 0
+
+                const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                const todayKey = toDateKey(new Date())
+                const dailyCounts = mercekStatistics.dailyCounts || []
+                const todayCount = dailyCounts.find((d: any) => {
+                  const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date))
+                  return dt === todayKey
+                })?.count ?? 0
+                const weekdayEntries = dailyCounts.filter((d: any) => {
+                  const dt = typeof d.date === 'string' ? new Date(d.date + 'T12:00:00') : new Date(d.date)
+                  const day = dt.getDay()
+                  return day >= 1 && day <= 5
+                })
+                const weekdayTotal = weekdayEntries.reduce((s: number, d: any) => s + (d.count || 0), 0)
+                const weekdayDailyAvg = weekdayEntries.length > 0 ? (weekdayTotal / weekdayEntries.length).toFixed(1) : '0'
+
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📊</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>🟢</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık İnsident</div>
+                        <div style={{ color: '#10b981', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>🔴</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış İnsident</div>
+                        <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>⏱️</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📈</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Son 1 Haftadaki Kayıt</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{lastWeekCount}</div>
+                        {previousWeekCount > 0 && (
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px' }}>
+                            {previousWeekCount} (önceki hafta)
+                            <span style={{
+                              color: weekChangePositive ? '#10b981' : '#ef4444',
+                              marginLeft: '8px',
+                              fontWeight: '600'
+                            }}>
+                              {weekChangePositive ? '+' : ''}{weekChange}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📅</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Bugün Gelen</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{todayCount}</div>
+                      </div>
+                    </div>
+                    <div style={{
+                      background: 'var(--background-secondary)',
+                      borderRadius: '10px',
+                      padding: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px'
+                    }}>
+                      <div style={{ fontSize: '36px' }}>📆</div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Haftaiçi Günlük Ort.</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{weekdayDailyAvg}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Charts Section */}
+              {mercekStatistics && (() => {
+                const userDist: Array<{label: string, count: number}> = mercekStatistics.userDistribution || []
+                const assignedDist: Array<{label: string, count: number}> = mercekStatistics.assignedUserDistribution || []
+                const userChartPageSize = 5
+                const assignedChartPageSize = 5
+                const userTotalPages = Math.ceil(userDist.length / userChartPageSize)
+                const assignedTotalPages = Math.ceil(assignedDist.length / assignedChartPageSize)
+                const userPage = Math.min(userChartPage, userTotalPages || 1)
+                const assignedPage = Math.min(assignedUserChartPage, assignedTotalPages || 1)
+                const paginatedUsers = userDist.slice((userPage - 1) * userChartPageSize, userPage * userChartPageSize)
+                const paginatedAssigned = assignedDist.slice((assignedPage - 1) * assignedChartPageSize, assignedPage * assignedChartPageSize)
+                const userMaxCount = Math.max(...userDist.map(d => d.count), 1)
+                const assignedMaxCount = Math.max(...assignedDist.map(d => d.count), 1)
+
+                return (
+                  <div style={{ marginBottom: '28px' }}>
+                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Grafik Görselleştirme</h3>
+
+                    {/* Filters */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '16px',
+                      marginBottom: '20px',
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-end'
+                    }}>
+                      <div style={{ flex: '1', minWidth: '180px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Kullanıcı</label>
+                        <select value={csvSelectedUser} onChange={(e) => { setCsvSelectedUser(e.target.value); setCsvCurrentPage(1) }}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          <option value="">Tümü</option>
+                          {mercekAvailableUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
+                        </select>
+                      </div>
+                      <div style={{ flex: '1', minWidth: '180px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Atanan Kullanıcı</label>
+                        <select value={mercekAssignedUserFilter} onChange={(e) => { setMercekAssignedUserFilter(e.target.value); setCsvCurrentPage(1) }}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          <option value="">Tümü</option>
+                          {mercekAssignedUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
+                        </select>
+                      </div>
+                      <div style={{ flex: '1', minWidth: '140px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Başlangıç Tarihi</label>
+                        <input type="date" value={csvDateFrom} onChange={(e) => setCsvDateFrom(e.target.value)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                      </div>
+                      <div style={{ flex: '1', minWidth: '140px' }}>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Bitiş Tarihi</label>
+                        <input type="date" value={csvDateTo} onChange={(e) => setCsvDateTo(e.target.value)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                      </div>
+                      <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
+                        style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '14px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer', height: 'fit-content', alignSelf: 'flex-end', marginBottom: '2px' }}>
+                        {mercekLoading ? 'Yükleniyor...' : 'Filtrele'}
+                      </button>
+                      {(csvDateFrom || csvDateTo || csvSelectedUser || mercekAssignedUserFilter) && (
+                        <button onClick={() => { setCsvDateFrom(''); setCsvDateTo(''); setCsvSelectedUser(''); setMercekAssignedUserFilter(''); setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }}
+                          style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer', height: 'fit-content' }}>
+                          Filtreleri Temizle
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Charts Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginBottom: '28px' }}>
+
+                      {/* Kullanıcı Dağılımı */}
+                      {userDist.length > 0 && (
+                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                            Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({userDist.length} kullanıcı)</span>
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {paginatedUsers.map((item, idx) => {
+                              const percentage = (item.count / userMaxCount) * 100
+                              return (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '600' }}>{item.count}</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '26px', background: 'var(--background)', borderRadius: '6px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>{item.count}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {userTotalPages > 1 && (
+                            <div style={{ marginTop: '16px' }}>
+                              <Pagination
+                                currentPage={userPage}
+                                totalPages={userTotalPages}
+                                totalItems={userDist.length}
+                                pageSize={userChartPageSize}
+                                onPageChange={setUserChartPage}
+                                showPageInput={true}
+                                showFirstLast={true}
+                                showTotalItems={true}
+                                compact={true}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Atanan Kullanıcı Dağılımı */}
+                      {assignedDist.length > 0 && (
+                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
+                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                            Atanan Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({assignedDist.length} kullanıcı)</span>
+                          </h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {paginatedAssigned.map((item, idx) => {
+                              const percentage = (item.count / assignedMaxCount) * 100
+                              return (
+                                <div key={idx}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '500' }}>{item.label}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: '600' }}>{item.count}</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '26px', background: 'var(--background)', borderRadius: '6px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${percentage}%`, height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: percentage > 15 ? '8px' : '0', transition: 'width 0.3s' }}>
+                                      {percentage > 15 && <span style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>{item.count}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {assignedTotalPages > 1 && (
+                            <div style={{ marginTop: '16px' }}>
+                              <Pagination
+                                currentPage={assignedPage}
+                                totalPages={assignedTotalPages}
+                                totalItems={assignedDist.length}
+                                pageSize={assignedChartPageSize}
+                                onPageChange={setAssignedUserChartPage}
+                                showPageInput={true}
+                                showFirstLast={true}
+                                showTotalItems={true}
+                                compact={true}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Trend Chart - full width (Plotly) */}
+                      {mercekStatistics && (() => {
+                        const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        const getMonday = (d: Date) => {
+                          const x = new Date(d);
+                          const day = x.getDay();
+                          const diff = day === 0 ? -6 : 1 - day;
+                          x.setDate(x.getDate() + diff);
+                          return toDateKey(x);
+                        };
+                        const today = new Date();
+                        const hasFilter = !!(csvDateFrom || csvDateTo);
+                        let rangeStart: Date;
+                        let rangeEnd: Date;
+                        if (csvDateFrom && csvDateTo) {
+                          const d1 = new Date(csvDateFrom);
+                          const d2 = new Date(csvDateTo);
+                          rangeStart = d1 <= d2 ? d1 : d2;
+                          rangeEnd = d1 <= d2 ? d2 : d1;
+                        } else if (csvDateFrom) {
+                          rangeStart = new Date(csvDateFrom);
+                          rangeEnd = new Date(today);
+                        } else if (csvDateTo) {
+                          rangeEnd = new Date(csvDateTo);
+                          rangeStart = new Date(rangeEnd);
+                          rangeStart.setDate(rangeStart.getDate() - 89);
+                        } else {
+                          rangeStart = new Date(today);
+                          rangeStart.setDate(today.getDate() - 89);
+                          rangeEnd = new Date(today);
+                        }
+                        const days: Date[] = [];
+                        for (const d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+                          days.push(new Date(d));
+                        }
+                        const countMap = new Map<string, number>();
+                        (mercekStatistics.dailyCounts || []).forEach((d: any) => {
+                          const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date));
+                          countMap.set(dt, d.count);
+                        });
+                        const dateEntries = days.map((d) => {
+                          const key = toDateKey(d);
+                          return { date: key, count: countMap.get(key) ?? 0 };
+                        });
+                        const totalTrend = dateEntries.reduce((sum: number, d: any) => sum + d.count, 0);
+                        const formatDateLabel = (s: string) => {
+                          try { return new Date(s).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) } catch { return s }
+                        };
+                        const dates = dateEntries.map((d: any) => formatDateLabel(d.date));
+                        const maxCount = Math.max(...dateEntries.map((d: any) => d.count), 1);
+                        const WEEK_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7', '#eab308'];
+                        const weekGroups = new Map<string, typeof dateEntries>();
+                        dateEntries.forEach((e: any) => {
+                          const mondayKey = getMonday(new Date(e.date));
+                          if (!weekGroups.has(mondayKey)) weekGroups.set(mondayKey, []);
+                          weekGroups.get(mondayKey)!.push(e);
+                        });
+                        const sortedWeekKeys = [...weekGroups.keys()].sort();
+                        const traces: any[] = [];
+                        const annotations: any[] = [];
+                        sortedWeekKeys.forEach((mondayKey, colorIdx) => {
+                          const weekEntries = weekGroups.get(mondayKey)!;
+                          const prevMondayKey = colorIdx > 0 ? sortedWeekKeys[colorIdx - 1] : null;
+                          const prevWeekEntries = prevMondayKey ? weekGroups.get(prevMondayKey)! : [];
+                          const bridgeEntry = prevWeekEntries.length > 0 ? prevWeekEntries[prevWeekEntries.length - 1] : null;
+                          const weekDatesExt = bridgeEntry ? [formatDateLabel(bridgeEntry.date), ...weekEntries.map((d: any) => formatDateLabel(d.date))] : weekEntries.map((d: any) => formatDateLabel(d.date));
+                          const weekCountsExt = bridgeEntry ? [bridgeEntry.count, ...weekEntries.map((d: any) => d.count)] : weekEntries.map((d: any) => d.count);
+                          const weekTotal = weekEntries.reduce((a: number, e: any) => a + e.count, 0);
+                          const color = WEEK_COLORS[colorIdx % WEEK_COLORS.length];
+                          const fillRgba = color.replace('#', '').match(/.{2}/g)!.reduce((acc: string, hex: string) => acc + parseInt(hex, 16) + ',', 'rgba(').slice(0, -1) + ', 0.2)';
+                          traces.push({
+                            x: weekDatesExt,
+                            y: weekCountsExt,
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            fill: 'tozeroy',
+                            fillcolor: fillRgba,
+                            line: { color, width: 2.5, shape: 'spline' },
+                            marker: { size: 5, color },
+                            connectgaps: true,
+                            hovertemplate: '<b>%{x}</b><br>Kayıt: %{y}<extra></extra>',
+                            showlegend: false,
+                          });
+                          const midIdx = Math.floor(weekEntries.length / 2);
+                          const annotX = formatDateLabel(weekEntries[midIdx].date);
+                          annotations.push({
+                            x: annotX,
+                            y: 1,
+                            text: `<b>${weekTotal}</b>`,
+                            showarrow: false,
+                            xref: 'x',
+                            yref: 'y',
+                            font: { size: 13, color, family: 'inherit' },
+                            bgcolor: 'rgba(255,255,255,0.7)',
+                            bordercolor: color,
+                            borderwidth: 1,
+                            borderpad: 4,
+                          });
+                        });
+
+                        return (
+                          <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                              Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün) • Haftalar Pazartesi-Pazar
+                            </h4>
+                            <Plot
+                              data={traces}
+                              layout={{
+                                margin: { t: 10, b: 120, l: 50, r: 20 },
+                                paper_bgcolor: 'transparent',
+                                plot_bgcolor: 'transparent',
+                                height: 400,
+                                annotations,
+                                xaxis: {
+                                  gridcolor: 'rgba(128,128,128,0.1)',
+                                  tickvals: dates,
+                                  tickmode: 'array',
+                                  ticktext: dates,
+                                  tickfont: { size: 10, color: '#888' },
+                                  tickangle: -90,
+                                  showgrid: true,
+                                },
+                                yaxis: {
+                                  title: { text: 'Kayıt Sayısı', font: { size: 13, color: '#888' } },
+                                  gridcolor: 'rgba(128,128,128,0.1)',
+                                  tickfont: { size: 12, color: '#888' },
+                                  zeroline: true,
+                                  zerolinecolor: 'rgba(128,128,128,0.3)',
+                                  rangemode: 'tozero',
+                                },
+                                showlegend: false,
+                                hovermode: 'x unified',
+                              }}
+                              config={{ displayModeBar: false, responsive: true }}
+                              style={{ width: '100%', height: '400px' }}
+                            />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* CSV Data Table */}
+              {csvData.length > 0 && (() => {
+                const totalPages = mercekDataLoaded ? mercekTotalPages : Math.ceil(csvData.length / csvPageSize)
+                const totalItems = mercekDataLoaded ? mercekTotalCount : csvData.length
+                const rawPaginatedData = mercekDataLoaded ? csvData : csvData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
+                const paginatedData = getFilteredAndSortedMercekData(rawPaginatedData)
+                const hasActiveFilters = Object.values(mercekColumnFilters).some(v => v.trim())
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
+                      {hasActiveFilters && (
+                        <button
+                          onClick={() => { setMercekColumnFilters({}); setMercekSortColumn(null); }}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--background)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✕ Filtreleri Temizle
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Table */}
+                    <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        background: 'var(--background)',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <thead>
+                          {/* Sort headers */}
+                          <tr style={{ background: 'var(--background-secondary)' }}>
+                            {csvHeaders.map((header, index) => {
+                              const isSorted = mercekSortColumn === header
+                              return (
+                                <th
+                                  key={index}
+                                  onClick={() => handleMercekSort(header)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    textAlign: 'left',
+                                    borderBottom: '1px solid var(--border)',
+                                    color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                                    fontWeight: '600',
+                                    fontSize: '13px',
+                                    whiteSpace: 'nowrap',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    position: 'relative'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {header}
+                                    <span style={{ fontSize: '11px', opacity: isSorted ? 1 : 0.3 }}>
+                                      {isSorted ? (mercekSortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                                    </span>
+                                  </div>
+                                </th>
+                              )
+                            })}
+                          </tr>
+                          {/* Column search row */}
+                          <tr style={{ background: 'var(--background-secondary)' }}>
+                            {csvHeaders.map((header, index) => (
+                              <th key={`search-${index}`} style={{ padding: '4px 8px', borderBottom: '2px solid var(--border)' }}>
+                                <input
+                                  type="text"
+                                  value={mercekColumnFilters[header] || ''}
+                                  onChange={(e) => handleMercekColumnFilter(header, e.target.value)}
+                                  placeholder="🔍"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    borderRadius: '3px',
+                                    border: `1px solid ${mercekColumnFilters[header] ? '#3b82f6' : 'var(--border)'}`,
+                                    background: 'var(--background)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '12px',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedData.length === 0 ? (
+                            <tr>
+                              <td colSpan={csvHeaders.length} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                                Filtre sonucu kayıt bulunamadı
+                              </td>
+                            </tr>
+                          ) : paginatedData.map((row, rowIndex) => (
+                            <tr
+                              key={rowIndex}
+                              style={{
+                                borderBottom: '1px solid var(--border)',
+                                background: rowIndex % 2 === 0 ? 'var(--surface)' : 'var(--background)'
+                              }}
+                            >
+                              {csvHeaders.map((header, colIndex) => (
+                                <td
+                                  key={colIndex}
+                                  style={{
+                                    padding: '12px',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '13px',
+                                    maxWidth: '300px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title={String(row[header] || '')}
+                                >
+                                  {row[header] || ''}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <Pagination
+                      currentPage={csvCurrentPage}
+                      totalPages={totalPages || 1}
+                      totalItems={totalItems}
+                      pageSize={csvPageSize}
+                      onPageChange={(page) => {
+                        setCsvCurrentPage(page)
+                        if (mercekDataLoaded) {
+                          fetchMercekData(page)
+                        }
+                      }}
+                      onPageSizeChange={(size) => {
+                        setCsvPageSize(size)
+                        setCsvCurrentPage(1)
+                        if (mercekDataLoaded) {
+                          fetchMercekData(1, size)
+                        }
+                      }}
+                      showPageInput={true}
+                      showFirstLast={true}
+                      showTotalItems={true}
+                    />
+                  </>
+                )
+              })()}
+
+              {csvData.length === 0 && !mercekLoading && mercekDataLoaded && (
+                <div style={{
+                  padding: '40px',
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)',
+                  fontSize: '14px'
+                }}>
+                  Mercek veritabanında kayıt bulunamadı
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

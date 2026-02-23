@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
@@ -14,10 +14,8 @@ export default function Sidebar() {
   const { theme } = useTheme()
   const { t } = useTranslation()
 
-  const isExceptionsPage = pathname === '/exceptions'
-  const searchParams = useSearchParams()
+  const isExceptionsPage = pathname?.startsWith('/exceptions')
   const [exceptionsOpen, setExceptionsOpen] = useState(false)
-  const currentView = searchParams.get('view')
 
   useEffect(() => {
     if (isExceptionsPage) {
@@ -108,7 +106,7 @@ export default function Sidebar() {
                 <div className="sidebar-submenu">
                   <Link
                     href="/exceptions"
-                    className={`sidebar-subitem ${isExceptionsPage && !currentView ? 'active' : ''}`}
+                    className={`sidebar-subitem ${pathname === '/exceptions' ? 'active' : ''}`}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -116,8 +114,8 @@ export default function Sidebar() {
                     <span>{t('nav.exceptionsAnalytics')}</span>
                   </Link>
                   <Link
-                    href="/exceptions?view=domain-features"
-                    className={`sidebar-subitem ${isExceptionsPage && currentView === 'domain-features' ? 'active' : ''}`}
+                    href="/exceptions/domain-features"
+                    className={`sidebar-subitem ${pathname === '/exceptions/domain-features' ? 'active' : ''}`}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="10"></circle>
@@ -127,8 +125,8 @@ export default function Sidebar() {
                     <span>{t('nav.domainFeatures')}</span>
                   </Link>
                   <Link
-                    href="/exceptions?view=mercek-analiz"
-                    className={`sidebar-subitem ${isExceptionsPage && currentView === 'mercek-analiz' ? 'active' : ''}`}
+                    href="/exceptions/mercek-analiz"
+                    className={`sidebar-subitem ${pathname === '/exceptions/mercek-analiz' ? 'active' : ''}`}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
