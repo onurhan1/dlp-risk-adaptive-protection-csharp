@@ -75,6 +75,9 @@ function AnalyticsPageContent() {
   const [heatmapTeamPage, setHeatmapTeamPage] = useState(1)
   const teamsPerPage = 8
 
+  // Heatmap domain count (initially show 10, click "Diğer" to load 10 more)
+  const [heatmapDomainCount, setHeatmapDomainCount] = useState(10)
+
   // Table sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -879,10 +882,10 @@ function AnalyticsPageContent() {
 
     // Sort teams by total count descending
     const sortedTeams = Array.from(teams).sort((a, b) => (teamTotalCounts[b] || 0) - (teamTotalCounts[a] || 0))
-    // Sort domains by total count descending - top 10 + "Diğer" (top 10 dışındaki tüm domainler)
+    // Sort domains by total count descending - top N + "Diğer" (top N dışındaki tüm domainler)
     const allSortedDomains = Array.from(domains).sort((a, b) => (domainTotalCounts[b] || 0) - (domainTotalCounts[a] || 0))
-    const topDomains = allSortedDomains.slice(0, 10)
-    const otherDomains = allSortedDomains.slice(10)
+    const topDomains = allSortedDomains.slice(0, heatmapDomainCount)
+    const otherDomains = allSortedDomains.slice(heatmapDomainCount)
     const sortedDomains = otherDomains.length > 0 ? [...topDomains, 'Diğer'] : topDomains
     if (otherDomains.length > 0) {
       sortedTeams.forEach(t => {
@@ -913,8 +916,8 @@ function AnalyticsPageContent() {
       })
     })
 
-    return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount }
-  }, [filteredIncidents])
+    return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount, hasMoreDomains: otherDomains.length > 0 }
+  }, [filteredIncidents, heatmapDomainCount])
 
 
   const getHeatmapColor = (count: number, max: number) => {
@@ -2825,9 +2828,9 @@ function AnalyticsPageContent() {
                         <div key={`row-${domain}`} style={{
                           padding: '8px',
                           fontWeight: '600',
-                          color: 'var(--text-primary)',
+                          color: domain === 'Diğer' ? '#3b82f6' : 'var(--text-primary)',
                           fontSize: '12px',
-                          background: 'var(--background-secondary)',
+                          background: domain === 'Diğer' ? 'rgba(59, 130, 246, 0.08)' : 'var(--background-secondary)',
                           borderRadius: '2px',
                           display: 'flex',
                           alignItems: 'center',
@@ -2836,9 +2839,20 @@ function AnalyticsPageContent() {
                           textOverflow: 'ellipsis',
                           position: 'sticky',
                           left: 0,
-                          zIndex: 5
-                        }} title={domain}>
+                          zIndex: 5,
+                          cursor: domain === 'Diğer' ? 'pointer' : 'default',
+                          gap: '4px'
+                        }} title={domain === 'Diğer' ? 'Tıklayarak 10 domain daha göster' : domain}
+                          onClick={() => {
+                            if (domain === 'Diğer') {
+                              setHeatmapDomainCount(prev => prev + 10)
+                            }
+                          }}
+                        >
                           {domain}
+                          {domain === 'Diğer' && (
+                            <span style={{ fontSize: '10px', marginLeft: '2px' }}>▼</span>
+                          )}
                         </div>
 
                         {/* Cells */}
