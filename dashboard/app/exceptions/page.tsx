@@ -2910,7 +2910,7 @@ function AnalyticsPageContent() {
                                     <span>Authorized:</span> <span style={{ color: '#3b82f6', fontWeight: '600' }}>{bd.authorized}</span>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                                    <span>Permit:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{bd.permit}</span>
+                                    <span>Released:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{bd.permit}</span>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
                                     <span>Avg Max Match:</span> <span style={{ color: '#8b5cf6', fontWeight: '600' }}>{bd.incidentCount > 0 ? (bd.maxMatchTotal / bd.incidentCount).toFixed(1) : 0}</span>
