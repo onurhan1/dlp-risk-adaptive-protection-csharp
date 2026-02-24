@@ -328,10 +328,10 @@ export default function ChatBot() {
                         right: '24px',
                         width: '390px',
                         height: isMinimized ? '60px' : '600px',
-                        background: 'linear-gradient(135deg, #0d1117 0%, #161b27 100%)',
-                        border: '1px solid rgba(0, 168, 232, 0.3)',
+                        background: '#ffffff',
+                        border: '1px solid rgba(0, 168, 232, 0.25)',
                         borderRadius: '16px',
-                        boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,168,232,0.1), inset 0 1px 0 rgba(255,255,255,0.05)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,168,232,0.12)',
                         display: 'flex',
                         flexDirection: 'column',
                         zIndex: 9999,
@@ -344,8 +344,8 @@ export default function ChatBot() {
                     <div
                         style={{
                             padding: '14px 16px',
-                            background: 'linear-gradient(135deg, rgba(0,168,232,0.15) 0%, rgba(0,100,180,0.1) 100%)',
-                            borderBottom: isMinimized ? 'none' : '1px solid rgba(0,168,232,0.2)',
+                            background: 'linear-gradient(135deg, #0066cc 0%, #00a8e8 100%)',
+                            borderBottom: 'none',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px',
@@ -366,14 +366,14 @@ export default function ChatBot() {
                         </div>
 
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#e8eaed', letterSpacing: '0.3px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', letterSpacing: '0.3px' }}>
                                 RADAR Guvenlik Asistani
                             </div>
-                            <div style={{ fontSize: '11px', color: '#00a8e8', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                                 <span style={{
                                     width: '6px', height: '6px', borderRadius: '50%',
-                                    background: '#00d4aa', display: 'inline-block',
-                                    boxShadow: '0 0 6px #00d4aa', animation: 'pulse 2s infinite',
+                                    background: '#7fffcc', display: 'inline-block',
+                                    boxShadow: '0 0 6px #7fffcc', animation: 'pulse 2s infinite',
                                 }} />
                                 Cevrimici
                             </div>
@@ -382,25 +382,25 @@ export default function ChatBot() {
                         <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
                             {/* Clear button */}
                             <button onClick={clearChat} title="Sohbeti temizle"
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#8a9199', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
-                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#e8eaed' }}
-                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#8a9199' }}>
+                                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '6px', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
+                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; e.currentTarget.style.color = '#fff' }}
+                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)' }}>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" /></svg>
                             </button>
                             {/* Minimize button */}
                             <button onClick={() => setIsMinimized(!isMinimized)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#8a9199', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
-                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#e8eaed' }}
-                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#8a9199' }}>
+                                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '6px', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
+                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; e.currentTarget.style.color = '#fff' }}
+                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)' }}>
                                 {isMinimized
                                     ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14l5-5 5 5h-10z" /></svg>
                                     : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5h-10z" /></svg>}
                             </button>
                             {/* Close button */}
                             <button onClick={() => setIsOpen(false)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#8a9199', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
-                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(220,50,50,0.2)'; e.currentTarget.style.color = '#ff6b6b' }}
-                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#8a9199' }}>
+                                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '6px', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
+                                onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,100,100,0.4)'; e.currentTarget.style.color = '#fff' }}
+                                onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)' }}>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
                             </button>
                         </div>
@@ -410,7 +410,7 @@ export default function ChatBot() {
                         <>
                             {/* Messages Area */}
                             <div
-                                style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '10px', scrollBehavior: 'smooth' }}
+                                style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '10px', scrollBehavior: 'smooth', background: '#f7f9fc' }}
                                 className="chatbot-messages"
                             >
                                 {messages.map((message) => (
@@ -430,14 +430,15 @@ export default function ChatBot() {
                                             <div style={{
                                                 padding: '10px 13px',
                                                 borderRadius: message.role === 'user' ? '14px 14px 4px 14px' : '4px 14px 14px 14px',
-                                                background: message.role === 'user' ? 'linear-gradient(135deg, #00a8e8, #0066cc)' : 'rgba(255,255,255,0.06)',
-                                                border: message.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                                                color: '#e8eaed', fontSize: '12.5px', lineHeight: '1.5',
-                                                boxShadow: message.role === 'user' ? '0 4px 12px rgba(0,168,232,0.3)' : 'none',
+                                                background: message.role === 'user' ? 'linear-gradient(135deg, #0066cc, #00a8e8)' : '#ffffff',
+                                                border: message.role === 'user' ? 'none' : '1px solid #e4e8ef',
+                                                color: message.role === 'user' ? '#ffffff' : '#1a2233',
+                                                fontSize: '12.5px', lineHeight: '1.5',
+                                                boxShadow: message.role === 'user' ? '0 4px 12px rgba(0,102,204,0.25)' : '0 1px 4px rgba(0,0,0,0.07)',
                                             }}
                                                 dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
                                             />
-                                            <span style={{ fontSize: '10px', color: '#5a6170', paddingLeft: '2px', paddingRight: '2px' }}>
+                                            <span style={{ fontSize: '10px', color: '#9aa5b8', paddingLeft: '2px', paddingRight: '2px' }}>
                                                 {timeLabel(message.timestamp)}
                                             </span>
                                         </div>
@@ -455,7 +456,7 @@ export default function ChatBot() {
                                         <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #00a8e8, #0066cc)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 8px rgba(0,168,232,0.4)' }}>
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" /></svg>
                                         </div>
-                                        <div style={{ padding: '12px 16px', borderRadius: '4px 14px 14px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        <div style={{ padding: '12px 16px', borderRadius: '4px 14px 14px 14px', background: '#ffffff', border: '1px solid #e4e8ef', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', display: 'flex', gap: '4px', alignItems: 'center' }}>
                                             {[0, 1, 2].map(i => (
                                                 <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00a8e8', animation: `typingDot 1.2s ${i * 0.2}s infinite` }} />
                                             ))}
@@ -467,19 +468,19 @@ export default function ChatBot() {
                             </div>
 
                             {/* Quick Suggestions */}
-                            <div style={{ padding: '8px 12px 4px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexWrap: 'wrap', gap: '5px', flexShrink: 0 }}>
+                            <div style={{ padding: '8px 12px 4px', borderTop: '1px solid #e8edf5', background: '#ffffff', display: 'flex', flexWrap: 'wrap', gap: '5px', flexShrink: 0 }}>
                                 {QUICK_SUGGESTIONS.map((s, i) => (
                                     <button key={i} onClick={() => sendMessage(s.query)}
-                                        style={{ background: 'rgba(0,168,232,0.08)', border: '1px solid rgba(0,168,232,0.2)', borderRadius: '20px', color: '#7dd3f9', fontSize: '10.5px', padding: '4px 10px', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
-                                        onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = 'rgba(0,168,232,0.2)'; el.style.borderColor = 'rgba(0,168,232,0.5)'; el.style.color = '#00a8e8' }}
-                                        onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = 'rgba(0,168,232,0.08)'; el.style.borderColor = 'rgba(0,168,232,0.2)'; el.style.color = '#7dd3f9' }}>
+                                        style={{ background: '#eef4ff', border: '1px solid #c5d8f8', borderRadius: '20px', color: '#0066cc', fontSize: '10.5px', padding: '4px 10px', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                                        onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = '#dceeff'; el.style.borderColor = '#0066cc'; el.style.color = '#004fa3' }}
+                                        onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = '#eef4ff'; el.style.borderColor = '#c5d8f8'; el.style.color = '#0066cc' }}>
                                         {s.label}
                                     </button>
                                 ))}
                             </div>
 
                             {/* Input Area */}
-                            <div style={{ padding: '10px 12px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                            <div style={{ padding: '10px 12px 14px', borderTop: '1px solid #e8edf5', background: '#ffffff', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                                 <input
                                     ref={inputRef}
                                     type="text"
@@ -487,9 +488,9 @@ export default function ChatBot() {
                                     onChange={e => setInputValue(e.target.value)}
                                     onKeyDown={handleKeyDown}
                                     placeholder="Ornek: leasing kelimesiyle analiz yap..."
-                                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '9px 13px', color: '#e8eaed', fontSize: '12.5px', outline: 'none', transition: 'all 0.2s' }}
-                                    onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'rgba(0,168,232,0.5)'; e.target.style.boxShadow = '0 0 0 2px rgba(0,168,232,0.1)' }}
-                                    onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none' }}
+                                    style={{ flex: 1, background: '#f4f7fc', border: '1px solid #dde3ee', borderRadius: '10px', padding: '9px 13px', color: '#1a2233', fontSize: '12.5px', outline: 'none', transition: 'all 0.2s' }}
+                                    onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = '#0066cc'; e.target.style.boxShadow = '0 0 0 3px rgba(0,102,204,0.12)' }}
+                                    onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = '#dde3ee'; e.target.style.boxShadow = 'none' }}
                                 />
                                 <button
                                     onClick={() => sendMessage()}
@@ -518,19 +519,42 @@ export default function ChatBot() {
                 title="RADAR Guvenlik Asistani"
                 style={{
                     position: 'fixed', bottom: '24px', right: '24px',
-                    width: '56px', height: '56px', borderRadius: '16px',
-                    background: isOpen ? 'linear-gradient(135deg, #1a1f2e, #222839)' : 'linear-gradient(135deg, #00a8e8, #0066cc)',
-                    border: isOpen ? '1px solid rgba(0,168,232,0.4)' : 'none', cursor: 'pointer',
+                    width: '60px', height: '60px', borderRadius: '50%',
+                    background: isOpen ? 'linear-gradient(135deg, #004fa3, #0066cc)' : 'linear-gradient(135deg, #0066cc, #00a8e8)',
+                    border: isOpen ? '2px solid rgba(0,168,232,0.5)' : '2px solid rgba(255,255,255,0.2)', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: isOpen ? '0 8px 25px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,168,232,0.3)' : '0 8px 25px rgba(0,168,232,0.5), 0 4px 10px rgba(0,0,0,0.3)',
+                    boxShadow: isOpen ? '0 8px 25px rgba(0,102,204,0.5)' : '0 8px 30px rgba(0,102,204,0.55), 0 4px 10px rgba(0,0,0,0.2)',
                     zIndex: 9998, transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', transform: 'scale(1)',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.12)' }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
             >
                 {isOpen
-                    ? <svg width="22" height="22" viewBox="0 0 24 24" fill="#00a8e8"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
-                    : <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" /></svg>
+                    ? <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+                    : (
+                        /* Robot icon */
+                        <svg width="30" height="30" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            {/* Antenna */}
+                            <line x1="32" y1="4" x2="32" y2="14" stroke="white" strokeWidth="3" strokeLinecap="round" />
+                            <circle cx="32" cy="4" r="3" fill="#7fffcc" />
+                            {/* Head */}
+                            <rect x="14" y="14" width="36" height="26" rx="7" fill="white" fillOpacity="0.95" />
+                            {/* Eyes */}
+                            <circle cx="24" cy="25" r="4" fill="#0066cc" />
+                            <circle cx="40" cy="25" r="4" fill="#0066cc" />
+                            <circle cx="25.5" cy="23.5" r="1.5" fill="white" />
+                            <circle cx="41.5" cy="23.5" r="1.5" fill="white" />
+                            {/* Mouth */}
+                            <rect x="22" y="32" width="20" height="4" rx="2" fill="#00a8e8" fillOpacity="0.8" />
+                            {/* Ears */}
+                            <rect x="8" y="20" width="6" height="10" rx="3" fill="white" fillOpacity="0.8" />
+                            <rect x="50" y="20" width="6" height="10" rx="3" fill="white" fillOpacity="0.8" />
+                            {/* Body */}
+                            <rect x="18" y="42" width="28" height="16" rx="5" fill="white" fillOpacity="0.7" />
+                            <circle cx="27" cy="50" r="3" fill="#00a8e8" fillOpacity="0.9" />
+                            <circle cx="37" cy="50" r="3" fill="#7fffcc" fillOpacity="0.9" />
+                        </svg>
+                    )
                 }
                 {hasNewMessage && !isOpen && (
                     <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', border: '2px solid #0d1117', boxShadow: '0 0 8px rgba(239,68,68,0.6)', animation: 'pulse 1.5s infinite' }} />
@@ -562,13 +586,13 @@ export default function ChatBot() {
           50%       { opacity: 0.5; }
         }
         .chatbot-messages::-webkit-scrollbar { width: 4px; }
-        .chatbot-messages::-webkit-scrollbar-track { background: transparent; }
-        .chatbot-messages::-webkit-scrollbar-thumb { background: rgba(0,168,232,0.3); border-radius: 2px; }
-        .chatbot-messages::-webkit-scrollbar-thumb:hover { background: rgba(0,168,232,0.5); }
-        .chat-heading { font-weight: 700; color: #00a8e8; font-size: 13px; margin-bottom: 4px; }
-        .chat-bullet  { padding-left: 4px; margin: 1px 0; }
-        .chat-numbered { padding-left: 4px; margin: 1px 0; }
-        .chat-table-row { font-family: monospace; font-size: 11px; color: #b0b8c4; margin: 1px 0; }
+        .chatbot-messages::-webkit-scrollbar-track { background: #f0f4fa; }
+        .chatbot-messages::-webkit-scrollbar-thumb { background: #c5d4e8; border-radius: 2px; }
+        .chatbot-messages::-webkit-scrollbar-thumb:hover { background: #0066cc; }
+        .chat-heading { font-weight: 700; color: #0055aa; font-size: 13px; margin-bottom: 4px; }
+        .chat-bullet  { padding-left: 4px; margin: 1px 0; color: #2a3a55; }
+        .chat-numbered { padding-left: 4px; margin: 1px 0; color: #2a3a55; }
+        .chat-table-row { font-family: monospace; font-size: 11px; color: #5a6a82; margin: 1px 0; }
         .chat-spacer  { height: 4px; }
       `}</style>
         </>
