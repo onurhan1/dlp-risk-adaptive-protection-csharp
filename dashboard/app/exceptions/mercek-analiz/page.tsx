@@ -382,7 +382,7 @@ export default function MercekAnalyzePage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
-      if (openDropdownColumn && !target.closest('[data-column-dropdown]')) {
+      if (openDropdownColumn && !target.closest('[data-column-filter]')) {
         setOpenDropdownColumn(null)
       }
     }
