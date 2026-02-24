@@ -378,6 +378,11 @@ export default function MercekAnalyzePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Released Incidents stats should update when filters change
+  useEffect(() => {
+    fetchReleasedIncidents()
+  }, [csvSelectedUser, mercekAssignedUserFilter, csvDateFrom, csvDateTo, csvSearchQuery])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -481,141 +486,68 @@ export default function MercekAnalyzePage() {
                                 minWidth: '150px',
                                 fontSize: '13px',
                                 color: 'var(--text-primary)',
-                                fontWeight: '500'
-                              }}>
-                                {admin}
-                              </div>
-                              <div style={{
-                                flex: 1,
-                                height: '32px',
-                                background: 'var(--background-secondary)',
-                                borderRadius: '4px',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                border: '1px solid var(--border)'
-                              }}>
                                 <div style={{
-                                  height: '100%',
-                                  width: `${percentage}%`,
-                                  background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
-                                  borderRadius: '4px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'flex-end',
-                                  paddingRight: '8px',
-                                  transition: 'width 0.3s ease',
-                                  minWidth: 'fit-content'
+                                  background: 'var(--background-secondary)',
+                                  borderRadius: '10px',
+                                  padding: '24px',
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                                  gap: '20px',
+                                  marginBottom: '28px',
+                                  border: '1px solid var(--border)'
                                 }}>
-                                  <span style={{
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    color: '#fff',
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                    {count}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                                    <div style={{ fontSize: '36px' }}>📊</div>
+                                    <div>
+                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Released Incident</div>
+                                      <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.totalCount}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                                    <div style={{ fontSize: '36px' }}>🟦</div>
+                                    <div>
+                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlayan</div>
+                                      <div style={{ color: '#3b82f6', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.incStartingCount}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                                    <div style={{ fontSize: '36px' }}>🟥</div>
+                                    <div>
+                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlamayan</div>
+                                      <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.nonIncStartingCount}</div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div style={{
-                                minWidth: '50px',
-                                textAlign: 'right',
-                                fontSize: '13px',
-                                fontWeight: '600',
-                                color: 'var(--text-primary)'
-                              }}>
-                                {count}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {releasedIncidentsStats.adminData.length === 0 && (
-                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      Released incident verisi bulunamadı.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* ══════════════ Mercek Analiz Section (order: 1) ══════════════ */}
-          <div style={{ order: 1, marginBottom: '24px' }}>
-            <div style={{
-              background: 'var(--surface)',
-              borderRadius: '8px',
-              padding: '24px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <h2 style={{ fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Mercek Analiz</h2>
-                  {mercekLoading && (
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      border: '2px solid var(--border)',
-                      borderTopColor: 'var(--primary)',
-                      borderRadius: '50%',
-                      animation: 'spin 0.6s linear infinite'
-                    }} />
-                  )}
-                  {mercekDataLoaded && !mercekLoading && (
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      (Otomatik güncelleniyor - Her 30 saniye)
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => fetchMercekData(1, 10000)} // Fetch all data for client-side filtering
-                    disabled={mercekLoading}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: mercekLoading ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    🔄 Yenile
-                  </button>
-                </div>
-              </div>
-              <style jsx>{`
-                @keyframes spin {
-                  to { transform: rotate(360deg); }
-                }
-              `}</style>
-
-              {/* Error Message */}
-              {mercekError && (
-                <div style={{
-                  padding: '12px 16px',
-                  borderRadius: '6px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#ef4444',
-                  fontSize: '14px',
-                  marginBottom: '16px'
-                }}>
-                  ⚠️ {mercekError}
-                </div>
-              )}
-
-              {/* Number Cards */}
-              {mercekStatistics && (() => {
-                const lastWeekCount = mercekStatistics.lastWeekCount || 0
-                const previousWeekCount = mercekStatistics.previousWeekCount || 0
-                const weekChange = previousWeekCount > 0
+                                {/* Admin Bazlı Sütun Grafik */}
+                                {releasedIncidentsStats.adminData.length > 0 && (
+                                  <div style={{ marginTop: '24px', background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', border: '1px solid var(--border)' }}>
+                                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                                      Admin Bazlı Released Incident Sayıları
+                                    </h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                      {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
+                                        const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
+                                        const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
+                                        return (
+                                          <div key={admin} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ minWidth: '150px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500' }}>{admin}</div>
+                                            <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                              <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
+                                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{count}</span>
+                                              </div>
+                                            </div>
+                                            <div style={{ minWidth: '50px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', textAlign: 'right' }}>%{percentage.toFixed(1)}</div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {releasedIncidentsStats.adminData.length === 0 && (
+                                  <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px' }}>
+                                    Admin bazlı veri bulunamadı.
+                                  </div>
+                                )}
                   ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
                   : '0'
                 const weekChangePositive = Number(weekChange) >= 0
