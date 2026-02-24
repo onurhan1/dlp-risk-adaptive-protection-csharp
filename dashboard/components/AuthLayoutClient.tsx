@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
 import Navigation from './Navigation'
+import ChatBot from './ChatBot'
 
 export default function AuthLayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -23,6 +24,7 @@ export default function AuthLayoutClient({ children }: { children: React.ReactNo
           {children}
         </div>
       </div>
+      <ChatBot />
     </>
   )
 }
