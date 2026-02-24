@@ -28,7 +28,7 @@ export default function MercekAnalyzePage() {
   const [csvData, setCsvData] = useState<any[]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvSearchQuery, setCsvSearchQuery] = useState('')
-  const [csvPageSize, setCsvPageSize] = useState(25)
+  const [csvPageSize, setCsvPageSize] = useState(10)
   const [csvCurrentPage, setCsvCurrentPage] = useState(1)
   const [csvDateFrom, setCsvDateFrom] = useState('')
   const [csvDateTo, setCsvDateTo] = useState('')
@@ -306,7 +306,7 @@ export default function MercekAnalyzePage() {
           return true
         })
       }
-    })
+    }
 
     // Apply sorting
     if (mercekSortColumn) {
@@ -661,7 +661,7 @@ export default function MercekAnalyzePage() {
                     }}>
                       <div style={{ fontSize: '36px' }}>🟢</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık İnsident</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık Incident</div>
                         <div style={{ color: '#10b981', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
                       </div>
                     </div>
@@ -675,7 +675,7 @@ export default function MercekAnalyzePage() {
                     }}>
                       <div style={{ fontSize: '36px' }}>🔴</div>
                       <div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış İnsident</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış Incident</div>
                         <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
                       </div>
                     </div>
@@ -701,23 +701,22 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>📈</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Son 1 Haftadaki Kayıt</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{lastWeekCount}</div>
-                        {previousWeekCount > 0 && (
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px' }}>
-                            {previousWeekCount} (önceki hafta)
-                            <span style={{
-                              color: weekChangePositive ? '#10b981' : '#ef4444',
-                              marginLeft: '8px',
-                              fontWeight: '600'
-                            }}>
-                              {weekChangePositive ? '+' : ''}{weekChange}%
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start', flex: 1 }}>
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '0px', fontWeight: '500', marginTop: '-12px', marginLeft: '-12px' }}>Son 1 Haftadaki Kayıt</div>
+                          <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700', marginLeft: '-12px', marginTop: '4px' }}>{lastWeekCount}</div>
+                          {previousWeekCount > 0 && (
+                            <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px', marginLeft: '-12px' }}>
+                              {previousWeekCount} (önceki hafta)
+                              <span style={{
+                                color: weekChangePositive ? '#10b981' : '#ef4444',
+                                marginLeft: '8px',
+                                fontWeight: '600'
+                              }}>
+                                {weekChangePositive ? '+' : ''}{weekChange}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
