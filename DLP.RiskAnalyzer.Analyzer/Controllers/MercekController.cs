@@ -83,18 +83,24 @@ public class MercekController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                // Search by incident_id (numeric), user_name, assigned_user_code
+                // Primary search: incidentdescription column (merceks table)
+                // Also searches solution_method, user_name, assigned_user_code
                 if (int.TryParse(searchTerm, out var incidentIdSearch))
                 {
-                    query = query.Where(m => 
+                    query = query.Where(m =>
                         m.IncidentId == incidentIdSearch ||
+                        (m.IncidentDescription != null && m.IncidentDescription.Contains(searchTerm)) ||
+                        (m.SolutionMethod != null && m.SolutionMethod.Contains(searchTerm)) ||
                         (m.UserName != null && m.UserName.Contains(searchTerm)) ||
                         (m.AssignedUserCode != null && m.AssignedUserCode.Contains(searchTerm))
                     );
                 }
                 else
                 {
-                    query = query.Where(m => 
+                    // Main keyword search — looks in incidentdescription first
+                    query = query.Where(m =>
+                        (m.IncidentDescription != null && m.IncidentDescription.Contains(searchTerm)) ||
+                        (m.SolutionMethod != null && m.SolutionMethod.Contains(searchTerm)) ||
                         (m.UserName != null && m.UserName.Contains(searchTerm)) ||
                         (m.AssignedUserCode != null && m.AssignedUserCode.Contains(searchTerm))
                     );
