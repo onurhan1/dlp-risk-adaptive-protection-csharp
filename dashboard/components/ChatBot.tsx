@@ -23,6 +23,7 @@ const QUICK_SUGGESTIONS: QuickSuggestion[] = [
     { label: '📈 Risk Skoru', query: 'Risk skoru nasil hesaplanir?' },
     { label: '🛡️ Veri Koruma', query: 'Veri sizintisini nasil onleyebilirim?' },
     { label: '🔎 Mercek Kelime Analizi', query: 'leasing kelimesiyle analiz yap' },
+    { label: '⚖️ Threshold Hesapla', query: 'jdoe icin threshold hesapla' },
 ]
 
 // ─── Mercek Keyword Analysis via real API ──────────────────────────────────────
@@ -82,6 +83,130 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
     }
 }
 
+// ─── Threshold Analysis via /api/incidents ─────────────────────────────────
+function calcPercentile(arr: number[], p: number): number {
+    if (arr.length === 0) return 0
+    const sorted = [...arr].sort((a, b) => a - b)
+    const idx = Math.ceil((p / 100) * sorted.length) - 1
+    return sorted[Math.max(0, idx)]
+}
+
+async function searchThreshold(query: string, queryType: 'user' | 'domain'): Promise<string> {
+    try {
+        const response = await apiClient.get('/api/incidents', {
+            params: { limit: 1000000, order_by: 'timestamp_desc' }
+        })
+        const allIncidents: any[] = Array.isArray(response.data) ? response.data : []
+        if (allIncidents.length === 0) {
+            return `⚠️ **Incident verisi bulunamadi.**\n\nAPI'den veri alinamadi. Sistem baglantisini kontrol edin.`
+        }
+
+        // Filter incidents by user or domain
+        const q = query.toLowerCase().trim()
+        const filtered = allIncidents.filter((inc: any) => {
+            if (queryType === 'user') {
+                return (
+                    (inc.userEmail || '').toLowerCase().includes(q) ||
+                    (inc.loginName || '').toLowerCase().includes(q) ||
+                    (inc.fullName || '').toLowerCase().includes(q)
+                )
+            } else {
+                return (inc.domain || '').toLowerCase().includes(q)
+            }
+        })
+
+        if (filtered.length === 0) {
+            const typeLabel = queryType === 'user' ? 'kullaniciya' : 'domain\'e'
+            return `🔍 **Threshold Analizi: "${query}"**\n\nBu ${typeLabel} ait hicbir incident bulunamadi.\n\n💡 Farkli bir ${queryType === 'user' ? 'kullanici adi/e-posta' : 'domain'} deneyin.`
+        }
+
+        // Collect maxMatches values
+        const matches: number[] = filtered
+            .map((inc: any) => inc.maxMatches || inc.max_matches || 0)
+            .filter((v: number) => v > 0)
+
+        const allMatches = matches.length > 0 ? matches : filtered.map((_: any) => 1)
+
+        // Same logic as exceptions page:
+        // Medium (Audit): P50 - 1  (min 1)
+        // High (Block):   P90 + 1
+        const p50 = calcPercentile(allMatches, 50)
+        const p70 = calcPercentile(allMatches, 70)
+        const p90 = calcPercentile(allMatches, 90)
+        const mediumThreshold = Math.max(p50 - 1, 1)
+        const highThreshold = p90 + 1
+        const avgMatches = allMatches.reduce((a: number, b: number) => a + b, 0) / allMatches.length
+
+        // Breakdown by policy
+        const policyCount: Record<string, number> = {}
+        filtered.forEach((inc: any) => {
+            const policy = inc.policy || inc.Policy || 'Bilinmeyen Politika'
+            policyCount[policy] = (policyCount[policy] || 0) + 1
+        })
+        const topPolicies = Object.entries(policyCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+
+        const typeLabel = queryType === 'user' ? '👤 Kullanici' : '🌐 Domain'
+        let result = `⚖️ **Threshold Analizi: "${query}"**\n\n`
+        result += `${typeLabel}: **${query}**\n`
+        result += `📋 Toplam Incident: **${filtered.length}**\n\n`
+        result += `## Istatistikler\n`
+        result += `• Ortalama Eslesme: **${avgMatches.toFixed(1)}**\n`
+        result += `• P50 (Medyan): **${p50}**\n`
+        result += `• P70: **${p70}**\n`
+        result += `• P90: **${p90}**\n\n`
+        result += `## Onerilen Esikler\n`
+        result += `• 🟡 **Medium (Audit) Esigi:** ${mediumThreshold} _(P50 - 1)_\n`
+        result += `• 🔴 **High (Block) Esigi:** ${highThreshold} _(P90 + 1)_\n\n`
+        if (topPolicies.length > 0) {
+            result += `## En Cok Ihlal Edilen Politikalar\n`
+            topPolicies.forEach(([policy, count]) => {
+                result += `• **${policy}**: ${count} incident\n`
+            })
+            result += '\n'
+        }
+        result += `💡 Bu esikler **Exception Recommendation** raporuyla ayni metodoloji kullanilarak hesaplanmistir.\n`
+        result += `Detayli inceleme icin **Team Based Analysis** sayfasini ziyaret edin.`
+        return result
+    } catch (error: any) {
+        if (error?.response?.status === 401) {
+            return `⚠️ **Yetki Hatasi**\n\nIncident verilerine erismek icin oturum acmaniz gerekiyor.`
+        }
+        const msg = error?.message || 'Bilinmeyen hata'
+        return `❌ **Threshold Hesaplama Hatasi**\n\n"${query}" icin threshold hesaplanamadi.\n\n_Hata: ${msg}_`
+    }
+}
+
+// ─── Threshold Query Detection ──────────────────────────────────────────────
+function detectThresholdQuery(msg: string): { query: string, type: 'user' | 'domain' } | null {
+    // Pattern: "jdoe icin threshold" / "jdoe icin esik hesapla"
+    const m1 = msg.match(/([\w.@-]{2,50})\s+(?:icin|için)\s+(?:threshold|esik|esigi|threshold.*hesapla|esik.*hesapla)/i)
+    if (m1) {
+        const q = m1[1].trim()
+        const isDomain = /\./.test(q) && !/@/.test(q)
+        return { query: q, type: isDomain ? 'domain' : 'user' }
+    }
+
+    // Pattern: "threshold ... kullanici/domain X"
+    const m2 = msg.match(/(?:threshold|esik)\s+(?:hesapla|ver|goster)?\s*(?:kullanici|user)?\s+([\w.@-]{2,50})/i)
+    if (m2) {
+        const q = m2[1].trim()
+        const isDomain = /\./.test(q) && !/@/.test(q)
+        return { query: q, type: isDomain ? 'domain' : 'user' }
+    }
+
+    // Pattern: "domain gmail.com icin esik" / "domain icin threshold"
+    const m3 = msg.match(/domain\s+([\w.-]{2,50})\s+(?:icin|için)?\s*(?:threshold|esik)/i)
+    if (m3) return { query: m3[1].trim(), type: 'domain' }
+
+    // Pattern: "X kullanicisinin threshold" / "X kullanicisi icin"
+    const m4 = msg.match(/([\w.@-]{2,50})\s+kullanicis?(?:i|inin|na|nin)?\s+(?:threshold|esik)/i)
+    if (m4) return { query: m4[1].trim(), type: 'user' }
+
+    return null
+}
+
 // ─── DLP Knowledge Base ─────────────────────────────────────────────────────
 const DLP_KNOWLEDGE: Record<string, string[]> = {
     risk: [
@@ -115,7 +240,7 @@ function generateResponse(userMessage: string): string {
     const msg = userMessage.toLowerCase()
 
     if (/^(merhaba|selam|hi|hello|hey|gunaydin|iyi gunler)/.test(msg)) {
-        return '👋 **Merhaba! RADAR Guvenlik Asistani\'na hos geldiniz.**\n\nSize su konularda yardimci olabilirim:\n\n• 🔴 Risk analizi ve yuksek riskli kullanicilar\n• 🛡️ DLP politikalari ve ihlal yonetimi\n• 🔍 Guvenlik olayi sorusturma\n• ⚡ Otomatik duzeltme aksiyonlari\n• 📊 Raporlama ve analytics\n• 🔎 Mercek kelime analizi (ornek: "leasing kelimesiyle analiz yap")\n\nNasil yardimci olabilirim?'
+        return '👋 **Merhaba! RADAR Guvenlik Asistani\'na hos geldiniz.**\n\nSize su konularda yardimci olabilirim:\n\n• 🔴 Risk analizi ve yuksek riskli kullanicilar\n• 🛡️ DLP politikalari ve ihlal yonetimi\n• 🔍 Guvenlik olayi sorusturma\n• ⚡ Otomatik duzeltme aksiyonlari\n• 📊 Raporlama ve analytics\n• 🔎 Mercek kelime analizi (ornek: "leasing kelimesiyle analiz yap")\n• ⚖️ Threshold analizi (ornek: "jdoe icin threshold hesapla")\n\nNasil yardimci olabilirim?'
     }
 
     if (/^(gule gule|hosca kal|bye|tamam tesekkur|tesekkurler|sagol|gorusuruz)/.test(msg)) {
@@ -161,7 +286,7 @@ function generateResponse(userMessage: string): string {
         return responses[Math.floor(Math.random() * responses.length)]
     }
 
-    return `🤔 Sorunuzu anlamaya calisiyorum...\n\n"**${userMessage}**" hakkinda dogrudan bilgim olmayabilir. Deneyebileceginiz sorgular:\n\n• Mercek analizi: **"leasing kelimesiyle analiz yap"**\n• Risk skoru icin **"risk"** yazin\n• DLP ihlalleri icin **"dlp politika"** yazin\n• Olay sorusturmasi icin **"sorusturma"** yazin\n\n💡 Veya asagidaki hizli onerilerden birini secebilirsiniz.`
+    return `🤔 Sorunuzu anlamaya calisiyorum...\n\n"**${userMessage}**" hakkinda dogrudan bilgim olmayabilir. Deneyebileceginiz sorgular:\n\n• Mercek analizi: **"leasing kelimesiyle analiz yap"**\n• Threshold: **"jdoe icin threshold hesapla"**\n• Risk skoru icin **"risk"** yazin\n• DLP ihlalleri icin **"dlp politika"** yazin\n• Olay sorusturmasi icin **"sorusturma"** yazin\n\n💡 Veya asagidaki hizli onerilerden birini secebilirsiniz.`
 }
 
 // ─── Mercek Keyword Detection ──────────────────────────────────────────────
@@ -232,6 +357,36 @@ export default function ChatBot() {
         setMessages((prev: Message[]) => [...prev, userMessage])
         setInputValue('')
         setIsTyping(true)
+
+        // ── Threshold analysis detection ─────────────────────────
+        const isThresholdQuery = /threshold|esik|esigi|esik.*hesapla|threshold.*hesapla|hesapla.*threshold|icin.*esik|icin.*threshold/i.test(messageText)
+        if (isThresholdQuery) {
+            const thresholdResult = detectThresholdQuery(messageText)
+            if (thresholdResult) {
+                const apiResult = await searchThreshold(thresholdResult.query, thresholdResult.type)
+                const assistantMessage: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: apiResult,
+                    timestamp: new Date(),
+                }
+                setMessages((prev: Message[]) => [...prev, assistantMessage])
+                setIsTyping(false)
+                if (!isOpen || isMinimized) setHasNewMessage(true)
+                return
+            }
+            // pattern detected but couldn't parse — ask for clarification
+            const clarifyMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `⚖️ **Threshold Analizi**\n\nKullanici adi veya domain girin:\n\n_"jdoe icin threshold hesapla"_\n_"john.doe@sirket.com icin esik ver"_\n_"domain gmail.com icin threshold"_`,
+                timestamp: new Date(),
+            }
+            setMessages((prev: Message[]) => [...prev, clarifyMsg])
+            setIsTyping(false)
+            return
+        }
+        // ── End Threshold detection ──────────────────────────────
 
         // ── Mercek keyword analysis detection ──────────────────────
         const isMercekQuery = /mercek|kelimesiyle|kelimesini|kelimesinde|kelimesinden|kelime.*analiz|analiz.*kelime/i.test(messageText)
