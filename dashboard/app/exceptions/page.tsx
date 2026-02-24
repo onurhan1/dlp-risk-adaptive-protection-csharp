@@ -138,6 +138,9 @@ function AnalyticsPageContent() {
 
 
   // User Incident Analysis States
+    // Exception Recommendation Team Filter
+    const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
+    const [exceptionTeamDropdownOpen, setExceptionTeamDropdownOpen] = useState(false)
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [exceptionDomainFilter, setExceptionDomainFilter] = useState('')
   const [exceptionActionFilter, setExceptionActionFilter] = useState<string[]>([])
@@ -776,6 +779,13 @@ function AnalyticsPageContent() {
         return false
       }
 
+      // Team filter (multiple selection)
+      if (exceptionTeamFilter.length > 0) {
+        const normalizedIncidentTeam = incident.team ? incident.team.trim() : '';
+        if (!exceptionTeamFilter.includes(normalizedIncidentTeam)) {
+          return false;
+        }
+      }
       // Action filter (multiple selection)
       if (exceptionActionFilter.length > 0 && incident.action && !exceptionActionFilter.includes(incident.action)) {
         return false
@@ -2093,6 +2103,111 @@ function AnalyticsPageContent() {
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
 
               <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
+                                <div style={{ position: 'relative' }} data-dropdown>
+                                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+                                    Filter by Team
+                                  </label>
+                                  <div
+                                    onClick={() => {
+                                      setExceptionTeamDropdownOpen(!exceptionTeamDropdownOpen)
+                                      setActionDropdownOpen(false)
+                                      setChannelDropdownOpen(false)
+                                      setPolicyDropdownOpen(false)
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--border)',
+                                      background: 'var(--background)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '13px',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      minHeight: '20px'
+                                    }}
+                                  >
+                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {exceptionTeamFilter.length === 0
+                                        ? 'All Teams'
+                                        : exceptionTeamFilter.length === 1
+                                          ? exceptionTeamFilter[0]
+                                          : `${exceptionTeamFilter.length} selected`}
+                                    </span>
+                                    <span style={{ marginLeft: '8px' }}>{exceptionTeamDropdownOpen ? '▲' : '▼'}</span>
+                                  </div>
+                                  {exceptionTeamDropdownOpen && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        top: '100%',
+                                        left: 0,
+                                        right: 0,
+                                        marginTop: '4px',
+                                        background: 'var(--background)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '6px',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                        zIndex: 1000,
+                                        maxHeight: '200px',
+                                        overflowY: 'auto'
+                                      }}
+                                    >
+                                      <div
+                                        onClick={() => {
+                                          if (exceptionTeamFilter.length === uniqueTeams.length) {
+                                            setExceptionTeamFilter([])
+                                          } else {
+                                            setExceptionTeamFilter([...uniqueTeams])
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '8px 12px',
+                                          borderBottom: '1px solid var(--border)',
+                                          cursor: 'pointer',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          color: 'var(--text-primary)',
+                                          background: exceptionTeamFilter.length === uniqueTeams.length ? 'var(--surface-hover)' : 'transparent'
+                                        }}
+                                      >
+                                        {exceptionTeamFilter.length === uniqueTeams.length ? '✓ Deselect All' : 'Select All'}
+                                      </div>
+                                      {uniqueTeams.map(team => (
+                                        <label
+                                          key={team}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '8px 12px',
+                                            cursor: 'pointer',
+                                            fontSize: '13px',
+                                            color: 'var(--text-primary)',
+                                            borderBottom: '1px solid var(--border)',
+                                            background: exceptionTeamFilter.includes(team) ? 'var(--surface-hover)' : 'transparent'
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={exceptionTeamFilter.includes(team)}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setExceptionTeamFilter([...exceptionTeamFilter, team])
+                                              } else {
+                                                setExceptionTeamFilter(exceptionTeamFilter.filter(t => t !== team))
+                                              }
+                                            }}
+                                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                                          />
+                                          <span>{team}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
                     Date Range
