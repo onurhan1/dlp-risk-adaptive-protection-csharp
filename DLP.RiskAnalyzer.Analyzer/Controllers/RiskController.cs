@@ -1,8 +1,9 @@
+using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using DLP.RiskAnalyzer.Analyzer.Data;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -363,95 +364,83 @@ public class RiskController : ControllerBase
     /// <summary>
     /// Get filter options for Action Incidents modal (unique values for dropdowns)
     /// </summary>
+    /// <summary>
+    /// P-03 fix: all DB queries run in parallel via Task.WhenAll instead of sequentially.
+    /// M-02 fix: ViolationTrigger parsing delegated to ViolationTriggerParser.
+    /// </summary>
     [HttpGet("incidents/filter-options")]
     public async Task<ActionResult<object>> GetFilterOptions(
         [FromQuery] string? action = null)
     {
         try
         {
-            // Get all incidents (optionally filtered by action)
             var query = _context.Incidents.AsQueryable();
-            
+
             if (!string.IsNullOrEmpty(action) && action.ToUpper() != "TOTAL")
             {
                 var normalizedAction = action.ToUpper();
-                query = query.Where(i => i.Action != null && 
-                           (i.Action.ToUpper() == normalizedAction || 
-                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
-                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")));
+                query = query.Where(i => i.Action != null &&
+                           (i.Action.ToUpper() == normalizedAction ||
+                            (normalizedAction == "BLOCK"       && i.Action.ToUpper() == "BLOCKED") ||
+                            (normalizedAction == "QUARANTINE"  && i.Action.ToUpper() == "QUARANTINED")));
             }
 
-            // Get unique values efficiently
-            var users = await query
+            // ── P-03: Fire all independent DB queries in parallel ────────────
+            var usersTask = query
                 .Where(i => i.LoginName != null && i.LoginName != "")
                 .Select(i => i.LoginName!)
-                .Distinct()
-                .OrderBy(x => x)
+                .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var destinations = await query
+            var destinationsTask = query
                 .Where(i => i.Destination != null && i.Destination != "")
                 .Select(i => i.Destination!)
-                .Distinct()
-                .OrderBy(x => x)
+                .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var channels = await query
+            var channelsTask = query
                 .Where(i => i.Channel != null && i.Channel != "")
                 .Select(i => i.Channel!)
-                .Distinct()
-                .OrderBy(x => x)
+                .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var policies = await query
+            var policiesTask = query
                 .Where(i => i.Policy != null && i.Policy != "")
                 .Select(i => i.Policy!)
-                .Distinct()
-                .OrderBy(x => x)
+                .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            // Get rules from ViolationTriggers - this requires in-memory processing
-            var incidentsWithTriggers = await query
+            var triggersTask = query
                 .Where(i => i.ViolationTriggers != null && i.ViolationTriggers != "")
                 .Select(i => i.ViolationTriggers!)
                 .Distinct()
                 .ToListAsync();
 
+            var minDateTask = _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
+            var maxDateTask = _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
+
+            // Await all in parallel — reduces total round-trip latency
+            await Task.WhenAll(usersTask, destinationsTask, channelsTask,
+                               policiesTask, triggersTask, minDateTask, maxDateTask);
+
+            // ── M-02: Rule extraction via ViolationTriggerParser ─────────────
             var rules = new HashSet<string>();
-            foreach (var triggerJson in incidentsWithTriggers)
+            foreach (var triggerJson in triggersTask.Result)
             {
-                try
-                {
-                    var triggers = System.Text.Json.JsonDocument.Parse(triggerJson);
-                    if (triggers.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
-                    {
-                        foreach (var trigger in triggers.RootElement.EnumerateArray())
-                        {
-                            if (trigger.TryGetProperty("RuleName", out var ruleNameElement))
-                            {
-                                var ruleName = ruleNameElement.GetString();
-                                if (!string.IsNullOrEmpty(ruleName))
-                                {
-                                    rules.Add(ruleName);
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { /* Skip invalid JSON */ }
+                foreach (var ruleName in ViolationTriggerParser.ExtractAllRuleNames(triggerJson))
+                    rules.Add(ruleName);
             }
 
-            // Get date range
-            var minDate = await _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
-            var maxDate = await _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
+            var minDate = minDateTask.Result;
+            var maxDate = maxDateTask.Result;
 
             return Ok(new
             {
-                users = users,
-                destinations = destinations,
-                channels = channels,
-                policies = policies,
-                rules = rules.OrderBy(r => r).ToList(),
+                users        = usersTask.Result,
+                destinations = destinationsTask.Result,
+                channels     = channelsTask.Result,
+                policies     = policiesTask.Result,
+                rules        = rules.OrderBy(r => r).ToList(),
                 dateRange = new
                 {
                     minDate = minDate?.ToString("yyyy-MM-dd") ?? DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd"),
@@ -603,77 +592,31 @@ public class RiskController : ControllerBase
                 .Take(pageSize)
                 .ToListAsync();
 
-            // Format response
+            // ── M-02: Use ViolationTriggerParser instead of inline JSON parsing ──
             var items = incidents.Select(i =>
             {
-                // Extract rule name and max matches from ViolationTriggers
-                // Extract rule name and max matches from ViolationTriggers
-                string ruleName = i.RuleName ?? "N/A"; // Use the dedicated column first
-                int maxMatches = i.MaxMatches;
-                
-                if (ruleName == "N/A" && !string.IsNullOrEmpty(i.ViolationTriggers))
+                // Prefer the stored RuleName column; fall back to parsing ViolationTriggers
+                string ruleName  = i.RuleName ?? string.Empty;
+                int    maxMatches = i.MaxMatches;
+
+                if (string.IsNullOrEmpty(ruleName))
                 {
-                    try
-                    {
-                        var triggers = System.Text.Json.JsonDocument.Parse(i.ViolationTriggers);
-                        if (triggers.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
-                            triggers.RootElement.GetArrayLength() > 0)
-                        {
-                            var firstTrigger = triggers.RootElement[0];
-                            // Try multiple casing formats
-                            if (firstTrigger.TryGetProperty("RuleName", out var ruleNameElement) ||
-                                firstTrigger.TryGetProperty("rule_name", out ruleNameElement) ||
-                                firstTrigger.TryGetProperty("ruleName", out ruleNameElement))
-                            {
-                                ruleName = ruleNameElement.GetString() ?? "N/A";
-                            }
-                            
-                            // Extract max matches from all classifiers if not already set
-                            if (maxMatches == 0)
-                            {
-                                foreach (var trigger in triggers.RootElement.EnumerateArray())
-                                {
-                                    if (trigger.TryGetProperty("Classifiers", out var classifiers) &&
-                                        classifiers.ValueKind == System.Text.Json.JsonValueKind.Array)
-                                    {
-                                        foreach (var classifier in classifiers.EnumerateArray())
-                                        {
-                                            int matches = 0;
-                                            if (classifier.TryGetProperty("NumberMatches", out var matchesElement) ||
-                                                classifier.TryGetProperty("number_matches", out matchesElement) ||
-                                                classifier.TryGetProperty("numberMatches", out matchesElement))
-                                            {
-                                                if (matchesElement.ValueKind == System.Text.Json.JsonValueKind.Number)
-                                                {
-                                                    matches = matchesElement.GetInt32();
-                                                }
-                                            }
-                                            
-                                            if (matches > maxMatches) maxMatches = matches;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // If parsing fails, use policy name as fallback
-                        ruleName = i.Policy ?? "N/A";
-                    }
+                    var (parsedName, parsedMatches) = ViolationTriggerParser.ExtractSummary(i.ViolationTriggers);
+                    ruleName   = parsedName  ?? i.Policy ?? "N/A";
+                    if (maxMatches == 0) maxMatches = parsedMatches;
                 }
-                
+
                 return new Dictionary<string, object>
                 {
-                    { "login_name", i.LoginName ?? i.UserEmail ?? "N/A" },
-                    { "destination", i.Destination ?? "N/A" },
-                    { "channel", i.Channel ?? "N/A" },
-                    { "policy", i.Policy ?? "N/A" },
-                    { "rule_name", ruleName },
-                    { "action", i.Action ?? "N/A" },
-                    { "timestamp", i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") },
-                    { "max_matches", maxMatches },
-                    { "violation_triggers", i.ViolationTriggers ?? "" }
+                    { "login_name",         i.LoginName ?? i.UserEmail ?? "N/A" },
+                    { "destination",        i.Destination ?? "N/A" },
+                    { "channel",            i.Channel ?? "N/A" },
+                    { "policy",             i.Policy ?? "N/A" },
+                    { "rule_name",          ruleName },
+                    { "action",             i.Action ?? "N/A" },
+                    { "timestamp",          i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") },
+                    { "max_matches",        maxMatches },
+                    { "violation_triggers", i.ViolationTriggers ?? string.Empty }
                 };
             }).ToList();
 

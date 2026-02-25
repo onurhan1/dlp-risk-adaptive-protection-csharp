@@ -13,24 +13,52 @@ public class AnalyzerBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AnalyzerBackgroundService> _logger;
-    private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10); // Process every 10 seconds
-    private readonly TimeSpan _exceptionSyncInterval = TimeSpan.FromHours(24); // Sync policy exceptions every 24 hours
+    private readonly IConfiguration _configuration;
+    private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10);
+    private readonly TimeSpan _exceptionSyncInterval = TimeSpan.FromHours(24);
     private DateTime _lastExceptionSync = DateTime.MinValue;
 
     public AnalyzerBackgroundService(
         IServiceProvider serviceProvider,
-        ILogger<AnalyzerBackgroundService> logger)
+        ILogger<AnalyzerBackgroundService> logger,
+        IConfiguration configuration)
     {
         _serviceProvider = serviceProvider;
-        _logger = logger;
+        _logger          = logger;
+        _configuration   = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Analyzer Background Service started. Processing Redis stream every {Interval} seconds", 
+        // ── Seed Mode: skip Redis, populate DB from DevDataSeeder ──────────
+        if (_configuration.GetValue<bool>("SeedData:Enabled"))
+        {
+            _logger.LogInformation(
+                "[SeedMode] AnalyzerBackgroundService: Redis stream processing DISABLED. " +
+                "Running DevDataSeeder instead...");
+
+            await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken); // wait for migrations
+
+            using (var scope = _serviceProvider.CreateScope())
+            {
+                var seeder = scope.ServiceProvider.GetRequiredService<DevDataSeeder>();
+                await seeder.SeedAsync();
+            }
+
+            _logger.LogInformation("[SeedMode] DevDataSeeder complete. Background polling is idle.");
+
+            // Keep the hosted service alive but do nothing
+            while (!stoppingToken.IsCancellationRequested)
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+
+            return;
+        }
+
+        // ── Normal Mode: process Redis stream as usual ─────────────────────
+        _logger.LogInformation(
+            "Analyzer Background Service started. Processing Redis stream every {Interval}s",
             _processingInterval.TotalSeconds);
 
-        // Wait a bit for database to be ready
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)

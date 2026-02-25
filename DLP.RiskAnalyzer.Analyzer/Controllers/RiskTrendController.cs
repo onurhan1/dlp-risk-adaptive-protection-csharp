@@ -215,4 +215,26 @@ public class RiskTrendController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get top most active rules within a period
+    /// </summary>
+    [HttpGet("top-rules")]
+    public async Task<ActionResult<List<Dictionary<string, object>>>> GetTopRules(
+        [FromQuery] int days = 30,
+        [FromQuery] int limit = 10,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        try
+        {
+            var result = await _riskService.GetTopRulesByDayAsync(days, limit, startDate, endDate);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching top rules");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }

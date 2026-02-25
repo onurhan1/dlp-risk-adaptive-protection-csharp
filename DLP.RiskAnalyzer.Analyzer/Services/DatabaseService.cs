@@ -155,7 +155,9 @@ public class DatabaseService
                 var processedCount = 0;
                 var skippedCount = 0;
                 var errorCount = 0;
-                
+                // P-04: collect new incidents for a single batch SaveChangesAsync
+                var pendingInserts = new List<Incident>();
+
                 foreach (var message in messages)
         {
             try
@@ -252,82 +254,55 @@ public class DatabaseService
 
                 if (existingIncident == null)
                 {
-                    // New incident - insert
+                    // New incident — stage for batch insert (P-04)
                     var incident = new Incident
                     {
-                        Id = incidentId,  // DLP API'den gelen orijinal ID (0 ise auto-increment)
-                        UserEmail = userEmail,
-                        Department = string.IsNullOrEmpty(department) ? null : department,
-                        Severity = severity,
-                        DataType = string.IsNullOrEmpty(dataType) ? null : dataType,
-                        Timestamp = timestamp,
-                        Policy = string.IsNullOrEmpty(policy) ? null : policy,
-                        Channel = string.IsNullOrEmpty(channel) ? null : channel,
-                        // New fields
-                        Action = string.IsNullOrEmpty(action) ? null : action,
-                        Destination = string.IsNullOrEmpty(destination) ? null : destination,
-                        FileName = string.IsNullOrEmpty(fileName) ? null : fileName,
-                        LoginName = string.IsNullOrEmpty(loginName) ? null : loginName,
-                        HostName = string.IsNullOrEmpty(hostName) ? null : hostName,
-                        EmailAddress = string.IsNullOrEmpty(emailAddress) ? null : emailAddress,
+                        Id                = incidentId,
+                        UserEmail         = userEmail,
+                        Department        = string.IsNullOrEmpty(department)        ? null : department,
+                        Severity          = severity,
+                        DataType          = string.IsNullOrEmpty(dataType)          ? null : dataType,
+                        Timestamp         = timestamp,
+                        Policy            = string.IsNullOrEmpty(policy)            ? null : policy,
+                        Channel           = string.IsNullOrEmpty(channel)           ? null : channel,
+                        Action            = string.IsNullOrEmpty(action)            ? null : action,
+                        Destination       = string.IsNullOrEmpty(destination)       ? null : destination,
+                        FileName          = string.IsNullOrEmpty(fileName)          ? null : fileName,
+                        LoginName         = string.IsNullOrEmpty(loginName)         ? null : loginName,
+                        HostName          = string.IsNullOrEmpty(hostName)          ? null : hostName,
+                        EmailAddress      = string.IsNullOrEmpty(emailAddress)      ? null : emailAddress,
                         ViolationTriggers = string.IsNullOrEmpty(violationTriggers) ? null : DeduplicateViolationTriggers(violationTriggers, exceptionLookup),
-                        // FullName, Team, RuleName
-                        FullName = string.IsNullOrEmpty(fullName) ? null : fullName,
-                        Team = string.IsNullOrEmpty(team) ? null : team,
-                        RuleName = string.IsNullOrEmpty(ruleName) ? null : ruleName,
-                        MaxMatches = ParseMaxMatchesFromRedis(maxMatchesValue, violationTriggers)
+                        FullName          = string.IsNullOrEmpty(fullName)          ? null : fullName,
+                        Team              = string.IsNullOrEmpty(team)              ? null : team,
+                        RuleName          = string.IsNullOrEmpty(ruleName)          ? null : ruleName,
+                        MaxMatches        = ParseMaxMatchesFromRedis(maxMatchesValue, violationTriggers)
                     };
 
+                    pendingInserts.Add(incident);
                     _context.Incidents.Add(incident);
-                    
-                    // Save immediately to avoid batch failures on duplicates
-                    try
-                    {
-                        await _context.SaveChangesAsync();
-                        processedCount++;
-                        _logger.LogDebug("SAVED incident {Id} for user {User} at {Timestamp}", incidentId, userEmail, timestamp);
-                    }
-                    catch (DbUpdateException ex)
-                    {
-                        // Duplicate key or other constraint violation - skip this one
-                        _context.Entry(incident).State = EntityState.Detached;
-                        skippedCount++;
-                        _logger.LogWarning("DB ERROR for incident {Id}: {Error}", incidentId, ex.InnerException?.Message ?? ex.Message);
-                    }
                 }
                 else if (existingIncident.Action != action && !string.IsNullOrEmpty(action))
                 {
-                    // Incident exists but action changed (e.g., QUARANTINE -> RELEASE)
-                    // Update the existing record
                     _logger.LogInformation(
                         "Incident {Id} action changed from {OldAction} to {NewAction}, updating...",
                         incidentId, existingIncident.Action, action);
-                    
-                    existingIncident.Action = action;
-                    existingIncident.Timestamp = timestamp;  // Update timestamp to latest
-                    
-                    // IMPORTANT: Reset risk_score so it gets recalculated with new action multiplier
-                    // QUARANTINE (100%) -> RELEASED (20%) gibi değişikliklerde skor yeniden hesaplanmalı
-                    existingIncident.RiskScore = null;
-                    
-                    // Update other fields that might have changed
-                    if (!string.IsNullOrEmpty(destination))
-                        existingIncident.Destination = destination;
-                    if (!string.IsNullOrEmpty(fileName))
-                        existingIncident.FileName = fileName;
+
+                    existingIncident.Action    = action;
+                    existingIncident.Timestamp = timestamp;
+                    existingIncident.RiskScore = null;  // Force recalculation with new action multiplier
+
+                    if (!string.IsNullOrEmpty(destination)) existingIncident.Destination = destination;
+                    if (!string.IsNullOrEmpty(fileName))    existingIncident.FileName    = fileName;
                     if (!string.IsNullOrEmpty(violationTriggers))
                     {
                         var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers, exceptionLookup);
                         existingIncident.ViolationTriggers = dedupedTriggers;
-                        existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
+                        existingIncident.MaxMatches        = CalculateMaxMatches(dedupedTriggers);
                     }
-                    if (!string.IsNullOrEmpty(fullName))
-                        existingIncident.FullName = fullName;
-                    if (!string.IsNullOrEmpty(team))
-                        existingIncident.Team = team;
-                    if (!string.IsNullOrEmpty(ruleName))
-                        existingIncident.RuleName = ruleName;
-                    
+                    if (!string.IsNullOrEmpty(fullName))  existingIncident.FullName  = fullName;
+                    if (!string.IsNullOrEmpty(team))      existingIncident.Team      = team;
+                    if (!string.IsNullOrEmpty(ruleName))  existingIncident.RuleName  = ruleName;
+
                     try
                     {
                         await _context.SaveChangesAsync();
@@ -342,30 +317,25 @@ public class DatabaseService
                 }
                 else if (string.IsNullOrEmpty(existingIncident.ViolationTriggers) || existingIncident.ViolationTriggers == "[]")
                 {
-                    // Incident exists with same action but missing/empty violation_triggers - BACKFILL
                     if (!string.IsNullOrEmpty(violationTriggers) && violationTriggers != "[]")
                     {
                         _logger.LogInformation(
                             "Incident {Id} missing violation_triggers, backfilling from Redis...",
                             incidentId);
-                        
+
                         var dedupedTriggers = DeduplicateViolationTriggers(violationTriggers, exceptionLookup);
                         existingIncident.ViolationTriggers = dedupedTriggers;
-                        existingIncident.MaxMatches = CalculateMaxMatches(dedupedTriggers);
-                        
-                        // Also update other missing fields if available
-                        if (string.IsNullOrEmpty(existingIncident.FullName) && !string.IsNullOrEmpty(fullName))
-                            existingIncident.FullName = fullName;
-                        if (string.IsNullOrEmpty(existingIncident.Team) && !string.IsNullOrEmpty(team))
-                            existingIncident.Team = team;
-                        if (string.IsNullOrEmpty(existingIncident.RuleName) && !string.IsNullOrEmpty(ruleName))
-                            existingIncident.RuleName = ruleName;
-                        
+                        existingIncident.MaxMatches        = CalculateMaxMatches(dedupedTriggers);
+
+                        if (string.IsNullOrEmpty(existingIncident.FullName)  && !string.IsNullOrEmpty(fullName))  existingIncident.FullName  = fullName;
+                        if (string.IsNullOrEmpty(existingIncident.Team)      && !string.IsNullOrEmpty(team))      existingIncident.Team      = team;
+                        if (string.IsNullOrEmpty(existingIncident.RuleName)  && !string.IsNullOrEmpty(ruleName))  existingIncident.RuleName  = ruleName;
+
                         try
                         {
                             await _context.SaveChangesAsync();
                             processedCount++;
-                            _logger.LogInformation("Incident {Id} backfilled with violation_triggers, max_matches={MaxMatches}", 
+                            _logger.LogInformation("Incident {Id} backfilled with violation_triggers, max_matches={MaxMatches}",
                                 incidentId, existingIncident.MaxMatches);
                         }
                         catch (Exception ex)
@@ -382,18 +352,57 @@ public class DatabaseService
                 }
                 else
                 {
-                    // Duplicate with same action and already has violation_triggers - skip
                     skippedCount++;
                     _logger.LogDebug("SKIPPED duplicate incident {Id} (same action: {Action})", incidentId, existingIncident.Action);
                 }
 
-                // Acknowledge message
+                // Acknowledge message regardless
                 await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
             }
             catch (Exception ex)
             {
                 errorCount++;
                 _logger.LogError(ex, "Error processing message {MessageId}: {Error}", message.Id, ex.Message);
+                // P-04 / C-03 fix: acknowledge even on parse errors to avoid infinite-retry loop
+                try { await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id); }
+                catch (Exception ackEx) { _logger.LogError(ackEx, "Failed to acknowledge message {MessageId} after error", message.Id); }
+            }
+        }
+
+        // ── P-04: Flush pending inserts as a single batch ───────────────────────
+        if (pendingInserts.Count > 0)
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+                processedCount += pendingInserts.Count;
+                _logger.LogDebug("Batch saved {Count} new incidents", pendingInserts.Count);
+            }
+            catch (DbUpdateException ex)
+            {
+                // One or more rows conflicted; save them individually to isolate the bad one
+                _logger.LogWarning("Batch insert failed ({Error}), retrying individually...", ex.InnerException?.Message ?? ex.Message);
+
+                foreach (var inc in pendingInserts)
+                {
+                    _context.Entry(inc).State = EntityState.Detached;
+                }
+
+                foreach (var inc in pendingInserts)
+                {
+                    try
+                    {
+                        _context.Incidents.Add(inc);
+                        await _context.SaveChangesAsync();
+                        processedCount++;
+                    }
+                    catch (DbUpdateException dupEx)
+                    {
+                        _context.Entry(inc).State = EntityState.Detached;
+                        skippedCount++;
+                        _logger.LogWarning("Skipped duplicate incident {Id}: {Error}", inc.Id, dupEx.InnerException?.Message ?? dupEx.Message);
+                    }
+                }
             }
         }
 

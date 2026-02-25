@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using DLP.RiskAnalyzer.Shared.Services;
@@ -17,16 +18,20 @@ public class IncidentsController : ControllerBase
     private readonly ILogger<IncidentsController> _logger;
 
     public IncidentsController(
-        DatabaseService dbService, 
+        DatabaseService dbService,
         DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer,
         AnalyzerDbContext context,
         ILogger<IncidentsController> logger)
     {
-        _dbService = dbService;
+        _dbService    = dbService;
         _riskAnalyzer = riskAnalyzer;
-        _context = context;
-        _logger = logger;
+        _context      = context;
+        _logger       = logger;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Seed
+    // ─────────────────────────────────────────────────────────────────────────
 
     [HttpPost("seed-sample-data")]
     public async Task<ActionResult> SeedSampleData()
@@ -41,48 +46,43 @@ public class IncidentsController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            var random = new Random();
-            var users = new[] { "john.doe@company.com", "jane.smith@company.com", "bob.wilson@company.com", "alice.brown@company.com", "charlie.davis@company.com" };
+            var random      = new Random();
+            var users       = new[] { "john.doe@company.com", "jane.smith@company.com", "bob.wilson@company.com", "alice.brown@company.com", "charlie.davis@company.com" };
             var departments = new[] { "IT", "Finance", "HR", "Sales", "Marketing", "Operations" };
-            var dataTypes = new[] { "PII", "Financial", "Health", "Intellectual Property", "Credentials" };
-            var policies = new[] { "Data Loss Prevention", "Email Security", "File Transfer", "Cloud Storage" };
-            var channels = new[] { "Email", "USB", "Cloud", "Network", "Print" };
-            var severities = new[] { 1, 2, 3, 4, 5 };
+            var dataTypes   = new[] { "PII", "Financial", "Health", "Intellectual Property", "Credentials" };
+            var policies    = new[] { "Data Loss Prevention", "Email Security", "File Transfer", "Cloud Storage" };
+            var channels    = new[] { "Email", "USB", "Cloud", "Network", "Print" };
+            var severities  = new[] { 1, 2, 3, 4, 5 };
 
-            var incidents = new List<Incident>();
-            var baseDate = DateTime.UtcNow.AddDays(-30);
+            var incidents       = new List<Incident>();
+            var baseDate        = DateTime.UtcNow.AddDays(-30);
+            var maxId           = await _context.Incidents.MaxAsync(i => (int?)i.Id) ?? 0;
+            var usedTimestamps  = new HashSet<DateTime>();
 
-            // Get the next ID from database sequence or max ID
-            var maxId = await _context.Incidents.MaxAsync(i => (int?)i.Id) ?? 0;
-            
-            // Ensure each incident has a unique (Id, Timestamp) combination
-            var usedTimestamps = new HashSet<DateTime>();
-            
             for (int i = 0; i < 50; i++)
             {
-                var timestamp = baseDate.AddDays(random.Next(0, 30)).AddHours(random.Next(0, 24)).AddMinutes(random.Next(0, 60));
-                
-                // Ensure unique timestamp for this ID
+                var timestamp = baseDate
+                    .AddDays(random.Next(0, 30))
+                    .AddHours(random.Next(0, 24))
+                    .AddMinutes(random.Next(0, 60));
+
                 while (usedTimestamps.Contains(timestamp))
-                {
                     timestamp = timestamp.AddMinutes(1);
-                }
+
                 usedTimestamps.Add(timestamp);
-                
-                var riskScore = random.Next(20, 95);
-                
+
                 incidents.Add(new Incident
                 {
-                    Id = maxId + i + 1, // Set unique ID
-                    UserEmail = users[random.Next(users.Length)],
-                    Department = departments[random.Next(departments.Length)],
-                    Severity = severities[random.Next(severities.Length)],
-                    DataType = dataTypes[random.Next(dataTypes.Length)],
-                    Timestamp = timestamp,
-                    Policy = policies[random.Next(policies.Length)],
-                    Channel = channels[random.Next(channels.Length)],
-                    RiskScore = riskScore,
-                    RepeatCount = random.Next(0, 5),
+                    Id              = maxId + i + 1,
+                    UserEmail       = users[random.Next(users.Length)],
+                    Department      = departments[random.Next(departments.Length)],
+                    Severity        = severities[random.Next(severities.Length)],
+                    DataType        = dataTypes[random.Next(dataTypes.Length)],
+                    Timestamp       = timestamp,
+                    Policy          = policies[random.Next(policies.Length)],
+                    Channel         = channels[random.Next(channels.Length)],
+                    RiskScore       = random.Next(20, 95),
+                    RepeatCount     = random.Next(0, 5),
                     DataSensitivity = random.Next(0, 10)
                 });
             }
@@ -99,64 +99,26 @@ public class IncidentsController : ControllerBase
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/incidents
+    // ─────────────────────────────────────────────────────────────────────────
+
     [HttpGet]
     public async Task<ActionResult<List<IncidentResponse>>> GetIncidents(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
-        [FromQuery] string? user,
-        [FromQuery] string? department,
-        [FromQuery] int limit = 100,
-        [FromQuery] string orderBy = "timestamp_desc")
+        [FromQuery] string?   user,
+        [FromQuery] string?   department,
+        [FromQuery] int       limit   = 100,
+        [FromQuery] string    orderBy = "timestamp_desc")
     {
         try
         {
             var incidents = await _dbService.GetIncidentsAsync(
                 startDate, endDate, user, department, limit, orderBy);
 
-            // Enrich with risk level and IOBs
-            var enrichedIncidents = incidents.Select(incident =>
-            {
-                var riskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
-                var policyAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? "");
-                var iobs = _riskAnalyzer.DetectIOB(incident);
-
-                return new IncidentResponse
-                {
-                    Id = incident.Id,
-                    UserEmail = incident.UserEmail,
-                    Department = incident.Department,
-                    Severity = incident.Severity,
-                    DataType = incident.DataType,
-                    Timestamp = incident.Timestamp,
-                    Policy = incident.Policy,
-                    Channel = incident.Channel,
-                    RiskScore = incident.RiskScore,
-                    RepeatCount = incident.RepeatCount,
-                    DataSensitivity = incident.DataSensitivity,
-                    // New fields
-                    Action = incident.Action,
-                    Destination = incident.Destination,
-                    FileName = incident.FileName,
-                    LoginName = incident.LoginName,
-                    EmailAddress = incident.EmailAddress,
-                    ViolationTriggers = incident.ViolationTriggers,
-                    FullName = incident.FullName,
-                    Team = incident.Team,
-                    MaxMatches = incident.MaxMatches,
-                    RuleName = incident.RuleName,
-                    HostName = incident.HostName,
-                    // Enriched fields
-                    RiskLevel = riskLevel,
-                    RecommendedAction = policyAction,
-                    IOBs = iobs,
-                    // Remediation fields
-                    IsRemediated = incident.IsRemediated,
-                    RemediatedAt = incident.RemediatedAt,
-                    RemediatedBy = incident.RemediatedBy,
-                    RemediationAction = incident.RemediationAction,
-                    RemediationNotes = incident.RemediationNotes
-                };
-            }).ToList();
+            // M-01: enrichment + mapping delegated to the single factory method
+            var enrichedIncidents = incidents.Select(incident => EnrichAndMap(incident)).ToList();
 
             return Ok(enrichedIncidents);
         }
@@ -167,6 +129,10 @@ public class IncidentsController : ControllerBase
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/incidents/{id}
+    // ─────────────────────────────────────────────────────────────────────────
+
     [HttpGet("{id}")]
     public async Task<ActionResult<IncidentResponse>> GetIncident(int id)
     {
@@ -176,47 +142,29 @@ public class IncidentsController : ControllerBase
             if (incident == null)
                 return NotFound();
 
-            var riskLevel = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
-            var policyAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? "");
-            var iobs = _riskAnalyzer.DetectIOB(incident);
-
-            var response = new IncidentResponse
-            {
-                Id = incident.Id,
-                UserEmail = incident.UserEmail,
-                Department = incident.Department,
-                Severity = incident.Severity,
-                DataType = incident.DataType,
-                Timestamp = incident.Timestamp,
-                Policy = incident.Policy,
-                Channel = incident.Channel,
-                RiskScore = incident.RiskScore,
-                RepeatCount = incident.RepeatCount,
-                DataSensitivity = incident.DataSensitivity,
-                // New fields
-                Action = incident.Action,
-                Destination = incident.Destination,
-                FileName = incident.FileName,
-                LoginName = incident.LoginName,
-                EmailAddress = incident.EmailAddress,
-                ViolationTriggers = incident.ViolationTriggers,
-                FullName = incident.FullName,
-                Team = incident.Team,
-                MaxMatches = incident.MaxMatches,
-                RuleName = incident.RuleName,
-                HostName = incident.HostName,
-                // Enriched fields
-                RiskLevel = riskLevel,
-                RecommendedAction = policyAction,
-                IOBs = iobs
-            };
-
-            return Ok(response);
+            return Ok(EnrichAndMap(incident));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching incidents");
+            _logger.LogError(ex, "Error fetching incident {Id}", id);
             return StatusCode(500, new { detail = "An error occurred while fetching incidents" });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Private helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Computes enrichment values and delegates mapping to <see cref="IncidentResponseMapper"/>.
+    /// Previously this block was duplicated verbatim in both GetIncidents and GetIncident.
+    /// </summary>
+    private IncidentResponse EnrichAndMap(Incident incident)
+    {
+        var riskLevel         = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
+        var recommendedAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? string.Empty);
+        var iobs              = _riskAnalyzer.DetectIOB(incident);
+
+        return IncidentResponseMapper.Map(incident, riskLevel, recommendedAction, iobs);
     }
 }

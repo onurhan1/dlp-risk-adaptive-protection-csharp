@@ -111,6 +111,8 @@ builder.Services.AddScoped<EmailConfigurationService>();
 builder.Services.AddScoped<BehaviorEngineService>();
 builder.Services.AddScoped<PolicyExceptionSyncService>();
 builder.Services.AddScoped<AuditLogService>();
+// Dev-only seeder — harmless singleton when SeedData:Enabled = false
+builder.Services.AddScoped<DevDataSeeder>();
 builder.Services.AddHttpClient<SplunkService>();
 builder.Services.AddHttpClient<RemediationService>();
 
