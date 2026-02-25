@@ -4,6 +4,23 @@ import React, { useState, useEffect, useMemo, Suspense, ChangeEvent } from 'reac
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay, subDays } from 'date-fns'
 import Pagination from '@/components/ui/Pagination'
+import {
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  X,
+  Check,
+  Search,
+  Info,
+  AlertCircle,
+  FileText,
+  ClipboardList,
+  Plus,
+  Minus,
+  LayoutGrid
+} from 'lucide-react'
 
 interface Incident {
   id: number
@@ -138,9 +155,9 @@ function AnalyticsPageContent() {
 
 
   // User Incident Analysis States
-    // Exception Recommendation Team Filter
-    const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
-    const [exceptionTeamDropdownOpen, setExceptionTeamDropdownOpen] = useState(false)
+  // Exception Recommendation Team Filter
+  const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
+  const [exceptionTeamDropdownOpen, setExceptionTeamDropdownOpen] = useState(false)
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [exceptionDomainFilter, setExceptionDomainFilter] = useState('')
   const [exceptionActionFilter, setExceptionActionFilter] = useState<string[]>([])
@@ -375,7 +392,7 @@ function AnalyticsPageContent() {
   const filteredIncidents = useMemo(() => {
     let filtered = incidents.filter(incident => {
       // Only apply table column filters, NOT heatmap appliedFilters
-      
+
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
         const userMatch = columnFilters.user.some(filter =>
@@ -518,7 +535,7 @@ function AnalyticsPageContent() {
   const totalPages = Math.ceil(filteredIncidents.length / itemsPerPage)
 
   // Get Unique Values for Selects
-  const uniqueDepartments = useMemo(() => Array.from(new Set(incidents.map(i => i.department).filter(Boolean))).sort(), [incidents])
+  const uniqueDepartments = useMemo(() => Array.from(new Set(incidents.map(i => i.department).filter((d): d is string => Boolean(d)))).sort(), [incidents])
   const uniqueTeams = useMemo(() => {
     const normalizedTeams = new Set<string>()
     incidents.forEach(i => {
@@ -526,9 +543,9 @@ function AnalyticsPageContent() {
         normalizedTeams.add(normalizeTeamName(i.team))
       }
     })
-    return Array.from(normalizedTeams).sort()
+    return Array.from(normalizedTeams).sort() as string[]
   }, [incidents])
-  const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort(), [incidents])
+  const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort() as string[], [incidents])
   const uniqueChannels = useMemo(() => Array.from(new Set(incidents.map(i => i.channel).filter((c): c is string => Boolean(c)))).sort(), [incidents])
 
   // Get unique policies using the same logic as exception recommendation report
@@ -1343,297 +1360,297 @@ function AnalyticsPageContent() {
         {/* Main Content - Hidden during initial loading */}
         {!loading && (<>
 
-        {/* Heatmap Section */}
-            <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Team Based Analysis Heatmap</h2>
+          {/* Heatmap Section */}
+          <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Team Based Analysis Heatmap</h2>
 
-                {/* Inline Filters Row */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                  {/* Date Range - Start */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start</label>
-                    <input
-                      type="date"
-                      value={dateRange.start}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        const val = e.target.value
-                        setDateRange(prev => {
-                          const newer = { ...prev, start: val }
-                          if (newer.start && newer.end && newer.start > newer.end) {
-                            setDateError('Start > End')
-                          } else {
-                            setDateError('')
-                          }
-                          return newer
-                        })
-                      }}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
-                    />
-                  </div>
-                  {/* Date Range - End */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End</label>
-                    <input
-                      type="date"
-                      value={dateRange.end}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        const val = e.target.value
-                        setDateRange(prev => {
-                          const newer = { ...prev, end: val }
-                          if (newer.start && newer.end && newer.start > newer.end) {
-                            setDateError('Start > End')
-                          } else {
-                            setDateError('')
-                          }
-                          return newer
-                        })
-                      }}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
-                    />
-                  </div>
+            {/* Inline Filters Row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+              {/* Date Range - Start */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start</label>
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const val = e.target.value
+                    setDateRange(prev => {
+                      const newer = { ...prev, start: val }
+                      if (newer.start && newer.end && newer.start > newer.end) {
+                        setDateError('Start > End')
+                      } else {
+                        setDateError('')
+                      }
+                      return newer
+                    })
+                  }}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
+                />
+              </div>
+              {/* Date Range - End */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End</label>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const val = e.target.value
+                    setDateRange(prev => {
+                      const newer = { ...prev, end: val }
+                      if (newer.start && newer.end && newer.start > newer.end) {
+                        setDateError('Start > End')
+                      } else {
+                        setDateError('')
+                      }
+                      return newer
+                    })
+                  }}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
+                />
+              </div>
 
-                  {/* Department - Multi Select */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</label>
-                    <button
-                      onClick={() => { setDeptDropdownOpen(!deptDropdownOpen); setTeamDropdownOpen2(false); setActionDropdownOpen2(false) }}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedDepartments.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedDepartments.length === 0 ? 'All' : `${selectedDepartments.length} selected`}</span>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </button>
-                    {deptDropdownOpen && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <button onClick={() => { if (selectedDepartments.length === uniqueDepartments.length) { setSelectedDepartments([]) } else { setSelectedDepartments([...uniqueDepartments]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                            {selectedDepartments.length === uniqueDepartments.length ? 'Deselect All' : 'Select All'}
-                          </button>
-                        </div>
-                        {uniqueDepartments.map(dept => (
-                          <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                            <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => { setSelectedDepartments(prev => prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]) }} style={{ accentColor: '#3b82f6' }} />
-                            {dept}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Team - Multi Select */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Team</label>
-                    <button
-                      onClick={() => { setTeamDropdownOpen2(!teamDropdownOpen2); setDeptDropdownOpen(false); setActionDropdownOpen2(false) }}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedTeams.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedTeams.length === 0 ? 'All' : `${selectedTeams.length} selected`}</span>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </button>
-                    {teamDropdownOpen2 && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <button onClick={() => { if (selectedTeams.length === uniqueTeams.length) { setSelectedTeams([]) } else { setSelectedTeams([...uniqueTeams]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                            {selectedTeams.length === uniqueTeams.length ? 'Deselect All' : 'Select All'}
-                          </button>
-                        </div>
-                        {uniqueTeams.map(team => (
-                          <label key={team} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                            <input type="checkbox" checked={selectedTeams.includes(team)} onChange={() => { setSelectedTeams(prev => prev.includes(team) ? prev.filter(t => t !== team) : [...prev, team]) }} style={{ accentColor: '#3b82f6' }} />
-                            {team}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* User */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</label>
-                    <input
-                      type="text"
-                      placeholder="User..."
-                      value={selectedUser}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
-                    />
-                  </div>
-
-                  {/* Manager Name */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Manager Name</label>
-                    <input
-                      type="text"
-                      placeholder="Name..."
-                      value={selectedFullName}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
-                    />
-                  </div>
-
-                  {/* Policy */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy</label>
-                    <input
-                      type="text"
-                      placeholder="Policy..."
-                      value={selectedPolicy}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
-                    />
-                  </div>
-
-                  {/* Domain */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Domain</label>
-                    <input
-                      type="text"
-                      placeholder="Domain..."
-                      value={selectedDomain}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
-                    />
-                  </div>
-
-                  {/* Action - Multi Select */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                    <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</label>
-                    <button
-                      onClick={() => { setActionDropdownOpen2(!actionDropdownOpen2); setDeptDropdownOpen(false); setTeamDropdownOpen2(false) }}
-                      style={{ padding: '5px 8px', borderRadius: '4px', border: selectedActions.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '110px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{selectedActions.length === 0 ? 'All' : `${selectedActions.length} selected`}</span>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </button>
-                    {actionDropdownOpen2 && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '160px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <button onClick={() => { if (selectedActions.length === uniqueActions.length) { setSelectedActions([]) } else { setSelectedActions([...uniqueActions]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                            {selectedActions.length === uniqueActions.length ? 'Deselect All' : 'Select All'}
-                          </button>
-                        </div>
-                        {uniqueActions.map(action => (
-                          <label key={action} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                            <input type="checkbox" checked={selectedActions.includes(action)} onChange={() => { setSelectedActions(prev => prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]) }} style={{ accentColor: '#3b82f6' }} />
-                            {action}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Buttons */}
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
-                    <button
-                      onClick={applyFilters}
-                      style={{
-                        padding: '5px 14px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        background: '#3b82f6',
-                        color: '#fff',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      Filtrele
-                    </button>
-                    <button
-                      onClick={resetFilters}
-                      style={{
-                        padding: '5px 14px',
-                        borderRadius: '4px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface-hover)',
-                        color: 'var(--text-primary)',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      Temizle
-                    </button>
-                  </div>
-                  {dateError && <span style={{ color: '#ef4444', fontSize: '10px', alignSelf: 'center' }}>{dateError}</span>}
-                </div>
-
-                {/* Heatmap Controls - Hidden items and collapse */}
-                {(hiddenDomains.size > 0 || hiddenTeams.size > 0 || heatmapDomainCount > 10) && (
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {hiddenDomains.size > 0 && (
-                      <button
-                        onClick={() => setHiddenDomains(new Set())}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          border: '1px solid #f59e0b',
-                          background: 'rgba(245, 158, 11, 0.1)',
-                          color: '#f59e0b',
-                          fontSize: '11px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <span>🔄</span> {hiddenDomains.size} gizli domain göster
+              {/* Department - Multi Select */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</label>
+                <button
+                  onClick={() => { setDeptDropdownOpen(!deptDropdownOpen); setTeamDropdownOpen2(false); setActionDropdownOpen2(false) }}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedDepartments.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedDepartments.length === 0 ? 'All' : `${selectedDepartments.length} selected`}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                {deptDropdownOpen && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                      <button onClick={() => { if (selectedDepartments.length === uniqueDepartments.length) { setSelectedDepartments([]) } else { setSelectedDepartments([...uniqueDepartments]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                        {selectedDepartments.length === uniqueDepartments.length ? 'Deselect All' : 'Select All'}
                       </button>
-                    )}
-                    {hiddenTeams.size > 0 && (
-                      <button
-                        onClick={() => setHiddenTeams(new Set())}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          border: '1px solid #8b5cf6',
-                          background: 'rgba(139, 92, 246, 0.1)',
-                          color: '#8b5cf6',
-                          fontSize: '11px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <span>🔄</span> {hiddenTeams.size} gizli team göster
-                      </button>
-                    )}
-                    {heatmapDomainCount > 10 && (
-                      <button
-                        onClick={() => setHeatmapDomainCount(10)}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          border: '1px solid #3b82f6',
-                          background: 'rgba(59, 130, 246, 0.1)',
-                          color: '#3b82f6',
-                          fontSize: '11px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <span>▲</span> Domain listesini daralt (ilk 10)
-                      </button>
-                    )}
+                    </div>
+                    {uniqueDepartments.map(dept => (
+                      <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                        <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => { setSelectedDepartments(prev => prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]) }} style={{ accentColor: '#3b82f6' }} />
+                        {dept}
+                      </label>
+                    ))}
                   </div>
                 )}
+              </div>
 
-                {/* Heatmap Grid - only show when data available */}
-                {!loading && heatmapFilteredIncidents.length > 0 && (() => {
-                  const totalTeamPages = Math.ceil(heatmapData.teams.filter(t => !hiddenTeams.has(t)).length / teamsPerPage)
-                  const visibleTeams = heatmapData.teams.filter(t => !hiddenTeams.has(t))
-                  const startIndex = (heatmapTeamPage - 1) * teamsPerPage
-                  const endIndex = startIndex + teamsPerPage
-                  const paginatedTeams = visibleTeams.slice(startIndex, endIndex)
-                  const visibleDomains = heatmapData.domains.filter(d => !hiddenDomains.has(d))
-                  return (
+              {/* Team - Multi Select */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Team</label>
+                <button
+                  onClick={() => { setTeamDropdownOpen2(!teamDropdownOpen2); setDeptDropdownOpen(false); setActionDropdownOpen2(false) }}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedTeams.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedTeams.length === 0 ? 'All' : `${selectedTeams.length} selected`}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                {teamDropdownOpen2 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                      <button onClick={() => { if (selectedTeams.length === uniqueTeams.length) { setSelectedTeams([]) } else { setSelectedTeams([...uniqueTeams]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                        {selectedTeams.length === uniqueTeams.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+                    {uniqueTeams.map(team => (
+                      <label key={team} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                        <input type="checkbox" checked={selectedTeams.includes(team)} onChange={() => { setSelectedTeams(prev => prev.includes(team) ? prev.filter(t => t !== team) : [...prev, team]) }} style={{ accentColor: '#3b82f6' }} />
+                        {team}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* User */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</label>
+                <input
+                  type="text"
+                  placeholder="User..."
+                  value={selectedUser}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                />
+              </div>
+
+              {/* Manager Name */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Manager Name</label>
+                <input
+                  type="text"
+                  placeholder="Name..."
+                  value={selectedFullName}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                />
+              </div>
+
+              {/* Policy */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy</label>
+                <input
+                  type="text"
+                  placeholder="Policy..."
+                  value={selectedPolicy}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                />
+              </div>
+
+              {/* Domain */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Domain</label>
+                <input
+                  type="text"
+                  placeholder="Domain..."
+                  value={selectedDomain}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                />
+              </div>
+
+              {/* Action - Multi Select */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</label>
+                <button
+                  onClick={() => { setActionDropdownOpen2(!actionDropdownOpen2); setDeptDropdownOpen(false); setTeamDropdownOpen2(false) }}
+                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedActions.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '110px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{selectedActions.length === 0 ? 'All' : `${selectedActions.length} selected`}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                {actionDropdownOpen2 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '160px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
+                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                      <button onClick={() => { if (selectedActions.length === uniqueActions.length) { setSelectedActions([]) } else { setSelectedActions([...uniqueActions]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
+                        {selectedActions.length === uniqueActions.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+                    {uniqueActions.map(action => (
+                      <label key={action} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                        <input type="checkbox" checked={selectedActions.includes(action)} onChange={() => { setSelectedActions(prev => prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]) }} style={{ accentColor: '#3b82f6' }} />
+                        {action}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+                <button
+                  onClick={applyFilters}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: '#3b82f6',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Filtrele
+                </button>
+                <button
+                  onClick={resetFilters}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-hover)',
+                    color: 'var(--text-primary)',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Temizle
+                </button>
+              </div>
+              {dateError && <span style={{ color: '#ef4444', fontSize: '10px', alignSelf: 'center' }}>{dateError}</span>}
+            </div>
+
+            {/* Heatmap Controls - Hidden items and collapse */}
+            {(hiddenDomains.size > 0 || hiddenTeams.size > 0 || heatmapDomainCount > 10) && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {hiddenDomains.size > 0 && (
+                  <button
+                    onClick={() => setHiddenDomains(new Set())}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #f59e0b',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      color: '#f59e0b',
+                      fontSize: '11px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <RotateCcw size={14} /> {hiddenDomains.size} gizli domain göster
+                  </button>
+                )}
+                {hiddenTeams.size > 0 && (
+                  <button
+                    onClick={() => setHiddenTeams(new Set())}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #8b5cf6',
+                      background: 'rgba(139, 92, 246, 0.1)',
+                      color: '#8b5cf6',
+                      fontSize: '11px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <RotateCcw size={14} /> {hiddenTeams.size} gizli team göster
+                  </button>
+                )}
+                {heatmapDomainCount > 10 && (
+                  <button
+                    onClick={() => setHeatmapDomainCount(10)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #3b82f6',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      color: '#3b82f6',
+                      fontSize: '11px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <ChevronUp size={14} /> Domain listesini daralt (ilk 10)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Heatmap Grid - only show when data available */}
+            {!loading && heatmapFilteredIncidents.length > 0 && (() => {
+              const totalTeamPages = Math.ceil(heatmapData.teams.filter(t => !hiddenTeams.has(t)).length / teamsPerPage)
+              const visibleTeams = heatmapData.teams.filter(t => !hiddenTeams.has(t))
+              const startIndex = (heatmapTeamPage - 1) * teamsPerPage
+              const endIndex = startIndex + teamsPerPage
+              const paginatedTeams = visibleTeams.slice(startIndex, endIndex)
+              const visibleDomains = heatmapData.domains.filter(d => !hiddenDomains.has(d))
+              return (
                 <div style={{ position: 'relative', overflowX: 'auto', maxWidth: '100%' }}>
                   <div style={{
                     display: 'grid',
@@ -1671,7 +1688,7 @@ function AnalyticsPageContent() {
                         cursor: 'pointer',
                         transition: 'opacity 0.2s'
                       }} title={`${team} - Gizlemek için tıklayın`}
-                        onClick={() => setHiddenTeams(prev => new Set([...prev, team]))}>
+                        onClick={() => setHiddenTeams(prev => new Set([...Array.from(prev), team]))}>
                         <span style={{
                           wordWrap: 'break-word',
                           wordBreak: 'break-word',
@@ -1716,13 +1733,13 @@ function AnalyticsPageContent() {
                             if (domain === 'Diğer') {
                               setHeatmapDomainCount(prev => prev + 10)
                             } else {
-                              setHiddenDomains(prev => new Set([...prev, domain]))
+                              setHiddenDomains(prev => new Set([...Array.from(prev), domain]))
                             }
                           }}
                         >
                           {domain}
                           {domain === 'Diğer' && (
-                            <span style={{ fontSize: '10px', marginLeft: '2px' }}>▼</span>
+                            <ChevronDown size={12} style={{ marginLeft: '2px' }} />
                           )}
                         </div>
 
@@ -1815,399 +1832,397 @@ function AnalyticsPageContent() {
                     </div>
                   )}
                 </div>
-                  )
-                })()}
-              </div>
+              )
+            })()}
+          </div>
 
-        {/* Incidents Table */}
-            <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
-              <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                    Incidents List
-                  </h2>
-                  {Object.values(columnFilters).some(v => v && v.length > 0) && (
-                    <button
-                      onClick={() => {
-                        setColumnFilters({})
-                        setColumnFilterSearch({})
-                        setOpenColumnFilter(null)
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '4px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--background)',
-                        color: 'var(--text-secondary)',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      ✕ Filtreleri Temizle
-                    </button>
-                  )}
-                </div>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
-                </span>
+          {/* Incidents Table */}
+          <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                  Incidents List
+                </h2>
+                {Object.values(columnFilters).some(v => v && v.length > 0) && (
+                  <button
+                    onClick={() => {
+                      setColumnFilters({})
+                      setColumnFilterSearch({})
+                      setOpenColumnFilter(null)
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--background)',
+                      color: 'var(--text-secondary)',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <X size={14} /> Filtreleri Temizle
+                  </button>
+                )}
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
-                    {(['time', 'user', 'fullName', 'department', 'team', 'policy', 'domain', 'max', 'action'] as const).map(column => {
-                      const columnLabels: Record<string, string> = {
-                        time: 'Time',
-                        user: 'User',
-                        fullName: 'Manager Name',
-                        department: 'Department',
-                        team: 'Team',
-                        policy: 'Policy',
-                        domain: 'Domain',
-                        max: 'Max',
-                        action: 'Action'
-                      }
-                      const isSorted = sortColumn === column
-                      const uniqueValues = getUniqueColumnValues(column)
-                      const searchQuery = columnFilterSearch[column] || ''
-                      const filteredValues = uniqueValues.filter(v =>
-                        v.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                      const selectedValues = columnFilters[column] || []
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
+              </span>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+                  {(['time', 'user', 'fullName', 'department', 'team', 'policy', 'domain', 'max', 'action'] as const).map(column => {
+                    const columnLabels: Record<string, string> = {
+                      time: 'Time',
+                      user: 'User',
+                      fullName: 'Manager Name',
+                      department: 'Department',
+                      team: 'Team',
+                      policy: 'Policy',
+                      domain: 'Domain',
+                      max: 'Max',
+                      action: 'Action'
+                    }
+                    const isSorted = sortColumn === column
+                    const uniqueValues = getUniqueColumnValues(column)
+                    const searchQuery = columnFilterSearch[column] || ''
+                    const filteredValues = uniqueValues.filter(v =>
+                      v.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    const selectedValues = columnFilters[column] || []
 
-                      return (
-                        <th
-                          key={column}
-                          data-column-filter
-                          style={{
-                            padding: '16px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            color: 'var(--text-secondary)',
-                            width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
-                            position: 'relative'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span
-                              onClick={() => handleSort(column)}
+                    return (
+                      <th
+                        key={column}
+                        data-column-filter
+                        style={{
+                          padding: '16px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          color: 'var(--text-secondary)',
+                          width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span
+                            onClick={() => handleSort(column)}
+                            style={{
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              flex: 1
+                            }}
+                          >
+                            {columnLabels[column]}
+                            {isSorted && (
+                              sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                            )}
+                          </span>
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleColumnFilter(column)
+                            }}
+                            style={{
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: selectedValues.length > 0 ? '#3b82f6' : 'transparent',
+                              color: selectedValues.length > 0 ? '#ffffff' : 'var(--text-secondary)',
+                              border: selectedValues.length > 0 ? 'none' : '1px solid var(--border)'
+                            }}
+                            title={`Filter ${columnLabels[column]}`}
+                          >
+                            {selectedValues.length > 0 ? `${selectedValues.length}` : <Filter size={12} />}
+                          </span>
+                        </div>
+                        {openColumnFilter === column && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              right: 0,
+                              marginTop: '4px',
+                              background: 'var(--background)',
+                              border: '1px solid var(--border)',
+                              borderRadius: '6px',
+                              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                              zIndex: 1000,
+                              maxHeight: '300px',
+                              overflowY: 'auto',
+                              padding: '8px'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Search..."
+                              value={searchQuery}
+                              onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))}
                               style={{
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                flex: 1
-                              }}
-                            >
-                              {columnLabels[column]}
-                              {isSorted && (
-                                <span style={{ fontSize: '10px' }}>
-                                  {sortDirection === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </span>
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                toggleColumnFilter(column)
-                              }}
-                              style={{
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                padding: '2px 6px',
+                                width: '100%',
+                                padding: '6px 8px',
                                 borderRadius: '4px',
-                                background: selectedValues.length > 0 ? '#3b82f6' : 'transparent',
-                                color: selectedValues.length > 0 ? '#ffffff' : 'var(--text-secondary)',
-                                border: selectedValues.length > 0 ? 'none' : '1px solid var(--border)'
-                              }}
-                              title={`Filter ${columnLabels[column]}`}
-                            >
-                              {selectedValues.length > 0 ? `${selectedValues.length}` : '⋯'}
-                            </span>
-                          </div>
-                          {openColumnFilter === column && (
-                            <div
-                              style={{
-                                position: 'absolute',
-                                top: '100%',
-                                left: 0,
-                                right: 0,
-                                marginTop: '4px',
-                                background: 'var(--background)',
                                 border: '1px solid var(--border)',
-                                borderRadius: '6px',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                zIndex: 1000,
-                                maxHeight: '300px',
-                                overflowY: 'auto',
-                                padding: '8px'
+                                background: 'var(--surface)',
+                                color: 'var(--text-primary)',
+                                fontSize: '12px',
+                                marginBottom: '8px'
                               }}
                               onClick={(e) => e.stopPropagation()}
+                            />
+                            <div
+                              onClick={() => {
+                                if (selectedValues.length === filteredValues.length) {
+                                  setColumnFilters(prev => ({ ...prev, [column]: [] }))
+                                } else {
+                                  setColumnFilters(prev => ({ ...prev, [column]: [...filteredValues] }))
+                                }
+                              }}
+                              style={{
+                                padding: '6px 8px',
+                                borderBottom: '1px solid var(--border)',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--text-primary)',
+                                background: selectedValues.length === filteredValues.length ? 'var(--surface-hover)' : 'transparent',
+                                marginBottom: '4px'
+                              }}
                             >
-                              <input
-                                type="text"
-                                placeholder="Search..."
-                                value={searchQuery}
-                                onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))}
+                              {selectedValues.length === filteredValues.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
+                            </div>
+                            {filteredValues.map(value => (
+                              <label
+                                key={value}
                                 style={{
-                                  width: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   padding: '6px 8px',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--border)',
-                                  background: 'var(--surface)',
-                                  color: 'var(--text-primary)',
+                                  cursor: 'pointer',
                                   fontSize: '12px',
-                                  marginBottom: '8px'
+                                  color: 'var(--text-primary)',
+                                  borderBottom: '1px solid var(--border)',
+                                  background: selectedValues.includes(value) ? 'var(--surface-hover)' : 'transparent'
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                              />
-                              <div
-                                onClick={() => {
-                                  if (selectedValues.length === filteredValues.length) {
-                                    setColumnFilters(prev => ({ ...prev, [column]: [] }))
-                                  } else {
-                                    setColumnFilters(prev => ({ ...prev, [column]: [...filteredValues] }))
-                                  }
-                                }}
-                                style={{
-                                  padding: '6px 8px',
-                                  borderBottom: '1px solid var(--border)',
-                                  cursor: 'pointer',
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: 'var(--text-primary)',
-                                  background: selectedValues.length === filteredValues.length ? 'var(--surface-hover)' : 'transparent',
-                                  marginBottom: '4px'
-                                }}
                               >
-                                {selectedValues.length === filteredValues.length ? '✓ Deselect All' : 'Select All'}
-                              </div>
-                              {filteredValues.map(value => (
-                                <label
-                                  key={value}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: '6px 8px',
-                                    cursor: 'pointer',
-                                    fontSize: '12px',
-                                    color: 'var(--text-primary)',
-                                    borderBottom: '1px solid var(--border)',
-                                    background: selectedValues.includes(value) ? 'var(--surface-hover)' : 'transparent'
+                                <input
+                                  type="checkbox"
+                                  checked={selectedValues.includes(value)}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    toggleColumnFilterValue(column, value)
                                   }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedValues.includes(value)}
-                                    onChange={(e) => {
-                                      e.stopPropagation()
-                                      toggleColumnFilterValue(column, value)
-                                    }}
-                                    style={{ marginRight: '8px', cursor: 'pointer' }}
-                                  />
-                                  <span>{value}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </th>
-                      )
-                    })}
+                                  style={{ marginRight: '8px', cursor: 'pointer' }}
+                                />
+                                <span>{value}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading incidents...</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading incidents...</td>
+                ) : paginatedIncidents.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>No incidents found matching filters</td>
+                  </tr>
+                ) : (
+                  paginatedIncidents.map((incident) => (
+                    <tr key={incident.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover:bg-[var(--surface-hover)]">
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {format(new Date(incident.timestamp), 'dd MMM yyyy HH:mm:ss')}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.userEmail || 'Unknown'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.fullName || '-'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.department || '-'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {normalizeTeamName(incident.team) || 'Hesap Araştırmaları'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.policy || '-'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.domain || '-'}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        {incident.maxMatches || 0}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          ...(() => {
+                            const action = incident.action?.toLowerCase() || ''
+                            if (action.includes('block')) return { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }
+                            if (action.includes('quarantine')) return { background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                            if (action.includes('authorized') || action.includes('allow')) return { background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }
+                            return { background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' } // Permit, Released, etc.
+                          })(),
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          display: 'inline-block'
+                        }}>
+                          {incident.action}
+                        </span>
+                      </td>
                     </tr>
-                  ) : paginatedIncidents.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>No incidents found matching filters</td>
-                    </tr>
-                  ) : (
-                    paginatedIncidents.map((incident) => (
-                      <tr key={incident.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover:bg-[var(--surface-hover)]">
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {format(new Date(incident.timestamp), 'dd MMM yyyy HH:mm:ss')}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.userEmail || 'Unknown'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.fullName || '-'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.department || '-'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {normalizeTeamName(incident.team) || 'Hesap Araştırmaları'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.policy || '-'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.domain || '-'}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          {incident.maxMatches || 0}
-                        </td>
-                        <td style={{ padding: '16px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                          <span style={{
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            ...(() => {
-                              const action = incident.action?.toLowerCase() || ''
-                              if (action.includes('block')) return { background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }
-                              if (action.includes('quarantine')) return { background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
-                              if (action.includes('authorized') || action.includes('allow')) return { background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }
-                              return { background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' } // Permit, Released, etc.
-                            })(),
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            display: 'inline-block'
-                          }}>
-                            {incident.action}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+            </table>
 
-              {/* Pagination Controls */}
-              {!loading && filteredIncidents.length > 0 && (
-                <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={filteredIncidents.length}
-                    pageSize={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                    showPageInput={true}
-                    showFirstLast={true}
-                    showTotalItems={true}
-                  />
-                </div>
-              )}
-            </div>
+            {/* Pagination Controls */}
+            {!loading && filteredIncidents.length > 0 && (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredIncidents.length}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  showPageInput={true}
+                  showFirstLast={true}
+                  showTotalItems={true}
+                />
+              </div>
+            )}
+          </div>
 
-        {/* User Incident Report Section */}
-        {!loading && (
+          {/* User Incident Report Section */}
+          {!loading && (
             <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
 
               <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
-                                <div style={{ position: 'relative' }} data-dropdown>
-                                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                                    Filter by Team
-                                  </label>
-                                  <div
-                                    onClick={() => {
-                                      setExceptionTeamDropdownOpen(!exceptionTeamDropdownOpen)
-                                      setActionDropdownOpen(false)
-                                      setChannelDropdownOpen(false)
-                                      setPolicyDropdownOpen(false)
-                                    }}
-                                    style={{
-                                      width: '100%',
-                                      padding: '10px',
-                                      borderRadius: '6px',
-                                      border: '1px solid var(--border)',
-                                      background: 'var(--background)',
-                                      color: 'var(--text-primary)',
-                                      fontSize: '13px',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      alignItems: 'center',
-                                      minHeight: '20px'
-                                    }}
-                                  >
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {exceptionTeamFilter.length === 0
-                                        ? 'All Teams'
-                                        : exceptionTeamFilter.length === 1
-                                          ? exceptionTeamFilter[0]
-                                          : `${exceptionTeamFilter.length} selected`}
-                                    </span>
-                                    <span style={{ marginLeft: '8px' }}>{exceptionTeamDropdownOpen ? '▲' : '▼'}</span>
-                                  </div>
-                                  {exceptionTeamDropdownOpen && (
-                                    <div
-                                      style={{
-                                        position: 'absolute',
-                                        top: '100%',
-                                        left: 0,
-                                        right: 0,
-                                        marginTop: '4px',
-                                        background: 'var(--background)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: '6px',
-                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                        zIndex: 1000,
-                                        maxHeight: '200px',
-                                        overflowY: 'auto'
-                                      }}
-                                    >
-                                      <div
-                                        onClick={() => {
-                                          if (exceptionTeamFilter.length === uniqueTeams.length) {
-                                            setExceptionTeamFilter([])
-                                          } else {
-                                            setExceptionTeamFilter([...uniqueTeams])
-                                          }
-                                        }}
-                                        style={{
-                                          padding: '8px 12px',
-                                          borderBottom: '1px solid var(--border)',
-                                          cursor: 'pointer',
-                                          fontSize: '12px',
-                                          fontWeight: '600',
-                                          color: 'var(--text-primary)',
-                                          background: exceptionTeamFilter.length === uniqueTeams.length ? 'var(--surface-hover)' : 'transparent'
-                                        }}
-                                      >
-                                        {exceptionTeamFilter.length === uniqueTeams.length ? '✓ Deselect All' : 'Select All'}
-                                      </div>
-                                      {uniqueTeams.map(team => (
-                                        <label
-                                          key={team}
-                                          style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: '8px 12px',
-                                            cursor: 'pointer',
-                                            fontSize: '13px',
-                                            color: 'var(--text-primary)',
-                                            borderBottom: '1px solid var(--border)',
-                                            background: exceptionTeamFilter.includes(team) ? 'var(--surface-hover)' : 'transparent'
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={exceptionTeamFilter.includes(team)}
-                                            onChange={(e) => {
-                                              if (e.target.checked) {
-                                                setExceptionTeamFilter([...exceptionTeamFilter, team])
-                                              } else {
-                                                setExceptionTeamFilter(exceptionTeamFilter.filter(t => t !== team))
-                                              }
-                                            }}
-                                            style={{ marginRight: '8px', cursor: 'pointer' }}
-                                          />
-                                          <span>{team}</span>
-                                        </label>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
+                <div style={{ position: 'relative' }} data-dropdown>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+                    Filter by Team
+                  </label>
+                  <div
+                    onClick={() => {
+                      setExceptionTeamDropdownOpen(!exceptionTeamDropdownOpen)
+                      setActionDropdownOpen(false)
+                      setChannelDropdownOpen(false)
+                      setPolicyDropdownOpen(false)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--background)',
+                      color: 'var(--text-primary)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      minHeight: '20px'
+                    }}
+                  >
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {exceptionTeamFilter.length === 0
+                        ? 'All Teams'
+                        : exceptionTeamFilter.length === 1
+                          ? exceptionTeamFilter[0]
+                          : `${exceptionTeamFilter.length} selected`}
+                    </span>
+                    <span style={{ marginLeft: '8px' }}>{exceptionTeamDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+                  </div>
+                  {exceptionTeamDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        background: 'var(--background)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        zIndex: 1000,
+                        maxHeight: '200px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <div
+                        onClick={() => {
+                          if (exceptionTeamFilter.length === uniqueTeams.length) {
+                            setExceptionTeamFilter([])
+                          } else {
+                            setExceptionTeamFilter([...uniqueTeams])
+                          }
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: 'var(--text-primary)',
+                          background: exceptionTeamFilter.length === uniqueTeams.length ? 'var(--surface-hover)' : 'transparent'
+                        }}
+                      >
+                        {exceptionTeamFilter.length === uniqueTeams.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
+                      </div>
+                      {uniqueTeams.map(team => (
+                        <label
+                          key={team}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            color: 'var(--text-primary)',
+                            borderBottom: '1px solid var(--border)',
+                            background: exceptionTeamFilter.includes(team) ? 'var(--surface-hover)' : 'transparent'
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={exceptionTeamFilter.includes(team)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setExceptionTeamFilter([...exceptionTeamFilter, team])
+                              } else {
+                                setExceptionTeamFilter(exceptionTeamFilter.filter(t => t !== team))
+                              }
+                            }}
+                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                          />
+                          <span>{team}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
                     Date Range
@@ -2315,7 +2330,7 @@ function AnalyticsPageContent() {
                           ? exceptionActionFilter[0]
                           : `${exceptionActionFilter.length} selected`}
                     </span>
-                    <span style={{ marginLeft: '8px' }}>{actionDropdownOpen ? '▲' : '▼'}</span>
+                    <span style={{ marginLeft: '8px' }}>{actionDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </div>
                   {actionDropdownOpen && (
                     <div
@@ -2352,7 +2367,7 @@ function AnalyticsPageContent() {
                           background: exceptionActionFilter.length === uniqueActions.length ? 'var(--surface-hover)' : 'transparent'
                         }}
                       >
-                        {exceptionActionFilter.length === uniqueActions.length ? '✓ Deselect All' : 'Select All'}
+                        {exceptionActionFilter.length === uniqueActions.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
                       </div>
                       {uniqueActions.map(action => (
                         <label
@@ -2419,7 +2434,7 @@ function AnalyticsPageContent() {
                           ? exceptionChannelFilter[0]
                           : `${exceptionChannelFilter.length} selected`}
                     </span>
-                    <span style={{ marginLeft: '8px' }}>{channelDropdownOpen ? '▲' : '▼'}</span>
+                    <span style={{ marginLeft: '8px' }}>{channelDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </div>
                   {channelDropdownOpen && (
                     <div
@@ -2456,7 +2471,7 @@ function AnalyticsPageContent() {
                           background: exceptionChannelFilter.length === uniqueChannels.length ? 'var(--surface-hover)' : 'transparent'
                         }}
                       >
-                        {exceptionChannelFilter.length === uniqueChannels.length ? '✓ Deselect All' : 'Select All'}
+                        {exceptionChannelFilter.length === uniqueChannels.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
                       </div>
                       {uniqueChannels.map(channel => (
                         <label
@@ -2523,7 +2538,7 @@ function AnalyticsPageContent() {
                           ? exceptionPolicyFilter[0]
                           : `${exceptionPolicyFilter.length} selected`}
                     </span>
-                    <span style={{ marginLeft: '8px' }}>{policyDropdownOpen ? '▲' : '▼'}</span>
+                    <span style={{ marginLeft: '8px' }}>{policyDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </div>
                   {policyDropdownOpen && (
                     <div
@@ -2560,7 +2575,7 @@ function AnalyticsPageContent() {
                           background: exceptionPolicyFilter.length === uniquePolicies.length ? 'var(--surface-hover)' : 'transparent'
                         }}
                       >
-                        {exceptionPolicyFilter.length === uniquePolicies.length ? '✓ Deselect All' : 'Select All'}
+                        {exceptionPolicyFilter.length === uniquePolicies.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
                       </div>
                       {uniquePolicies.map(policy => (
                         <label
@@ -2695,7 +2710,7 @@ function AnalyticsPageContent() {
                     justifyContent: 'center',
                     flexShrink: 0
                   }}>
-                    <span style={{ fontSize: '20px' }}>✕</span>
+                    <X size={24} color="#ef4444" />
                   </div>
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: '600', color: '#ef4444', marginBottom: '4px' }}>
@@ -2882,7 +2897,7 @@ function AnalyticsPageContent() {
                               fontWeight: '600',
                               flexShrink: 0
                             }}>
-                              {isPolicyExpanded ? '−' : '+'}
+                              {isPolicyExpanded ? <Minus size={16} /> : <Plus size={16} />}
                             </div>
                             <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#3b82f6' }} />
                             <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
@@ -2948,10 +2963,10 @@ function AnalyticsPageContent() {
                                         fontWeight: '600',
                                         flexShrink: 0
                                       }}>
-                                        {isRuleExpanded ? '−' : '+'}
+                                        {isRuleExpanded ? <Minus size={14} /> : <Plus size={14} />}
                                       </div>
                                       <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                                        📋 {rule.name}
+                                        <ClipboardList size={16} style={{ marginRight: '4px' }} /> {rule.name}
                                       </span>
                                     </div>
                                     <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
@@ -3047,7 +3062,7 @@ function AnalyticsPageContent() {
                                                           fontWeight: '600',
                                                           flexShrink: 0
                                                         }}>
-                                                          {isClassifierExpanded ? '−' : '+'}
+                                                          {isClassifierExpanded ? <Minus size={12} /> : <Plus size={12} />}
                                                         </div>
                                                         <div style={{
                                                           fontSize: '12px',

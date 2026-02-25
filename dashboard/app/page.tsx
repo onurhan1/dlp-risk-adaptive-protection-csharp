@@ -15,6 +15,19 @@ import LoadingOverlay from '../components/ui/LoadingOverlay'
 import GridExport, { ExportColumn } from '../components/ui/GridExport'
 import { useTranslation } from '../components/LanguageProvider'
 import { useTheme } from '../components/ThemeProvider'
+import {
+  BarChart3,
+  TrendingUp,
+  Target,
+  Zap,
+  Search,
+  ShieldAlert,
+  FileText,
+  FileBarChart,
+  ChevronRight,
+  Activity,
+  AlertCircle
+} from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -220,7 +233,7 @@ export default function Home() {
       const apiUrl = getApiUrlDynamic()
 
       // Fetch data from new user_daily_risk_scores based endpoints
-      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, incidentsRes] = await Promise.all([
+      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -235,18 +248,17 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
           params: { period: selectedPeriod, limit: 50 }
         }).catch(() => ({ data: [] })),
-        // High impact alerts - potential data exfiltration (minMaxMatches=100, minDailyRiskScore=80)
+        // High impact alert - potential data exfiltration
         axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
           params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: 1, pageSize: 20 }
         }).catch(() => ({ data: { data: [], pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 } } })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
-        // Still need incidents for rules calculation
-        axios.get(`${apiUrl}/api/incidents`, {
+        // Optimized: Fetch aggregated top rules directly from backend
+        axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
           params: {
             startDate: currentStart,
             endDate: currentEnd,
-            limit: 5000,
-            orderBy: 'risk_score_desc'
+            limit: 10
           }
         }).catch(() => ({ data: [] }))
       ])
@@ -268,17 +280,8 @@ export default function Home() {
         setHighImpactPagination(highImpactData.pagination)
       }
 
-      // Calculate top rules from dateRange incidents
-      const rulesMap = new Map<string, number>()
-      incidentsRes.data.forEach((incident: any) => {
-        const ruleName = incident.policy || 'Unknown Rule'
-        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
-      })
-      const topRulesData = Array.from(rulesMap.entries())
-        .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
-        .sort((a, b) => b.total_alerts - a.total_alerts)
-        .slice(0, 10)
-      setTopRules(topRulesData)
+      // Set top rules directly from API response
+      setTopRules(topRulesRes.data || [])
 
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -396,7 +399,7 @@ export default function Home() {
             transition: 'all 0.2s'
           }}
         >
-          📊 {t('dashboard.dailyReport')}
+          <FileBarChart size={18} /> {t('dashboard.dailyReport')}
         </button>
       </div>
 
@@ -507,7 +510,9 @@ export default function Home() {
       <div className="card">
         <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '24px' }}>📈 {t('dashboard.dailyTrends')}</h2>
+            <h2 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TrendingUp size={28} style={{ color: '#3b82f6' }} /> {t('dashboard.dailyTrends')}
+            </h2>
             <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '15px' }}>
               {t('dashboard.showing')} {dailySummary.length} {t('dashboard.days')} • {trendsDateRange.start} {t('common.to')} {trendsDateRange.end}
             </p>
@@ -651,7 +656,9 @@ export default function Home() {
         {/* Top Risky Users with Period Selector */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>🎯 {t('dashboard.topRiskyUsers')}</h2>
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Target size={20} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
+            </h2>
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -731,7 +738,7 @@ export default function Home() {
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        🔍 Investigate
+                        <Search size={14} /> Investigate
                       </button>
                     </td>
                   </tr>
@@ -764,7 +771,9 @@ export default function Home() {
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>⚡ {t('dashboard.todayActiveUsers')}</h2>
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Zap size={20} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
+            </h2>
             <span style={{ fontSize: '12px', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
           </div>
           <table className="data-table">
@@ -825,7 +834,7 @@ export default function Home() {
                           whiteSpace: 'nowrap'
                         }}
                       >
-                        🔍 Investigate
+                        <Search size={14} /> Investigate
                       </button>
                     </td>
                   </tr>
@@ -912,10 +921,10 @@ export default function Home() {
                         }
                       })
                       const rulesMap = new Map<string, number>()
-                      ;(incidentsRes.data || []).forEach((incident: any) => {
-                        const ruleName = incident.policy || 'Unknown Rule'
-                        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
-                      })
+                        ; (incidentsRes.data || []).forEach((incident: any) => {
+                          const ruleName = incident.policy || 'Unknown Rule'
+                          rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
+                        })
                       const topRulesData = Array.from(rulesMap.entries())
                         .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
                         .sort((a, b) => b.total_alerts - a.total_alerts)
@@ -1009,8 +1018,8 @@ export default function Home() {
                 width: '40px', height: '40px', borderRadius: '10px',
                 background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '20px'
-              }}>🔍</div>
+                color: 'white'
+              }}><ShieldAlert size={24} /></div>
               <div>
                 <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '22px', fontWeight: '700' }}>{t('dashboard.potentialExfiltration')}</h2>
                 <p style={{ margin: '2px 0 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
@@ -1051,8 +1060,8 @@ export default function Home() {
               const severityConfig = alert.severity_level === 'Critical'
                 ? { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.2)' }
                 : alert.severity_level === 'High'
-                ? { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' }
-                : { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.2)' }
+                  ? { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' }
+                  : { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.2)' }
 
               return (
                 <div
@@ -1081,12 +1090,11 @@ export default function Home() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-                      <span style={{
-                        fontSize: '16px',
+                      <ChevronRight size={18} style={{
                         transition: 'transform 0.2s',
                         transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                         color: 'var(--text-muted)'
-                      }}>▶</span>
+                      }} />
 
                       <span style={{
                         padding: '4px 12px',
@@ -1112,7 +1120,9 @@ export default function Home() {
                         <span>{t('dashboard.score')}: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(alert.daily_risk_score)}</strong></span>
                         <span style={{ color: 'var(--text-secondary)' }}>{alert.highest_risk_date}</span>
                         {alert.is_single_day_event && (
-                          <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '12px' }}>⚡ {t('dashboard.singleDay')}</span>
+                          <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Zap size={14} /> {t('dashboard.singleDay')}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1137,7 +1147,7 @@ export default function Home() {
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)' }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)' }}
                     >
-                      🔍 {t('dashboard.investigate')}
+                      <Search size={14} /> {t('dashboard.investigate')}
                     </button>
                   </div>
 
@@ -1172,8 +1182,8 @@ export default function Home() {
                       {/* Incident Details Table */}
                       {alert.incident_details && alert.incident_details.length > 0 && (
                         <div>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600' }}>
-                            📄 {t('dashboard.incidentDetails')} — {alert.highest_risk_date}
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FileText size={18} style={{ color: '#6366f1' }} /> {t('dashboard.incidentDetails')} — {alert.highest_risk_date}
                           </h4>
                           <div style={{
                             border: '1px solid var(--border)',

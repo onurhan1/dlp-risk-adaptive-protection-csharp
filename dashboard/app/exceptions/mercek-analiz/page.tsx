@@ -4,6 +4,23 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import Pagination from '@/components/ui/Pagination'
+import {
+  BarChart2,
+  BarChart3,
+  Circle,
+  CircleDot,
+  Clock,
+  Calendar,
+  Sun,
+  CalendarRange,
+  Square,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Filter,
+  MoreHorizontal,
+  LayoutDashboard
+} from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -286,14 +303,14 @@ export default function MercekAnalyzePage() {
         filtered = filtered.filter(row => {
           const cellValue = row[column]
           if (!cellValue) return false
-          
+
           // Parse the Turkish formatted date (dd.MM.yyyy HH:mm:ss)
           const parts = String(cellValue).match(/(\d{2})\.(\d{2})\.(\d{4})/)
           if (!parts) return false
-          
+
           const rowDate = new Date(`${parts[3]}-${parts[2]}-${parts[1]}`)
           if (isNaN(rowDate.getTime())) return false
-          
+
           if (dateRange.from) {
             const fromDate = new Date(dateRange.from)
             if (rowDate < fromDate) return false
@@ -427,51 +444,41 @@ export default function MercekAnalyzePage() {
               ) : (
                 <>
                   {/* Toplam Sayı ve INC İstatistikleri */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '6px',
-                      padding: '16px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        Toplam Released Incident
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                        {releasedIncidentsStats.totalCount}
-                      </div>
-                    </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '6px',
-                      padding: '16px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        INC ile Başlayan
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>
-                        {releasedIncidentsStats.incStartingCount}
+                  <div style={{
+                    background: 'var(--background-secondary)',
+                    borderRadius: '10px',
+                    padding: '24px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                    gap: '20px',
+                    marginBottom: '28px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                      <div style={{ fontSize: '36px', color: '#6366f1' }}><BarChart3 size={44} /></div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Released Incident</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.totalCount}</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '6px',
-                      padding: '16px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                        INC ile Başlamayan
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                      <div style={{ fontSize: '36px', color: '#3b82f6' }}><Square size={44} fill="#3b82f6" fillOpacity={0.2} /></div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlayan</div>
+                        <div style={{ color: '#3b82f6', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.incStartingCount}</div>
                       </div>
-                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>
-                        {releasedIncidentsStats.nonIncStartingCount}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
+                      <div style={{ fontSize: '36px', color: '#ef4444' }}><Square size={44} fill="#ef4444" fillOpacity={0.2} /></div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlamayan</div>
+                        <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.nonIncStartingCount}</div>
                       </div>
                     </div>
                   </div>
-
                   {/* Admin Bazlı Sütun Grafik */}
                   {releasedIncidentsStats.adminData.length > 0 && (
-                    <div style={{ marginTop: '24px' }}>
+                    <div style={{ marginTop: '24px', background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', border: '1px solid var(--border)' }}>
                       <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
                         Admin Bazlı Released Incident Sayıları
                       </h3>
@@ -479,75 +486,52 @@ export default function MercekAnalyzePage() {
                         {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
                           const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
                           const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
-
                           return (
                             <div key={admin} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{
-                                minWidth: '150px',
-                                fontSize: '13px',
-                                color: 'var(--text-primary)',
-                                <div style={{
-                                  background: 'var(--background-secondary)',
-                                  borderRadius: '10px',
-                                  padding: '24px',
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                                  gap: '20px',
-                                  marginBottom: '28px',
-                                  border: '1px solid var(--border)'
-                                }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                                    <div style={{ fontSize: '36px' }}>📊</div>
-                                    <div>
-                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Released Incident</div>
-                                      <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.totalCount}</div>
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                                    <div style={{ fontSize: '36px' }}>🟦</div>
-                                    <div>
-                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlayan</div>
-                                      <div style={{ color: '#3b82f6', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.incStartingCount}</div>
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                                    <div style={{ fontSize: '36px' }}>🟥</div>
-                                    <div>
-                                      <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlamayan</div>
-                                      <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.nonIncStartingCount}</div>
-                                    </div>
-                                  </div>
+                              <div style={{ minWidth: '150px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500' }}>{admin}</div>
+                              <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{count}</span>
                                 </div>
-                                {/* Admin Bazlı Sütun Grafik */}
-                                {releasedIncidentsStats.adminData.length > 0 && (
-                                  <div style={{ marginTop: '24px', background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', border: '1px solid var(--border)' }}>
-                                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                                      Admin Bazlı Released Incident Sayıları
-                                    </h3>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                      {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
-                                        const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
-                                        const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0
-                                        return (
-                                          <div key={admin} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <div style={{ minWidth: '150px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500' }}>{admin}</div>
-                                            <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                              <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
-                                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{count}</span>
-                                              </div>
-                                            </div>
-                                            <div style={{ minWidth: '50px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', textAlign: 'right' }}>%{percentage.toFixed(1)}</div>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                                {releasedIncidentsStats.adminData.length === 0 && (
-                                  <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px' }}>
-                                    Admin bazlı veri bulunamadı.
-                                  </div>
-                                )}
+                              </div>
+                              <div style={{ minWidth: '50px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', textAlign: 'right' }}>%{percentage.toFixed(1)}</div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {releasedIncidentsStats.adminData.length === 0 && (
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '16px' }}>
+                      Admin bazlı veri bulunamadı.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ══════════════ Mercek Statistics Section (order: 1) ══════════════ */}
+          <div style={{ order: 1, marginBottom: '24px' }}>
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              padding: '24px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
+                Mercek İstatistikleri
+              </h2>
+
+              {mercekLoading ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Yükleniyor...
+                </div>
+              ) : mercekStatistics && (() => {
+                const lastWeekCount = mercekStatistics.lastWeekCount || 0
+                const previousWeekCount = mercekStatistics.previousWeekCount || 0
+                const weekChange = previousWeekCount > 0
                   ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
                   : '0'
                 const weekChangePositive = Number(weekChange) >= 0
@@ -577,7 +561,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>📊</div>
+                      <div style={{ fontSize: '36px', color: '#6366f1' }}><BarChart2 size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
@@ -591,7 +575,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>🟢</div>
+                      <div style={{ fontSize: '36px', color: '#10b981' }}><CircleDot size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık Incident</div>
                         <div style={{ color: '#10b981', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
@@ -605,7 +589,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>🔴</div>
+                      <div style={{ fontSize: '36px', color: '#ef4444' }}><CircleDot size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış Incident</div>
                         <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
@@ -619,7 +603,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>⏱️</div>
+                      <div style={{ fontSize: '36px', color: '#3b82f6' }}><Clock size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
@@ -633,22 +617,19 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start', flex: 1 }}>
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '0px', fontWeight: '500', marginTop: '-12px', marginLeft: '-12px' }}>Son 1 Haftadaki Kayıt</div>
-                          <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700', marginLeft: '-12px', marginTop: '4px' }}>{lastWeekCount}</div>
-                          {previousWeekCount > 0 && (
-                            <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px', marginLeft: '-12px' }}>
-                              {previousWeekCount} (önceki hafta)
-                              <span style={{
-                                color: weekChangePositive ? '#10b981' : '#ef4444',
-                                marginLeft: '8px',
-                                fontWeight: '600'
-                              }}>
-                                {weekChangePositive ? '+' : ''}{weekChange}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                      <div style={{ fontSize: '36px', color: '#8b5cf6' }}><Calendar size={44} /></div>
+                      <div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Son 1 Haftadaki Kayıt</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '24px', fontWeight: '700' }}>{lastWeekCount}</div>
+                        {previousWeekCount > 0 && (
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '4px' }}>
+                            {previousWeekCount} (önceki hafta)
+                            <span style={{ color: weekChangePositive ? '#10b981' : '#ef4444', marginLeft: '8px', fontWeight: '600' }}>
+                              {weekChangePositive ? '+' : ''}{weekChange}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div style={{
                       background: 'var(--background-secondary)',
@@ -658,7 +639,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>📅</div>
+                      <div style={{ fontSize: '36px', color: '#f59e0b' }}><Sun size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Bugün Gelen</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{todayCount}</div>
@@ -672,7 +653,7 @@ export default function MercekAnalyzePage() {
                       alignItems: 'center',
                       gap: '16px'
                     }}>
-                      <div style={{ fontSize: '36px' }}>📆</div>
+                      <div style={{ fontSize: '36px', color: '#06b6d4' }}><CalendarRange size={44} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Haftaiçi Günlük Ort.</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{weekdayDailyAvg}</div>
@@ -684,8 +665,8 @@ export default function MercekAnalyzePage() {
 
               {/* Charts Section */}
               {mercekStatistics && (() => {
-                const userDist: Array<{label: string, count: number}> = mercekStatistics.userDistribution || []
-                const assignedDist: Array<{label: string, count: number}> = mercekStatistics.assignedUserDistribution || []
+                const userDist: Array<{ label: string, count: number }> = mercekStatistics.userDistribution || []
+                const assignedDist: Array<{ label: string, count: number }> = mercekStatistics.assignedUserDistribution || []
                 const userChartPageSize = 5
                 const assignedChartPageSize = 5
                 const userTotalPages = Math.ceil(userDist.length / userChartPageSize)
@@ -891,7 +872,7 @@ export default function MercekAnalyzePage() {
                           if (!weekGroups.has(mondayKey)) weekGroups.set(mondayKey, []);
                           weekGroups.get(mondayKey)!.push(e);
                         });
-                        const sortedWeekKeys = [...weekGroups.keys()].sort();
+                        const sortedWeekKeys = Array.from(weekGroups.keys()).sort();
                         const traces: any[] = [];
                         const annotations: any[] = [];
                         sortedWeekKeys.forEach((mondayKey, colorIdx) => {
@@ -985,7 +966,7 @@ export default function MercekAnalyzePage() {
                 const totalItems = filteredSortedData.length
                 const totalPages = Math.ceil(filteredSortedData.length / csvPageSize)
                 const paginatedData = filteredSortedData.slice((csvCurrentPage - 1) * csvPageSize, csvCurrentPage * csvPageSize)
-                const hasActiveFilters = 
+                const hasActiveFilters =
                   Object.values(mercekColumnFilters).some(v => v && v.length > 0) ||
                   Object.values(mercekTextFilters).some(v => v && v.trim()) ||
                   Object.values(mercekTagFilters).some(v => v && v.length > 0) ||
@@ -997,7 +978,7 @@ export default function MercekAnalyzePage() {
                       <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
                       {hasActiveFilters && (
                         <button
-                          onClick={() => { 
+                          onClick={() => {
                             setMercekColumnFilters({})
                             setMercekTextFilters({})
                             setMercekTagFilters({})
@@ -1016,7 +997,7 @@ export default function MercekAnalyzePage() {
                             cursor: 'pointer'
                           }}
                         >
-                          ✕ Filtreleri Temizle
+                          <X size={14} /> Filtreleri Temizle
                         </button>
                       )}
                     </div>
@@ -1046,18 +1027,18 @@ export default function MercekAnalyzePage() {
                               const textFilterValue = mercekTextFilters[header] || ''
                               const tagFilterValues = mercekTagFilters[header] || []
                               const tagInput = tagSearchInput[header] || ''
-                              
+
                               // Check if this column has an active filter
-                              const hasActiveFilter = isListbox 
-                                ? selectedValues.length > 0 
+                              const hasActiveFilter = isListbox
+                                ? selectedValues.length > 0
                                 : isTagSearch
                                   ? tagFilterValues.length > 0
-                                  : isDate 
-                                    ? (dateFilter.from || dateFilter.to) 
-                                  : textFilterValue.length > 0
-                              
+                                  : isDate
+                                    ? (dateFilter.from || dateFilter.to)
+                                    : textFilterValue.length > 0
+
                               // Filter unique values by search query
-                              const filteredOptions = (uniqueColumnValues[header] || []).filter(v => 
+                              const filteredOptions = (uniqueColumnValues[header] || []).filter(v =>
                                 v.toLowerCase().includes(searchQuery.toLowerCase())
                               )
 
@@ -1090,9 +1071,7 @@ export default function MercekAnalyzePage() {
                                     >
                                       {header}
                                       {isSorted && (
-                                        <span style={{ fontSize: '10px' }}>
-                                          {mercekSortDirection === 'asc' ? '↑' : '↓'}
-                                        </span>
+                                        mercekSortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
                                       )}
                                     </span>
                                     <span
@@ -1111,13 +1090,13 @@ export default function MercekAnalyzePage() {
                                       }}
                                       title={`Filtrele: ${header}`}
                                     >
-                                      {isListbox && selectedValues.length > 0 
-                                        ? `${selectedValues.length}` 
+                                      {isListbox && selectedValues.length > 0
+                                        ? `${selectedValues.length}`
                                         : isTagSearch && tagFilterValues.length > 0
                                           ? `${tagFilterValues.length}`
-                                          : hasActiveFilter 
-                                            ? '✓' 
-                                            : '⋯'}
+                                          : hasActiveFilter
+                                            ? '✓'
+                                            : <Filter size={14} />}
                                     </span>
                                   </div>
                                   {isDropdownOpen && (
@@ -1448,7 +1427,7 @@ export default function MercekAnalyzePage() {
                                   }}
                                   title={String(row[header] || '')}
                                 >
-                                  {row[header] || ''}
+                                  {String(row[header] || '')}
                                 </td>
                               ))}
                             </tr>
