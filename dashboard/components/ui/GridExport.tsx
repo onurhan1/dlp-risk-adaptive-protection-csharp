@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { FileText, FileSpreadsheet, FileImage, Download, ChevronDown } from 'lucide-react'
 
 export interface ExportColumn {
     key: string
@@ -24,9 +25,9 @@ export interface GridExportProps {
 }
 
 const defaultLabels = {
-    csv: '📄 CSV',
-    xlsx: '📊 Excel',
-    pdf: '📑 PDF',
+    csv: 'CSV',
+    xlsx: 'Excel',
+    pdf: 'PDF',
     exporting: 'Dışa aktarılıyor...',
 }
 
@@ -198,55 +199,130 @@ export default function GridExport({
         pdf: exportPDF,
     }
 
+    const [isOpen, setIsOpen] = useState(false)
+    const dropdownRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [])
+
     const isDisabled = disabled || data.length === 0
 
     return (
-        <div style={{
-            display: 'flex',
-            gap: '6px',
-            alignItems: 'center',
-        }}>
-            {formats.map(format => (
-                <button
-                    key={format}
-                    onClick={() => exportHandlers[format]?.()}
-                    disabled={isDisabled || exporting !== null}
-                    style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border)',
-                        background: exporting === format ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
-                        color: isDisabled ? 'var(--text-muted)' : 'var(--text-primary)',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.15s ease',
-                        opacity: isDisabled ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                    }}
-                >
-                    {exporting === format ? (
-                        <>
-                            <span style={{
-                                display: 'inline-block',
-                                width: '12px',
-                                height: '12px',
-                                border: '2px solid rgba(59, 130, 246, 0.2)',
-                                borderTop: '2px solid #3b82f6',
-                                borderRadius: '50%',
-                                animation: 'dlp-spin 0.8s linear infinite',
-                            }} />
-                            {labels.exporting}
-                        </>
-                    ) : (
-                        labels[format as keyof typeof labels] || format.toUpperCase()
-                    )}
-                </button>
-            ))}
+        <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                disabled={isDisabled}
+                style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: isDisabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                    opacity: isDisabled ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+                onMouseEnter={(e) => {
+                    if (!isDisabled) {
+                        e.currentTarget.style.background = 'var(--surface-hover)'
+                        e.currentTarget.style.borderColor = 'var(--border-hover)'
+                    }
+                }}
+                onMouseLeave={(e) => {
+                    if (!isDisabled) {
+                        e.currentTarget.style.background = 'var(--surface)'
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                    }
+                }}
+            >
+                <Download size={16} style={{ color: 'var(--text-secondary)' }} />
+                <span>Dışa aktar</span>
+                <ChevronDown size={14} style={{ color: 'var(--text-muted)', marginLeft: '4px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
 
-            {/* Spinner animation */}
+            {isOpen && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '4px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    minWidth: '150px',
+                    zIndex: 100,
+                    padding: '4px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                }}>
+                    {formats.map(format => (
+                        <button
+                            key={format}
+                            onClick={() => {
+                                setIsOpen(false)
+                                exportHandlers[format]?.()
+                            }}
+                            disabled={exporting !== null}
+                            style={{
+                                padding: '8px 12px',
+                                borderRadius: '4px',
+                                border: 'none',
+                                background: exporting === format ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                cursor: exporting !== null ? 'wait' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                textAlign: 'left',
+                                width: '100%'
+                            }}
+                            onMouseEnter={(e) => { if (exporting === null) e.currentTarget.style.background = 'var(--surface-hover)' }}
+                            onMouseLeave={(e) => { if (exporting === null) e.currentTarget.style.background = 'transparent' }}
+                        >
+                            {exporting === format ? (
+                                <span style={{
+                                    display: 'inline-block',
+                                    width: '14px',
+                                    height: '14px',
+                                    border: '2px solid rgba(59, 130, 246, 0.2)',
+                                    borderTop: '2px solid #3b82f6',
+                                    borderRadius: '50%',
+                                    animation: 'dlp-spin 0.8s linear infinite',
+                                    flexShrink: 0
+                                }} />
+                            ) : (
+                                <>
+                                    {format === 'csv' && <FileText size={16} style={{ color: '#10b981' }} />}
+                                    {format === 'xlsx' && <FileSpreadsheet size={16} style={{ color: '#059669' }} />}
+                                    {format === 'pdf' && <FileImage size={16} style={{ color: '#ef4444' }} />}
+                                </>
+                            )}
+                            <span style={{ flex: 1 }}>{labels[format as keyof typeof labels] || format.toUpperCase()}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* Spinner animation space */}
             <style>{`
         @keyframes dlp-spin {
           0% { transform: rotate(0deg); }

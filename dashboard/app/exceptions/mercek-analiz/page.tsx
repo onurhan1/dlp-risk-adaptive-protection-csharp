@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import Pagination from '@/components/ui/Pagination'
+import GridExport from '@/components/ui/GridExport'
 import {
   BarChart2,
   BarChart3,
@@ -445,34 +446,30 @@ export default function MercekAnalyzePage() {
                 <>
                   {/* Toplam Sayı ve INC İstatistikleri */}
                   <div style={{
-                    background: 'var(--background-secondary)',
-                    borderRadius: '10px',
-                    padding: '24px',
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                     gap: '20px',
-                    marginBottom: '28px',
-                    border: '1px solid var(--border)'
+                    marginBottom: '28px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                      <div style={{ fontSize: '36px', color: '#6366f1' }}><BarChart3 size={44} /></div>
+                    <div style={{ background: 'rgba(99, 102, 241, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                      <div style={{ color: '#4338ca' }}><BarChart3 size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Released Incident</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.totalCount}</div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                      <div style={{ fontSize: '36px', color: '#3b82f6' }}><Square size={44} fill="#3b82f6" fillOpacity={0.2} /></div>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <div style={{ color: '#1d4ed8' }}><Circle size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlayan</div>
-                        <div style={{ color: '#3b82f6', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.incStartingCount}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.incStartingCount}</div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexDirection: 'row' }}>
-                      <div style={{ fontSize: '36px', color: '#ef4444' }}><Square size={44} fill="#ef4444" fillOpacity={0.2} /></div>
+                    <div style={{ background: 'rgba(239, 68, 68, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      <div style={{ color: '#b91c1c' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>INC ile Başlamayan</div>
-                        <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.nonIncStartingCount}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{releasedIncidentsStats.nonIncStartingCount}</div>
                       </div>
                     </div>
                   </div>
@@ -553,71 +550,36 @@ export default function MercekAnalyzePage() {
 
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '28px' }}>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#6366f1' }}><BarChart2 size={44} /></div>
+                    <div style={{ background: 'rgba(99, 102, 241, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                      <div style={{ color: '#4338ca' }}><BarChart2 size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#10b981' }}><CircleDot size={44} /></div>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <div style={{ color: '#047857' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık Incident</div>
-                        <div style={{ color: '#10b981', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#ef4444' }}><CircleDot size={44} /></div>
+                    <div style={{ background: 'rgba(239, 68, 68, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      <div style={{ color: '#b91c1c' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış Incident</div>
-                        <div style={{ color: '#ef4444', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#3b82f6' }}><Clock size={44} /></div>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                      <div style={{ color: '#1d4ed8' }}><Clock size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#8b5cf6' }}><Calendar size={44} /></div>
+                    <div style={{ background: 'rgba(139, 92, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                      <div style={{ color: '#6d28d9' }}><Calendar size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Son 1 Haftadaki Kayıt</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '24px', fontWeight: '700' }}>{lastWeekCount}</div>
@@ -631,29 +593,15 @@ export default function MercekAnalyzePage() {
                         )}
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#f59e0b' }}><Sun size={44} /></div>
+                    <div style={{ background: 'rgba(245, 158, 11, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                      <div style={{ color: '#b45309' }}><Sun size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Bugün Gelen</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{todayCount}</div>
                       </div>
                     </div>
-                    <div style={{
-                      background: 'var(--background-secondary)',
-                      borderRadius: '10px',
-                      padding: '24px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px'
-                    }}>
-                      <div style={{ fontSize: '36px', color: '#06b6d4' }}><CalendarRange size={44} /></div>
+                    <div style={{ background: 'rgba(6, 182, 212, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
+                      <div style={{ color: '#0e7490' }}><CalendarRange size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Haftaiçi Günlük Ort.</div>
                         <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{weekdayDailyAvg}</div>
@@ -976,30 +924,37 @@ export default function MercekAnalyzePage() {
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
-                      {hasActiveFilters && (
-                        <button
-                          onClick={() => {
-                            setMercekColumnFilters({})
-                            setMercekTextFilters({})
-                            setMercekTagFilters({})
-                            setTagSearchInput({})
-                            setMercekDateFilters({})
-                            setMercekSortColumn(null)
-                            setOpenDropdownColumn(null)
-                          }}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '4px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-secondary)',
-                            fontSize: '12px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <X size={14} /> Filtreleri Temizle
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {hasActiveFilters && (
+                          <button
+                            onClick={() => {
+                              setMercekColumnFilters({})
+                              setMercekTextFilters({})
+                              setMercekTagFilters({})
+                              setTagSearchInput({})
+                              setMercekDateFilters({})
+                              setMercekSortColumn(null)
+                              setOpenDropdownColumn(null)
+                            }}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border)',
+                              background: 'var(--background)',
+                              color: 'var(--text-secondary)',
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <X size={14} /> Filtreleri Temizle
+                          </button>
+                        )}
+                        <GridExport
+                          data={filteredSortedData}
+                          fileName="mercek-verileri"
+                          columns={csvHeaders.map(h => ({ key: h, header: h, width: 25 }))}
+                        />
+                      </div>
                     </div>
 
                     {/* Table */}
@@ -1012,10 +967,48 @@ export default function MercekAnalyzePage() {
                         overflow: 'hidden'
                       }}>
                         <thead>
-                          {/* Combined header row with sort + filter */}
+                          {/* First Row: Sortable Headers */}
                           <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
                             {csvHeaders.map((header, index) => {
                               const isSorted = mercekSortColumn === header
+
+                              return (
+                                <th
+                                  key={`header-${index}`}
+                                  style={{
+                                    padding: '12px 16px',
+                                    textAlign: 'left',
+                                    borderBottom: 'none',
+                                    color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                                    fontWeight: '600',
+                                    fontSize: '13px',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  <span
+                                    onClick={() => handleMercekSort(header)}
+                                    style={{
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      width: '100%'
+                                    }}
+                                  >
+                                    {header}
+                                    {isSorted && (
+                                      mercekSortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                                    )}
+                                  </span>
+                                </th>
+                              )
+                            })}
+                          </tr>
+
+                          {/* Second Row: Filters */}
+                          <tr style={{ background: 'var(--background-secondary)', borderBottom: '2px solid var(--border)' }}>
+                            {csvHeaders.map((header, index) => {
                               const isListbox = listboxColumns.includes(header)
                               const isTextSearch = textSearchColumns.includes(header)
                               const isTagSearch = tagSearchColumns.includes(header)
@@ -1028,7 +1021,6 @@ export default function MercekAnalyzePage() {
                               const tagFilterValues = mercekTagFilters[header] || []
                               const tagInput = tagSearchInput[header] || ''
 
-                              // Check if this column has an active filter
                               const hasActiveFilter = isListbox
                                 ? selectedValues.length > 0
                                 : isTagSearch
@@ -1037,75 +1029,99 @@ export default function MercekAnalyzePage() {
                                     ? (dateFilter.from || dateFilter.to)
                                     : textFilterValue.length > 0
 
-                              // Filter unique values by search query
                               const filteredOptions = (uniqueColumnValues[header] || []).filter(v =>
                                 v.toLowerCase().includes(searchQuery.toLowerCase())
                               )
 
                               return (
                                 <th
-                                  key={index}
+                                  key={`filter-${index}`}
                                   data-column-filter
                                   style={{
-                                    padding: '12px 16px',
+                                    padding: '0 12px 12px 12px',
                                     textAlign: 'left',
-                                    borderBottom: '2px solid var(--border)',
-                                    color: isSorted ? '#3b82f6' : 'var(--text-primary)',
-                                    fontWeight: '600',
-                                    fontSize: '13px',
-                                    whiteSpace: 'nowrap',
-                                    position: 'relative'
+                                    position: 'relative',
+                                    verticalAlign: 'top',
+                                    fontWeight: 'normal'
                                   }}
                                 >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span
-                                      onClick={() => handleMercekSort(header)}
-                                      style={{
-                                        cursor: 'pointer',
-                                        userSelect: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        flex: 1
-                                      }}
-                                    >
-                                      {header}
-                                      {isSorted && (
-                                        mercekSortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-                                      )}
-                                    </span>
-                                    <span
+                                  {isListbox ? (
+                                    <button
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         setOpenDropdownColumn(isDropdownOpen ? null : header)
                                       }}
                                       style={{
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        padding: '2px 6px',
+                                        width: '100%',
+                                        padding: '6px 8px',
                                         borderRadius: '4px',
-                                        background: hasActiveFilter ? '#3b82f6' : 'transparent',
-                                        color: hasActiveFilter ? '#ffffff' : 'var(--text-secondary)',
-                                        border: hasActiveFilter ? 'none' : '1px solid var(--border)'
+                                        border: '1px solid var(--border)',
+                                        background: hasActiveFilter ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
+                                        color: hasActiveFilter ? '#3b82f6' : 'var(--text-secondary)',
+                                        fontSize: '12px',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
                                       }}
-                                      title={`Filtrele: ${header}`}
                                     >
-                                      {isListbox && selectedValues.length > 0
-                                        ? `${selectedValues.length}`
-                                        : isTagSearch && tagFilterValues.length > 0
-                                          ? `${tagFilterValues.length}`
-                                          : hasActiveFilter
-                                            ? '✓'
-                                            : <Filter size={14} />}
-                                    </span>
-                                  </div>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {hasActiveFilter ? `${selectedValues.length} seçildi` : 'Tümü'}
+                                      </span>
+                                      <ChevronDown size={12} />
+                                    </button>
+                                  ) : isTextSearch ? (
+                                    <input
+                                      type="text"
+                                      placeholder="Ara..."
+                                      value={textFilterValue}
+                                      onChange={(e) => handleMercekTextFilter(header, e.target.value)}
+                                      style={{
+                                        width: '100%',
+                                        padding: '6px 8px',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--border)',
+                                        background: hasActiveFilter ? 'rgba(59, 130, 246, 0.05)' : 'var(--surface)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '12px',
+                                        boxSizing: 'border-box'
+                                      }}
+                                    />
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setOpenDropdownColumn(isDropdownOpen ? null : header)
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        padding: '6px 8px',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--border)',
+                                        background: hasActiveFilter ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
+                                        color: hasActiveFilter ? '#3b82f6' : 'var(--text-secondary)',
+                                        fontSize: '12px',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                      }}
+                                    >
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {hasActiveFilter ? 'Filtreli' : 'Tümü'}
+                                      </span>
+                                      <Filter size={12} />
+                                    </button>
+                                  )}
                                   {isDropdownOpen && (
                                     <div
                                       style={{
                                         position: 'absolute',
-                                        top: '100%',
-                                        left: 0,
-                                        marginTop: '4px',
+                                        top: 'calc(100% - 8px)',
+                                        left: '12px',
+                                        width: 'max(100%, 180px)',
                                         background: 'var(--background)',
                                         border: '1px solid var(--border)',
                                         borderRadius: '6px',

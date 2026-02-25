@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, Suspense, ChangeEvent } from 'reac
 import apiClient from '@/lib/axios'
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay, subDays } from 'date-fns'
 import Pagination from '@/components/ui/Pagination'
+import GridExport from '@/components/ui/GridExport'
 import {
   RotateCcw,
   ChevronUp,
@@ -1867,9 +1868,26 @@ function AnalyticsPageContent() {
                   </button>
                 )}
               </div>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Showing {filteredIncidents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredIncidents.length)} of {filteredIncidents.length} incidents
+                </span>
+                <GridExport
+                  data={filteredIncidents}
+                  fileName="team-based-analysis"
+                  columns={[
+                    { key: 'timestamp', header: 'Time', formatter: (val) => new Date(val).toLocaleString('tr-TR') },
+                    { key: 'userEmail', header: 'User' },
+                    { key: 'fullName', header: 'Manager Name' },
+                    { key: 'department', header: 'Department' },
+                    { key: 'team', header: 'Team' },
+                    { key: 'policy', header: 'Policy' },
+                    { key: 'domain', header: 'Domain' },
+                    { key: 'maxMatches', header: 'Max Matches' },
+                    { key: 'action', header: 'Action' }
+                  ]}
+                />
+              </div>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -1887,87 +1905,190 @@ function AnalyticsPageContent() {
                       action: 'Action'
                     }
                     const isSorted = sortColumn === column
+
+                    return (
+                      <th
+                        key={column}
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                          width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
+                          borderBottom: 'none'
+                        }}
+                      >
+                        <span
+                          onClick={() => handleSort(column)}
+                          style={{
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            width: '100%'
+                          }}
+                        >
+                          {columnLabels[column]}
+                          {isSorted && (
+                            sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                          )}
+                        </span>
+                      </th>
+                    )
+                  })}
+                </tr>
+                {/* Second row for filters */}
+                <tr style={{ background: 'var(--background-secondary)', borderBottom: '2px solid var(--border)' }}>
+                  {(['time', 'user', 'fullName', 'department', 'team', 'policy', 'domain', 'max', 'action'] as const).map(column => {
                     const uniqueValues = getUniqueColumnValues(column)
                     const searchQuery = columnFilterSearch[column] || ''
                     const filteredValues = uniqueValues.filter(v =>
                       v.toLowerCase().includes(searchQuery.toLowerCase())
                     )
                     const selectedValues = columnFilters[column] || []
+                    const hasActiveFilter = selectedValues.length > 0
+
+                    // columns that use multiselect vs text search
+                    const isMultiSelect = ['department', 'team', 'action'].includes(column)
 
                     return (
                       <th
-                        key={column}
+                        key={`filter-${column}`}
                         data-column-filter
                         style={{
-                          padding: '16px',
+                          padding: '0 12px 12px 12px',
                           textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          color: 'var(--text-secondary)',
-                          width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
-                          position: 'relative'
+                          position: 'relative',
+                          verticalAlign: 'top'
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span
-                            onClick={() => handleSort(column)}
-                            style={{
-                              cursor: 'pointer',
-                              userSelect: 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              flex: 1
-                            }}
-                          >
-                            {columnLabels[column]}
-                            {isSorted && (
-                              sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-                            )}
-                          </span>
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleColumnFilter(column)
-                            }}
-                            style={{
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              background: selectedValues.length > 0 ? '#3b82f6' : 'transparent',
-                              color: selectedValues.length > 0 ? '#ffffff' : 'var(--text-secondary)',
-                              border: selectedValues.length > 0 ? 'none' : '1px solid var(--border)'
-                            }}
-                            title={`Filter ${columnLabels[column]}`}
-                          >
-                            {selectedValues.length > 0 ? `${selectedValues.length}` : <Filter size={12} />}
-                          </span>
-                        </div>
-                        {openColumnFilter === column && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '100%',
-                              left: 0,
-                              right: 0,
-                              marginTop: '4px',
-                              background: 'var(--background)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '6px',
-                              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                              zIndex: 1000,
-                              maxHeight: '300px',
-                              overflowY: 'auto',
-                              padding: '8px'
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
+                        {column !== 'time' && column !== 'max' ? (
+                          isMultiSelect ? (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleColumnFilter(column)
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--border)',
+                                  background: hasActiveFilter ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
+                                  color: hasActiveFilter ? '#3b82f6' : 'var(--text-secondary)',
+                                  fontSize: '12px',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {hasActiveFilter ? `${selectedValues.length} selected` : 'Tümü'}
+                                </span>
+                                <ChevronDown size={12} />
+                              </button>
+
+                              {openColumnFilter === column && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% - 8px)',
+                                    left: '12px',
+                                    width: 'max(100%, 180px)',
+                                    background: 'var(--background)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '6px',
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                    zIndex: 1000,
+                                    maxHeight: '300px',
+                                    overflowY: 'auto',
+                                    padding: '8px'
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="text"
+                                    placeholder="Ara..."
+                                    value={searchQuery}
+                                    onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 8px',
+                                      borderRadius: '4px',
+                                      border: '1px solid var(--border)',
+                                      background: 'var(--surface)',
+                                      color: 'var(--text-primary)',
+                                      fontSize: '12px',
+                                      marginBottom: '8px',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  />
+                                  <div
+                                    onClick={() => {
+                                      if (selectedValues.length === filteredValues.length) {
+                                        setColumnFilters(prev => ({ ...prev, [column]: [] }))
+                                      } else {
+                                        setColumnFilters(prev => ({ ...prev, [column]: [...filteredValues] }))
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '6px 8px',
+                                      borderBottom: '1px solid var(--border)',
+                                      cursor: 'pointer',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      color: 'var(--text-primary)',
+                                      background: selectedValues.length === filteredValues.length ? 'var(--surface-hover)' : 'transparent',
+                                      marginBottom: '4px'
+                                    }}
+                                  >
+                                    {selectedValues.length === filteredValues.length ? '✓ Seçimi Kaldır' : 'Tümünü Seç'}
+                                  </div>
+                                  {filteredValues.map(value => (
+                                    <label
+                                      key={value}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '6px 8px',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        color: 'var(--text-primary)',
+                                        borderBottom: '1px solid var(--border)',
+                                        background: selectedValues.includes(value) ? 'var(--surface-hover)' : 'transparent'
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedValues.includes(value)}
+                                        onChange={() => toggleColumnFilterValue(column, value)}
+                                        style={{ marginRight: '8px' }}
+                                      />
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+                                    </label>
+                                  ))}
+                                  {filteredValues.length === 0 && (
+                                    <div style={{ padding: '8px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                                      Bulunamadı
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          ) : (
                             <input
                               type="text"
-                              placeholder="Search..."
-                              value={searchQuery}
-                              onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))}
+                              placeholder="Ara..."
+                              value={hasActiveFilter ? selectedValues[0] : ''}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setColumnFilters(prev => ({ ...prev, [column]: val ? [val] : [] }))
+                              }}
                               style={{
                                 width: '100%',
                                 padding: '6px 8px',
@@ -1976,60 +2097,11 @@ function AnalyticsPageContent() {
                                 background: 'var(--surface)',
                                 color: 'var(--text-primary)',
                                 fontSize: '12px',
-                                marginBottom: '8px'
+                                boxSizing: 'border-box'
                               }}
-                              onClick={(e) => e.stopPropagation()}
                             />
-                            <div
-                              onClick={() => {
-                                if (selectedValues.length === filteredValues.length) {
-                                  setColumnFilters(prev => ({ ...prev, [column]: [] }))
-                                } else {
-                                  setColumnFilters(prev => ({ ...prev, [column]: [...filteredValues] }))
-                                }
-                              }}
-                              style={{
-                                padding: '6px 8px',
-                                borderBottom: '1px solid var(--border)',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                color: 'var(--text-primary)',
-                                background: selectedValues.length === filteredValues.length ? 'var(--surface-hover)' : 'transparent',
-                                marginBottom: '4px'
-                              }}
-                            >
-                              {selectedValues.length === filteredValues.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
-                            </div>
-                            {filteredValues.map(value => (
-                              <label
-                                key={value}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  padding: '6px 8px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                  color: 'var(--text-primary)',
-                                  borderBottom: '1px solid var(--border)',
-                                  background: selectedValues.includes(value) ? 'var(--surface-hover)' : 'transparent'
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedValues.includes(value)}
-                                  onChange={(e) => {
-                                    e.stopPropagation()
-                                    toggleColumnFilterValue(column, value)
-                                  }}
-                                  style={{ marginRight: '8px', cursor: 'pointer' }}
-                                />
-                                <span>{value}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
+                          )
+                        ) : null}
                       </th>
                     )
                   })}

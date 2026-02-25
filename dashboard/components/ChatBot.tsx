@@ -48,17 +48,15 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
         const solutionMatches = items.filter(r =>
             (r.solutionMethod || '').toLowerCase().includes(kw)
         ).length
-        const uniqueUsers = [
-            ...new Set(
-                items
-                    .filter(r =>
-                        (r.incidentDescription || '').toLowerCase().includes(kw) ||
-                        (r.solutionMethod || '').toLowerCase().includes(kw)
-                    )
-                    .map((r: any) => r.userName)
-                    .filter(Boolean)
-            )
-        ] as string[]
+        const uniqueUsers = Array.from(new Set(
+            items
+                .filter(r =>
+                    (r.incidentDescription || '').toLowerCase().includes(kw) ||
+                    (r.solutionMethod || '').toLowerCase().includes(kw)
+                )
+                .map((r: any) => r.userName)
+                .filter(Boolean)
+        )) as string[]
 
         let result = `🔍 **Mercek Kelime Analizi: "${keyword}"**\n\n`
         result += `📊 **Toplam Eslesen Kayit: ${totalCount}**\n\n`

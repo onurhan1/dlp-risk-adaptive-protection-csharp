@@ -655,30 +655,43 @@ export default function Home() {
       <div className="dashboard-grid">
         {/* Top Risky Users with Period Selector */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Target size={20} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
             </h2>
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text-primary)',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="weekly">Last Week</option>
-              <option value="monthly">Last 1 Month</option>
-              <option value="quarterly">Last 3 Months</option>
-              <option value="6month">Last 6 Months</option>
-              <option value="yearly">Last 1 Year</option>
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  height: '36px'
+                }}
+              >
+                <option value="weekly">Last Week</option>
+                <option value="monthly">Last 1 Month</option>
+                <option value="quarterly">Last 3 Months</option>
+                <option value="6month">Last 6 Months</option>
+                <option value="yearly">Last 1 Year</option>
+              </select>
+              <GridExport
+                data={topUsersPeriod}
+                fileName={`top-risky-users-${selectedPeriod}`}
+                columns={[
+                  { key: 'user_email', header: 'User Email', width: 30 },
+                  { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+                  { key: 'days_with_activity', header: 'Days Active', width: 12 },
+                  { key: 'total_incidents', header: 'Incidents', width: 12 },
+                ]}
+              />
+            </div>
           </div>
           <table className="data-table">
             <thead>
@@ -727,16 +740,22 @@ export default function Home() {
                       <button
                         onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
                         style={{
-                          padding: '4px 10px',
+                          padding: '6px 12px',
                           borderRadius: '6px',
-                          border: 'none',
-                          background: '#3b82f6',
-                          color: 'white',
-                          fontSize: '11px',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          color: '#3b82f6',
+                          fontSize: '12px',
                           fontWeight: '600',
                           cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s',
                           whiteSpace: 'nowrap'
                         }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
                       >
                         <Search size={14} /> Investigate
                       </button>
@@ -755,26 +774,27 @@ export default function Home() {
             compact
             labels={{ totalItems: t('pagination.totalItems') }}
           />
-          {/* Export for Top Risky Users */}
-          <GridExport
-            data={topUsersPeriod}
-            fileName={`top-risky-users-${selectedPeriod}`}
-            columns={[
-              { key: 'user_email', header: 'User Email', width: 30 },
-              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
-              { key: 'days_with_activity', header: 'Days Active', width: 12 },
-              { key: 'total_incidents', header: 'Incidents', width: 12 },
-            ]}
-          />
         </div>
 
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Zap size={20} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
             </h2>
-            <span style={{ fontSize: '12px', backgroundColor: '#f57c00', padding: '4px 12px', borderRadius: '12px', color: 'white' }}>Last 24 Hours</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '13px', backgroundColor: '#f57c00', padding: '10px 16px', borderRadius: '6px', color: 'white', fontWeight: '600', height: '36px', display: 'flex', alignItems: 'center' }}>Last 24 Hours</span>
+              <GridExport
+                data={topUsers24h}
+                fileName="todays-active-users"
+                columns={[
+                  { key: 'user_email', header: 'User Email', width: 30 },
+                  { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+                  { key: 'total_blocks', header: 'Blocks', width: 12 },
+                  { key: 'total_incidents', header: 'Incidents', width: 12 },
+                ]}
+              />
+            </div>
           </div>
           <table className="data-table">
             <thead>
@@ -825,14 +845,20 @@ export default function Home() {
                         style={{
                           padding: '6px 12px',
                           borderRadius: '6px',
-                          border: 'none',
-                          background: '#f57c00',
-                          color: 'white',
-                          fontSize: '13px',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          background: 'rgba(59, 130, 246, 0.1)',
+                          color: '#3b82f6',
+                          fontSize: '12px',
                           fontWeight: '600',
                           cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s',
                           whiteSpace: 'nowrap'
                         }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
                       >
                         <Search size={14} /> Investigate
                       </button>
@@ -850,17 +876,6 @@ export default function Home() {
             onPageChange={setTopUsers24hPage}
             compact
             labels={{ totalItems: t('pagination.totalItems') }}
-          />
-          {/* Export for Today's Active Users */}
-          <GridExport
-            data={topUsers24h}
-            fileName="todays-active-users"
-            columns={[
-              { key: 'user_email', header: 'User Email', width: 30 },
-              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
-              { key: 'total_blocks', header: 'Blocks', width: 12 },
-              { key: 'total_incidents', header: 'Incidents', width: 12 },
-            ]}
           />
         </div>
       </div>
@@ -967,44 +982,27 @@ export default function Home() {
               {t('common.noData')}
             </div>
           ) : (
-            <Plot
-              data={[{
-                type: 'bar',
-                orientation: 'h',
-                y: topRules.slice().reverse().map(r => r.rule_name.length > 35 ? r.rule_name.substring(0, 35) + '...' : r.rule_name),
-                x: topRules.slice().reverse().map(r => r.total_alerts),
-                text: topRules.slice().reverse().map(r => r.total_alerts.toString()),
-                textposition: 'outside',
-                textfont: { size: 11, color: plotTextPrimary },
-                hovertext: topRules.slice().reverse().map(r => `${r.rule_name}: ${r.total_alerts} alerts`),
-                hoverinfo: 'text',
-                marker: {
-                  color: topRules.slice().reverse().map((_, i) => {
-                    const colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308']
-                    return colors[i % colors.length]
-                  }),
-                  line: { width: 0 },
-                },
-              }]}
-              layout={{
-                margin: { t: 5, b: 30, l: 200, r: 60 },
-                paper_bgcolor: 'transparent',
-                plot_bgcolor: 'transparent',
-                xaxis: {
-                  gridcolor: 'rgba(128,128,128,0.1)',
-                  zeroline: false,
-                  tickfont: { size: 11, color: plotTextMuted },
-                },
-                yaxis: {
-                  tickfont: { size: 10, color: plotTextPrimary },
-                  automargin: true,
-                },
-                height: Math.max(200, topRules.length * 32 + 40),
-                bargap: 0.3,
-              }}
-              config={{ displayModeBar: false, responsive: true }}
-              style={{ width: '100%' }}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+              {topRules.map((rule, idx) => {
+                const maxCount = Math.max(...topRules.map(r => r.total_alerts), 1)
+                const percentage = maxCount > 0 ? (rule.total_alerts / maxCount) * 100 : 0
+                return (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ minWidth: '150px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.rule_name}>
+                      {rule.rule_name}
+                    </div>
+                    <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{rule.total_alerts}</span>
+                      </div>
+                    </div>
+                    <div style={{ minWidth: '50px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', textAlign: 'right' }}>
+                      {percentage.toFixed(1)}%
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
