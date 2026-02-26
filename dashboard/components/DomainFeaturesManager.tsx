@@ -6,25 +6,25 @@ import apiClient from '@/lib/axios'
 interface DomainFeature {
     id: number
     domain: string
-    hasNda: boolean
-    isUnknown: boolean
-    isPersonal: boolean
-    istirakDomain: boolean
+    has_nda: boolean
+    is_unknown: boolean
+    is_personal: boolean
+    istirak_domain: boolean
     egitim: boolean
     noter: boolean
     hukuk: boolean
     denetim: boolean
     banka: boolean
-    customFeatures: Record<string, boolean>
-    incidentCount?: number
-    incidentStats?: {
+    custom_features: Record<string, boolean>
+    incident_count?: number
+    incident_stats?: {
         actions: Record<string, number>
         teams: Record<string, number>
     }
 }
 
 // Helper component for Incident Count Tooltip
-const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeature['incidentStats'] }) => {
+const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeature['incident_stats'] }) => {
     const [showTooltip, setShowTooltip] = useState(false)
 
     if (!stats || count === 0) return <span style={{ fontWeight: 'bold' }}>{count || 0}</span>
@@ -113,9 +113,9 @@ const IncidentCountCell = ({ count, stats }: { count: number, stats?: DomainFeat
 
 interface ColumnDef {
     name: string
-    displayName: string
+    display_name: string
     key: string
-    isStatic: boolean
+    is_static: boolean
     id?: number
 }
 
@@ -244,12 +244,12 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         setDomains(prev =>
             prev.map(d => {
                 if (d.id === domainId) {
-                    if (col.isStatic) {
+                    if (col.is_static) {
                         return { ...d, [col.key]: !d[col.key as keyof DomainFeature] }
                     } else {
-                        const customFeatures = d.customFeatures ? { ...d.customFeatures } : {}
-                        customFeatures[col.key] = !customFeatures[col.key]
-                        return { ...d, customFeatures }
+                        const custom_features = d.custom_features ? { ...d.custom_features } : {}
+                        custom_features[col.key] = !custom_features[col.key]
+                        return { ...d, custom_features }
                     }
                 }
                 return d
@@ -270,15 +270,15 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 .filter(d => modifiedIds.has(d.id))
                 .map(d => ({
                     id: d.id,
-                    hasNda: d.hasNda,
-                    isPersonal: d.isPersonal,
-                    istirakDomain: d.istirakDomain,
+                    has_nda: d.has_nda,
+                    is_personal: d.is_personal,
+                    istirak_domain: d.istirak_domain,
                     egitim: d.egitim,
                     noter: d.noter,
                     hukuk: d.hukuk,
                     denetim: d.denetim,
                     banka: d.banka,
-                    customFeatures: d.customFeatures
+                    custom_features: d.custom_features
                 }))
 
             await apiClient.post('/api/domain-features/bulk-save', updates)
@@ -311,7 +311,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
         setSubmittingColumn(true)
         try {
-            const res = await apiClient.post('/api/domain-features/columns', { displayName: columnNameInput })
+            const res = await apiClient.post('/api/domain-features/columns', { display_name: columnNameInput })
             const newCol = res.data
             setColumns(prev => [...prev, newCol])
             setColumnNameInput('')
@@ -330,9 +330,9 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
         setSubmittingColumn(true)
         try {
-            await apiClient.put(`/api/domain-features/columns/${editingColumn.id}`, { displayName: columnNameInput })
+            await apiClient.put(`/api/domain-features/columns/${editingColumn.id}`, { display_name: columnNameInput })
 
-            setColumns(prev => prev.map(c => c.id === editingColumn.id ? { ...c, displayName: columnNameInput } : c))
+            setColumns(prev => prev.map(c => c.id === editingColumn.id ? { ...c, display_name: columnNameInput } : c))
             setColumnNameInput('')
             setEditingColumn(null)
             setShowEditModal(false)
@@ -348,7 +348,7 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const handleDeleteColumn = async () => {
         if (!editingColumn || !editingColumn.id) return
 
-        if (!window.confirm(`"${editingColumn.displayName}" özelliğini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
+        if (!window.confirm(`"${editingColumn.display_name}" özelliğini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
             return
         }
 
@@ -375,9 +375,9 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
     const openEditModal = (col: ColumnDef, e: React.MouseEvent) => {
         e.stopPropagation() // Prevent triggering column filter
-        if (col.isStatic) return
+        if (col.is_static) return
         setEditingColumn(col)
-        setColumnNameInput(col.displayName)
+        setColumnNameInput(col.display_name)
         setShowEditModal(true)
     }
 
@@ -396,10 +396,10 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
     // Determine value for a cell
     const getValue = (domain: DomainFeature, col: ColumnDef) => {
-        if (col.isStatic) {
+        if (col.is_static) {
             return !!domain[col.key as keyof DomainFeature]
         }
-        return !!domain.customFeatures?.[col.key]
+        return !!domain.custom_features?.[col.key]
     }
 
     return (
@@ -736,12 +736,12 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                             borderRadius: '4px',
                                             transition: 'all 0.2s'
                                         }}
-                                        title={`Tıklayarak "${col.displayName}" sütununda Evet olanları filtreleyin`}
+                                        title={`Tıklayarak "${col.display_name}" sütununda Evet olanları filtreleyin`}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                             {isFiltered && <span style={{ fontSize: '10px' }}>✓</span>}
-                                            {col.displayName}
-                                            {!col.isStatic && (
+                                            {col.display_name}
+                                            {!col.is_static && (
                                                 <button
                                                     onClick={(e) => openEditModal(col, e)}
                                                     style={{
@@ -783,13 +783,13 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                 >
                                     <td style={{ padding: '10px 12px', fontSize: '14px', color: 'var(--text-primary)' }}>
                                         {domain.domain}
-                                        {domain.isUnknown && (
+                                        {domain.is_unknown && (
                                             <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f59e0b', fontWeight: '600' }}>YENİ</span>
                                         )}
                                     </td>
                                     {viewMode === 'top' && (
                                         <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '13px' }}>
-                                            <IncidentCountCell count={domain.incidentCount || 0} stats={domain.incidentStats} />
+                                            <IncidentCountCell count={domain.incident_count || 0} stats={domain.incident_stats} />
                                         </td>
                                     )}
                                     {columns.map(col => {

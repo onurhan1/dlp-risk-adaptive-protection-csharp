@@ -47,10 +47,10 @@ public class DomainFeaturesController : ControllerBase
             {
                 var colKey = col.Trim().ToLower();
                 
-                // Static columns
-                if (colKey == "hasnda") query = query.Where(d => d.HasNda);
-                else if (colKey == "ispersonal") query = query.Where(d => d.IsPersonal);
-                else if (colKey == "istirakdomain") query = query.Where(d => d.IstirakDomain);
+                // Static columns (keys are snake_case to match JSON serialization policy)
+                if (colKey == "has_nda") query = query.Where(d => d.HasNda);
+                else if (colKey == "is_personal") query = query.Where(d => d.IsPersonal);
+                else if (colKey == "istirak_domain") query = query.Where(d => d.IstirakDomain);
                 else if (colKey == "egitim") query = query.Where(d => d.Egitim);
                 else if (colKey == "noter") query = query.Where(d => d.Noter);
                 else if (colKey == "hukuk") query = query.Where(d => d.Hukuk);
@@ -119,11 +119,13 @@ public class DomainFeaturesController : ControllerBase
         });
 
         // 4. Get all column definitions (Static + Dynamic)
+        // NOTE: key values must match the snake_case property names in serialized domain objects
+        // because the frontend uses col.key to access domain[col.key]
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "has_nda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "is_personal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirak_domain", isStatic = true },
             new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
             new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
             new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },
@@ -315,11 +317,12 @@ public class DomainFeaturesController : ControllerBase
     [HttpGet("columns")]
     public async Task<IActionResult> GetColumns()
     {
+        // NOTE: key values must match the snake_case property names in serialized domain objects
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "has_nda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "is_personal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirak_domain", isStatic = true },
             new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
             new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
             new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },
