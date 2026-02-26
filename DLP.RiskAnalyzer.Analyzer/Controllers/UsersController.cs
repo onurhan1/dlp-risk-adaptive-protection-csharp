@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DLP.RiskAnalyzer.Analyzer.Data;
-using System.Security.Cryptography;
+using DLP.RiskAnalyzer.Analyzer.Services;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -12,88 +12,29 @@ public class UsersController : ControllerBase
     private readonly AnalyzerDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UsersController> _logger;
+    private readonly IUserService _userService;
 
-    public UsersController(AnalyzerDbContext db, IConfiguration configuration, ILogger<UsersController> logger)
+    public UsersController(AnalyzerDbContext db, IConfiguration configuration, ILogger<UsersController> logger, IUserService? userService = null)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _userService = userService ?? new UserService(db);
     }
 
-    // ── Static helpers used by AuthController ───────────────────────────
+    // ── Backward-compatible static helpers (delegate to UserService) ─────
 
     public static UserEntity? GetUserByUsername(AnalyzerDbContext db, string username) =>
-        db.Users.FirstOrDefault(u => u.Username.ToLower() == username.ToLower() && u.IsActive);
+        new UserService(db).GetByUsername(username);
 
-    public static bool TryValidateCredentials(AnalyzerDbContext db, string username, string password, out UserEntity? user)
-    {
-        user = GetUserByUsername(db, username);
-        if (user == null || string.IsNullOrWhiteSpace(password))
-            return false;
+    public static bool TryValidateCredentials(AnalyzerDbContext db, string username, string password, out UserEntity? user) =>
+        new UserService(db).ValidateCredentials(username, password, out user);
 
-        return VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
-    }
+    public static (string Hash, string Salt) CreatePasswordHash(string password) =>
+        new UserService(null!).CreatePasswordHash(password);
 
-    /// <summary>
-    /// Seed the default admin user if the users table is empty.
-    /// Called from Program.cs on application startup.
-    /// </summary>
-    public static async Task SeedDefaultAdminAsync(AnalyzerDbContext db, IConfiguration configuration, ILogger? logger = null)
-    {
-        // Ensure the users table exists (EnsureCreated won't help with migrations,
-        // but we can safely try — if the table doesn't exist yet the migration will create it)
-        try
-        {
-            if (await db.Users.AnyAsync())
-            {
-                logger?.LogInformation("Users table already has data — skipping seed.");
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            // Table might not exist yet — create it via raw SQL as fallback
-            logger?.LogWarning("Users table check failed ({Message}), creating table...", ex.Message);
-            await db.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(100) NOT NULL UNIQUE,
-                    email VARCHAR(255),
-                    role VARCHAR(20) NOT NULL DEFAULT 'standard',
-                    password_hash TEXT NOT NULL,
-                    password_salt TEXT NOT NULL,
-                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                );
-            ");
-        }
-
-        var adminUser = configuration["Authentication:Username"] ?? "admin";
-        var adminPass = configuration["Authentication:Password"] ?? "admin123";
-
-        // Re-check after possible table creation
-        if (await db.Users.AnyAsync())
-        {
-            logger?.LogInformation("Users table already has data — skipping seed.");
-            return;
-        }
-
-        var (hash, salt) = CreatePasswordHash(adminPass);
-
-        db.Users.Add(new UserEntity
-        {
-            Username = adminUser,
-            Email = $"{adminUser}@company.com",
-            Role = "admin",
-            PasswordHash = hash,
-            PasswordSalt = salt,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        await db.SaveChangesAsync();
-        logger?.LogInformation("Default admin user '{Username}' seeded into the database.", adminUser);
-    }
+    public static async Task SeedDefaultAdminAsync(AnalyzerDbContext db, IConfiguration configuration, ILogger? logger = null) =>
+        await new UserService(db).SeedDefaultAdminAsync(configuration, logger);
 
     // ── CRUD endpoints ──────────────────────────────────────────────────
 
@@ -149,7 +90,7 @@ public class UsersController : ControllerBase
             if (role != "admin" && role != "standard")
                 return BadRequest(new { detail = "Role must be 'admin' or 'standard'" });
 
-            var (hash, salt) = CreatePasswordHash(request.Password);
+            var (hash, salt) = _userService.CreatePasswordHash(request.Password);
 
             var user = new UserEntity
             {
@@ -206,7 +147,7 @@ public class UsersController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {
-                var (hash, salt) = CreatePasswordHash(request.Password);
+                var (hash, salt) = _userService.CreatePasswordHash(request.Password);
                 user.PasswordHash = hash;
                 user.PasswordSalt = salt;
             }
@@ -248,32 +189,6 @@ public class UsersController : ControllerBase
         }
     }
 
-    // ── Password helpers ────────────────────────────────────────────────
-
-    public static (string Hash, string Salt) CreatePasswordHash(string password)
-    {
-        var saltBytes = RandomNumberGenerator.GetBytes(16);
-        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
-        return (Convert.ToBase64String(hashBytes), Convert.ToBase64String(saltBytes));
-    }
-
-    private static bool VerifyPassword(string password, string hash, string salt)
-    {
-        if (string.IsNullOrWhiteSpace(hash) || string.IsNullOrWhiteSpace(salt))
-            return false;
-
-        try
-        {
-            var saltBytes = Convert.FromBase64String(salt);
-            var expectedHash = Convert.FromBase64String(hash);
-            var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, saltBytes, 100000, HashAlgorithmName.SHA256, 32);
-            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 public class CreateUserRequest

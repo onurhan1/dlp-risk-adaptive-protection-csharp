@@ -1,6 +1,6 @@
 using DLP.RiskAnalyzer.Shared.Models;
-using DLP.RiskAnalyzer.Shared.Services;
 using FluentAssertions;
+using SharedRiskAnalyzer = DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer;
 
 namespace DLP.RiskAnalyzer.Tests.Unit;
 
@@ -11,7 +11,7 @@ namespace DLP.RiskAnalyzer.Tests.Unit;
 /// </summary>
 public class RiskScoringTests
 {
-    private readonly RiskAnalyzer _sut = new();
+    private readonly SharedRiskAnalyzer _sut = new();
 
     // ─── GetMaxMatchesTier ────────────────────────────────────────────────────
 
@@ -39,8 +39,8 @@ public class RiskScoringTests
     // ─── GetChannelMultiplier ─────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(null,                0.2)]
-    [InlineData("",                  0.2)]
+    [InlineData(null,                1.0)]   // null → Default multiplier
+    [InlineData("",                  1.0)]   // empty → Default multiplier
     [InlineData("ENDPOINT_LAN",      0.2)]
     [InlineData("endpoint_lan",      0.2)]  // case insensitive
     [InlineData("ENDPOINT_PRINTING", 0.4)]

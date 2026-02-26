@@ -109,21 +109,21 @@ export default function MercekAnalyzePage() {
       const response = await apiClient.get('/api/mercek', { params })
       const data = response.data
 
-      const mappedData = data.items.map((item: any) => ({
-        'Olay No': item.incidentId,
-        'Olay Açıklaması': item.incidentDescription,
-        'Atanan Kullanıcı': item.assignedUserCode,
-        'Sistem Tarihi': item.systemDate ? new Date(item.systemDate).toLocaleString('tr-TR') : '',
-        'Açılış Tarihi': item.openDate ? new Date(item.openDate).toLocaleString('tr-TR') : '',
-        'Kapanış Tarihi': item.closeDate ? new Date(item.closeDate).toLocaleString('tr-TR') : '',
-        'Başlangıç Tarihi': item.startDate ? new Date(item.startDate).toLocaleString('tr-TR') : '',
-        'Çözüm Yöntemi': item.solutionMethod,
-        'Kullanıcı Adı': item.userName
+      const mappedData = (data.items || []).map((item: any) => ({
+        'Olay No': item.incident_id ?? item.incidentId,
+        'Olay Açıklaması': item.incident_description ?? item.incidentDescription,
+        'Atanan Kullanıcı': item.assigned_user_code ?? item.assignedUserCode,
+        'Sistem Tarihi': (item.system_date || item.systemDate) ? new Date(item.system_date || item.systemDate).toLocaleString('tr-TR') : '',
+        'Açılış Tarihi': (item.open_date || item.openDate) ? new Date(item.open_date || item.openDate).toLocaleString('tr-TR') : '',
+        'Kapanış Tarihi': (item.close_date || item.closeDate) ? new Date(item.close_date || item.closeDate).toLocaleString('tr-TR') : '',
+        'Başlangıç Tarihi': (item.start_date || item.startDate) ? new Date(item.start_date || item.startDate).toLocaleString('tr-TR') : '',
+        'Çözüm Yöntemi': item.solution_method ?? item.solutionMethod,
+        'Kullanıcı Adı': item.user_name ?? item.userName
       }))
 
       setCsvData(mappedData)
-      setMercekTotalCount(data.totalCount)
-      setMercekTotalPages(data.totalPages)
+      setMercekTotalCount(data.total_count ?? data.totalCount)
+      setMercekTotalPages(data.total_pages ?? data.totalPages)
       setCsvCurrentPage(data.page)
       setMercekDataLoaded(true)
 
@@ -143,7 +143,7 @@ export default function MercekAnalyzePage() {
       const response = await apiClient.get('/api/mercek/filters')
       const data = response.data
       setMercekAvailableUsers(data.users || [])
-      setMercekAssignedUsers(data.assignedUsers || [])
+      setMercekAssignedUsers(data.assigned_users || data.assignedUsers || [])
     } catch (error) {
       console.error('Mercek filters fetch error:', error)
     }
@@ -526,8 +526,8 @@ export default function MercekAnalyzePage() {
                   Yükleniyor...
                 </div>
               ) : mercekStatistics && (() => {
-                const lastWeekCount = mercekStatistics.lastWeekCount || 0
-                const previousWeekCount = mercekStatistics.previousWeekCount || 0
+                const lastWeekCount = mercekStatistics.last_week_count ?? mercekStatistics.lastWeekCount ?? 0
+                const previousWeekCount = mercekStatistics.previous_week_count ?? mercekStatistics.previousWeekCount ?? 0
                 const weekChange = previousWeekCount > 0
                   ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
                   : '0'
@@ -535,7 +535,7 @@ export default function MercekAnalyzePage() {
 
                 const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
                 const todayKey = toDateKey(new Date())
-                const dailyCounts = mercekStatistics.dailyCounts || []
+                const dailyCounts = mercekStatistics.daily_counts || mercekStatistics.dailyCounts || []
                 const todayCount = dailyCounts.find((d: any) => {
                   const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date))
                   return dt === todayKey
@@ -554,28 +554,28 @@ export default function MercekAnalyzePage() {
                       <div style={{ color: '#4338ca' }}><BarChart2 size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.total_incidents ?? mercekStatistics.totalIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(16, 185, 129, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                       <div style={{ color: '#047857' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık Incident</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.open_incidents ?? mercekStatistics.openIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(239, 68, 68, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                       <div style={{ color: '#b91c1c' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış Incident</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closed_incidents ?? mercekStatistics.closedIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(59, 130, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                       <div style={{ color: '#1d4ed8' }}><Clock size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.average_resolution_days ?? mercekStatistics.averageResolutionDays} gün</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(139, 92, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
@@ -613,8 +613,8 @@ export default function MercekAnalyzePage() {
 
               {/* Charts Section */}
               {mercekStatistics && (() => {
-                const userDist: Array<{ label: string, count: number }> = mercekStatistics.userDistribution || []
-                const assignedDist: Array<{ label: string, count: number }> = mercekStatistics.assignedUserDistribution || []
+                const userDist: Array<{ label: string, count: number }> = mercekStatistics.user_distribution || mercekStatistics.userDistribution || []
+                const assignedDist: Array<{ label: string, count: number }> = mercekStatistics.assigned_user_distribution || mercekStatistics.assignedUserDistribution || []
                 const userChartPageSize = 5
                 const assignedChartPageSize = 5
                 const userTotalPages = Math.ceil(userDist.length / userChartPageSize)
@@ -799,7 +799,7 @@ export default function MercekAnalyzePage() {
                           days.push(new Date(d));
                         }
                         const countMap = new Map<string, number>();
-                        (mercekStatistics.dailyCounts || []).forEach((d: any) => {
+                        (mercekStatistics.daily_counts || mercekStatistics.dailyCounts || []).forEach((d: any) => {
                           const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date));
                           countMap.set(dt, d.count);
                         });

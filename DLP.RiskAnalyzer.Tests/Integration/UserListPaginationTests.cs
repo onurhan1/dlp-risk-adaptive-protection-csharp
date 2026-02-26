@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
@@ -61,8 +62,7 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 100);
 
-        var users = (result["users"] as IEnumerable<object>)!.ToList();
-        users.Should().HaveCount(2, "charlie@company.com has data older than 30 days and must be excluded");
+        result.Users.Should().HaveCount(2, "charlie@company.com has data older than 30 days and must be excluded");
     }
 
     [Fact]
@@ -70,8 +70,7 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 100);
 
-        var users = (result["users"] as IEnumerable<Dictionary<string, object>>)!.ToList();
-        var scores = users.Select(u => Convert.ToDouble(u["risk_score"])).ToList();
+        var scores = result.Users.Select(u => u.RiskScore).ToList();
 
         scores.Should().BeInDescendingOrder("users must be ordered by average risk score descending");
     }
@@ -81,9 +80,8 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 100, search: "alice");
 
-        var users = (result["users"] as IEnumerable<Dictionary<string, object>>)!.ToList();
-        users.Should().HaveCount(1);
-        users[0]["user_email"].Should().Be("alice@company.com");
+        result.Users.Should().HaveCount(1);
+        result.Users[0].UserEmail.Should().Be("alice@company.com");
     }
 
     [Fact]
@@ -91,9 +89,8 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 100, search: "Bob Jones");
 
-        var users = (result["users"] as IEnumerable<Dictionary<string, object>>)!.ToList();
-        users.Should().HaveCount(1);
-        users[0]["user_email"].Should().Be("bob@company.com");
+        result.Users.Should().HaveCount(1);
+        result.Users[0].UserEmail.Should().Be("bob@company.com");
     }
 
     [Fact]
@@ -101,9 +98,8 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 1);
 
-        var users = (result["users"] as IEnumerable<object>)!.ToList();
-        users.Should().HaveCount(1);
-        Convert.ToInt32(result["total"]).Should().Be(2, "total must reflect the full un-paged count");
+        result.Users.Should().HaveCount(1);
+        result.Total.Should().Be(2, "total must reflect the full un-paged count");
     }
 
     [Fact]
@@ -111,10 +107,9 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 2, pageSize: 1);
 
-        var users = (result["users"] as IEnumerable<Dictionary<string, object>>)!.ToList();
-        users.Should().HaveCount(1);
+        result.Users.Should().HaveCount(1);
         // Page 1 = alice (avg 80), Page 2 = bob (avg 50)
-        users[0]["user_email"].Should().Be("bob@company.com");
+        result.Users[0].UserEmail.Should().Be("bob@company.com");
     }
 
     [Fact]
@@ -122,11 +117,10 @@ public class UserListPaginationTests : IDisposable
     {
         var result = await _sut.GetUserListAsync(page: 1, pageSize: 100);
 
-        var users = (result["users"] as IEnumerable<Dictionary<string, object>>)!.ToList();
-        var alice = users.First(u => u["user_email"].ToString() == "alice@company.com");
+        var alice = result.Users.First(u => u.UserEmail == "alice@company.com");
 
         // (90 + 80 + 70) / 3 = 80.0
-        Convert.ToDouble(alice["risk_score"]).Should().BeApproximately(80.0, 0.1);
+        alice.RiskScore.Should().BeApproximately(80.0, 0.1);
     }
 
     [Fact]
@@ -141,7 +135,7 @@ public class UserListPaginationTests : IDisposable
 
         var result = await emptyService.GetUserListAsync();
 
-        Convert.ToInt32(result["total"]).Should().Be(0);
+        result.Total.Should().Be(0);
     }
 
     public void Dispose() => _context.Dispose();

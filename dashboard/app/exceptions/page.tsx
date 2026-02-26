@@ -309,7 +309,7 @@ function AnalyticsPageContent() {
     return {
       id: item.id,
       timestamp: item.timestamp,
-      userEmail: item.userEmail,
+      userEmail: item.user_email || item.userEmail,
       policy: item.policy,
       action: item.action || 'Permit',
       severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
@@ -321,10 +321,10 @@ function AnalyticsPageContent() {
         return dept
       })(),
       team: item.team,
-      fullName: item.fullName,
-      maxMatches: item.maxMatches || 0,
-      loginName: item.loginName,
-      emailAddress: item.emailAddress,
+      fullName: item.full_name || item.fullName,
+      maxMatches: item.max_matches || item.maxMatches || 0,
+      loginName: item.login_name || item.loginName,
+      emailAddress: item.email_address || item.emailAddress,
       violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
       channel: item.channel
     }

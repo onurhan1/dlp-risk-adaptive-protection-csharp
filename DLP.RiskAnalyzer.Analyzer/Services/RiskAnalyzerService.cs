@@ -1,6 +1,8 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Constants;
+using DLP.RiskAnalyzer.Shared.Helpers;
 using DLP.RiskAnalyzer.Shared.Models;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -15,45 +17,37 @@ public class RiskAnalyzerService
     private readonly IIncidentRepository _incidentRepository;
     private readonly AnalyzerDbContext _context;
     private readonly Shared.Services.RiskAnalyzer _riskAnalyzer;
+    private readonly UserInsightsService _userInsights;
 
     public RiskAnalyzerService(
         IIncidentRepository incidentRepository,
-        AnalyzerDbContext context)
+        AnalyzerDbContext context,
+        UserInsightsService? userInsights = null)
     {
         _incidentRepository = incidentRepository;
         _context = context;
         _riskAnalyzer = new Shared.Services.RiskAnalyzer();
+        _userInsights = userInsights ?? new UserInsightsService(context);
     }
 
     /// <summary>
-    /// Get user risk trends
+    /// Get user risk trends (DB-side aggregation)
     /// </summary>
     public async Task<List<UserRiskTrend>> GetUserRiskTrendsAsync(int days = 30, string? user = null)
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
-        
-        var filteredIncidents = !string.IsNullOrEmpty(user)
-            ? incidents.Where(i => i.UserEmail == user).ToList()
-            : incidents;
+        var dtos = await _incidentRepository.GetUserRiskTrendsAggregatedAsync(startDate, endDate, user);
 
-        var trends = filteredIncidents
-            .GroupBy(i => new { i.UserEmail, Date = DateOnly.FromDateTime(i.Timestamp.Date) })
-            .Select(g => new UserRiskTrend
-            {
-                UserEmail = g.Key.UserEmail,
-                Date = g.Key.Date,
-                TotalIncidents = g.Count(),
-                RiskScore = g.Max(i => i.RiskScore ?? 0),
-                TrendDirection = "stable" // Calculate trend direction based on previous days
-            })
-            .OrderBy(t => t.UserEmail)
-            .ThenBy(t => t.Date)
-            .ToList();
-
-        return trends;
+        return dtos.Select(d => new UserRiskTrend
+        {
+            UserEmail = d.UserEmail,
+            Date = d.Date,
+            TotalIncidents = d.TotalIncidents,
+            RiskScore = d.MaxRiskScore,
+            TrendDirection = "stable"
+        }).ToList();
     }
 
     /// <summary>
@@ -89,39 +83,28 @@ public class RiskAnalyzerService
         return summaries;
     }
     /// <summary>
-    /// Get daily summaries
+    /// Get daily summaries (DB-side aggregation)
     /// </summary>
     public async Task<List<DailySummary>> GetDailySummariesAsync(int days = 7)
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate, endDate);
-        
-        var summaries = incidents
-            .GroupBy(i => DateOnly.FromDateTime(i.Timestamp.Date))
-            .Select(g => new DailySummary
-            {
-                Date = g.Key,
-                TotalIncidents = g.Count(),
-                // Count unique HIGH RISK USERS (users whose max risk score >= 500, i.e., 50+ when normalized)
-                HighRiskCount = g.GroupBy(i => i.UserEmail)
-                                 .Count(userGroup => userGroup.Max(i => i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold),
-                AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
-                UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count(),
-                DepartmentsAffected = g.Where(i => !string.IsNullOrEmpty(i.Department))
-                                      .Select(i => i.Department!)
-                                      .Distinct()
-                                      .Count()
-            })
-            .OrderBy(s => s.Date)
-            .ToList();
+        var dtos = await _incidentRepository.GetDailySummariesAggregatedAsync(startDate, endDate);
 
-        return summaries;
+        return dtos.Select(d => new DailySummary
+        {
+            Date = d.Date,
+            TotalIncidents = d.TotalIncidents,
+            HighRiskCount = d.HighRiskUserCount,
+            AvgRiskScore = d.AvgRiskScore,
+            UniqueUsers = d.UniqueUsers,
+            DepartmentsAffected = d.DepartmentsAffected
+        }).ToList();
     }
 
     /// <summary>
-    /// Get risk heatmap data
+    /// Get risk heatmap data (DB-side aggregation)
     /// </summary>
     public async Task<RiskHeatmapData> GetRiskHeatmapAsync(
         string dimension,
@@ -134,52 +117,13 @@ public class RiskAnalyzerService
             startDate = endDate.Value.AddDays(-30);
         }
 
-        var labels = new List<string>();
-        var values = new List<int>();
-        var incidents = await _incidentRepository.GetIncidentsAsync(startDate.Value, endDate.Value);
-
-        if (dimension == "department")
-        {
-            var deptData = incidents
-                .Where(i => !string.IsNullOrEmpty(i.Department))
-                .GroupBy(i => i.Department)
-                .Select(g => new { Label = g.Key!, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(10)
-                .ToList();
-
-            labels = deptData.Select(d => d.Label).ToList();
-            values = deptData.Select(d => d.Count).ToList();
-        }
-        else if (dimension == "user")
-        {
-            var userData = incidents
-                .GroupBy(i => i.UserEmail)
-                .Select(g => new { Label = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(10)
-                .ToList();
-
-            labels = userData.Select(d => d.Label).ToList();
-            values = userData.Select(d => d.Count).ToList();
-        }
-        else // channel
-        {
-            var channelData = incidents
-                .Where(i => !string.IsNullOrEmpty(i.Channel))
-                .GroupBy(i => i.Channel)
-                .Select(g => new { Label = g.Key!, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .ToList();
-
-            labels = channelData.Select(d => d.Label).ToList();
-            values = channelData.Select(d => d.Count).ToList();
-        }
+        var items = await _incidentRepository.GetHeatmapAggregatedAsync(
+            startDate.Value, endDate.Value, dimension);
 
         return new RiskHeatmapData
         {
-            Labels = labels,
-            Values = values,
+            Labels = items.Select(i => i.Label).ToList(),
+            Values = items.Select(i => i.Count).ToList(),
             Dimension = dimension,
             DateRange = new Dictionary<string, string>
             {
@@ -348,12 +292,11 @@ public class RiskAnalyzerService
     /// P-01 fix: Grouping, search, and pagination are now pushed to PostgreSQL instead of
     /// loading all rows into memory (previously up to 300 K+ rows per call).
     /// </summary>
-    public async Task<Dictionary<string, object>> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null)
+    public async Task<UserListResponse> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null)
     {
         var endDate   = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-30);
 
-        // ── Step 1: aggregate per-user stats directly in the DB ────────────────
         var grouped = _context.UserDailyRiskScores
             .Where(r => r.Date >= startDate && r.Date <= endDate)
             .GroupBy(r => r.UserEmail)
@@ -363,8 +306,6 @@ public class RiskAnalyzerService
                 AvgScore       = g.Average(r => r.DailyRiskScore),
                 TotalIncidents = g.Sum(r => r.IncidentCount),
                 LastDate       = g.Max(r => r.Date),
-                // First non-empty full name / team per user.
-                // EF Core translates this to a subquery; acceptable for a small lookup table.
                 FullName = g.Where(r => r.FullName != null && r.FullName != string.Empty)
                             .OrderByDescending(r => r.Date)
                             .Select(r => r.FullName)
@@ -375,7 +316,6 @@ public class RiskAnalyzerService
                         .FirstOrDefault()
             });
 
-        // ── Step 2: push search filter to DB ────────────────────────────────
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.ToLower().Trim();
@@ -385,7 +325,6 @@ public class RiskAnalyzerService
                 (u.Team     != null && u.Team.ToLower().Contains(s)));
         }
 
-        // ── Step 3: count and paginate in the DB ────────────────────────────
         var total  = await grouped.CountAsync();
         var offset = (page - 1) * pageSize;
 
@@ -396,27 +335,27 @@ public class RiskAnalyzerService
             .Take(pageSize)
             .ToListAsync();
 
-        return new Dictionary<string, object>
+        return new UserListResponse
         {
-            { "users", pagedUsers.Select(u => new Dictionary<string, object>
+            Users = pagedUsers.Select(u => new UserListItem
             {
-                { "user_email",          u.UserEmail },
-                { "risk_score",          Math.Round(u.AvgScore, 1) },
-                { "total_incidents",     u.TotalIncidents },
-                { "last_incident_date",  u.LastDate.ToString("yyyy-MM-dd") },
-                { "full_name",           u.FullName ?? string.Empty },
-                { "team",                u.Team     ?? string.Empty }
-            }) },
-            { "total",     total },
-            { "page",      page },
-            { "page_size", pageSize }
+                UserEmail        = u.UserEmail,
+                RiskScore        = Math.Round(u.AvgScore, 1),
+                TotalIncidents   = u.TotalIncidents,
+                LastIncidentDate = u.LastDate.ToString("yyyy-MM-dd"),
+                FullName         = u.FullName ?? string.Empty,
+                Team             = u.Team     ?? string.Empty
+            }).ToList(),
+            Total    = total,
+            Page     = page,
+            PageSize = pageSize
         };
     }
 
     /// <summary>
-    /// Get channel activity breakdown
+    /// Get channel activity breakdown (DB-side aggregation)
     /// </summary>
-    public async Task<Dictionary<string, object>> GetChannelActivityAsync(
+    public async Task<ChannelActivityResponse> GetChannelActivityAsync(
         DateOnly? startDate,
         DateOnly? endDate,
         int days = 30)
@@ -427,55 +366,36 @@ public class RiskAnalyzerService
             startDate = endDate.Value.AddDays(-days);
         }
 
-        var incidents = await _incidentRepository.GetIncidentsByChannelAsync(
+        var channels = await _incidentRepository.GetChannelBreakdownAggregatedAsync(
             startDate.Value, endDate.Value);
-        
-        var channels = incidents
-            .GroupBy(i => i.Channel)
-            .Select(g => new
-            {
-                Channel = g.Key!,
-                TotalIncidents = g.Count(),
-                CriticalCount = g.Count(i => (i.RiskScore ?? 0) >= 75), // High risk (75+ on 0-100 scale)
-                HighCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.HighThreshold && 
-                                         (i.RiskScore ?? 0) < 75),
-                MediumCount = g.Count(i => (i.RiskScore ?? 0) >= RiskConstants.RiskScores.MediumThreshold && 
-                                          (i.RiskScore ?? 0) < RiskConstants.RiskScores.HighThreshold),
-                LowCount = g.Count(i => (i.RiskScore ?? 0) < RiskConstants.RiskScores.MediumThreshold)
-            })
-            .OrderByDescending(c => c.TotalIncidents)
-            .ToList();
 
         var total = channels.Sum(c => c.TotalIncidents);
 
-        var channelList = channels.Select(c => new Dictionary<string, object>
+        return new ChannelActivityResponse
         {
-            { "channel", c.Channel },
-            { "total_incidents", c.TotalIncidents },
-            { "percentage", total > 0 ? Math.Round((c.TotalIncidents / (double)total) * 100, 1) : 0 },
-            { "critical_count", c.CriticalCount },
-            { "high_count", c.HighCount },
-            { "medium_count", c.MediumCount },
-            { "low_count", c.LowCount }
-        }).ToList();
-
-        return new Dictionary<string, object>
-        {
-            { "channels", channelList },
-            { "total", total },
-            { "date_range", new Dictionary<string, string>
-                {
-                    { "start", startDate.Value.ToString("yyyy-MM-dd") },
-                    { "end", endDate.Value.ToString("yyyy-MM-dd") }
-                }
+            Channels = channels.Select(c => new ChannelActivityItem
+            {
+                Channel        = c.Channel,
+                TotalIncidents = c.TotalIncidents,
+                Percentage     = total > 0 ? Math.Round((c.TotalIncidents / (double)total) * 100, 1) : 0,
+                CriticalCount  = c.CriticalCount,
+                HighCount      = c.HighCount,
+                MediumCount    = c.MediumCount,
+                LowCount       = c.LowCount
+            }).ToList(),
+            Total = total,
+            DateRange = new DateRangeInfo
+            {
+                Start = startDate.Value.ToString("yyyy-MM-dd"),
+                End   = endDate.Value.ToString("yyyy-MM-dd")
             }
         };
     }
 
     /// <summary>
-    /// Get IOB detections
+    /// Get IOB detections (limited fetch from DB with explicit cap)
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetIOBDetectionsAsync(
+    public async Task<List<IOBDetectionItem>> GetIOBDetectionsAsync(
         DateOnly? startDate,
         DateOnly? endDate,
         string? category = null)
@@ -487,47 +407,40 @@ public class RiskAnalyzerService
         }
 
         var incidents = await _incidentRepository.GetIncidentsAsync(
-            startDate.Value, endDate.Value);
-        
-        // Limit to 1000 for performance
-        incidents = incidents.Take(1000).ToList();
+            startDate.Value, endDate.Value, maxRows: 1000);
 
-        var iobCounts = new Dictionary<string, Dictionary<string, object>>();
+        var iobCounts = new Dictionary<string, (int Count, HashSet<string> Users)>();
 
         foreach (var incident in incidents)
         {
             var iobs = _riskAnalyzer.DetectIOB(incident);
-
             foreach (var iob in iobs)
             {
-                if (!iobCounts.ContainsKey(iob))
+                if (!iobCounts.TryGetValue(iob, out var data))
                 {
-                    iobCounts[iob] = new Dictionary<string, object>
-                    {
-                        { "code", iob },
-                        { "count", 0 },
-                        { "users_affected", new HashSet<string>() }
-                    };
+                    data = (0, new HashSet<string>());
+                    iobCounts[iob] = data;
                 }
-
-                var iobData = iobCounts[iob];
-                iobData["count"] = (int)iobData["count"] + 1;
-                ((HashSet<string>)iobData["users_affected"]).Add(incident.UserEmail);
+                iobCounts[iob] = (data.Count + 1, data.Users);
+                data.Users.Add(incident.UserEmail);
             }
         }
 
-        return iobCounts.Values.Select(iob => new Dictionary<string, object>
-        {
-            { "code", iob["code"] },
-            { "count", iob["count"] },
-            { "users_affected", ((HashSet<string>)iob["users_affected"]).Count }
-        }).OrderByDescending(i => (int)i["count"]).ToList();
+        return iobCounts
+            .Select(kv => new IOBDetectionItem
+            {
+                Code          = kv.Key,
+                Count         = kv.Value.Count,
+                UsersAffected = kv.Value.Users.Count
+            })
+            .OrderByDescending(i => i.Count)
+            .ToList();
     }
 
     /// <summary>
-    /// Get top users by day with their daily alert counts
+    /// Get top users by day with their daily alert counts (DB-side aggregation)
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopUsersByDayAsync(
+    public async Task<List<TopUserItem>> GetTopUsersByDayAsync(
         int days = 30, 
         int limit = 20,
         DateTime? startDate = null,
@@ -546,48 +459,24 @@ public class RiskAnalyzerService
             start = end.AddDays(-days);
         }
 
-        var incidents = await _incidentRepository.GetIncidentsAsync(start, end);
+        var topUsers = await _incidentRepository.GetTopUsersAggregatedAsync(start, end, 35, limit);
 
-        // Group by user, calculate stats
-        var userStats = incidents
-            .GroupBy(i => i.UserEmail)
-            .Select(g => new
-            {
-                UserEmail = g.Key,
-                TotalAlerts = g.Count(),
-                RiskScore = g.Max(i => i.RiskScore ?? 0),
-                Department = g.Where(i => !string.IsNullOrEmpty(i.Department))
-                             .Select(i => i.Department)
-                             .FirstOrDefault() ?? "",
-                LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
-                            .Select(i => i.LoginName)
-                            .FirstOrDefault() ?? "",
-                EmailAddress = g.Where(i => !string.IsNullOrEmpty(i.EmailAddress))
-                              .Select(i => i.EmailAddress)
-                              .FirstOrDefault() ?? ""
-            })
-            .Where(u => u.RiskScore >= 35)  // Only show risky users (35+ on 0-100 scale)
-            .OrderByDescending(u => u.RiskScore)  // Sort by risk score first
-            .ThenByDescending(u => u.TotalAlerts)  // Then by incident count
-            .Take(limit)
-            .ToList();
-
-        return userStats.Select(u => new Dictionary<string, object>
+        return topUsers.Select(u => new TopUserItem
         {
-            { "user_email", u.UserEmail },
-            { "login_name", u.LoginName },
-            { "email_address", !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail },
-            { "total_alerts", u.TotalAlerts },
-            { "risk_score", u.RiskScore },
-            { "department", u.Department },
-            { "risk_level", GetRiskLevelFromScore(u.RiskScore) }
+            UserEmail    = u.UserEmail,
+            LoginName    = u.LoginName ?? "",
+            EmailAddress = !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail,
+            TotalAlerts  = u.TotalAlerts,
+            RiskScore    = u.MaxRiskScore,
+            Department   = u.Department ?? "",
+            RiskLevel    = GetRiskLevelFromScore(u.MaxRiskScore)
         }).ToList();
     }
 
     /// <summary>
     /// Get top rules by day with their daily alert counts
     /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopRulesByDayAsync(
+    public async Task<List<TopRuleItem>> GetTopRulesByDayAsync(
         int days = 30, 
         int limit = 10,
         DateTime? startDate = null,
@@ -606,7 +495,6 @@ public class RiskAnalyzerService
             start = end.AddDays(-days);
         }
 
-        // Optimized: Aggregate in database
         var ruleStats = await _context.Incidents
             .Where(i => i.Timestamp >= start.ToDateTime(TimeOnly.MinValue) && 
                         i.Timestamp <= end.ToDateTime(TimeOnly.MaxValue))
@@ -623,24 +511,23 @@ public class RiskAnalyzerService
             .Take(limit)
             .ToListAsync();
 
-        return ruleStats.Select(r => new Dictionary<string, object>
+        return ruleStats.Select(r => new TopRuleItem
         {
-            { "rule_name", r.RuleName },
-            { "total_alerts", r.TotalAlerts },
-            { "avg_risk_score", Math.Round(r.AvgRiskScore, 1) },
-            { "unique_users", r.UniqueUsers }
+            RuleName     = r.RuleName,
+            TotalAlerts  = r.TotalAlerts,
+            AvgRiskScore = Math.Round(r.AvgRiskScore, 1),
+            UniqueUsers  = r.UniqueUsers
         }).ToList();
     }
 
     /// <summary>
     /// Get comprehensive daily report data for a specific date
     /// </summary>
-    public async Task<Dictionary<string, object>> GetDailyReportDataAsync(DateTime date)
+    public async Task<DailyReportResponse> GetDailyReportDataAsync(DateTime date)
     {
         var targetDate = DateOnly.FromDateTime(date);
         var incidents = await _incidentRepository.GetIncidentsAsync(targetDate, targetDate);
 
-        // Action Summary
         var actionSummary = incidents
             .GroupBy(i => i.Action?.ToUpper() ?? "UNKNOWN")
             .ToDictionary(g => g.Key, g => g.Count());
@@ -651,7 +538,6 @@ public class RiskAnalyzerService
         var released = actionSummary.GetValueOrDefault("RELEASED", 0);
         var total = incidents.Count;
 
-        // Top 10 Users
         var topUsers = incidents
             .GroupBy(i => i.UserEmail)
             .Select(g => new
@@ -664,66 +550,60 @@ public class RiskAnalyzerService
                              .Select(i => i.Department)
                              .FirstOrDefault() ?? "",
                 TotalAlerts = g.Count(),
-                // Score is already 0-100 scale
                 RiskScore = (int)Math.Round(g.Max(i => i.RiskScore ?? 0) * 1.0)
             })
             .OrderByDescending(u => u.TotalAlerts)
             .Take(10)
-            .Select(u => new Dictionary<string, object>
+            .Select(u => new DailyReportTopUser
             {
-                { "user_email", u.UserEmail },
-                { "login_name", u.LoginName },
-                { "department", u.Department },
-                { "total_alerts", u.TotalAlerts },
-                { "risk_score", u.RiskScore },
-                { "risk_level", GetRiskLevelFromScore(u.RiskScore) } // Direct 0-100 scale
+                UserEmail   = u.UserEmail,
+                LoginName   = u.LoginName,
+                Department  = u.Department,
+                TotalAlerts = u.TotalAlerts,
+                RiskScore   = u.RiskScore,
+                RiskLevel   = GetRiskLevelFromScore(u.RiskScore)
             })
             .ToList();
 
-        // Top 10 Policies with Top 3 Rules each
         var topPolicies = await GetTopPoliciesWithRulesAsync(incidents);
 
-        // Channel Breakdown
         var channelBreakdown = incidents
             .Where(i => !string.IsNullOrEmpty(i.Channel))
             .GroupBy(i => i.Channel!)
-            .Select(g => new Dictionary<string, object>
+            .Select(g => new DailyReportChannel
             {
-                { "channel", g.Key },
-                { "total_alerts", g.Count() },
-                { "percentage", total > 0 ? Math.Round((g.Count() / (double)total) * 100, 1) : 0 }
+                Channel     = g.Key,
+                TotalAlerts = g.Count(),
+                Percentage  = total > 0 ? Math.Round((g.Count() / (double)total) * 100, 1) : 0
             })
-            .OrderByDescending(c => (int)c["total_alerts"])
+            .OrderByDescending(c => c.TotalAlerts)
             .ToList();
 
-        // Top 10 Destinations
-        var topDestinations = await GetDestinationSummaryAsync(incidents, 10);
+        var topDestinations = GetDestinationSummary(incidents, 10);
 
-        return new Dictionary<string, object>
+        return new DailyReportResponse
         {
-            { "date", date.ToString("yyyy-MM-dd") },
-            { "action_summary", new Dictionary<string, object>
-                {
-                    { "authorized", authorized },
-                    { "block", block },
-                    { "quarantine", quarantine },
-                    { "released", released },
-                    { "total", total }
-                }
+            Date = date.ToString("yyyy-MM-dd"),
+            ActionSummary = new ActionSummary
+            {
+                Authorized = authorized,
+                Block      = block,
+                Quarantine = quarantine,
+                Released   = released,
+                Total      = total
             },
-            { "top_users", topUsers },
-            { "top_policies", topPolicies },
-            { "channel_breakdown", channelBreakdown },
-            { "top_destinations", topDestinations }
+            TopUsers         = topUsers,
+            TopPolicies      = topPolicies,
+            ChannelBreakdown = channelBreakdown,
+            TopDestinations  = topDestinations
         };
     }
 
     /// <summary>
     /// Get top policies with their top 3 rules
     /// </summary>
-    private async Task<List<Dictionary<string, object>>> GetTopPoliciesWithRulesAsync(List<Incident> incidents)
+    private async Task<List<DailyReportPolicy>> GetTopPoliciesWithRulesAsync(List<Incident> incidents)
     {
-        // Parse ViolationTriggers to extract policy and rule combinations
         var policyRuleData = new Dictionary<string, Dictionary<string, int>>();
 
         foreach (var incident in incidents)
@@ -731,12 +611,8 @@ public class RiskAnalyzerService
             var policyName = incident.Policy ?? "Unknown Policy";
             
             if (!policyRuleData.ContainsKey(policyName))
-            {
                 policyRuleData[policyName] = new Dictionary<string, int>();
-            }
 
-            // Try to parse ViolationTriggers for rule names
-            // ViolationTriggers format: [{"policy_name": "...", "rule_name": "...", "classifiers": [...]}]
             if (!string.IsNullOrEmpty(incident.ViolationTriggers))
             {
                 try
@@ -748,27 +624,21 @@ public class RiskAnalyzerService
                     {
                         foreach (var trigger in root.EnumerateArray())
                         {
-                            string ruleName = policyName; // Default to policy name
+                            string ruleName = policyName;
                             
-                            // Try to get rule_name from the trigger object
                             if (trigger.TryGetProperty("rule_name", out var ruleNameElement) && 
                                 ruleNameElement.ValueKind == System.Text.Json.JsonValueKind.String)
                             {
                                 var ruleValue = ruleNameElement.GetString();
                                 if (!string.IsNullOrEmpty(ruleValue))
-                                {
                                     ruleName = ruleValue;
-                                }
                             }
-                            // Also try RuleName (camelCase)
                             else if (trigger.TryGetProperty("RuleName", out var ruleNameCamelElement) && 
                                 ruleNameCamelElement.ValueKind == System.Text.Json.JsonValueKind.String)
                             {
                                 var ruleValue = ruleNameCamelElement.GetString();
                                 if (!string.IsNullOrEmpty(ruleValue))
-                                {
                                     ruleName = ruleValue;
-                                }
                             }
                             
                             policyRuleData[policyName][ruleName] = policyRuleData[policyName].GetValueOrDefault(ruleName, 0) + 1;
@@ -776,55 +646,45 @@ public class RiskAnalyzerService
                         continue;
                     }
                 }
-                catch (System.Text.Json.JsonException)
-                {
-                    // JSON parse failed, fall through to use policy name as rule
-                }
+                catch (System.Text.Json.JsonException) { }
             }
             
-            // If no ViolationTriggers or parsing failed, use policy name as the rule
             policyRuleData[policyName][policyName] = policyRuleData[policyName].GetValueOrDefault(policyName, 0) + 1;
         }
 
+        await Task.CompletedTask;
+
         return policyRuleData
-            .Select(p => new Dictionary<string, object>
+            .Select(p => new DailyReportPolicy
             {
-                { "policy_name", p.Key },
-                { "total_alerts", p.Value.Values.Sum() },
-                { "top_rules", p.Value
+                PolicyName  = p.Key,
+                TotalAlerts = p.Value.Values.Sum(),
+                TopRules    = p.Value
                     .OrderByDescending(r => r.Value)
                     .Take(3)
-                    .Select(r => new Dictionary<string, object>
-                    {
-                        { "rule_name", r.Key },
-                        { "alert_count", r.Value }
-                    })
+                    .Select(r => new DailyReportRule { RuleName = r.Key, AlertCount = r.Value })
                     .ToList()
-                }
             })
-            .OrderByDescending(p => (int)p["total_alerts"])
+            .OrderByDescending(p => p.TotalAlerts)
             .Take(10)
             .ToList();
     }
 
-    /// <summary>
-    /// Get destination summary
-    /// </summary>
-    private Task<List<Dictionary<string, object>>> GetDestinationSummaryAsync(List<Incident> incidents, int limit = 10)
+    private static List<DailyReportDestination> GetDestinationSummary(List<Incident> incidents, int limit = 10)
     {
-        var destinations = incidents
+        var total = incidents.Count;
+        return incidents
             .Where(i => !string.IsNullOrEmpty(i.Destination))
             .GroupBy(i => i.Destination!)
-            .Select(g => new Dictionary<string, object>
+            .Select(g => new DailyReportDestination
             {
-                { "destination", g.Key },
-                { "total_alerts", g.Count() }
+                Destination = g.Key,
+                TotalAlerts = g.Count(),
+                Percentage  = total > 0 ? Math.Round((g.Count() / (double)total) * 100, 1) : 0
             })
-            .OrderByDescending(d => (int)d["total_alerts"])
+            .OrderByDescending(d => d.TotalAlerts)
             .Take(limit)
             .ToList();
-
-        return Task.FromResult(destinations);
     }
 
     /// <summary>
@@ -963,564 +823,38 @@ public class RiskAnalyzerService
         return updatedCount;
     }
 
-    /// <summary>
-    /// Get user daily scores for a date range
-    /// </summary>
-    public async Task<List<UserDailyRiskScore>> GetUserDailyScoresAsync(string userEmail, DateOnly startDate, DateOnly endDate)
-    {
-        return await _context.UserDailyRiskScores
-            .Where(r => r.UserEmail == userEmail && r.Date >= startDate && r.Date <= endDate)
-            .OrderBy(r => r.Date)
-            .ToListAsync();
-    }
+    // ── Delegated to UserInsightsService ──────────────────────────────────
 
-    /// <summary>
-    /// Get comprehensive user insights with daily scores, action breakdown, and period averages
-    /// </summary>
-    public async Task<Dictionary<string, object>> GetUserComprehensiveInsightsAsync(string userEmail, string period)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        DateOnly startDate;
-        
-        switch (period.ToLower())
-        {
-            case "daily":
-                startDate = endDate.AddDays(-7);
-                break;
-            case "weekly":
-                startDate = endDate.AddDays(-14); // 2 weeks
-                break;
-            case "monthly":
-                startDate = endDate.AddDays(-30);
-                break;
-            case "quarterly":
-                startDate = endDate.AddDays(-90);
-                break;
-            default:
-                startDate = endDate.AddDays(-30);
-                break;
-        }
-        
-        var dailyScores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
-        
-        // Calculate period averages (all-time windows for comparison)
-        var weeklyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-7), endDate);
-        var monthlyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-30), endDate);
-        var quarterlyScores = await GetUserDailyScoresAsync(userEmail, endDate.AddDays(-90), endDate);
-        
-        var periodAverages = new Dictionary<string, object>
-        {
-            { "weekly", new {
-                avgScore = weeklyScores.Any() ? Math.Round(weeklyScores.Average(s => s.DailyRiskScore), 2) : 0,
-                totalIncidents = weeklyScores.Sum(s => s.IncidentCount),
-                totalBlocks = weeklyScores.Sum(s => s.BlockCount),
-                totalQuarantines = weeklyScores.Sum(s => s.QuarantineCount)
-            }},
-            { "monthly", new {
-                avgScore = monthlyScores.Any() ? Math.Round(monthlyScores.Average(s => s.DailyRiskScore), 2) : 0,
-                totalIncidents = monthlyScores.Sum(s => s.IncidentCount),
-                totalBlocks = monthlyScores.Sum(s => s.BlockCount),
-                totalQuarantines = monthlyScores.Sum(s => s.QuarantineCount)
-            }},
-            { "quarterly", new {
-                avgScore = quarterlyScores.Any() ? Math.Round(quarterlyScores.Average(s => s.DailyRiskScore), 2) : 0,
-                totalIncidents = quarterlyScores.Sum(s => s.IncidentCount),
-                totalBlocks = quarterlyScores.Sum(s => s.BlockCount),
-                totalQuarantines = quarterlyScores.Sum(s => s.QuarantineCount)
-            }}
-        };
-        
-        // Summary for selected period
-        var summary = new Dictionary<string, object>
-        {
-            { "totalIncidents", dailyScores.Sum(s => s.IncidentCount) },
-            { "avgDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Average(s => s.DailyRiskScore), 2) : 0 },
-            { "maxDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Max(s => s.DailyRiskScore), 2) : 0 },
-            { "minDailyScore", dailyScores.Any() ? Math.Round(dailyScores.Min(s => s.DailyRiskScore), 2) : 0 },
-            { "totalBlockCount", dailyScores.Sum(s => s.BlockCount) },
-            { "totalPermitCount", dailyScores.Sum(s => s.PermitCount) },
-            { "totalQuarantineCount", dailyScores.Sum(s => s.QuarantineCount) },
-            { "totalReleasedCount", dailyScores.Sum(s => s.ReleasedCount) },
-            { "maxMaxMatches", dailyScores.Any() ? dailyScores.Max(s => s.MaxMaxMatches) : 0 },
-            { "avgMaxMatches", dailyScores.Any() ? Math.Round(dailyScores.Average(s => s.AvgMaxMatches), 2) : 0 }
-        };
-        
-        // Get user info from latest score
-        var latestScore = dailyScores.OrderByDescending(s => s.Date).FirstOrDefault();
-        
-        return new Dictionary<string, object>
-        {
-            { "userEmail", userEmail },
-            { "fullName", latestScore?.FullName ?? "" },
-            { "team", latestScore?.Team ?? "" },
-            { "period", period },
-            { "startDate", startDate.ToString("yyyy-MM-dd") },
-            { "endDate", endDate.ToString("yyyy-MM-dd") },
-            { "summary", summary },
-            { "periodAverages", periodAverages },
-            { "dailyScores", dailyScores.Select(s => new {
-                date = s.Date.ToString("yyyy-MM-dd"),
-                dailyRiskScore = Math.Round(s.DailyRiskScore, 2),
-                incidentCount = s.IncidentCount,
-                maxRiskScore = s.MaxRiskScore,
-                avgRiskScore = Math.Round(s.AvgRiskScore, 2),
-                blockCount = s.BlockCount,
-                permitCount = s.PermitCount,
-                quarantineCount = s.QuarantineCount,
-                releasedCount = s.ReleasedCount,
-                maxMaxMatches = s.MaxMaxMatches,
-                avgMaxMatches = Math.Round(s.AvgMaxMatches, 2)
-            }).ToList() }
-        };
-    }
+    public Task<List<UserDailyRiskScore>> GetUserDailyScoresAsync(string userEmail, DateOnly startDate, DateOnly endDate) =>
+        _userInsights.GetUserDailyScoresAsync(userEmail, startDate, endDate);
 
-    /// <summary>
-    /// Get weekly trend metrics
-    /// </summary>
-    public async Task<Dictionary<string, object>> GetUserWeeklyTrendAsync(string userEmail)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-7);
-        
-        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
-        
-        return new Dictionary<string, object>
-        {
-            { "period", "weekly" },
-            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
-            { "total_score", scores.Sum(s => s.DailyRiskScore) },
-            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
-            { "incident_count", scores.Sum(s => s.IncidentCount) },
-            { "scores", scores }
-        };
-    }
+    public Task<UserComprehensiveInsightsResponse> GetUserComprehensiveInsightsAsync(string userEmail, string period) =>
+        _userInsights.GetUserComprehensiveInsightsAsync(userEmail, period);
 
-    /// <summary>
-    /// Get monthly trend metrics
-    /// </summary>
-    public async Task<Dictionary<string, object>> GetUserMonthlyTrendAsync(string userEmail)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-30);
-        
-        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
-        
-        return new Dictionary<string, object>
-        {
-            { "period", "monthly" },
-            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
-            { "total_score", scores.Sum(s => s.DailyRiskScore) },
-            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
-            { "incident_count", scores.Sum(s => s.IncidentCount) },
-            { "scores", scores }
-        };
-    }
+    public Task<UserTrendResponse> GetUserWeeklyTrendAsync(string userEmail) =>
+        _userInsights.GetUserWeeklyTrendAsync(userEmail);
 
-    /// <summary>
-    /// Get quarterly (3-month) trend metrics
-    /// </summary>
-    public async Task<Dictionary<string, object>> GetUserQuarterlyTrendAsync(string userEmail)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-90);
-        
-        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
-        
-        return new Dictionary<string, object>
-        {
-            { "period", "quarterly" },
-            { "average_daily_score", scores.Any() ? scores.Average(s => s.DailyRiskScore) : 0 },
-            { "total_score", scores.Sum(s => s.DailyRiskScore) },
-            { "max_score", scores.Any() ? scores.Max(s => s.DailyRiskScore) : 0 },
-            { "incident_count", scores.Sum(s => s.IncidentCount) },
-            { "scores", scores }
-        };
-    }
+    public Task<UserTrendResponse> GetUserMonthlyTrendAsync(string userEmail) =>
+        _userInsights.GetUserMonthlyTrendAsync(userEmail);
 
-    /// <summary>
-    /// Detect anomalies for a user based on their history
-    /// </summary>
-    public async Task<List<string>> DetectUserAnomaliesAsync(string userEmail)
-    {
-        var anomalies = new List<string>();
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-30);
-        
-        var scores = await GetUserDailyScoresAsync(userEmail, startDate, endDate);
-        if (scores.Count < 5) return anomalies; // Not enough data
-        
-        // Calculate baseline stats (excluding today)
-        var history = scores.Where(s => s.Date < endDate).ToList();
-        if (!history.Any()) return anomalies;
-        
-        var avgScore = history.Average(s => s.DailyRiskScore);
-        var stdDev = CalculateStdDev(history.Select(s => s.DailyRiskScore));
-        
-        // Check recent scores (last 3 days)
-        var recent = scores.Where(s => s.Date >= endDate.AddDays(-3)).ToList();
-        
-        foreach (var score in recent)
-        {
-            // If score is > Mean + 3*StdDev => Anomaly
-            if (score.DailyRiskScore > avgScore + (3 * stdDev) && score.DailyRiskScore > 100) // Minimum threshold
-            {
-                anomalies.Add($"High Risk Score Anomaly on {score.Date}: {score.DailyRiskScore} (Baseline: {avgScore:F1})");
-            }
-        }
-        
-        return anomalies;
-    }
-    
-    private double CalculateStdDev(IEnumerable<double> values)
-    {
-        double ret = 0;
-        if (values.Any())
-        {
-            int count = values.Count();
-            if (count > 1)
-            {
-                double avg = values.Average();
-                double sum = values.Sum(d => Math.Pow(d - avg, 2));
-                ret = Math.Sqrt((sum) / (count - 1));
-            }
-        }
-        return ret;
-    }
+    public Task<UserTrendResponse> GetUserQuarterlyTrendAsync(string userEmail) =>
+        _userInsights.GetUserQuarterlyTrendAsync(userEmail);
 
-    /// <summary>
-    /// Get risky users report with trend analysis
-    /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetRiskyUsersReportAsync(string period)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        DateOnly startDate;
-        
-        switch (period.ToLower())
-        {
-            case "weekly": startDate = endDate.AddDays(-7); break;
-            case "monthly": startDate = endDate.AddDays(-30); break;
-            case "quarterly": startDate = endDate.AddDays(-90); break;
-            default: startDate = endDate.AddDays(-30); break;
-        }
+    public Task<List<string>> DetectUserAnomaliesAsync(string userEmail) =>
+        _userInsights.DetectUserAnomaliesAsync(userEmail);
 
-        // Get all scores in range
-        var scores = await _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .ToListAsync();
+    public Task<List<RiskyUserReportItem>> GetRiskyUsersReportAsync(string period) =>
+        _userInsights.GetRiskyUsersReportAsync(period);
 
-        var userGroups = scores.GroupBy(s => s.UserEmail);
-        var result = new List<Dictionary<string, object>>();
+    public Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20) =>
+        _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
 
-        foreach (var group in userGroups)
-        {
-            var userScores = group.OrderBy(s => s.Date).ToList();
-            if (!userScores.Any()) continue;
+    public Task<List<DailySummaryScoreItem>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate) =>
+        _userInsights.GetDailySummaryFromDailyScoresAsync(startDate, endDate);
 
-            var latest = userScores.Last();
-            var first = userScores.First();
-            
-            // Calculate trend (Simple difference for now)
-            var trendChange = latest.DailyRiskScore - first.DailyRiskScore;
-            
-            // Calculate average score over the period
-            var avgScore = userScores.Average(s => s.DailyRiskScore);
-            
-            // Max score in period
-            var maxScore = userScores.Max(s => s.MaxRiskScore);
-            
-            // Total incidents
-            var totalIncidents = userScores.Sum(s => s.IncidentCount);
-            
-            // Filter out low risk users (noise reduction) - keep if significant activity or risk
-            if (maxScore < 20 && userScores.Count < 3) continue; 
+    public Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20) =>
+        _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
 
-            result.Add(new Dictionary<string, object>
-            {
-                { "user_email", group.Key },
-                { "current_score", latest.DailyRiskScore },
-                { "avg_score", avgScore },
-                { "max_score", maxScore },
-                { "incident_count", totalIncidents },
-                { "trend_change", trendChange },
-                { "trend_direction", trendChange > 0 ? "increasing" : trendChange < 0 ? "decreasing" : "stable" },
-                { "period", period }
-            });
-        }
-
-        return result.OrderByDescending(r => (double)r["current_score"]).ToList();
-    }
-
-    /// <summary>
-    /// Get top risky users from user_daily_risk_scores table
-    /// period: 24h, weekly, monthly, quarterly
-    /// Uses normalized daily score formula
-    /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        DateOnly startDate;
-        int minDaysRequired = 3; // Minimum 3 days activity required for all periods
-        double minScore = 35.0;  // Minimum score threshold (0-100 scale)
-        
-        // For 24h/daily, use real-time data from incidents table
-        if (period.ToLower() == "24h" || period.ToLower() == "daily")
-        {
-            return await GetTopUsersFromIncidentsRealTimeAsync(limit);
-        }
-        
-        switch (period.ToLower())
-        {
-            case "weekly":
-                startDate = endDate.AddDays(-7);
-                break;
-            case "monthly":
-            case "1month":
-                startDate = endDate.AddDays(-30);
-                break;
-            case "quarterly":
-            case "3month":
-                startDate = endDate.AddDays(-90);
-                break;
-            case "6month":
-                startDate = endDate.AddDays(-180);
-                break;
-            case "yearly":
-            case "12month":
-                startDate = endDate.AddDays(-365);
-                break;
-            default:
-                startDate = endDate.AddDays(-7);
-                break;
-        }
-
-        // Optimized: Aggregate in database
-        var query = _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .GroupBy(r => r.UserEmail)
-            .Select(g => new {
-                UserEmail = g.Key,
-                // We'll fetch one representative FullName and Team per user
-                FullName = g.Max(s => s.FullName), 
-                Team = g.Max(s => s.Team),
-                RiskScore = g.Average(s => s.DailyRiskScore),
-                MaxDailyScore = g.Max(s => s.DailyRiskScore),
-                TotalIncidents = g.Sum(s => s.IncidentCount),
-                TotalBlocks = g.Sum(s => s.BlockCount),
-                TotalQuarantines = g.Sum(s => s.QuarantineCount),
-                DaysWithActivity = g.Count()
-            })
-            .Where(u => u.DaysWithActivity >= minDaysRequired && u.RiskScore >= minScore);
-
-        var totalCount = await query.CountAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var pagedUsers = await query
-            .OrderByDescending(u => u.RiskScore)
-            .ThenByDescending(u => u.DaysWithActivity)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        return pagedUsers.Select(u => new Dictionary<string, object>
-        {
-            { "user_email", u.UserEmail },
-            { "full_name", u.FullName ?? "" },
-            { "team", u.Team ?? "" },
-            { "risk_score", u.RiskScore },
-            { "max_daily_score", u.MaxDailyScore },
-            { "total_incidents", u.TotalIncidents },
-            { "total_blocks", u.TotalBlocks },
-            { "total_quarantines", u.TotalQuarantines },
-            { "days_with_activity", u.DaysWithActivity },
-            { "min_days_required", minDaysRequired },
-            { "period", period },
-            { "page", page },
-            { "page_size", pageSize },
-            { "total_count", totalCount },
-            { "total_pages", totalPages }
-        }).ToList();
-    }
-
-    /// <summary>
-    /// Get top users from incidents table in real-time (last 24 hours)
-    /// Used for "Today's Active Users" to show live data without waiting for daily aggregation
-    /// </summary>
-    private async Task<List<Dictionary<string, object>>> GetTopUsersFromIncidentsRealTimeAsync(int limit = 10)
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var yesterday = today.AddDays(-1);
-
-        var now = DateTime.UtcNow;
-        var startTime = now.AddHours(-24);
-
-        // Optimized: Group in database
-        var userGroups = await _context.Incidents
-            .Where(i => i.Timestamp >= startTime)
-            .GroupBy(i => i.UserEmail)
-            .Select(g => new {
-                UserEmail = g.Key,
-                TotalIncidents = g.Count(),
-                AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
-                MaxRiskScore = g.Max(i => (double)(i.RiskScore ?? 0)),
-                TotalBlocks = g.Count(i => i.Action == "BLOCK" || i.Action == "BLOCKED"),
-                TotalQuarantines = g.Count(i => i.Action == "QUARANTINE" || i.Action == "QUARANTINED"),
-            })
-            .OrderByDescending(u => u.AvgRiskScore) // Base sort on score
-            .Take(limit)
-            .ToListAsync();
-
-        // Calculate final score in memory for the small 'limit' set
-        return userGroups.Select(u => {
-             double riskScore = Math.Min(100.0,
-                (u.AvgRiskScore * 0.50) +
-                (u.MaxRiskScore * 0.30) +
-                Math.Min(20.0, Math.Log10(u.TotalIncidents + 1) * 10.0)
-            );
-
-            return new Dictionary<string, object>
-            {
-                { "user_email", u.UserEmail },
-                { "full_name", "" },
-                { "team", "" },
-                { "risk_score", Math.Round(riskScore, 1) },
-                { "avg_daily_score", Math.Round(u.AvgRiskScore, 1) },
-                { "max_daily_score", Math.Round(u.MaxRiskScore, 1) },
-                { "total_incidents", u.TotalIncidents },
-                { "total_blocks", u.TotalBlocks },
-                { "total_quarantines", u.TotalQuarantines },
-                { "days_with_activity", 1 },
-                { "period", "24h" }
-            };
-        }).ToList();
-    }
-
-    /// <summary>
-    /// Get daily summary aggregated from user_daily_risk_scores
-    /// Returns total incidents, avg risk score, unique users per day
-    /// </summary>
-    public async Task<List<Dictionary<string, object>>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate)
-    {
-        // Optimized: Aggregate in database
-        var dailySummaries = await _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .GroupBy(r => r.Date)
-            .Select(g => new
-            {
-                Date = g.Key,
-                TotalIncidents = g.Sum(s => s.IncidentCount),
-                UniqueUsers = g.Count(),
-                AvgRiskScore = g.Average(s => s.DailyRiskScore),
-                MaxRiskScore = g.Max(s => s.DailyRiskScore),
-                HighRiskCount = g.Count(s => s.DailyRiskScore >= 50),
-                CriticalRiskCount = g.Count(s => s.DailyRiskScore >= 75),
-                TotalBlocks = g.Sum(s => s.BlockCount),
-                TotalQuarantines = g.Sum(s => s.QuarantineCount)
-            })
-            .OrderBy(d => d.Date)
-            .ToListAsync();
-
-        return dailySummaries.Select(d => new Dictionary<string, object>
-        {
-            { "date", d.Date.ToString("yyyy-MM-dd") },
-            { "total_incidents", d.TotalIncidents },
-            { "unique_users", d.UniqueUsers },
-            { "avg_risk_score", Math.Round(d.AvgRiskScore, 1) },
-            { "max_risk_score", Math.Round(d.MaxRiskScore, 1) },
-            { "high_risk_count", d.HighRiskCount },
-            { "critical_risk_count", d.CriticalRiskCount },
-            { "total_blocks", d.TotalBlocks },
-            { "total_quarantines", d.TotalQuarantines }
-        }).ToList();
-    }
-
-    /// <summary>
-    /// Get high impact alerts - single-day events with unusually high max_matches
-    /// These are potential data exfiltration attempts that would be penalized by consistency factor
-    /// </summary>
-    public async Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20)
-    {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-days);
-
-        // ── Phase 1: Aggregate high impact candidates directly in DB ────────
-        // This avoids loading thousands of daily scores into memory.
-        var query = _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .Where(r => r.MaxMaxMatches >= minMaxMatches)
-            .Where(r => r.DailyRiskScore >= minDailyRiskScore);
-
-        var totalCount = await query.CountAsync();
-
-        var paginatedHits = await query
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.MaxMaxMatches)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        // ── Phase 2: Enrich with incident details (only for paginated items) ──
-        var alertsWithDetails = new List<Dictionary<string, object>>();
-        
-        foreach (var alert in paginatedHits)
-        {
-            var startOfDay = alert.Date.ToDateTime(TimeOnly.MinValue);
-            var endOfDay = alert.Date.ToDateTime(TimeOnly.MaxValue);
-            
-            var incidentDetails = await _context.Incidents
-                .Where(i => i.UserEmail == alert.UserEmail)
-                .Where(i => i.Timestamp >= startOfDay && i.Timestamp <= endOfDay)
-                .OrderByDescending(i => i.MaxMatches)
-                .Take(5)
-                .Select(i => new {
-                    i.FileName,
-                    Destination = i.Destination,
-                    i.Channel,
-                    i.Action,
-                    i.Policy,
-                    i.MaxMatches,
-                    EventTimestamp = i.Timestamp
-                })
-                .ToListAsync();
-
-            var impactScore = Math.Min(100.0, (alert.MaxMaxMatches / 10.0) + (alert.DailyRiskScore * 0.5));
-
-            alertsWithDetails.Add(new Dictionary<string, object>
-            {
-                { "user_email", alert.UserEmail },
-                { "full_name", alert.FullName ?? "" },
-                { "team", alert.Team ?? "" },
-                { "impact_score", Math.Round(impactScore, 1) },
-                { "max_max_matches", alert.MaxMaxMatches },
-                { "highest_risk_date", alert.Date.ToString("yyyy-MM-dd") },
-                { "daily_risk_score", Math.Round(alert.DailyRiskScore, 1) },
-                { "incident_count", alert.IncidentCount },
-                { "block_count", alert.BlockCount },
-                { "quarantine_count", alert.QuarantineCount },
-                { "severity_level", alert.MaxMaxMatches >= 500 ? "Critical" :
-                                   alert.MaxMaxMatches >= 200 ? "High" :
-                                   alert.MaxMaxMatches >= 100 ? "Medium" : "Low" },
-                { "incident_details", incidentDetails.Select(i => new Dictionary<string, object>
-                    {
-                        { "file_name", i.FileName ?? "" },
-                        { "destination", i.Destination ?? "" },
-                        { "channel", i.Channel ?? "" },
-                        { "action", i.Action ?? "" },
-                        { "policy", i.Policy ?? "" },
-                        { "max_matches", i.MaxMatches },
-                        { "timestamp", i.EventTimestamp.ToString("yyyy-MM-dd HH:mm:ss") }
-                    }).ToList()
-                }
-            });
-        }
-
-        return new {
-            data = alertsWithDetails,
-            pagination = new {
-                page = page,
-                pageSize = pageSize,
-                totalCount = totalCount,
-                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            }
-        };
-    }
+    private static double CalculateStdDev(IEnumerable<double> source) =>
+        UserInsightsService.CalculateStdDev(source);
 }

@@ -104,9 +104,9 @@ async function searchThreshold(query: string, queryType: 'user' | 'domain'): Pro
         const filtered = allIncidents.filter((inc: any) => {
             if (queryType === 'user') {
                 return (
-                    (inc.userEmail || '').toLowerCase().includes(q) ||
-                    (inc.loginName || '').toLowerCase().includes(q) ||
-                    (inc.fullName || '').toLowerCase().includes(q)
+                    (inc.user_email || inc.userEmail || '').toLowerCase().includes(q) ||
+                    (inc.login_name || inc.loginName || '').toLowerCase().includes(q) ||
+                    (inc.full_name || inc.fullName || '').toLowerCase().includes(q)
                 )
             } else {
                 return (inc.domain || '').toLowerCase().includes(q)
