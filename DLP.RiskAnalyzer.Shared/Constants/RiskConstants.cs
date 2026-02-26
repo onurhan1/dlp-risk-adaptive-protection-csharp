@@ -1,0 +1,105 @@
+namespace DLP.RiskAnalyzer.Shared.Constants;
+
+/// <summary>
+/// Centralized constants for Risk Analyzer application
+/// </summary>
+public static class RiskConstants
+{
+    public static class RiskScores
+    {
+        // 0-100 scale (direct, no conversion needed)
+        public const int HighThreshold = 50;       // Yüksek risk eşiği
+        public const int MediumThreshold = 25;     // Orta risk eşiği
+        
+        public const int MaxScore = 100;
+        public const int MinScore = 0;
+        
+        // Legacy thresholds for backward compatibility
+        public const int LegacyCriticalThreshold = 91;
+        public const int LegacyHighThreshold = 61;
+        public const int LegacyMediumThreshold = 41;
+    }
+
+    public static class Channels
+    {
+        public const string Cloud = "Cloud";
+        public const string CloudStorage = "Cloud Storage";
+        public const string Email = "Email";
+        public const string NetworkShare = "Network Share";
+        public const string RemovableStorage = "Removable Storage";
+        public const string Printer = "Printer";
+    }
+
+    public static class MetricTypes
+    {
+        public const string CloudUpload = "cloud_upload";
+        public const string EmailCount = "email_count";
+        public const string FileCopy = "file_copy";
+    }
+
+    public static class DataSensitivity
+    {
+        public const string PII = "pii";
+        public const string Personal = "personal";
+        public const string PCI = "pci";
+        public const string Credit = "credit";
+        public const string Confidential = "confidential";
+        
+        // Data sensitivity thresholds for risk calculation
+        public const int PIIThreshold = 8;
+        public const int PCIThreshold = 9;
+        public const int ConfidentialThreshold = 7;
+    }
+    
+    public static class ChannelMultipliers
+    {
+        public const double EndpointLan = 0.2;
+        public const double EndpointPrinting = 0.4;
+        public const double Default = 1.0;
+    }
+
+    public static class DestinationScores
+    {
+        // Max 15 points for destination (85 + 15 = 100)
+        public const int Spl = 2;            // Güvenli, SPL listesinde
+        public const int Printer = 5;        // Yazıcı
+        public const int NdaPresent = 2;     // NDA mevcut
+        public const int NdaAbsent = 8;      // NDA yok
+        public const int Unknown = 8;        // Bilinmeyen hedef
+        public const int Personal = 15;      // Kişisel e-posta (gmail, hotmail)
+    }
+
+    public static class Defaults
+    {
+        public const string RedisHost = "localhost";
+        public const int RedisPort = 6379;
+        public const string DefaultConnection = "DefaultConnection";
+        public const int DefaultPageSize = 15;
+    }
+
+    public static class Thresholds
+    {
+        public const int MinRiskScoreForTopUsers = 35;
+        public const int CriticalDailyScore = 75;
+        public const int HighDailyScore = 50;
+        public const int MinDaysForTrend = 3;
+        public const int MaxIobIncidents = 1000;
+        public const int LowRiskNoiseMax = 20;
+        public const int MinDataPointsForAnomaly = 5;
+        public const int AnomalyMinScore = 100;
+        public const double AnomalySigma = 3.0;
+        public const int HighImpactMinMatches = 100;
+        public const int SeverityCriticalMatches = 500;
+        public const int SeverityHighMatches = 200;
+    }
+
+    public static class Periods
+    {
+        public const int WeeklyDays = 7;
+        public const int MonthlyDays = 30;
+        public const int QuarterlyDays = 90;
+        public const int SemiAnnualDays = 180;
+        public const int YearlyDays = 365;
+    }
+}
+

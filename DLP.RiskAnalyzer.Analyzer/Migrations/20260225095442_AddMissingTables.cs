@@ -1,0 +1,276 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace DLP.RiskAnalyzer.Analyzer.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddMissingTables : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            // ── Idempotent: add new columns to incidents if not already present ──
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='action') THEN
+                        ALTER TABLE incidents ADD COLUMN action text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='destination') THEN
+                        ALTER TABLE incidents ADD COLUMN destination text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='email_address') THEN
+                        ALTER TABLE incidents ADD COLUMN email_address text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='file_name') THEN
+                        ALTER TABLE incidents ADD COLUMN file_name text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='full_name') THEN
+                        ALTER TABLE incidents ADD COLUMN full_name text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='host_name') THEN
+                        ALTER TABLE incidents ADD COLUMN host_name text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='is_remediated') THEN
+                        ALTER TABLE incidents ADD COLUMN is_remediated boolean NOT NULL DEFAULT false;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='login_name') THEN
+                        ALTER TABLE incidents ADD COLUMN login_name text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='max_matches') THEN
+                        ALTER TABLE incidents ADD COLUMN max_matches integer NOT NULL DEFAULT 0;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='remediated_at') THEN
+                        ALTER TABLE incidents ADD COLUMN remediated_at timestamp without time zone;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='remediated_by') THEN
+                        ALTER TABLE incidents ADD COLUMN remediated_by text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='remediation_action') THEN
+                        ALTER TABLE incidents ADD COLUMN remediation_action text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='remediation_notes') THEN
+                        ALTER TABLE incidents ADD COLUMN remediation_notes text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='rule_name') THEN
+                        ALTER TABLE incidents ADD COLUMN rule_name text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='team') THEN
+                        ALTER TABLE incidents ADD COLUMN team text;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='violation_triggers') THEN
+                        ALTER TABLE incidents ADD COLUMN violation_triggers text;
+                    END IF;
+                END $$;
+            ");
+
+            // ── Indexes on incidents ──
+            migrationBuilder.Sql(@"
+                CREATE INDEX IF NOT EXISTS ""IX_incidents_action"" ON incidents (action);
+                CREATE INDEX IF NOT EXISTS ""IX_incidents_is_remediated"" ON incidents (is_remediated);
+            ");
+
+            // ── New tables (all IF NOT EXISTS) ──
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ai_explanations (
+                    id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    incident_id integer NOT NULL,
+                    user_email character varying(255) NOT NULL,
+                    risk_level character varying(50) NOT NULL,
+                    risk_score integer NOT NULL,
+                    anomaly_detected text NOT NULL,
+                    explanation text NOT NULL,
+                    recommended_action text NOT NULL,
+                    timestamp timestamp without time zone[] NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_ai_explanations_incident_id"" ON ai_explanations (incident_id);
+                CREATE INDEX IF NOT EXISTS ""IX_ai_explanations_risk_level""  ON ai_explanations (risk_level);
+                CREATE INDEX IF NOT EXISTS ""IX_ai_explanations_user_email""  ON ai_explanations (user_email);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS anomaly_detections (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    user_email character varying(255) NOT NULL,
+                    metric_type character varying(50) NOT NULL,
+                    current_value double precision NOT NULL,
+                    baseline_mean double precision NOT NULL,
+                    baseline_std_dev double precision NOT NULL,
+                    anomaly_score integer NOT NULL,
+                    severity character varying(20) NOT NULL,
+                    timestamp timestamp without time zone NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_anomaly_detections_severity""             ON anomaly_detections (severity);
+                CREATE INDEX IF NOT EXISTS ""IX_anomaly_detections_timestamp""            ON anomaly_detections (timestamp);
+                CREATE INDEX IF NOT EXISTS ""IX_anomaly_detections_user_email""           ON anomaly_detections (user_email);
+                CREATE INDEX IF NOT EXISTS ""IX_anomaly_detections_user_email_timestamp"" ON anomaly_detections (user_email, timestamp);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS domain_feature_definitions (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    key_name character varying(50) NOT NULL,
+                    display_name character varying(100) NOT NULL,
+                    is_active boolean NOT NULL DEFAULT true,
+                    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_domain_feature_definitions_key_name"" ON domain_feature_definitions (key_name);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS nda_domains (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    domain character varying(255) NOT NULL,
+                    has_nda boolean NOT NULL DEFAULT false,
+                    is_unknown boolean NOT NULL DEFAULT false,
+                    is_personal boolean NOT NULL DEFAULT false,
+                    istirak_domain boolean NOT NULL DEFAULT false,
+                    egitim boolean NOT NULL DEFAULT false,
+                    noter boolean NOT NULL DEFAULT false,
+                    hukuk boolean NOT NULL DEFAULT false,
+                    denetim boolean NOT NULL DEFAULT false,
+                    banka boolean NOT NULL DEFAULT false,
+                    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_nda_domains_domain""    ON nda_domains (domain);
+                CREATE INDEX IF NOT EXISTS ""IX_nda_domains_has_nda""          ON nda_domains (has_nda);
+                CREATE INDEX IF NOT EXISTS ""IX_nda_domains_is_personal""      ON nda_domains (is_personal);
+                CREATE INDEX IF NOT EXISTS ""IX_nda_domains_is_unknown""       ON nda_domains (is_unknown);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS domain_feature_values (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    domain_id integer NOT NULL REFERENCES nda_domains(id) ON DELETE CASCADE,
+                    feature_id integer NOT NULL REFERENCES domain_feature_definitions(id) ON DELETE CASCADE,
+                    is_enabled boolean NOT NULL DEFAULT false,
+                    updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_domain_feature_values_domain_id_feature_id"" ON domain_feature_values (domain_id, feature_id);
+                CREATE INDEX IF NOT EXISTS ""IX_domain_feature_values_feature_id""                  ON domain_feature_values (feature_id);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS merceks (
+                    incidentid integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    statusid character varying(50),
+                    flowstatusid character varying(50),
+                    assignmentgroupid integer,
+                    summarydescription character varying(500),
+                    incidentdescription text,
+                    impactid character varying(50),
+                    priorityid character varying(50),
+                    categoryid integer,
+                    assignedusercode character varying(100),
+                    opendate timestamp without time zone,
+                    closedate timestamp without time zone,
+                    startdate timestamp without time zone,
+                    solutiondescription text,
+                    requesttypeid character varying(50),
+                    calltypeid character varying(50),
+                    solutionmethod character varying(200),
+                    username character varying(200),
+                    systemdate timestamp without time zone,
+                    definitioncategoryid integer,
+                    definitioncategorypath character varying(500)
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_assignedusercode"" ON merceks (assignedusercode);
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_closedate""        ON merceks (closedate);
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_opendate""         ON merceks (opendate);
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_statusid""         ON merceks (statusid);
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_systemdate""       ON merceks (systemdate);
+                CREATE INDEX IF NOT EXISTS ""IX_merceks_username""         ON merceks (username);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS policy_rule_exceptions (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    policy_name character varying(500) NOT NULL,
+                    rule_name character varying(500) NOT NULL,
+                    exception_name character varying(500) NOT NULL,
+                    synced_at timestamp without time zone NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_policy_rule_exceptions_exception_name""             ON policy_rule_exceptions (exception_name);
+                CREATE INDEX IF NOT EXISTS ""IX_policy_rule_exceptions_policy_name""                ON policy_rule_exceptions (policy_name);
+                CREATE INDEX IF NOT EXISTS ""IX_policy_rule_exceptions_policy_name_exception_name"" ON policy_rule_exceptions (policy_name, exception_name);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS released_incidents (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    incident_id bigint NOT NULL,
+                    incident_timestamp timestamp without time zone NOT NULL,
+                    action character varying(50) NOT NULL,
+                    task_name character varying(255) NOT NULL,
+                    admin_name character varying(100),
+                    comments text,
+                    update_time timestamp without time zone,
+                    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_released_incidents_admin_name""                    ON released_incidents (admin_name);
+                CREATE INDEX IF NOT EXISTS ""IX_released_incidents_incident_id""                   ON released_incidents (incident_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_released_incidents_incident_id_update_time"" ON released_incidents (incident_id, update_time);
+                CREATE INDEX IF NOT EXISTS ""IX_released_incidents_incident_timestamp""             ON released_incidents (incident_timestamp);
+                CREATE INDEX IF NOT EXISTS ""IX_released_incidents_update_time""                   ON released_incidents (update_time);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS user_daily_risk_scores (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    user_email character varying(255) NOT NULL,
+                    date date NOT NULL,
+                    daily_risk_score double precision NOT NULL DEFAULT 0,
+                    incident_count integer NOT NULL DEFAULT 0,
+                    max_risk_score integer NOT NULL DEFAULT 0,
+                    avg_risk_score double precision NOT NULL DEFAULT 0,
+                    team text,
+                    full_name text,
+                    block_count integer NOT NULL DEFAULT 0,
+                    permit_count integer NOT NULL DEFAULT 0,
+                    quarantine_count integer NOT NULL DEFAULT 0,
+                    released_count integer NOT NULL DEFAULT 0,
+                    max_max_matches integer NOT NULL DEFAULT 0,
+                    avg_max_matches double precision NOT NULL DEFAULT 0,
+                    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS ""IX_user_daily_risk_scores_date""       ON user_daily_risk_scores (date);
+                CREATE INDEX IF NOT EXISTS ""IX_user_daily_risk_scores_user_email"" ON user_daily_risk_scores (user_email);
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_user_daily_risk_scores_user_email_date"" ON user_daily_risk_scores (user_email, date);
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS users (
+                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    username character varying(100) NOT NULL,
+                    email character varying(255) NOT NULL,
+                    role character varying(20) NOT NULL DEFAULT 'standard',
+                    password_hash text NOT NULL,
+                    password_salt text NOT NULL,
+                    is_active boolean NOT NULL DEFAULT true,
+                    created_at timestamp without time zone NOT NULL DEFAULT NOW()
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_users_username"" ON users (username);
+            ");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
+                DROP TABLE IF EXISTS domain_feature_values;
+                DROP TABLE IF EXISTS domain_feature_definitions;
+                DROP TABLE IF EXISTS nda_domains;
+                DROP TABLE IF EXISTS ai_explanations;
+                DROP TABLE IF EXISTS anomaly_detections;
+                DROP TABLE IF EXISTS merceks;
+                DROP TABLE IF EXISTS policy_rule_exceptions;
+                DROP TABLE IF EXISTS released_incidents;
+                DROP TABLE IF EXISTS user_daily_risk_scores;
+                DROP TABLE IF EXISTS users;
+            ");
+        }
+    }
+}

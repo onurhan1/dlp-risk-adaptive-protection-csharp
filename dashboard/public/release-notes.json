@@ -1,0 +1,72 @@
+[
+    {
+        "version": "v2.1.0",
+        "date": "2026-02-12",
+        "isPublished": true,
+        "entries": [
+            {
+                "title": "Unified Pagination Bileşeni",
+                "titleEn": "Unified Pagination Component",
+                "description": "Tüm sayfalarda kullanılacak standart pagination bileşeni eklendi. Sayfa numarası girişi, ilk/son sayfa navigasyonu, sayfa boyutu seçici ve toplam kayıt gösterimi özellikleri mevcut.",
+                "descriptionEn": "Added a standard pagination component for all pages. Features include page number input, first/last page navigation, page size selector, and total records display.",
+                "category": "feature",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "Loading Overlay Bileşeni",
+                "titleEn": "Loading Overlay Component",
+                "description": "CSS animasyonlu döner spinner ile yarı saydam loading overlay eklendi. Tam ekran ve container bazlı kullanım desteği mevcut.",
+                "descriptionEn": "Added semi-transparent loading overlay with CSS animated spinner. Supports fullscreen and container-based usage.",
+                "category": "feature",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "Çoklu Dil Desteği (i18n) Altyapısı",
+                "titleEn": "Internationalization (i18n) Infrastructure",
+                "description": "Türkçe ve İngilizce dil desteği eklendi. Sidebar'da dil değiştirme butonu (🇹🇷/🇬🇧) ile anlık dil geçişi yapılabilir. 250+ çeviri metni hazırlandı.",
+                "descriptionEn": "Added Turkish and English language support. Language can be switched instantly via the sidebar toggle (🇹🇷/🇬🇧). 250+ translation strings prepared.",
+                "category": "feature",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "Grid Export (CSV, Excel, PDF)",
+                "titleEn": "Grid Export (CSV, Excel, PDF)",
+                "description": "Tüm tablolarda kullanılabilecek CSV, Excel (XLSX) ve PDF dışa aktarma bileşeni eklendi. Türkçe karakter desteği ve stil formatlama mevcut.",
+                "descriptionEn": "Added CSV, Excel (XLSX), and PDF export component for all tables. Turkish character support and styled formatting included.",
+                "category": "feature",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "Grid Filtre Bileşeni",
+                "titleEn": "Grid Filters Component",
+                "description": "Metin, tarih, tarih aralığı, tekli ve çoklu seçim destekli genel filtre bileşeni eklendi.",
+                "descriptionEn": "Added reusable filter component supporting text, date, date range, single and multi-select filter types.",
+                "category": "feature",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "PostgreSQL Sağlık Kontrolü Rehberi",
+                "titleEn": "PostgreSQL Health Check Guide",
+                "description": "Veritabanı yapısı, index kullanımı, TimescaleDB durumu, büyüme tahmini ve VACUUM analizi için SQL sorguları rehberi oluşturuldu.",
+                "descriptionEn": "Created SQL query guide for database structure, index usage, TimescaleDB status, growth projection, and VACUUM analysis.",
+                "category": "improvement",
+                "commitHash": "",
+                "createdBy": "abdul"
+            },
+            {
+                "title": "Sidebar'a Release Notes ve Dil Butonu Eklendi",
+                "titleEn": "Added Release Notes Link and Language Toggle to Sidebar",
+                "description": "Sidebar navigasyona Sürüm Notları sayfası linki ve Türkçe/İngilizce dil değiştirme butonu eklendi.",
+                "descriptionEn": "Added Release Notes page link and Turkish/English language toggle button to sidebar navigation.",
+                "category": "improvement",
+                "commitHash": "",
+                "createdBy": "abdul"
+            }
+        ]
+    }
+]

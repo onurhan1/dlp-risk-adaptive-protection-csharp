@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DLP.RiskAnalyzer.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="..\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj" />
+    <ProjectReference Include="..\DLP.RiskAnalyzer.Shared\DLP.RiskAnalyzer.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- Test framework -->
+  <ItemGroup>
+    <PackageReference Include="xunit"                                  Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio"              Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"                 Version="17.11.1" />
+    <PackageReference Include="Moq"                                    Version="4.20.72" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="FluentAssertions"                       Version="6.12.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt"        Version="8.0.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens"         Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
