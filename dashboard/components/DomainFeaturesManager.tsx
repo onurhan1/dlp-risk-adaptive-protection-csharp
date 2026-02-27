@@ -2,6 +2,22 @@
 
 import { useState, useEffect, useCallback, ChangeEvent } from 'react'
 import apiClient from '@/lib/axios'
+import {
+    Search,
+    Globe,
+    Settings,
+    Plus,
+    Save,
+    X,
+    Flame,
+    Download,
+    ChevronLeft,
+    ChevronRight,
+    Filter,
+    CheckCircle,
+    Pencil,
+    Trash2
+} from 'lucide-react'
 
 interface DomainFeature {
     id: number
@@ -408,14 +424,29 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             borderRadius: '12px',
             border: '1px solid var(--border)',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+            borderTop: '3px solid #3b82f6'
         }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                        Domain Features Manager
-                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0' }}>
+                        <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 3px 10px rgba(59, 130, 246, 0.25)'
+                        }}>
+                            <Settings size={17} color="#fff" />
+                        </div>
+                        <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            Domain Features Manager
+                        </h2>
+                    </div>
                     <div style={{ display: 'flex', gap: '12px', marginTop: '8px', alignItems: 'center' }}>
                         <button
                             onClick={() => {
@@ -457,30 +488,32 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                             <span style={{
                                 fontSize: '12px',
                                 color: '#2563eb',
-                                background: 'rgba(37, 99, 235, 0.1)',
-                                padding: '4px 8px',
-                                borderRadius: '12px',
+                                background: 'rgba(37, 99, 235, 0.08)',
+                                padding: '4px 10px',
+                                borderRadius: '16px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px'
+                                gap: '6px',
+                                border: '1px solid rgba(37, 99, 235, 0.15)',
+                                fontWeight: '600'
                             }}>
-                                🔍 {selectedFilters.length} filtre aktif
+                                <Filter size={11} /> {selectedFilters.length} filtre aktif
                                 <button
                                     onClick={clearColumnFilters}
                                     style={{
                                         background: 'none', border: 'none', cursor: 'pointer',
-                                        color: '#2563eb', fontSize: '14px', padding: 0
+                                        color: '#2563eb', fontSize: '14px', padding: 0, display: 'flex', alignItems: 'center'
                                     }}
                                     title="Filtreleri Temizle"
                                 >
-                                    ×
+                                    <X size={12} />
                                 </button>
                             </span>
                         )}
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
                     <button
                         onClick={() => {
                             if (viewMode === 'top') {
@@ -497,17 +530,20 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                             }
                         }}
                         style={{
-                            padding: '10px 16px',
+                            padding: '9px 16px',
                             borderRadius: '8px',
                             border: viewMode === 'top' ? '2px solid #f59e0b' : '1px solid var(--border)',
-                            background: viewMode === 'top' ? '#fffbeb' : 'var(--background)',
+                            background: viewMode === 'top' ? 'rgba(245, 158, 11, 0.08)' : 'var(--background)',
                             color: viewMode === 'top' ? '#b45309' : 'var(--text-primary)',
                             fontSize: '13px',
                             fontWeight: '600',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
                         }}
                     >
-                        🔥 Sık Kullanılanlar
+                        <Flame size={14} /> Sık Kullanılanlar
                     </button>
 
                     <button
@@ -516,67 +552,81 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                             setShowAddModal(true)
                         }}
                         style={{
-                            padding: '10px 16px',
+                            padding: '9px 16px',
                             borderRadius: '8px',
-                            border: '1px dashed var(--border)',
-                            background: 'var(--surface-hover)',
-                            color: 'var(--text-primary)',
+                            border: '1px dashed rgba(139, 92, 246, 0.4)',
+                            background: 'rgba(139, 92, 246, 0.04)',
+                            color: '#8b5cf6',
                             fontSize: '13px',
-                            fontWeight: '500',
-                            cursor: 'pointer'
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
                         }}
                     >
-                        + Özellik Ekle
+                        <Plus size={14} /> Özellik Ekle
                     </button>
 
                     <button
                         onClick={handleExtractFromIncidents}
                         style={{
-                            padding: '10px 16px',
+                            padding: '9px 16px',
                             borderRadius: '8px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--background)',
-                            color: 'var(--text-primary)',
+                            border: '1px solid rgba(6, 182, 212, 0.3)',
+                            background: 'rgba(6, 182, 212, 0.04)',
+                            color: '#0891b2',
                             fontSize: '13px',
-                            fontWeight: '500',
-                            cursor: 'pointer'
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
                         }}
                     >
-                        🔍 Incident'lardan Çıkar
+                        <Download size={14} /> Incident'lardan Çıkar
                     </button>
 
                     <button
                         onClick={handleBulkSave}
                         disabled={saving || modifiedIds.size === 0}
                         style={{
-                            padding: '10px 20px',
+                            padding: '9px 20px',
                             borderRadius: '8px',
                             border: 'none',
-                            background: modifiedIds.size > 0 ? '#10b981' : 'var(--surface-hover)',
+                            background: modifiedIds.size > 0 ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--surface-hover)',
                             color: modifiedIds.size > 0 ? 'white' : 'var(--text-muted)',
                             fontSize: '13px',
                             fontWeight: '600',
                             cursor: modifiedIds.size > 0 ? 'pointer' : 'default',
-                            opacity: saving ? 0.5 : 1
+                            opacity: saving ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: modifiedIds.size > 0 ? '0 3px 10px rgba(16, 185, 129, 0.3)' : 'none'
                         }}
                     >
-                        {saving ? 'Kaydediliyor...' : `💾 Kaydet (${modifiedIds.size})`}
+                        <Save size={14} />
+                        {saving ? 'Kaydediliyor...' : `Kaydet (${modifiedIds.size})`}
                     </button>
 
                     {onClose && (
                         <button
                             onClick={onClose}
                             style={{
-                                padding: '10px 16px',
+                                padding: '9px 16px',
                                 borderRadius: '8px',
                                 border: '1px solid var(--border)',
                                 background: 'var(--background)',
                                 color: 'var(--text-secondary)',
                                 fontSize: '13px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
                             }}
                         >
-                            ✕ Kapat
+                            <X size={14} /> Kapat
                         </button>
                     )}
                 </div>
@@ -636,7 +686,9 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                             fontSize: '13px', fontWeight: '500'
                                         }}
                                     >
-                                        {deletingColumn ? 'Siliniyor...' : '🗑️ Sil'}
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Trash2 size={13} /> {deletingColumn ? 'Siliniyor...' : 'Sil'}
+                                        </span>
                                     </button>
                                 )}
                             </div>
@@ -671,34 +723,48 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             )}
 
             {/* Search & Info */}
-            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <input
-                    type="text"
-                    placeholder="Domain ara (otomatik tüm listede arar)..."
-                    value={search}
-                    onChange={handleSearchChange}
-                    style={{
-                        width: '350px',
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--background)',
-                        color: 'var(--text-primary)',
-                        fontSize: '14px'
-                    }}
-                />
+            <div style={{
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+                background: 'rgba(59, 130, 246, 0.03)',
+                borderRadius: '10px',
+                border: '1px solid rgba(59, 130, 246, 0.08)'
+            }}>
+                <div style={{ position: 'relative', width: '380px' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                        type="text"
+                        placeholder="Domain ara (otomatik tüm listede arar)..."
+                        value={search}
+                        onChange={handleSearchChange}
+                        style={{
+                            width: '100%',
+                            padding: '10px 14px 10px 36px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--background)',
+                            color: 'var(--text-primary)',
+                            fontSize: '14px'
+                        }}
+                    />
+                </div>
                 <div style={{ textAlign: 'right' }}>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'block' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                        {viewMode === 'top' && <Flame size={13} style={{ color: '#f59e0b' }} />}
+                        {selectedFilters.length > 0 && <Filter size={13} style={{ color: '#3b82f6' }} />}
                         {viewMode === 'top'
-                            ? `🔥 En çok kullanılan ${total} domain listeleniyor`
+                            ? `En çok kullanılan ${total} domain listeleniyor`
                             : selectedFilters.length > 0
-                                ? `🔍 ${total} domain (${selectedFilters.length} filtre aktif)`
+                                ? `${total} domain (${selectedFilters.length} filtre aktif)`
                                 : onlyFlagged && !search
                                     ? `Filtrelenmiş ${total} domain (Sadece işaretliler)`
                                     : `Toplam ${total} domain`}
                     </span>
                     {selectedFilters.length === 0 && onlyFlagged && !search && viewMode === 'standard' && (
-                        <span style={{ fontSize: '11px', color: '#f59e0b' }}>
+                        <span style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px', display: 'block' }}>
                             * Sütun başlığına tıklayarak filtreleyebilirsiniz
                         </span>
                     )}
@@ -706,15 +772,18 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
             </div>
 
             {/* Table */}
-            <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 10 }}>
-                        <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '200px' }}>
-                                Domain
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                        <tr style={{ background: 'rgba(59, 130, 246, 0.06)', borderBottom: '2px solid rgba(59, 130, 246, 0.15)' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', minWidth: '200px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Globe size={14} style={{ color: '#3b82f6' }} />
+                                    Domain
+                                </div>
                             </th>
                             {viewMode === 'top' && (
-                                <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '100px' }}>
+                                <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', minWidth: '100px' }}>
                                     Incident #
                                 </th>
                             )}
@@ -728,29 +797,28 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                             padding: '12px',
                                             textAlign: 'center',
                                             fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: isFiltered ? '#2563eb' : 'var(--text-secondary)',
+                                            fontWeight: '700',
+                                            color: isFiltered ? '#2563eb' : 'var(--text-primary)',
                                             minWidth: '100px',
                                             cursor: 'pointer',
-                                            background: isFiltered ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
-                                            borderRadius: '4px',
+                                            background: isFiltered ? 'rgba(37, 99, 235, 0.12)' : 'transparent',
                                             transition: 'all 0.2s'
                                         }}
                                         title={`Tıklayarak "${col.display_name}" sütununda Evet olanları filtreleyin`}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                            {isFiltered && <span style={{ fontSize: '10px' }}>✓</span>}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                            {isFiltered && <CheckCircle size={12} style={{ color: '#2563eb' }} />}
                                             {col.display_name}
                                             {!col.is_static && (
                                                 <button
                                                     onClick={(e) => openEditModal(col, e)}
                                                     style={{
                                                         background: 'none', border: 'none', cursor: 'pointer',
-                                                        color: 'var(--text-muted)', fontSize: '14px', padding: '2px'
+                                                        color: 'var(--text-muted)', padding: '2px', display: 'flex', alignItems: 'center'
                                                     }}
                                                     title="Düzenle"
                                                 >
-                                                    ✎
+                                                    <Pencil size={11} />
                                                 </button>
                                             )}
                                         </div>
@@ -811,9 +879,18 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
 
             {/* Pagination */}
             {viewMode === 'standard' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        Sayfa {page} / {totalPages} ({total} domain)
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '20px',
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    background: 'rgba(59, 130, 246, 0.03)',
+                    border: '1px solid rgba(59, 130, 246, 0.08)'
+                }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                        Sayfa <strong style={{ color: '#3b82f6' }}>{page}</strong> / {totalPages} ({total} domain)
                     </span>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <button
@@ -823,13 +900,17 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                 padding: '8px 16px',
                                 borderRadius: '6px',
                                 border: '1px solid var(--border)',
-                                background: 'var(--background)',
+                                background: page === 1 ? 'var(--background)' : 'var(--surface)',
                                 color: page === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
                                 cursor: page === 1 ? 'default' : 'pointer',
-                                fontSize: '13px'
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
                             }}
                         >
-                            ← Önceki
+                            <ChevronLeft size={14} /> Önceki
                         </button>
                         <button
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
@@ -838,13 +919,17 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                 padding: '8px 16px',
                                 borderRadius: '6px',
                                 border: '1px solid var(--border)',
-                                background: 'var(--background)',
+                                background: page === totalPages ? 'var(--background)' : 'var(--surface)',
                                 color: page === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
                                 cursor: page === totalPages ? 'default' : 'pointer',
-                                fontSize: '13px'
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
                             }}
                         >
-                            Sonraki →
+                            Sonraki <ChevronRight size={14} />
                         </button>
                     </div>
                 </div>

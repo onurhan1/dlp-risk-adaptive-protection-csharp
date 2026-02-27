@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,11 +11,16 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class ReleasedIncidentsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
+    private readonly ReleasedIncidentSyncService _syncService;
     private readonly ILogger<ReleasedIncidentsController> _logger;
 
-    public ReleasedIncidentsController(AnalyzerDbContext context, ILogger<ReleasedIncidentsController> logger)
+    public ReleasedIncidentsController(
+        AnalyzerDbContext context,
+        ReleasedIncidentSyncService syncService,
+        ILogger<ReleasedIncidentsController> logger)
     {
         _context = context;
+        _syncService = syncService;
         _logger = logger;
     }
 
@@ -255,6 +261,47 @@ public class ReleasedIncidentsController : ControllerBase
         {
             _logger.LogError(ex, "Error fetching admin list");
             return StatusCode(500, new { detail = "An error occurred while fetching admins" });
+        }
+    }
+
+    /// <summary>
+    /// DLP API'den released incident verilerini çekip veritabanına kaydeder (manuel tetikleme).
+    /// POST /api/released-incidents/sync?lookbackHours=24
+    /// </summary>
+    [HttpPost("sync")]
+    public async Task<ActionResult> SyncFromDlpApi([FromQuery] int lookbackHours = 24)
+    {
+        try
+        {
+            _logger.LogInformation("Manual released incident sync triggered: {LookbackHours}h lookback", lookbackHours);
+
+            var result = await _syncService.SyncAsync(lookbackHours);
+
+            if (!result.Success && !string.IsNullOrEmpty(result.ErrorMessage))
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = result.ErrorMessage
+                });
+            }
+
+            return Ok(new
+            {
+                success = result.Success,
+                total_fetched = result.TotalFetched,
+                released_found = result.ReleasedFound,
+                inserted = result.Inserted,
+                skipped = result.Skipped,
+                message = result.Success
+                    ? $"{result.Inserted} yeni released incident eklendi ({result.Skipped} zaten mevcuttu)"
+                    : "İşlem tamamlandı ancak released incident bulunamadı"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Manual released incident sync failed");
+            return StatusCode(500, new { detail = "Released incident sync sırasında hata oluştu", error = ex.Message });
         }
     }
 }

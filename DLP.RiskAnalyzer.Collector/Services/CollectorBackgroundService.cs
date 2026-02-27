@@ -342,11 +342,62 @@ public class CollectorBackgroundService : BackgroundService
 
             _logger.LogInformation("[{RunType}] Successfully pushed {PushedCount} incidents to Redis (Errors: {ErrorCount})", 
                 runType, pushedCount, errorCount);
+
+            // Extract and push "Released quarantined message" entries to separate Redis stream
+            await ExtractAndPushReleasedIncidentsAsync(uniqueIncidents, runType);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[{RunType}] Failed to collect incidents from Forcepoint DLP API", runType);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Incident history'den "Released quarantined message" kayıtlarını çıkartıp
+    /// dlp:released-incidents Redis stream'ine pushlar.
+    /// </summary>
+    private async Task ExtractAndPushReleasedIncidentsAsync(List<DLPIncident> incidents, string runType)
+    {
+        int releasedCount = 0;
+        int releasedErrors = 0;
+
+        foreach (var incident in incidents)
+        {
+            if (incident.History == null || incident.History.Count == 0)
+                continue;
+
+            foreach (var historyItem in incident.History)
+            {
+                if (historyItem.TaskName != "Released quarantined message")
+                    continue;
+
+                try
+                {
+                    await _collectorService.PushReleasedIncidentToRedisStreamAsync(
+                        incidentId: incident.Id,
+                        incidentTime: incident.IncidentTimeString ?? incident.EventTimeString ?? "",
+                        action: incident.Action ?? "",
+                        taskName: historyItem.TaskName,
+                        adminName: historyItem.AdminName,
+                        comments: historyItem.Comments,
+                        updateTime: historyItem.UpdateTime
+                    );
+                    releasedCount++;
+                }
+                catch (Exception ex)
+                {
+                    releasedErrors++;
+                    _logger.LogWarning(ex, "[{RunType}] Failed to push released incident {Id} to Redis", runType, incident.Id);
+                }
+            }
+        }
+
+        if (releasedCount > 0 || releasedErrors > 0)
+        {
+            _logger.LogInformation(
+                "[{RunType}] Released incidents: {Count} pushed to Redis, {Errors} errors",
+                runType, releasedCount, releasedErrors);
         }
     }
 }
