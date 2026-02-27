@@ -16,7 +16,6 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public class ReleasedIncidentSyncService
 {
     private readonly AnalyzerDbContext _context;
-    private readonly DlpConfigurationService _dlpConfigService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ReleasedIncidentSyncService> _logger;
 
@@ -29,12 +28,10 @@ public class ReleasedIncidentSyncService
 
     public ReleasedIncidentSyncService(
         AnalyzerDbContext context,
-        DlpConfigurationService dlpConfigService,
         IConfiguration configuration,
         ILogger<ReleasedIncidentSyncService> logger)
     {
         _context = context;
-        _dlpConfigService = dlpConfigService;
         _configuration = configuration;
         _logger = logger;
     }
@@ -50,10 +47,24 @@ public class ReleasedIncidentSyncService
 
         try
         {
-            httpClient = await CreateHttpClientAsync();
-            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            // Read DLP API credentials directly from appsettings.json (same as Collector)
+            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
+            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
+            var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
+            var username = _configuration["DLP:Username"] ?? string.Empty;
+            var password = _configuration["DLP:Password"] ?? string.Empty;
 
-            var accessToken = await AuthenticateAsync(httpClient, config.Username, config.Password);
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) ||
+                dlpIp == "YOUR_DLP_MANAGER_IP" || username == "YOUR_DLP_USERNAME")
+            {
+                result.ErrorMessage = "DLP API ayarları appsettings.json'da yapılandırılmamış";
+                _logger.LogWarning("Released incident sync atlandı: DLP API ayarları appsettings.json'da yapılandırılmamış");
+                return result;
+            }
+
+            httpClient = CreateHttpClient(dlpIp, dlpPort, useHttps);
+
+            var accessToken = await AuthenticateAsync(httpClient, username, password);
             if (string.IsNullOrEmpty(accessToken))
             {
                 result.ErrorMessage = "DLP API kimlik doğrulama başarısız";
@@ -354,48 +365,22 @@ public class ReleasedIncidentSyncService
         return (inserted, skipped);
     }
 
-    private async Task<HttpClient> CreateHttpClientAsync()
+    private HttpClient CreateHttpClient(string dlpIp, int dlpPort, bool useHttps)
     {
-        try
+        var handler = new HttpClientHandler
         {
-            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+        };
 
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-            };
+        var baseUrl = useHttps
+            ? $"https://{dlpIp}:{dlpPort}/"
+            : $"http://{dlpIp}:{dlpPort}/";
 
-            var baseUrl = config.UseHttps
-                ? $"https://{config.ManagerIp}:{config.ManagerPort}/"
-                : $"http://{config.ManagerIp}:{config.ManagerPort}/";
-
-            return new HttpClient(handler)
-            {
-                BaseAddress = new Uri(baseUrl),
-                Timeout = TimeSpan.FromMinutes(5)
-            };
-        }
-        catch
+        return new HttpClient(handler)
         {
-            var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
-            var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
-            var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);
-
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-            };
-
-            var baseUrl = useHttps
-                ? $"https://{dlpIp}:{dlpPort}/"
-                : $"http://{dlpIp}:{dlpPort}/";
-
-            return new HttpClient(handler)
-            {
-                BaseAddress = new Uri(baseUrl),
-                Timeout = TimeSpan.FromMinutes(5)
-            };
-        }
+            BaseAddress = new Uri(baseUrl),
+            Timeout = TimeSpan.FromMinutes(5)
+        };
     }
 }
 

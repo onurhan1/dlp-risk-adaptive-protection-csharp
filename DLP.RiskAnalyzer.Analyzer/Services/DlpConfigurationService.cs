@@ -38,7 +38,7 @@ public class DlpConfigurationService
     public async Task<DlpApiSettingsResponse> GetAsync(bool includeSensitive = false, CancellationToken cancellationToken = default)
     {
         var settings = await _context.SystemSettings.AsNoTracking()
-            .Where(s => s.Key.StartsWith("dlp_", StringComparison.OrdinalIgnoreCase))
+            .Where(s => s.Key.StartsWith("dlp_"))
             .ToListAsync(cancellationToken);
 
         var dict = settings.ToDictionary(s => s.Key, s => s);
