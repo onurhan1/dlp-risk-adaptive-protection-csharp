@@ -129,7 +129,7 @@ function InvestigationPageContent() {
       : event.iob_number || undefined
 
     // Use DataType from API if available, otherwise infer from tags
-    const dataType = (event as any).dataType || event.alert_type
+    const dataType = (event as any).data_type || (event as any).dataType || event.alert_type
     const classification = dataType
       ? (dataType === 'PII' || dataType === 'PCI' || dataType === 'CCN' ? [dataType] : [])
       : (event.tags && event.tags.includes('Data exfiltration')
@@ -200,6 +200,7 @@ function InvestigationPageContent() {
 
       // Calculate risk score from severity if not provided
       const calculateRiskScore = (incident: any): number => {
+        if (incident.risk_score != null) return incident.risk_score
         if (incident.riskScore != null) return incident.riskScore
         // Fallback: calculate from severity (1-5 scale to 0-100)
         const severity = incident.severity || 1
@@ -220,10 +221,10 @@ function InvestigationPageContent() {
         dataType: incident.dataType || incident.data_type,
         iobs: incident.ioBs || incident.iobs || [],
         policy: incident.policy,
-        violationTriggers: incident.violationTriggers,
-        riskLevel: incident.riskLevel,
-        riskScore: calculateRiskScore(incident),  // Use fallback calculation
-        userEmail: incident.userEmail
+        violationTriggers: incident.violation_triggers || incident.violationTriggers,
+        riskLevel: incident.risk_level || incident.riskLevel,
+        riskScore: calculateRiskScore(incident),
+        userEmail: incident.user_email || incident.userEmail
       }))
 
       // Apply risk filter
@@ -703,9 +704,9 @@ function InvestigationPageContent() {
                       <div style={{
                         fontSize: '24px',
                         fontWeight: '700',
-                        color: aiAnalysis.riskScore >= 80 ? '#dc2626' : aiAnalysis.riskScore >= 50 ? '#f59e0b' : '#10b981'
+                        color: (aiAnalysis.risk_score ?? aiAnalysis.riskScore) >= 80 ? '#dc2626' : (aiAnalysis.risk_score ?? aiAnalysis.riskScore) >= 50 ? '#f59e0b' : '#10b981'
                       }}>
-                        {aiAnalysis.riskScore}
+                        {aiAnalysis.risk_score ?? aiAnalysis.riskScore}
                       </div>
                     </div>
                     <div>
@@ -713,28 +714,28 @@ function InvestigationPageContent() {
                       <div style={{
                         fontSize: '16px',
                         fontWeight: '600',
-                        color: aiAnalysis.anomalyLevel === 'high' ? '#dc2626' : aiAnalysis.anomalyLevel === 'medium' ? '#f59e0b' : '#10b981'
+                        color: (aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel) === 'high' ? '#dc2626' : (aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel) === 'medium' ? '#f59e0b' : '#10b981'
                       }}>
-                        {aiAnalysis.anomalyLevel.toUpperCase()}
+                        {(aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel || '').toUpperCase()}
                       </div>
                     </div>
                     <div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
                       <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {aiAnalysis.referenceIncidentIds?.length || 0}
+                        {(aiAnalysis.reference_incident_ids || aiAnalysis.referenceIncidentIds)?.length || 0}
                       </div>
                     </div>
                   </div>
                   <div style={{ marginBottom: '8px' }}>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Explanation</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {aiAnalysis.aiExplanation}
+                      {aiAnalysis.ai_explanation || aiAnalysis.aiExplanation}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Recommendation</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {aiAnalysis.aiRecommendation}
+                      {aiAnalysis.ai_recommendation || aiAnalysis.aiRecommendation}
                     </div>
                   </div>
                 </div>
@@ -914,7 +915,7 @@ function InvestigationPageContent() {
         isOpen={userInsightsOpen}
         onClose={() => setUserInsightsOpen(false)}
         userEmail={selectedUser || ''}
-        userName={aiAnalysis?.fullName}
+        userName={aiAnalysis?.full_name || aiAnalysis?.fullName}
       />
     </div>
   )

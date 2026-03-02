@@ -20,7 +20,14 @@ import {
   ChevronDown,
   Filter,
   MoreHorizontal,
-  LayoutDashboard
+  LayoutDashboard,
+  Search,
+  TrendingUp,
+  TableProperties,
+  Activity,
+  Shield,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -41,6 +48,8 @@ export default function MercekAnalyzePage() {
   // Released Incidents States
   const [releasedIncidents, setReleasedIncidents] = useState<ReleasedIncident[]>([])
   const [loadingReleasedIncidents, setLoadingReleasedIncidents] = useState(false)
+  const [syncingReleased, setSyncingReleased] = useState(false)
+  const [releasedSyncResult, setReleasedSyncResult] = useState<string | null>(null)
 
   // CSV / Mercek Analysis States
   const [csvData, setCsvData] = useState<any[]>([])
@@ -77,9 +86,10 @@ export default function MercekAnalyzePage() {
   const fetchReleasedIncidents = async () => {
     setLoadingReleasedIncidents(true)
     try {
-      const response = await apiClient.get('/api/released-incidents', {
-        params: { page: 1, pageSize: 10000 }
-      })
+      const params: any = { page: 1, pageSize: 10000 }
+      if (csvDateFrom) params.startDate = csvDateFrom
+      if (csvDateTo) params.endDate = csvDateTo
+      const response = await apiClient.get('/api/released-incidents', { params })
       const data = response.data?.data || []
       setReleasedIncidents(data)
     } catch (error) {
@@ -87,6 +97,29 @@ export default function MercekAnalyzePage() {
       setReleasedIncidents([])
     } finally {
       setLoadingReleasedIncidents(false)
+    }
+  }
+
+  const syncReleasedFromDlpApi = async (lookbackHours: number = 24) => {
+    setSyncingReleased(true)
+    setReleasedSyncResult(null)
+    try {
+      const response = await apiClient.post('/api/released-incidents/sync', null, {
+        params: { lookbackHours }
+      })
+      const data = response.data
+      setReleasedSyncResult(
+        data.success
+          ? `${data.inserted} yeni kayıt eklendi (${data.skipped} zaten mevcut)`
+          : data.error || 'Released incident bulunamadı'
+      )
+      await fetchReleasedIncidents()
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || error?.response?.data?.detail || error.message
+      setReleasedSyncResult(`Hata: ${msg}`)
+    } finally {
+      setSyncingReleased(false)
+      setTimeout(() => setReleasedSyncResult(null), 8000)
     }
   }
 
@@ -109,21 +142,21 @@ export default function MercekAnalyzePage() {
       const response = await apiClient.get('/api/mercek', { params })
       const data = response.data
 
-      const mappedData = data.items.map((item: any) => ({
-        'Olay No': item.incidentId,
-        'Olay Açıklaması': item.incidentDescription,
-        'Atanan Kullanıcı': item.assignedUserCode,
-        'Sistem Tarihi': item.systemDate ? new Date(item.systemDate).toLocaleString('tr-TR') : '',
-        'Açılış Tarihi': item.openDate ? new Date(item.openDate).toLocaleString('tr-TR') : '',
-        'Kapanış Tarihi': item.closeDate ? new Date(item.closeDate).toLocaleString('tr-TR') : '',
-        'Başlangıç Tarihi': item.startDate ? new Date(item.startDate).toLocaleString('tr-TR') : '',
-        'Çözüm Yöntemi': item.solutionMethod,
-        'Kullanıcı Adı': item.userName
+      const mappedData = (data.items || []).map((item: any) => ({
+        'Olay No': item.incident_id ?? item.incidentId,
+        'Olay Açıklaması': item.incident_description ?? item.incidentDescription,
+        'Atanan Kullanıcı': item.assigned_user_code ?? item.assignedUserCode,
+        'Sistem Tarihi': (item.system_date || item.systemDate) ? new Date(item.system_date || item.systemDate).toLocaleString('tr-TR') : '',
+        'Açılış Tarihi': (item.open_date || item.openDate) ? new Date(item.open_date || item.openDate).toLocaleString('tr-TR') : '',
+        'Kapanış Tarihi': (item.close_date || item.closeDate) ? new Date(item.close_date || item.closeDate).toLocaleString('tr-TR') : '',
+        'Başlangıç Tarihi': (item.start_date || item.startDate) ? new Date(item.start_date || item.startDate).toLocaleString('tr-TR') : '',
+        'Çözüm Yöntemi': item.solution_method ?? item.solutionMethod,
+        'Kullanıcı Adı': item.user_name ?? item.userName
       }))
 
       setCsvData(mappedData)
-      setMercekTotalCount(data.totalCount)
-      setMercekTotalPages(data.totalPages)
+      setMercekTotalCount(data.total_count ?? data.totalCount)
+      setMercekTotalPages(data.total_pages ?? data.totalPages)
       setCsvCurrentPage(data.page)
       setMercekDataLoaded(true)
 
@@ -143,7 +176,7 @@ export default function MercekAnalyzePage() {
       const response = await apiClient.get('/api/mercek/filters')
       const data = response.data
       setMercekAvailableUsers(data.users || [])
-      setMercekAssignedUsers(data.assignedUsers || [])
+      setMercekAssignedUsers(data.assigned_users || data.assignedUsers || [])
     } catch (error) {
       console.error('Mercek filters fetch error:', error)
     }
@@ -420,7 +453,21 @@ export default function MercekAnalyzePage() {
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Mercek Analysis</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            }}>
+              <Search size={20} color="#fff" />
+            </div>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Mercek Analysis</h1>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '24px' }}>
@@ -429,14 +476,61 @@ export default function MercekAnalyzePage() {
           <div style={{ order: 2, marginBottom: '24px' }}>
             <div style={{
               background: 'var(--surface)',
-              borderRadius: '8px',
+              borderRadius: '10px',
               border: '1px solid var(--border)',
               padding: '24px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              borderTop: '3px solid #f59e0b'
             }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
-                Released Incidents İstatistikleri
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 3px 10px rgba(245, 158, 11, 0.25)'
+                  }}>
+                    <Activity size={17} color="#fff" />
+                  </div>
+                  <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    Released Incidents İstatistikleri
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {releasedSyncResult && (
+                    <span style={{ fontSize: '12px', color: releasedSyncResult.startsWith('Hata') ? '#ef4444' : '#10b981', fontWeight: '500' }}>
+                      {releasedSyncResult}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => syncReleasedFromDlpApi(24)}
+                    disabled={syncingReleased}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      background: syncingReleased ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.12)',
+                      color: '#f59e0b',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: syncingReleased ? 'not-allowed' : 'pointer',
+                      opacity: syncingReleased ? 0.7 : 1,
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="DLP API'den released incident verilerini çek ve veritabanına kaydet"
+                  >
+                    <RefreshCw size={14} style={{ animation: syncingReleased ? 'spin 1s linear infinite' : 'none' }} />
+                    {syncingReleased ? 'Senkronize ediliyor...' : 'DLP API Senkronize Et'}
+                  </button>
+                </div>
+              </div>
 
               {loadingReleasedIncidents ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -475,10 +569,13 @@ export default function MercekAnalyzePage() {
                   </div>
                   {/* Admin Bazlı Sütun Grafik */}
                   {releasedIncidentsStats.adminData.length > 0 && (
-                    <div style={{ marginTop: '24px', background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                        Admin Bazlı Released Incident Sayıları
-                      </h3>
+                    <div style={{ marginTop: '24px', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04), rgba(239, 68, 68, 0.04))', borderRadius: '12px', padding: '24px', border: '1px solid rgba(245, 158, 11, 0.12)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                        <Shield size={16} style={{ color: '#f59e0b' }} />
+                        <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                          Admin Bazlı Released Incident Sayıları
+                        </h3>
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {releasedIncidentsStats.adminData.map(({ admin, count }: { admin: string, count: number }) => {
                           const maxCount = Math.max(...releasedIncidentsStats.adminData.map((d: { admin: string, count: number }) => d.count))
@@ -512,22 +609,37 @@ export default function MercekAnalyzePage() {
           <div style={{ order: 1, marginBottom: '24px' }}>
             <div style={{
               background: 'var(--surface)',
-              borderRadius: '8px',
+              borderRadius: '10px',
               border: '1px solid var(--border)',
               padding: '24px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              borderTop: '3px solid #3b82f6'
             }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
-                Mercek İstatistikleri
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 3px 10px rgba(59, 130, 246, 0.25)'
+                }}>
+                  <BarChart2 size={17} color="#fff" />
+                </div>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  Mercek İstatistikleri
+                </h2>
+              </div>
 
               {mercekLoading ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   Yükleniyor...
                 </div>
               ) : mercekStatistics && (() => {
-                const lastWeekCount = mercekStatistics.lastWeekCount || 0
-                const previousWeekCount = mercekStatistics.previousWeekCount || 0
+                const lastWeekCount = mercekStatistics.last_week_count ?? mercekStatistics.lastWeekCount ?? 0
+                const previousWeekCount = mercekStatistics.previous_week_count ?? mercekStatistics.previousWeekCount ?? 0
                 const weekChange = previousWeekCount > 0
                   ? ((lastWeekCount - previousWeekCount) / previousWeekCount * 100).toFixed(1)
                   : '0'
@@ -535,7 +647,7 @@ export default function MercekAnalyzePage() {
 
                 const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
                 const todayKey = toDateKey(new Date())
-                const dailyCounts = mercekStatistics.dailyCounts || []
+                const dailyCounts = mercekStatistics.daily_counts || mercekStatistics.dailyCounts || []
                 const todayCount = dailyCounts.find((d: any) => {
                   const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date))
                   return dt === todayKey
@@ -554,28 +666,28 @@ export default function MercekAnalyzePage() {
                       <div style={{ color: '#4338ca' }}><BarChart2 size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Kayıt</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.totalIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.total_incidents ?? mercekStatistics.totalIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(16, 185, 129, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                       <div style={{ color: '#047857' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Açık Incident</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.openIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.open_incidents ?? mercekStatistics.openIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(239, 68, 68, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                       <div style={{ color: '#b91c1c' }}><CircleDot size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Kapatılmış Incident</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closedIncidents}</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.closed_incidents ?? mercekStatistics.closedIncidents}</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(59, 130, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                       <div style={{ color: '#1d4ed8' }}><Clock size={32} /></div>
                       <div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Ort. Çözüm Süresi</div>
-                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.averageResolutionDays} gün</div>
+                        <div style={{ color: 'var(--text-primary)', fontSize: '32px', fontWeight: '700' }}>{mercekStatistics.average_resolution_days ?? mercekStatistics.averageResolutionDays} gün</div>
                       </div>
                     </div>
                     <div style={{ background: 'rgba(139, 92, 246, 0.12)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '16px', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
@@ -613,8 +725,8 @@ export default function MercekAnalyzePage() {
 
               {/* Charts Section */}
               {mercekStatistics && (() => {
-                const userDist: Array<{ label: string, count: number }> = mercekStatistics.userDistribution || []
-                const assignedDist: Array<{ label: string, count: number }> = mercekStatistics.assignedUserDistribution || []
+                const userDist: Array<{ label: string, count: number }> = mercekStatistics.user_distribution || mercekStatistics.userDistribution || []
+                const assignedDist: Array<{ label: string, count: number }> = mercekStatistics.assigned_user_distribution || mercekStatistics.assignedUserDistribution || []
                 const userChartPageSize = 5
                 const assignedChartPageSize = 5
                 const userTotalPages = Math.ceil(userDist.length / userChartPageSize)
@@ -628,52 +740,72 @@ export default function MercekAnalyzePage() {
 
                 return (
                   <div style={{ marginBottom: '28px' }}>
-                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>Grafik Görselleştirme</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '7px',
+                        background: 'linear-gradient(135deg, #8b5cf6, #a855f7)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 3px 8px rgba(139, 92, 246, 0.25)'
+                      }}>
+                        <BarChart3 size={15} color="#fff" />
+                      </div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Kullanıcı Dağılımları</h3>
+                    </div>
 
                     {/* Filters */}
                     <div style={{
-                      display: 'flex',
-                      gap: '16px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(5, 1fr)',
+                      gap: '14px',
                       marginBottom: '20px',
-                      flexWrap: 'wrap',
-                      alignItems: 'flex-end'
+                      alignItems: 'end',
+                      padding: '16px',
+                      background: 'rgba(139, 92, 246, 0.03)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(139, 92, 246, 0.1)'
                     }}>
-                      <div style={{ flex: '1', minWidth: '180px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Kullanıcı</label>
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>Kullanıcı</label>
                         <select value={csvSelectedUser} onChange={(e) => { setCsvSelectedUser(e.target.value); setCsvCurrentPage(1) }}
-                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }}>
                           <option value="">Tümü</option>
                           {mercekAvailableUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
                         </select>
                       </div>
-                      <div style={{ flex: '1', minWidth: '180px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Atanan Kullanıcı</label>
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>Atanan Kullanıcı</label>
                         <select value={mercekAssignedUserFilter} onChange={(e) => { setMercekAssignedUserFilter(e.target.value); setCsvCurrentPage(1) }}
-                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }}>
                           <option value="">Tümü</option>
                           {mercekAssignedUsers.map((user, idx) => (<option key={idx} value={user}>{user}</option>))}
                         </select>
                       </div>
-                      <div style={{ flex: '1', minWidth: '140px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Başlangıç Tarihi</label>
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>Başlangıç Tarihi</label>
                         <input type="date" value={csvDateFrom} onChange={(e) => setCsvDateFrom(e.target.value)}
-                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }} />
                       </div>
-                      <div style={{ flex: '1', minWidth: '140px' }}>
-                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Bitiş Tarihi</label>
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>Bitiş Tarihi</label>
                         <input type="date" value={csvDateTo} onChange={(e) => setCsvDateTo(e.target.value)}
-                          style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '13px' }} />
                       </div>
-                      <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
-                        style={{ padding: '8px 16px', borderRadius: '4px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '14px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer', height: 'fit-content', alignSelf: 'flex-end', marginBottom: '2px' }}>
-                        {mercekLoading ? 'Yükleniyor...' : 'Filtrele'}
-                      </button>
-                      {(csvDateFrom || csvDateTo || csvSelectedUser || mercekAssignedUserFilter) && (
-                        <button onClick={() => { setCsvDateFrom(''); setCsvDateTo(''); setCsvSelectedUser(''); setMercekAssignedUserFilter(''); setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }}
-                          style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer', height: 'fit-content' }}>
-                          Filtreleri Temizle
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
+                          style={{ flex: 1, padding: '9px 16px', borderRadius: '6px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '13px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer' }}>
+                          {mercekLoading ? 'Yükleniyor...' : 'Filtrele'}
                         </button>
-                      )}
+                        {(csvDateFrom || csvDateTo || csvSelectedUser || mercekAssignedUserFilter) && (
+                          <button onClick={() => { setCsvDateFrom(''); setCsvDateTo(''); setCsvSelectedUser(''); setMercekAssignedUserFilter(''); setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }}
+                            style={{ padding: '9px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-primary)', fontSize: '13px', cursor: 'pointer' }}>
+                            Temizle
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Charts Grid */}
@@ -681,10 +813,13 @@ export default function MercekAnalyzePage() {
 
                       {/* Kullanıcı Dağılımı */}
                       {userDist.length > 0 && (
-                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
-                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
-                            Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({userDist.length} kullanıcı)</span>
-                          </h4>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.04), rgba(96, 165, 250, 0.04))', borderRadius: '12px', padding: '24px', overflow: 'hidden', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #3b82f6, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                              Kullanıcı Dağılımı
+                            </h4>
+                            <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '3px 10px', borderRadius: '16px', fontSize: '12px', fontWeight: '600', border: '1px solid rgba(59, 130, 246, 0.2)' }}>{userDist.length} kullanıcı</span>
+                          </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {paginatedUsers.map((item, idx) => {
                               const percentage = (item.count / userMaxCount) * 100
@@ -723,10 +858,13 @@ export default function MercekAnalyzePage() {
 
                       {/* Atanan Kullanıcı Dağılımı */}
                       {assignedDist.length > 0 && (
-                        <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '24px', overflow: 'hidden' }}>
-                          <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>
-                            Atanan Kullanıcı Dağılımı <span style={{ color: 'var(--text-secondary)', fontWeight: '400', fontSize: '13px' }}>({assignedDist.length} kullanıcı)</span>
-                          </h4>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.04), rgba(167, 139, 250, 0.04))', borderRadius: '12px', padding: '24px', overflow: 'hidden', border: '1px solid rgba(139, 92, 246, 0.1)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                              Atanan Kullanıcı Dağılımı
+                            </h4>
+                            <span style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', padding: '3px 10px', borderRadius: '16px', fontSize: '12px', fontWeight: '600', border: '1px solid rgba(139, 92, 246, 0.2)' }}>{assignedDist.length} kullanıcı</span>
+                          </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {paginatedAssigned.map((item, idx) => {
                               const percentage = (item.count / assignedMaxCount) * 100
@@ -799,7 +937,7 @@ export default function MercekAnalyzePage() {
                           days.push(new Date(d));
                         }
                         const countMap = new Map<string, number>();
-                        (mercekStatistics.dailyCounts || []).forEach((d: any) => {
+                        (mercekStatistics.daily_counts || mercekStatistics.dailyCounts || []).forEach((d: any) => {
                           const dt = typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d.date) ? d.date.slice(0, 10) : toDateKey(new Date(d.date));
                           countMap.set(dt, d.count);
                         });
@@ -864,41 +1002,117 @@ export default function MercekAnalyzePage() {
                         });
 
                         return (
-                          <div style={{ background: 'var(--background-secondary)', borderRadius: '10px', padding: '28px', gridColumn: '1 / -1' }}>
-                            <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
-                              Tarih Trend Grafiği - Toplam: {totalTrend} kayıt ({dateEntries.length} gün) • Haftalar Pazartesi-Pazar
-                            </h4>
-                            <Plot
-                              data={traces}
-                              layout={{
-                                margin: { t: 10, b: 120, l: 50, r: 20 },
-                                paper_bgcolor: 'transparent',
-                                plot_bgcolor: 'transparent',
-                                height: 400,
-                                annotations,
-                                xaxis: {
-                                  gridcolor: 'rgba(128,128,128,0.1)',
-                                  tickvals: dates,
-                                  tickmode: 'array',
-                                  ticktext: dates,
-                                  tickfont: { size: 10, color: '#888' },
-                                  tickangle: -90,
-                                  showgrid: true,
-                                },
-                                yaxis: {
-                                  title: { text: 'Kayıt Sayısı', font: { size: 13, color: '#888' } },
-                                  gridcolor: 'rgba(128,128,128,0.1)',
-                                  tickfont: { size: 12, color: '#888' },
-                                  zeroline: true,
-                                  zerolinecolor: 'rgba(128,128,128,0.3)',
-                                  rangemode: 'tozero',
-                                },
-                                showlegend: false,
-                                hovermode: 'x unified',
-                              }}
-                              config={{ displayModeBar: false, responsive: true }}
-                              style={{ width: '100%', height: '400px' }}
-                            />
+                          <div style={{
+                            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.04) 50%, rgba(59, 130, 246, 0.04) 100%)',
+                            borderRadius: '14px',
+                            padding: '28px',
+                            gridColumn: '1 / -1',
+                            border: '1px solid rgba(99, 102, 241, 0.12)',
+                            boxShadow: '0 4px 16px rgba(99, 102, 241, 0.06)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  boxShadow: '0 3px 10px rgba(99, 102, 241, 0.3)'
+                                }}>
+                                  <TrendingUp size={17} color="#fff" />
+                                </div>
+                                <h4 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                  Tarih Trend Grafiği
+                                </h4>
+                              </div>
+                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <span style={{
+                                  background: 'rgba(99, 102, 241, 0.1)',
+                                  color: '#6366f1',
+                                  padding: '5px 12px',
+                                  borderRadius: '20px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  border: '1px solid rgba(99, 102, 241, 0.2)'
+                                }}>
+                                  {totalTrend} kayıt
+                                </span>
+                                <span style={{
+                                  background: 'rgba(139, 92, 246, 0.1)',
+                                  color: '#8b5cf6',
+                                  padding: '5px 12px',
+                                  borderRadius: '20px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  border: '1px solid rgba(139, 92, 246, 0.2)'
+                                }}>
+                                  {dateEntries.length} gün
+                                </span>
+                                <span style={{
+                                  background: 'rgba(59, 130, 246, 0.1)',
+                                  color: '#3b82f6',
+                                  padding: '5px 12px',
+                                  borderRadius: '20px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  border: '1px solid rgba(59, 130, 246, 0.2)'
+                                }}>
+                                  Pzt-Paz
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{
+                              background: 'var(--surface)',
+                              borderRadius: '10px',
+                              padding: '16px 12px 8px 12px',
+                              border: '1px solid var(--border)'
+                            }}>
+                              <Plot
+                                data={traces}
+                                layout={{
+                                  margin: { t: 10, b: 120, l: 50, r: 20 },
+                                  paper_bgcolor: 'transparent',
+                                  plot_bgcolor: 'transparent',
+                                  height: 420,
+                                  annotations,
+                                  xaxis: {
+                                    gridcolor: 'rgba(128,128,128,0.08)',
+                                    tickvals: dates,
+                                    tickmode: 'array',
+                                    ticktext: dates,
+                                    tickfont: { size: 10, color: '#999', family: 'Inter, system-ui, sans-serif' },
+                                    tickangle: -90,
+                                    showgrid: true,
+                                    showline: true,
+                                    linecolor: 'rgba(128,128,128,0.15)',
+                                    linewidth: 1,
+                                  },
+                                  yaxis: {
+                                    title: { text: 'Kayıt Sayısı', font: { size: 13, color: '#999', family: 'Inter, system-ui, sans-serif' } },
+                                    gridcolor: 'rgba(128,128,128,0.08)',
+                                    tickfont: { size: 12, color: '#999', family: 'Inter, system-ui, sans-serif' },
+                                    zeroline: true,
+                                    zerolinecolor: 'rgba(128,128,128,0.2)',
+                                    rangemode: 'tozero',
+                                    showline: true,
+                                    linecolor: 'rgba(128,128,128,0.15)',
+                                    linewidth: 1,
+                                  },
+                                  showlegend: false,
+                                  hovermode: 'x unified',
+                                  hoverlabel: {
+                                    bgcolor: 'rgba(255,255,255,0.95)',
+                                    bordercolor: 'rgba(99,102,241,0.3)',
+                                    font: { size: 13, color: '#333', family: 'Inter, system-ui, sans-serif' }
+                                  },
+                                }}
+                                config={{ displayModeBar: false, responsive: true }}
+                                style={{ width: '100%', height: '420px' }}
+                              />
+                            </div>
                           </div>
                         );
                       })()}
@@ -923,7 +1137,21 @@ export default function MercekAnalyzePage() {
                 return (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Veri Tablosu</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '7px',
+                          background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 3px 8px rgba(16, 185, 129, 0.25)'
+                        }}>
+                          <TableProperties size={15} color="#fff" />
+                        </div>
+                        <h3 style={{ fontSize: '20px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #10b981, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Veri Tablosu</h3>
+                      </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         {hasActiveFilters && (
                           <button
@@ -968,7 +1196,7 @@ export default function MercekAnalyzePage() {
                       }}>
                         <thead>
                           {/* First Row: Sortable Headers */}
-                          <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+                          <tr style={{ background: 'rgba(16, 185, 129, 0.06)', borderBottom: '2px solid rgba(16, 185, 129, 0.15)' }}>
                             {csvHeaders.map((header, index) => {
                               const isSorted = mercekSortColumn === header
 
@@ -979,7 +1207,7 @@ export default function MercekAnalyzePage() {
                                     padding: '12px 16px',
                                     textAlign: 'left',
                                     borderBottom: 'none',
-                                    color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                                    color: isSorted ? '#10b981' : 'var(--text-primary)',
                                     fontWeight: '600',
                                     fontSize: '13px',
                                     whiteSpace: 'nowrap'
@@ -1007,7 +1235,7 @@ export default function MercekAnalyzePage() {
                           </tr>
 
                           {/* Second Row: Filters */}
-                          <tr style={{ background: 'var(--background-secondary)', borderBottom: '2px solid var(--border)' }}>
+                          <tr style={{ background: 'rgba(16, 185, 129, 0.03)', borderBottom: '2px solid rgba(16, 185, 129, 0.12)' }}>
                             {csvHeaders.map((header, index) => {
                               const isListbox = listboxColumns.includes(header)
                               const isTextSearch = textSearchColumns.includes(header)

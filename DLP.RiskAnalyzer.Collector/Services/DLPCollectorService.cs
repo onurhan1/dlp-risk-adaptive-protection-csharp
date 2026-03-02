@@ -288,6 +288,40 @@ public class DLPCollectorService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Push released incident entry to Redis stream
+    /// </summary>
+    public async Task PushReleasedIncidentToRedisStreamAsync(
+        int incidentId, string incidentTime, string action,
+        string taskName, string? adminName, string? comments, string? updateTime)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            var streamName = "dlp:released-incidents";
+
+            var fields = new NameValueEntry[]
+            {
+                new("incident_id", incidentId.ToString()),
+                new("incident_time", incidentTime ?? ""),
+                new("action", action ?? ""),
+                new("task_name", taskName ?? ""),
+                new("admin_name", adminName ?? ""),
+                new("comments", comments ?? ""),
+                new("update_time", updateTime ?? "")
+            };
+
+            var messageId = await db.StreamAddAsync(streamName, fields);
+            _logger.LogDebug("Released incident pushed to Redis: MessageId={MessageId}, IncidentId={IncidentId}, Admin={Admin}",
+                messageId, incidentId, adminName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to push released incident to Redis stream: IncidentId={IncidentId}", incidentId);
+            throw;
+        }
+    }
+
     private HttpClient CreateHttpClient(DLPConfig config)
     {
         var handler = new HttpClientHandler
@@ -524,6 +558,9 @@ public class DLPIncident
     [JsonProperty("violation_triggers")]
     public List<DLPViolationTrigger>? ViolationTriggers { get; set; }
     
+    [JsonProperty("history")]
+    public List<DLPHistoryItem>? History { get; set; }
+    
     // Computed properties from Source
     [JsonIgnore]
     public string? LoginName => Source?.LoginName;
@@ -587,6 +624,24 @@ public class DLPViolationTrigger
     
     [JsonProperty("classifiers")]
     public List<DLPClassifier>? Classifiers { get; set; }
+}
+
+/// <summary>
+/// DLP Incident history item (from API history array)
+/// </summary>
+public class DLPHistoryItem
+{
+    [JsonProperty("task_name")]
+    public string? TaskName { get; set; }
+    
+    [JsonProperty("admin_name")]
+    public string? AdminName { get; set; }
+    
+    [JsonProperty("comments")]
+    public string? Comments { get; set; }
+    
+    [JsonProperty("update_time")]
+    public string? UpdateTime { get; set; }
 }
 
 /// <summary>

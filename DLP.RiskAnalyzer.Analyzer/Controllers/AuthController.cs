@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Services;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -17,12 +16,14 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthController> _logger;
     private readonly AnalyzerDbContext _db;
+    private readonly IUserService _userService;
 
-    public AuthController(AnalyzerDbContext db, IConfiguration configuration, ILogger<AuthController> logger)
+    public AuthController(AnalyzerDbContext db, IConfiguration configuration, ILogger<AuthController> logger, IUserService? userService = null)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _userService = userService ?? new UserService(db);
     }
 
     [HttpPost("login")]
@@ -61,8 +62,7 @@ public class AuthController : ControllerBase
             _logger.LogInformation("Login attempt - Username: '{Username}' (Length: {UserLen}), Password Length: {PassLen}", 
                 normalizedUsername, normalizedUsername.Length, normalizedPassword.Length);
             
-            // Check if user exists first
-            var userExists = UsersController.GetUserByUsername(_db, normalizedUsername);
+            var userExists = _userService.GetByUsername(normalizedUsername);
             if (userExists == null)
             {
                 _logger.LogWarning("Login failed - User not found: {Username}", normalizedUsername);
@@ -72,7 +72,7 @@ public class AuthController : ControllerBase
             _logger.LogInformation("User found - Username: {Username}, HasPasswordHash: {HasHash}, HasPasswordSalt: {HasSalt}", 
                 userExists.Username, !string.IsNullOrEmpty(userExists.PasswordHash), !string.IsNullOrEmpty(userExists.PasswordSalt));
 
-            if (!UsersController.TryValidateCredentials(_db, normalizedUsername, normalizedPassword, out var user))
+            if (!_userService.ValidateCredentials(normalizedUsername, normalizedPassword, out var user))
             {
                 _logger.LogWarning("Login failed - Password validation failed for username: {Username}", normalizedUsername);
                 return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));

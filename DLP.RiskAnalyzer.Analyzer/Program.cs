@@ -22,8 +22,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Ensure UTF-8 encoding for JSON responses
         options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
     });
 builder.Services.AddDataProtection();
 builder.Services.AddMemoryCache(); // For AI Behavioral caching
@@ -99,7 +99,9 @@ builder.Services.AddScoped<DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces.IIn
     DLP.RiskAnalyzer.Analyzer.Repositories.Implementations.IncidentRepository>();
 
 // Services
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<DatabaseService>();
+builder.Services.AddScoped<UserInsightsService>();
 builder.Services.AddScoped<RiskAnalyzerService>();
 builder.Services.AddScoped<ReportGeneratorService>();
 builder.Services.AddScoped<AnomalyDetector>();
@@ -110,6 +112,7 @@ builder.Services.AddScoped<DlpConfigurationService>();
 builder.Services.AddScoped<EmailConfigurationService>();
 builder.Services.AddScoped<BehaviorEngineService>();
 builder.Services.AddScoped<PolicyExceptionSyncService>();
+builder.Services.AddScoped<ReleasedIncidentSyncService>();
 builder.Services.AddScoped<AuditLogService>();
 // Dev-only seeder — harmless singleton when SeedData:Enabled = false
 builder.Services.AddScoped<DevDataSeeder>();
@@ -324,7 +327,8 @@ try
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<DLP.RiskAnalyzer.Analyzer.Controllers.UsersController>>();
 
-        await DLP.RiskAnalyzer.Analyzer.Controllers.UsersController.SeedDefaultAdminAsync(dbContext, configuration, logger);
+        var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+        await userService.SeedDefaultAdminAsync(configuration, logger);
         startupLogger.LogInformation("=== DEFAULT ADMIN USER SEED COMPLETED ===");
     }
 }

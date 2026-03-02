@@ -47,10 +47,10 @@ public class DomainFeaturesController : ControllerBase
             {
                 var colKey = col.Trim().ToLower();
                 
-                // Static columns
-                if (colKey == "hasnda") query = query.Where(d => d.HasNda);
-                else if (colKey == "ispersonal") query = query.Where(d => d.IsPersonal);
-                else if (colKey == "istirakdomain") query = query.Where(d => d.IstirakDomain);
+                // Static columns (keys are snake_case to match JSON serialization policy)
+                if (colKey == "has_nda") query = query.Where(d => d.HasNda);
+                else if (colKey == "is_personal") query = query.Where(d => d.IsPersonal);
+                else if (colKey == "istirak_domain") query = query.Where(d => d.IstirakDomain);
                 else if (colKey == "egitim") query = query.Where(d => d.Egitim);
                 else if (colKey == "noter") query = query.Where(d => d.Noter);
                 else if (colKey == "hukuk") query = query.Where(d => d.Hukuk);
@@ -119,11 +119,13 @@ public class DomainFeaturesController : ControllerBase
         });
 
         // 4. Get all column definitions (Static + Dynamic)
+        // NOTE: key values must match the snake_case property names in serialized domain objects
+        // because the frontend uses col.key to access domain[col.key]
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "has_nda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "is_personal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirak_domain", isStatic = true },
             new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
             new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
             new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },
@@ -194,9 +196,18 @@ public class DomainFeaturesController : ControllerBase
             var parts = (item.Destination ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
-                if (part.Contains("@"))
+                var trimmedPart = part.Trim();
+                
+                // Handle angle brackets: <user@domain.com>
+                if (trimmedPart.StartsWith("<") && trimmedPart.EndsWith(">"))
+                    trimmedPart = trimmedPart.Substring(1, trimmedPart.Length - 2);
+                
+                if (trimmedPart.Contains("@"))
                 {
-                    var domain = part.Split('@').Last().Trim().ToLower();
+                    var domain = trimmedPart.Split('@').Last().Trim().ToLower();
+                    
+                    // Skip empty or invalid domains
+                    if (string.IsNullOrEmpty(domain) || !domain.Contains('.')) continue;
                     
                     // Count
                     if (!domainCounts.ContainsKey(domain)) domainCounts[domain] = 0;
@@ -215,13 +226,40 @@ public class DomainFeaturesController : ControllerBase
             .Select(x => x.Key)
             .ToList();
 
-        // 3. Fetch NdaDomain details for these domains
+        // 3. Fetch NdaDomain details for these domains (case-insensitive)
         var domains = await _context.NdaDomains
-            .Where(d => topDomainList.Contains(d.Domain))
+            .Where(d => topDomainList.Contains(d.Domain.ToLower()))
             .ToListAsync();
 
-        // Sort by frequency
-        domains = domains.OrderBy(d => topDomainList.IndexOf(d.Domain)).ToList();
+        // Find domains that exist in incidents but not in NdaDomains table → auto-create
+        var existingDomainNames = domains.Select(d => d.Domain.ToLower()).ToHashSet();
+        var missingDomains = topDomainList.Where(d => !existingDomainNames.Contains(d)).ToList();
+        
+        var personalDomains = new HashSet<string> { "gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "icloud.com", "mynet.com", "windowslive.com" };
+        
+        if (missingDomains.Any())
+        {
+            var newDomains = missingDomains.Select(d => new NdaDomain
+            {
+                Domain = d,
+                HasNda = false,
+                IsUnknown = true,
+                IsPersonal = personalDomains.Contains(d)
+            }).ToList();
+
+            await _context.NdaDomains.AddRangeAsync(newDomains);
+            await _context.SaveChangesAsync();
+            
+            domains.AddRange(newDomains);
+            _logger.LogInformation("Auto-created {Count} missing domains from top incidents", newDomains.Count);
+        }
+
+        // Sort by frequency (use lowercase for matching)
+        domains = domains.OrderBy(d => {
+            var idx = topDomainList.IndexOf(d.Domain.ToLower());
+            return idx >= 0 ? idx : int.MaxValue;
+        }).ToList();
+        
         var domainIds = domains.Select(d => d.Id).ToList();
 
         // 4. Fetch dynamic values
@@ -234,6 +272,9 @@ public class DomainFeaturesController : ControllerBase
 
         var result = domains.Select(d =>
         {
+            // Use lowercase domain name for lookups in incident data
+            var domainLower = d.Domain.ToLower();
+            
             // Reconstruct features dictionary
             var features = new Dictionary<string, bool>();
             foreach(var def in featureDefs)
@@ -258,11 +299,11 @@ public class DomainFeaturesController : ControllerBase
                 d.Denetim,
                 d.Banka,
                 CustomFeatures = features,
-                IncidentCount = domainCounts.ContainsKey(d.Domain) ? domainCounts[d.Domain] : 0,
+                IncidentCount = domainCounts.ContainsKey(domainLower) ? domainCounts[domainLower] : 0,
                 IncidentStats = new 
                 {
-                    Actions = domainActions.ContainsKey(d.Domain) ? domainActions[d.Domain] : new Dictionary<string, int>(),
-                    Teams = domainTeams.ContainsKey(d.Domain) ? domainTeams[d.Domain] : new Dictionary<string, int>()
+                    Actions = domainActions.ContainsKey(domainLower) ? domainActions[domainLower] : new Dictionary<string, int>(),
+                    Teams = domainTeams.ContainsKey(domainLower) ? domainTeams[domainLower] : new Dictionary<string, int>()
                 }
             };
         });
@@ -276,11 +317,12 @@ public class DomainFeaturesController : ControllerBase
     [HttpGet("columns")]
     public async Task<IActionResult> GetColumns()
     {
+        // NOTE: key values must match the snake_case property names in serialized domain objects
         var staticColumns = new List<object>
         {
-            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "hasNda", isStatic = true },
-            new { name = "is_personal", displayName = "Kişisel", key = "isPersonal", isStatic = true },
-            new { name = "istirak_domain", displayName = "İştirak", key = "istirakDomain", isStatic = true },
+            new { name = "has_nda", displayName = "Gizlilik Sözleşmesi", key = "has_nda", isStatic = true },
+            new { name = "is_personal", displayName = "Kişisel", key = "is_personal", isStatic = true },
+            new { name = "istirak_domain", displayName = "İştirak", key = "istirak_domain", isStatic = true },
             new { name = "egitim", displayName = "Eğitim", key = "egitim", isStatic = true },
             new { name = "noter", displayName = "Noter", key = "noter", isStatic = true },
             new { name = "hukuk", displayName = "Hukuk", key = "hukuk", isStatic = true },

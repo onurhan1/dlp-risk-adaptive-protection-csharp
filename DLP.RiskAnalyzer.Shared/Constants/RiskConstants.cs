@@ -76,5 +76,30 @@ public static class RiskConstants
         public const string DefaultConnection = "DefaultConnection";
         public const int DefaultPageSize = 15;
     }
+
+    public static class Thresholds
+    {
+        public const int MinRiskScoreForTopUsers = 35;
+        public const int CriticalDailyScore = 75;
+        public const int HighDailyScore = 50;
+        public const int MinDaysForTrend = 3;
+        public const int MaxIobIncidents = 1000;
+        public const int LowRiskNoiseMax = 20;
+        public const int MinDataPointsForAnomaly = 5;
+        public const int AnomalyMinScore = 100;
+        public const double AnomalySigma = 3.0;
+        public const int HighImpactMinMatches = 100;
+        public const int SeverityCriticalMatches = 500;
+        public const int SeverityHighMatches = 200;
+    }
+
+    public static class Periods
+    {
+        public const int WeeklyDays = 7;
+        public const int MonthlyDays = 30;
+        public const int QuarterlyDays = 90;
+        public const int SemiAnnualDays = 180;
+        public const int YearlyDays = 365;
+    }
 }
 

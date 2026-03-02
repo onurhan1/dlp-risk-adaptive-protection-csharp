@@ -11,73 +11,73 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 interface DailyData {
     date: string
     count: number
-    blockCount: number
-    quarantineCount: number
-    authorizedCount: number
-    releasedCount: number
-    totalMatches: number
+    block_count: number
+    quarantine_count: number
+    authorized_count: number
+    released_count: number
+    total_matches: number
 }
 
 interface TrendDataPoint {
     label: string
     count: number
-    blockCount: number
-    quarantineCount: number
-    authorizedCount: number
-    releasedCount: number
-    totalMatches: number
-    startDate?: string
-    endDate?: string
-    dailyBreakdown?: DailyData[]
+    block_count: number
+    quarantine_count: number
+    authorized_count: number
+    released_count: number
+    total_matches: number
+    start_date?: string
+    end_date?: string
+    daily_breakdown?: DailyData[]
 }
 
 interface DestinationPattern {
     destination: string
-    incidentCount: number
-    totalMatches: number
-    isNew: boolean
+    incident_count: number
+    total_matches: number
+    is_new: boolean
 }
 
 interface IncidentSummary {
     id: number
-    loginName: string
+    login_name: string
     destination: string
     channel: string
     action: string
-    maxMatches: number
+    max_matches: number
     timestamp: string
 }
 
 interface ZScoreDetail {
-    zScore: number
+    z_score: number
     mean: number
-    stdDev: number
-    currentValue: number
-    baselineValue: number
+    std_dev: number
+    current_value: number
+    baseline_value: number
     formula: string
 }
 
 interface EntityDetailData {
-    entityType: string
-    entityId: string
-    riskScore: number
-    anomalyLevel: string
-    aiExplanation: string
-    aiRecommendation: string
-    referenceIncidentIds: number[]
-    analysisDate: string
-    zScores: Record<string, number>
-    zScoreDetails?: Record<string, ZScoreDetail>
-    weeklyTrends: TrendDataPoint[]
-    monthlyTrends: TrendDataPoint[]
-    actionCounts: Record<string, number>
-    actionZScores: Record<string, number>
-    totalIncidents: number
-    totalMatches: number
-    avgMatchesPerIncident: number
-    destinationPatterns: DestinationPattern[]
-    destinationDiversity: number
-    topIncidents: IncidentSummary[]
+    entity_type: string
+    entity_id: string
+    risk_score: number
+    anomaly_level: string
+    ai_explanation: string
+    ai_recommendation: string
+    reference_incident_ids: number[]
+    analysis_date: string
+    z_scores: Record<string, number>
+    z_score_details?: Record<string, ZScoreDetail>
+    weekly_trends: TrendDataPoint[]
+    monthly_trends: TrendDataPoint[]
+    action_counts: Record<string, number>
+    action_z_scores: Record<string, number>
+    total_incidents: number
+    total_matches: number
+    avg_matches_per_incident: number
+    destination_patterns: DestinationPattern[]
+    destination_diversity: number
+    top_incidents: IncidentSummary[]
 }
 
 interface EntityDetailModalProps {
@@ -124,12 +124,12 @@ export default function EntityDetailModal({
 
     // Client-side pagination for incidents
     const paginatedIncidents = useMemo(() => {
-        if (!data?.topIncidents) return []
+        if (!data?.top_incidents) return []
         const startIndex = (incidentsPage - 1) * incidentsPageSize
-        return data.topIncidents.slice(startIndex, startIndex + incidentsPageSize)
-    }, [data?.topIncidents, incidentsPage, incidentsPageSize])
+        return data.top_incidents.slice(startIndex, startIndex + incidentsPageSize)
+    }, [data?.top_incidents, incidentsPage, incidentsPageSize])
 
-    const incidentsTotalPages = data?.topIncidents ? Math.ceil(data.topIncidents.length / incidentsPageSize) : 0
+    const incidentsTotalPages = data?.top_incidents ? Math.ceil(data.top_incidents.length / incidentsPageSize) : 0
 
     useEffect(() => {
         if (isOpen && entityType && entityId) {
@@ -326,7 +326,7 @@ export default function EntityDetailModal({
                                         width: '100px',
                                         height: '100px',
                                         borderRadius: '50%',
-                                        background: `conic-gradient(${getRiskColor(data.riskScore)} ${data.riskScore * 3.6}deg, var(--border) 0deg)`,
+                                        background: `conic-gradient(${getRiskColor(data.risk_score)} ${data.risk_score * 3.6}deg, var(--border) 0deg)`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center'
@@ -341,8 +341,8 @@ export default function EntityDetailModal({
                                             justifyContent: 'center',
                                             flexDirection: 'column'
                                         }}>
-                                            <div style={{ fontSize: '28px', fontWeight: '700', color: getRiskColor(data.riskScore) }}>
-                                                {data.riskScore}
+                                            <div style={{ fontSize: '28px', fontWeight: '700', color: getRiskColor(data.risk_score) }}>
+                                                {data.risk_score}
                                             </div>
                                         </div>
                                     </div>
@@ -350,13 +350,13 @@ export default function EntityDetailModal({
                                         <div style={{
                                             fontSize: '20px',
                                             fontWeight: '700',
-                                            color: getRiskColor(data.riskScore),
+                                            color: getRiskColor(data.risk_score),
                                             textTransform: 'none'
                                         }}>
-                                            {data.anomalyLevel} RISK
+                                            {data.anomaly_level} RISK
                                         </div>
                                         <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            {data.totalIncidents} incidents • {data.totalMatches.toLocaleString()} matches
+                                            {data.total_incidents} incidents • {data.total_matches.toLocaleString()} matches
                                         </div>
                                     </div>
                                 </div>
@@ -393,17 +393,17 @@ export default function EntityDetailModal({
                                             <div style={{
                                                 fontSize: '28px',
                                                 fontWeight: '800',
-                                                color: getRiskColor(weeklyData.riskScore)
+                                                color: getRiskColor(weeklyData.risk_score)
                                             }}>
-                                                {weeklyData.riskScore}
+                                                {weeklyData.risk_score}
                                             </div>
                                             <div style={{
                                                 fontSize: '12px',
                                                 fontWeight: '600',
-                                                color: getRiskColor(weeklyData.riskScore),
+                                                color: getRiskColor(weeklyData.risk_score),
                                                 textTransform: 'none'
                                             }}>
-                                                {weeklyData.anomalyLevel}
+                                                {weeklyData.anomaly_level}
                                             </div>
                                         </div>
                                         {/* Trend Comparison */}
@@ -412,7 +412,7 @@ export default function EntityDetailModal({
                                                 vs 30-Day Score
                                             </div>
                                             {(() => {
-                                                const diff = weeklyData.riskScore - data.riskScore
+                                                const diff = weeklyData.risk_score - data.risk_score
                                                 const trendIcon = diff > 5 ? '📈' : diff < -5 ? '📉' : '➡️'
                                                 const trendColor = diff > 5 ? '#ef4444' : diff < -5 ? '#10b981' : '#6b7280'
                                                 const trendText = diff > 5 ? 'Rising' : diff < -5 ? 'Declining' : 'Stable'
@@ -438,8 +438,8 @@ export default function EntityDetailModal({
                                         gridTemplateColumns: '1fr 1fr',
                                         gap: '8px'
                                     }}>
-                                        <div>📊 Weekly Incidents: <strong>{weeklyData.totalIncidents}</strong></div>
-                                        <div>📊 Monthly Incidents: <strong>{data.totalIncidents}</strong></div>
+                                        <div>📊 Weekly Incidents: <strong>{weeklyData.total_incidents}</strong></div>
+                                        <div>📊 Monthly Incidents: <strong>{data.total_incidents}</strong></div>
                                     </div>
                                 </div>
                             )}
@@ -454,14 +454,14 @@ export default function EntityDetailModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     Action Breakdown
                                 </h3>
-                                {Object.keys(data.actionCounts).length > 0 ? (
+                                {Object.keys(data.action_counts).length > 0 ? (
                                     <Plot
                                         data={[{
                                             type: 'pie',
-                                            values: Object.values(data.actionCounts),
-                                            labels: Object.keys(data.actionCounts),
+                                            values: Object.values(data.action_counts),
+                                            labels: Object.keys(data.action_counts),
                                             marker: {
-                                                colors: Object.keys(data.actionCounts).map(a => ACTION_COLORS[a] || '#6b7280')
+                                                colors: Object.keys(data.action_counts).map(a => ACTION_COLORS[a] || '#6b7280')
                                             },
                                             hole: 0.4,
                                             textinfo: 'label+percent',
@@ -490,9 +490,9 @@ export default function EntityDetailModal({
                                     Z-Score Analysis <span style={{ fontSize: '11px', fontWeight: 'normal' }}>(click for details)</span>
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                                    {Object.entries(data.zScores).map(([key, value]) => {
+                                    {Object.entries(data.z_scores).map(([key, value]) => {
                                         const status = getZScoreStatus(value)
-                                        const detail = data.zScoreDetails?.[key]
+                                        const detail = data.z_score_details?.[key]
                                         return (
                                             <div
                                                 key={key}
@@ -567,7 +567,7 @@ export default function EntityDetailModal({
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Current Value</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                                                    {selectedZScore.detail.currentValue?.toFixed(2) ?? 'N/A'}
+                                                    {selectedZScore.detail.current_value?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
@@ -579,13 +579,13 @@ export default function EntityDetailModal({
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Standard Deviation</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                                                    {selectedZScore.detail.stdDev?.toFixed(2) ?? 'N/A'}
+                                                    {selectedZScore.detail.std_dev?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Z-Score Result</div>
-                                                <div style={{ fontSize: '16px', fontWeight: '700', color: getZScoreStatus(selectedZScore.detail.zScore).color }}>
-                                                    {selectedZScore.detail.zScore?.toFixed(2) ?? 'N/A'}
+                                                <div style={{ fontSize: '16px', fontWeight: '700', color: getZScoreStatus(selectedZScore.detail.z_score).color }}>
+                                                    {selectedZScore.detail.z_score?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                         </div>
@@ -610,19 +610,19 @@ export default function EntityDetailModal({
                                 <div style={{ marginBottom: '16px' }}>
                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Explanation</div>
                                     <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                        {data.aiExplanation}
+                                        {data.ai_explanation}
                                     </p>
                                 </div>
                                 <div>
                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Recommendation</div>
                                     <p style={{ margin: 0, color: 'var(--primary)', lineHeight: 1.6 }}>
-                                        {data.aiRecommendation}
+                                        {data.ai_recommendation}
                                     </p>
                                 </div>
                             </div>
 
                             {/* Reference Incidents */}
-                            {data.topIncidents && data.topIncidents.length > 0 && (
+                            {data.top_incidents && data.top_incidents.length > 0 && (
                                 <div style={{
                                     background: 'var(--background)',
                                     borderRadius: '12px',
@@ -631,10 +631,10 @@ export default function EntityDetailModal({
                                     gridColumn: 'span 2'
                                 }}>
                                     <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                        📋 Reference Incidents ({data.topIncidents.length})
+                                        📋 Reference Incidents ({data.top_incidents.length})
                                     </h3>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', position: 'relative' }}>
-                                        {(showAllReferenceIncidents ? data.topIncidents : data.topIncidents.slice(0, 5)).map((inc, idx) => (
+                                        {(showAllReferenceIncidents ? data.top_incidents : data.top_incidents.slice(0, 5)).map((inc, idx) => (
                                             <div
                                                 key={inc.id}
                                                 onMouseEnter={() => setHoveredIncident(inc)}
@@ -662,7 +662,7 @@ export default function EntityDetailModal({
                                                 <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>• {inc.action}</span>
                                             </div>
                                         ))}
-                                        {data.topIncidents.length > 5 && !showAllReferenceIncidents && (
+                                        {data.top_incidents.length > 5 && !showAllReferenceIncidents && (
                                             <button
                                                 onClick={() => setShowAllReferenceIncidents(true)}
                                                 style={{
@@ -676,10 +676,10 @@ export default function EntityDetailModal({
                                                     fontWeight: '600'
                                                 }}
                                             >
-                                                +{data.topIncidents.length - 5} more...
+                                                +{data.top_incidents.length - 5} more...
                                             </button>
                                         )}
-                                        {showAllReferenceIncidents && data.topIncidents.length > 5 && (
+                                        {showAllReferenceIncidents && data.top_incidents.length > 5 && (
                                             <button
                                                 onClick={() => setShowAllReferenceIncidents(false)}
                                                 style={{
@@ -733,7 +733,7 @@ export default function EntityDetailModal({
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                                                 <div>
                                                     <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Login</div>
-                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.loginName}</div>
+                                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.login_name}</div>
                                                 </div>
                                                 <div>
                                                     <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Channel</div>
@@ -748,7 +748,7 @@ export default function EntityDetailModal({
                                                 </div>
                                                 <div>
                                                     <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Max Matches</div>
-                                                    <div style={{ fontWeight: '700', color: hoveredIncident.maxMatches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{hoveredIncident.maxMatches.toLocaleString()}</div>
+                                                    <div style={{ fontWeight: '700', color: hoveredIncident.max_matches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{hoveredIncident.max_matches.toLocaleString()}</div>
                                                 </div>
                                             </div>
                                             <div style={{ marginTop: '12px' }}>
@@ -772,13 +772,13 @@ export default function EntityDetailModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     📊 Weekly Incidents <span style={{ fontWeight: 'normal', fontSize: '12px' }}>(click week for daily details)</span>
                                 </h3>
-                                {data.weeklyTrends.length > 0 ? (
+                                {data.weekly_trends.length > 0 ? (
                                     <Plot
                                         data={[
-                                            { x: data.weeklyTrends.map(t => t.label), y: data.weeklyTrends.map(t => t.blockCount), name: 'Block', type: 'bar', marker: { color: '#ef4444' } },
-                                            { x: data.weeklyTrends.map(t => t.label), y: data.weeklyTrends.map(t => t.quarantineCount), name: 'Quarantine', type: 'bar', marker: { color: '#8b5cf6' } },
-                                            { x: data.weeklyTrends.map(t => t.label), y: data.weeklyTrends.map(t => t.authorizedCount), name: 'Authorized', type: 'bar', marker: { color: '#10b981' } },
-                                            { x: data.weeklyTrends.map(t => t.label), y: data.weeklyTrends.map(t => t.releasedCount), name: 'Released', type: 'bar', marker: { color: '#f59e0b' } }
+                                            { x: data.weekly_trends.map(t => t.label), y: data.weekly_trends.map(t => t.block_count), name: 'Block', type: 'bar', marker: { color: '#ef4444' } },
+                                            { x: data.weekly_trends.map(t => t.label), y: data.weekly_trends.map(t => t.quarantine_count), name: 'Quarantine', type: 'bar', marker: { color: '#8b5cf6' } },
+                                            { x: data.weekly_trends.map(t => t.label), y: data.weekly_trends.map(t => t.authorized_count), name: 'Authorized', type: 'bar', marker: { color: '#10b981' } },
+                                            { x: data.weekly_trends.map(t => t.label), y: data.weekly_trends.map(t => t.released_count), name: 'Released', type: 'bar', marker: { color: '#f59e0b' } }
                                         ]}
                                         layout={{ ...plotlyLayout, height: 300, barmode: 'stack' }}
                                         config={plotlyConfig}
@@ -786,7 +786,7 @@ export default function EntityDetailModal({
                                         onClick={(event: any) => {
                                             if (event.points && event.points.length > 0) {
                                                 const weekLabel = event.points[0].x
-                                                const selectedWeekData = data.weeklyTrends.find(w => w.label === weekLabel)
+                                                const selectedWeekData = data.weekly_trends.find(w => w.label === weekLabel)
                                                 if (selectedWeekData) {
                                                     setSelectedWeek(selectedWeekData)
                                                 }
@@ -800,7 +800,7 @@ export default function EntityDetailModal({
                                 )}
 
                                 {/* Daily Breakdown Popup */}
-                                {selectedWeek && selectedWeek.dailyBreakdown && (
+                                {selectedWeek && selectedWeek.daily_breakdown && (
                                     <div style={{
                                         marginTop: '16px',
                                         background: 'var(--surface)',
@@ -823,7 +823,7 @@ export default function EntityDetailModal({
                                             }}
                                         >×</button>
                                         <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)' }}>
-                                            📅 Daily Breakdown: {selectedWeek.label} ({selectedWeek.startDate} to {selectedWeek.endDate})
+                                            📅 Daily Breakdown: {selectedWeek.label} ({selectedWeek.start_date} to {selectedWeek.end_date})
                                         </h4>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                             <thead>
@@ -838,15 +838,15 @@ export default function EntityDetailModal({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {selectedWeek.dailyBreakdown.map((day, idx) => (
+                                                {selectedWeek.daily_breakdown.map((day, idx) => (
                                                     <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <td style={{ padding: '8px' }}>{day.date}</td>
                                                         <td style={{ padding: '8px', textAlign: 'center', fontWeight: '600' }}>{day.count}</td>
-                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#ef4444' }}>{day.blockCount}</td>
-                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#8b5cf6' }}>{day.quarantineCount}</td>
-                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#10b981' }}>{day.authorizedCount}</td>
-                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#f59e0b' }}>{day.releasedCount}</td>
-                                                        <td style={{ padding: '8px', textAlign: 'right' }}>{day.totalMatches}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#ef4444' }}>{day.block_count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#8b5cf6' }}>{day.quarantine_count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#10b981' }}>{day.authorized_count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'center', color: '#f59e0b' }}>{day.released_count}</td>
+                                                        <td style={{ padding: '8px', textAlign: 'right' }}>{day.total_matches}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -865,11 +865,11 @@ export default function EntityDetailModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     📈 Monthly Trend
                                 </h3>
-                                {data.monthlyTrends.length > 0 ? (
+                                {data.monthly_trends.length > 0 ? (
                                     <Plot
                                         data={[
-                                            { x: data.monthlyTrends.map(t => t.label), y: data.monthlyTrends.map(t => t.count), name: 'Total Incidents', type: 'scatter', mode: 'lines+markers', line: { color: '#3b82f6', width: 3 }, marker: { size: 8 } },
-                                            { x: data.monthlyTrends.map(t => t.label), y: data.monthlyTrends.map(t => t.totalMatches), name: 'Total Matches', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }
+                                            { x: data.monthly_trends.map(t => t.label), y: data.monthly_trends.map(t => t.count), name: 'Total Incidents', type: 'scatter', mode: 'lines+markers', line: { color: '#3b82f6', width: 3 }, marker: { size: 8 } },
+                                            { x: data.monthly_trends.map(t => t.label), y: data.monthly_trends.map(t => t.total_matches), name: 'Total Matches', type: 'scatter', mode: 'lines+markers', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }
                                         ]}
                                         layout={{ ...plotlyLayout, height: 300, yaxis2: { overlaying: 'y', side: 'right', gridcolor: '#374151' } }}
                                         config={plotlyConfig}
@@ -883,7 +883,7 @@ export default function EntityDetailModal({
                             </div>
 
                             {/* Destination Patterns */}
-                            {data.destinationPatterns.length > 0 && (
+                            {data.destination_patterns.length > 0 && (
                                 <div style={{
                                     background: 'var(--background)',
                                     borderRadius: '12px',
@@ -894,7 +894,7 @@ export default function EntityDetailModal({
                                         🎯 Top Destinations
                                     </h3>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                                        {data.destinationPatterns.slice(0, 10).map((dp, idx) => (
+                                        {data.destination_patterns.slice(0, 10).map((dp, idx) => (
                                             <div key={idx} style={{
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
@@ -902,15 +902,15 @@ export default function EntityDetailModal({
                                                 padding: '12px',
                                                 background: 'var(--surface)',
                                                 borderRadius: '8px',
-                                                border: dp.isNew ? '1px solid #f59e0b' : '1px solid var(--border)'
+                                                border: dp.is_new ? '1px solid #f59e0b' : '1px solid var(--border)'
                                             }}>
                                                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
                                                     <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{dp.destination}</span>
-                                                    {dp.isNew && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#f59e0b' }}>NEW</span>}
+                                                    {dp.is_new && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#f59e0b' }}>NEW</span>}
                                                 </div>
                                                 <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                                                    <div style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{dp.incidentCount}</div>
-                                                    <div style={{ color: 'var(--text-muted)' }}>{dp.totalMatches} matches</div>
+                                                    <div style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{dp.incident_count}</div>
+                                                    <div style={{ color: 'var(--text-muted)' }}>{dp.total_matches} matches</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -946,7 +946,7 @@ export default function EntityDetailModal({
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                                                 {(incidentsPage - 1) * incidentsPageSize + idx + 1}
                                             </td>
-                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{inc.loginName}</td>
+                                            <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{inc.login_name}</td>
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.destination}</td>
                                             <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>{inc.channel}</td>
                                             <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -961,8 +961,8 @@ export default function EntityDetailModal({
                                                     {inc.action}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: inc.maxMatches >= 10 ? '#ef4444' : 'var(--text-primary)' }}>
-                                                {inc.maxMatches}
+                                            <td style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: inc.max_matches >= 10 ? '#ef4444' : 'var(--text-primary)' }}>
+                                                {inc.max_matches}
                                             </td>
                                             <td style={{ padding: '12px', textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>
                                                 {new Date(inc.timestamp).toLocaleDateString()}
@@ -973,12 +973,12 @@ export default function EntityDetailModal({
                             </table>
 
                             {/* Pagination */}
-                            {data.topIncidents.length > incidentsPageSize && (
+                            {data.top_incidents.length > incidentsPageSize && (
                                 <div style={{ marginTop: '16px' }}>
                                     <Pagination
                                         currentPage={incidentsPage}
                                         totalPages={incidentsTotalPages}
-                                        totalItems={data.topIncidents.length}
+                                        totalItems={data.top_incidents.length}
                                         pageSize={incidentsPageSize}
                                         onPageChange={setIncidentsPage}
                                         showPageInput={true}

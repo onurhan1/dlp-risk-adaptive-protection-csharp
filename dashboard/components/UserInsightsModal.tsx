@@ -10,50 +10,50 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
 interface DailyScore {
     date: string
-    dailyRiskScore: number
-    incidentCount: number
-    maxRiskScore: number
-    avgRiskScore: number
-    blockCount: number
-    permitCount: number
-    quarantineCount: number
-    releasedCount: number
-    maxMaxMatches: number
-    avgMaxMatches: number
+    daily_risk_score: number
+    incident_count: number
+    max_risk_score: number
+    avg_risk_score: number
+    block_count: number
+    permit_count: number
+    quarantine_count: number
+    released_count: number
+    max_max_matches: number
+    avg_max_matches: number
 }
 
 interface PeriodAverage {
-    avgScore: number
-    totalIncidents: number
-    totalBlocks: number
-    totalQuarantines: number
+    avg_score: number
+    total_incidents: number
+    total_blocks: number
+    total_quarantines: number
 }
 
 interface ComprehensiveInsights {
-    userEmail: string
-    fullName: string
+    user_email: string
+    full_name: string
     team: string
     period: string
-    startDate: string
-    endDate: string
+    start_date: string
+    end_date: string
     summary: {
-        totalIncidents: number
-        avgDailyScore: number
-        maxDailyScore: number
-        minDailyScore: number
-        totalBlockCount: number
-        totalPermitCount: number
-        totalQuarantineCount: number
-        totalReleasedCount: number
-        maxMaxMatches: number
-        avgMaxMatches: number
+        total_incidents: number
+        avg_daily_score: number
+        max_daily_score: number
+        min_daily_score: number
+        total_block_count: number
+        total_permit_count: number
+        total_quarantine_count: number
+        total_released_count: number
+        max_max_matches: number
+        avg_max_matches: number
     }
-    periodAverages: {
+    period_averages: {
         weekly: PeriodAverage
         monthly: PeriodAverage
         quarterly: PeriodAverage
     }
-    dailyScores: DailyScore[]
+    daily_scores: DailyScore[]
 }
 
 interface UserInsightsModalProps {
@@ -75,7 +75,7 @@ export default function UserInsightsModal({
     const [data, setData] = useState<ComprehensiveInsights | null>(null)
     const [activePeriod, setActivePeriod] = useState<PeriodFilter>('monthly')
     const [error, setError] = useState<string | null>(null)
-
+    
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
     const pageSize = 10
@@ -87,12 +87,12 @@ export default function UserInsightsModal({
 
     // Client-side pagination for daily scores
     const paginatedDailyScores = useMemo(() => {
-        if (!data?.dailyScores) return []
+        if (!data?.daily_scores) return []
         const startIndex = (currentPage - 1) * pageSize
-        return data.dailyScores.slice(startIndex, startIndex + pageSize)
-    }, [data?.dailyScores, currentPage, pageSize])
+        return data.daily_scores.slice(startIndex, startIndex + pageSize)
+    }, [data?.daily_scores, currentPage, pageSize])
 
-    const totalPages = data?.dailyScores ? Math.ceil(data.dailyScores.length / pageSize) : 0
+    const totalPages = data?.daily_scores ? Math.ceil(data.daily_scores.length / pageSize) : 0
 
     useEffect(() => {
         if (isOpen && userEmail) {
@@ -165,12 +165,12 @@ export default function UserInsightsModal({
     const plotlyConfig = { displayModeBar: false, responsive: true }
 
     const getTrendDirection = () => {
-        if (!data || data.dailyScores.length < 2) return 'stable'
-        const scores = data.dailyScores
+        if (!data || data.daily_scores.length < 2) return 'stable'
+        const scores = data.daily_scores
         const firstHalf = scores.slice(0, Math.floor(scores.length / 2))
         const secondHalf = scores.slice(Math.floor(scores.length / 2))
-        const firstAvg = firstHalf.reduce((s, d) => s + d.dailyRiskScore, 0) / firstHalf.length
-        const secondAvg = secondHalf.reduce((s, d) => s + d.dailyRiskScore, 0) / secondHalf.length
+        const firstAvg = firstHalf.reduce((s, d) => s + d.daily_risk_score, 0) / firstHalf.length
+        const secondAvg = secondHalf.reduce((s, d) => s + d.daily_risk_score, 0) / secondHalf.length
         if (secondAvg > firstAvg * 1.1) return 'up'
         if (secondAvg < firstAvg * 0.9) return 'down'
         return 'stable'
@@ -186,9 +186,9 @@ export default function UserInsightsModal({
                 <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, var(--surface) 0%, var(--background-secondary) 100%)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>User Risk Insights</div>
-                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.fullName || userName || userEmail}</h2>
-                            {(data?.fullName || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>User Risk Insights</div>
+                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.full_name || userName || userEmail}</h2>
+                            {(data?.full_name || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
                         </div>
                         <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '28px', cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
                     </div>
@@ -207,7 +207,7 @@ export default function UserInsightsModal({
                         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>Loading user insights...</div>
                     ) : error ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>{error}</div>
-                    ) : !data || data.dailyScores.length === 0 ? (
+                    ) : !data || data.daily_scores.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>No risk data available for this period</div>
                     ) : (
                         <div style={{ display: 'grid', gap: '24px' }}>
@@ -216,19 +216,19 @@ export default function UserInsightsModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📊 Period Averages Comparison</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Weekly Avg</div>
-                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.weekly.avgScore) }}>{data.periodAverages.weekly.avgScore.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.weekly.totalIncidents} incidents</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>Weekly Avg</div>
+                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.weekly.avg_score) }}>{data.period_averages.weekly.avg_score.toFixed(1)}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.weekly.total_incidents} incidents</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Monthly Avg</div>
-                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.monthly.avgScore) }}>{data.periodAverages.monthly.avgScore.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.monthly.totalIncidents} incidents</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>Monthly Avg</div>
+                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.monthly.avg_score) }}>{data.period_averages.monthly.avg_score.toFixed(1)}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.monthly.total_incidents} incidents</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>3-Month Avg</div>
-                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.quarterly.avgScore) }}>{data.periodAverages.quarterly.avgScore.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.quarterly.totalIncidents} incidents</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>3-Month Avg</div>
+                                        <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.quarterly.avg_score) }}>{data.period_averages.quarterly.avg_score.toFixed(1)}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.quarterly.total_incidents} incidents</div>
                                     </div>
                                 </div>
                             </div>
@@ -236,22 +236,22 @@ export default function UserInsightsModal({
                             {/* Summary Cards */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Avg Daily Score</div>
-                                    <div style={{ fontSize: '36px', fontWeight: '800', color: getRiskColor(data.summary.avgDailyScore) }}>{data.summary.avgDailyScore.toFixed(1)}</div>
-                                    <div style={{ marginTop: '8px', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', display: 'inline-block', background: `${getRiskColor(data.summary.avgDailyScore)}20`, color: getRiskColor(data.summary.avgDailyScore) }}>{getRiskLevel(data.summary.avgDailyScore)}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Avg Daily Score</div>
+                                    <div style={{ fontSize: '36px', fontWeight: '800', color: getRiskColor(data.summary.avg_daily_score) }}>{data.summary.avg_daily_score.toFixed(1)}</div>
+                                    <div style={{ marginTop: '8px', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', display: 'inline-block', background: `${getRiskColor(data.summary.avg_daily_score)}20`, color: getRiskColor(data.summary.avg_daily_score) }}>{getRiskLevel(data.summary.avg_daily_score)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Total Incidents</div>
-                                    <div style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text-primary)' }}>{data.summary.totalIncidents.toLocaleString()}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Total Incidents</div>
+                                    <div style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text-primary)' }}>{data.summary.total_incidents.toLocaleString()}</div>
                                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>in {periodLabels[activePeriod].toLowerCase()}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Max Matches</div>
-                                    <div style={{ fontSize: '36px', fontWeight: '800', color: data.summary.maxMaxMatches > 100 ? '#dc2626' : 'var(--text-primary)' }}>{data.summary.maxMaxMatches.toLocaleString()}</div>
-                                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {data.summary.avgMaxMatches.toFixed(1)}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Max Matches</div>
+                                    <div style={{ fontSize: '36px', fontWeight: '800', color: data.summary.max_max_matches > 100 ? '#dc2626' : 'var(--text-primary)' }}>{data.summary.max_max_matches.toLocaleString()}</div>
+                                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {data.summary.avg_max_matches.toFixed(1)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Trend</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Trend</div>
                                     <div style={{ fontSize: '36px' }}>{trendDirection === 'up' ? '📈' : trendDirection === 'down' ? '📉' : '➡️'}</div>
                                     <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: '600', color: trendDirection === 'up' ? '#ef4444' : trendDirection === 'down' ? '#10b981' : 'var(--text-secondary)' }}>{trendDirection === 'up' ? 'Increasing' : trendDirection === 'down' ? 'Decreasing' : 'Stable'}</div>
                                 </div>
@@ -262,19 +262,19 @@ export default function UserInsightsModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>🎯 Action Breakdown</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.totalBlockCount}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.total_block_count}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>BLOCKED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.summary.totalQuarantineCount}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.summary.total_quarantine_count}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>QUARANTINED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{data.summary.totalPermitCount}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{data.summary.total_permit_count}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>PERMITTED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{data.summary.totalReleasedCount}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{data.summary.total_released_count}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>RELEASED</div>
                                     </div>
                                 </div>
@@ -284,7 +284,7 @@ export default function UserInsightsModal({
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📈 Risk Score Trend - {periodLabels[activePeriod]}</h3>
                                 <Plot
-                                    data={[{ x: data.dailyScores.map(d => d.date), y: data.dailyScores.map(d => d.dailyRiskScore), type: 'scatter', mode: 'lines+markers', name: 'Daily Risk Score', line: { color: '#3b82f6', width: 3, shape: 'spline' }, marker: { size: 8, color: data.dailyScores.map(d => getRiskColor(d.dailyRiskScore)) }, fill: 'tozeroy', fillcolor: 'rgba(59, 130, 246, 0.1)' }]}
+                                    data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.daily_risk_score), type: 'scatter', mode: 'lines+markers', name: 'Daily Risk Score', line: { color: '#3b82f6', width: 3, shape: 'spline' }, marker: { size: 8, color: data.daily_scores.map(d => getRiskColor(d.daily_risk_score)) }, fill: 'tozeroy', fillcolor: 'rgba(59, 130, 246, 0.1)' }]}
                                     layout={{ ...plotlyLayout, height: 350, yaxis: { ...plotlyLayout.yaxis, title: 'Risk Score (0-100)', range: [0, 100] }, shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 75, y1: 75, line: { color: '#dc2626', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 50, y1: 50, line: { color: '#f59e0b', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 25, y1: 25, line: { color: '#eab308', width: 1, dash: 'dash' } }], annotations: [{ x: 1.02, xref: 'paper', y: 75, text: 'Critical', showarrow: false, font: { size: 10, color: '#dc2626' } }, { x: 1.02, xref: 'paper', y: 50, text: 'High', showarrow: false, font: { size: 10, color: '#f59e0b' } }, { x: 1.02, xref: 'paper', y: 25, text: 'Medium', showarrow: false, font: { size: 10, color: '#eab308' } }] }}
                                     config={plotlyConfig}
                                     style={{ width: '100%', height: '350px' }}
@@ -295,7 +295,7 @@ export default function UserInsightsModal({
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📊 Incidents & Matches</h3>
                                 <Plot
-                                    data={[{ x: data.dailyScores.map(d => d.date), y: data.dailyScores.map(d => d.incidentCount), type: 'bar', name: 'Incidents', marker: { color: '#3b82f6', opacity: 0.8 } }, { x: data.dailyScores.map(d => d.date), y: data.dailyScores.map(d => d.maxMaxMatches), type: 'scatter', mode: 'lines+markers', name: 'Max Matches', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }]}
+                                    data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.incident_count), type: 'bar', name: 'Incidents', marker: { color: '#3b82f6', opacity: 0.8 } }, { x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.max_max_matches), type: 'scatter', mode: 'lines+markers', name: 'Max Matches', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }]}
                                     layout={{ ...plotlyLayout, height: 280, yaxis: { ...plotlyLayout.yaxis, title: 'Incident Count' }, yaxis2: { overlaying: 'y', side: 'right', title: 'Max Matches', gridcolor: 'transparent' } }}
                                     config={plotlyConfig}
                                     style={{ width: '100%', height: '280px' }}
@@ -327,27 +327,27 @@ export default function UserInsightsModal({
                                                 <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{(currentPage - 1) * pageSize + idx + 1}</td>
                                                     <td style={{ padding: '10px', color: 'var(--text-primary)', fontWeight: '500' }}>{row.date}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center' }}><span style={{ fontWeight: '700', color: getRiskColor(row.dailyRiskScore), fontSize: '14px' }}>{row.dailyRiskScore.toFixed(1)}</span></td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>{row.incidentCount}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.blockCount > 0 ? '#ef4444' : 'var(--text-muted)' }}>{row.blockCount}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.quarantineCount > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>{row.quarantineCount}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.permitCount > 0 ? '#10b981' : 'var(--text-muted)' }}>{row.permitCount}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.releasedCount > 0 ? '#f59e0b' : 'var(--text-muted)' }}>{row.releasedCount}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.maxMaxMatches > 100 ? '#ef4444' : 'var(--text-secondary)' }}>{row.maxMaxMatches.toLocaleString()}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>{row.avgMaxMatches.toFixed(1)}</td>
-                                                    <td style={{ padding: '10px', textAlign: 'center' }}><span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '700', background: `${getRiskColor(row.dailyRiskScore)}20`, color: getRiskColor(row.dailyRiskScore) }}>{getRiskLevel(row.dailyRiskScore)}</span></td>
+                                                    <td style={{ padding: '10px', textAlign: 'center' }}><span style={{ fontWeight: '700', color: getRiskColor(row.daily_risk_score), fontSize: '14px' }}>{row.daily_risk_score.toFixed(1)}</span></td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>{row.incident_count}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.block_count > 0 ? '#ef4444' : 'var(--text-muted)' }}>{row.block_count}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.quarantine_count > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>{row.quarantine_count}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.permit_count > 0 ? '#10b981' : 'var(--text-muted)' }}>{row.permit_count}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.released_count > 0 ? '#f59e0b' : 'var(--text-muted)' }}>{row.released_count}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: row.max_max_matches > 100 ? '#ef4444' : 'var(--text-secondary)' }}>{row.max_max_matches.toLocaleString()}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>{row.avg_max_matches.toFixed(1)}</td>
+                                                    <td style={{ padding: '10px', textAlign: 'center' }}><span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '700', background: `${getRiskColor(row.daily_risk_score)}20`, color: getRiskColor(row.daily_risk_score) }}>{getRiskLevel(row.daily_risk_score)}</span></td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
-
+                                    
                                     {/* Pagination */}
-                                    {data.dailyScores.length > pageSize && (
+                                    {data.daily_scores.length > pageSize && (
                                         <div style={{ marginTop: '16px' }}>
                                             <Pagination
                                                 currentPage={currentPage}
                                                 totalPages={totalPages}
-                                                totalItems={data.dailyScores.length}
+                                                totalItems={data.daily_scores.length}
                                                 pageSize={pageSize}
                                                 onPageChange={setCurrentPage}
                                                 showPageInput={true}

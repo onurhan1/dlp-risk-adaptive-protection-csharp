@@ -1,8 +1,8 @@
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;

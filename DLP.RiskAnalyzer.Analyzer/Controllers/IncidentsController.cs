@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Filters;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
@@ -33,6 +34,7 @@ public class IncidentsController : ControllerBase
     // Seed
     // ─────────────────────────────────────────────────────────────────────────
 
+    [DevelopmentOnly]
     [HttpPost("seed-sample-data")]
     public async Task<ActionResult> SeedSampleData()
     {

@@ -1,8 +1,8 @@
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -256,39 +256,5 @@ RECOMMENDATION: [your recommendation]";
 
         return (explanation, recommendation);
     }
-}
-
-/// <summary>
-/// OpenAI Chat Completion API Response
-/// </summary>
-public class OpenAIChatResponse
-{
-    public List<OpenAIChatChoice>? Choices { get; set; }
-}
-
-public class OpenAIChatChoice
-{
-    public OpenAIChatMessage? Message { get; set; }
-}
-
-public class OpenAIChatMessage
-{
-    public string? Content { get; set; }
-}
-
-/// <summary>
-/// OpenAI Models API Response
-/// </summary>
-public class OpenAIModelsResponse
-{
-    public List<OpenAIModel>? Data { get; set; }
-}
-
-public class OpenAIModel
-{
-    public string? Id { get; set; }
-    public string? Object { get; set; }
-    public long? Created { get; set; }
-    public string? OwnedBy { get; set; }
 }
 

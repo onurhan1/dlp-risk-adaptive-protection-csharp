@@ -86,6 +86,20 @@ public class AnalyzerBackgroundService : BackgroundService
                         }
                     }
 
+                    // Process released incidents from Redis stream (Collector pushes to dlp:released-incidents)
+                    try
+                    {
+                        var releasedProcessed = await dbService.ProcessReleasedIncidentsStreamAsync();
+                        if (releasedProcessed > 0)
+                        {
+                            _logger.LogInformation("Processed {Count} released incidents from Redis stream", releasedProcessed);
+                        }
+                    }
+                    catch (Exception releasedEx)
+                    {
+                        _logger.LogWarning(releasedEx, "Released incident stream processing failed, will retry in next cycle");
+                    }
+
                     // Process Redis stream and calculate risk scores
                     var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);
                     

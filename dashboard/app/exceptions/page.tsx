@@ -20,7 +20,11 @@ import {
   ClipboardList,
   Plus,
   Minus,
-  LayoutGrid
+  LayoutGrid,
+  BarChart3,
+  ListChecks,
+  Sparkles,
+  Shield
 } from 'lucide-react'
 
 interface Incident {
@@ -40,6 +44,294 @@ interface Incident {
   emailAddress?: string
   violationTriggers?: string
   channel?: string
+}
+
+interface SearchableMultiSelectProps {
+  label: string
+  options: string[]
+  selectedValues: string[]
+  onChange: (values: string[]) => void
+  placeholder?: string
+  compact?: boolean
+}
+
+function SearchableMultiSelect({ label, options, selectedValues, onChange, placeholder, compact = false }: SearchableMultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: Event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+        setSearchQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filteredOptions = options.filter(opt =>
+    opt.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const toggleValue = (value: string) => {
+    if (selectedValues.includes(value)) {
+      onChange(selectedValues.filter(v => v !== value))
+    } else {
+      onChange([...selectedValues, value])
+    }
+  }
+
+  const toggleAll = () => {
+    if (selectedValues.length === filteredOptions.length && filteredOptions.length > 0) {
+      onChange([])
+    } else {
+      onChange([...filteredOptions])
+    }
+  }
+
+  const displayText = selectedValues.length === 0
+    ? (placeholder || 'All')
+    : selectedValues.length === 1
+      ? selectedValues[0]
+      : `${selectedValues.length} selected`
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: compact ? '2px' : '8px' }}>
+      <label style={{
+        fontSize: compact ? '10px' : '12px',
+        fontWeight: '600',
+        color: 'var(--text-secondary)',
+        textTransform: compact ? 'uppercase' : 'none' as any,
+        display: 'block',
+        letterSpacing: compact ? '0.5px' : '0.3px'
+      }}>
+        {label}
+      </label>
+      <button
+        onClick={() => {
+          setIsOpen(!isOpen)
+          if (!isOpen) setSearchQuery('')
+        }}
+        style={{
+          width: '100%',
+          padding: compact ? '5px 8px' : '10px 12px',
+          borderRadius: compact ? '6px' : '8px',
+          border: selectedValues.length > 0 ? '1.5px solid #3b82f6' : '1px solid var(--border)',
+          background: selectedValues.length > 0 ? 'rgba(59, 130, 246, 0.04)' : 'var(--surface)',
+          color: 'var(--text-primary)',
+          fontSize: compact ? '12px' : '13px',
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '6px',
+          transition: 'all 0.2s ease',
+          minWidth: compact ? '130px' : undefined,
+          minHeight: compact ? undefined : '20px',
+          boxShadow: isOpen ? '0 0 0 3px rgba(59, 130, 246, 0.12)' : 'none'
+        }}
+      >
+        <span style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+          color: selectedValues.length > 0 ? '#3b82f6' : 'var(--text-primary)'
+        }}>
+          {displayText}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {selectedValues.length > 0 && (
+            <span style={{
+              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+              color: '#fff',
+              borderRadius: '10px',
+              padding: '1px 6px',
+              fontSize: '10px',
+              fontWeight: '700',
+              minWidth: '18px',
+              textAlign: 'center',
+              lineHeight: '16px'
+            }}>
+              {selectedValues.length}
+            </span>
+          )}
+          <ChevronDown size={compact ? 12 : 14} style={{
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            color: 'var(--text-secondary)'
+          }} />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: compact ? undefined : 0,
+          zIndex: 100,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: '10px',
+          boxShadow: '0 12px 28px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08)',
+          minWidth: compact ? '240px' : '100%',
+          maxHeight: '340px',
+          marginTop: '4px',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '10px 10px 8px',
+            borderBottom: '1px solid var(--border)',
+            position: 'sticky',
+            top: 0,
+            background: 'var(--surface)',
+            zIndex: 1
+          }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search size={14} style={{
+                position: 'absolute',
+                left: '10px',
+                color: 'var(--text-secondary)',
+                pointerEvents: 'none'
+              }} />
+              <input
+                type="text"
+                placeholder="Ara..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '8px 32px 8px 32px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--background)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                onClick={(e) => e.stopPropagation()}
+              />
+              {searchQuery && (
+                <X size={14}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setSearchQuery('') }}
+                />
+              )}
+            </div>
+          </div>
+
+          <div
+            onClick={(e) => { e.stopPropagation(); toggleAll() }}
+            style={{
+              padding: '8px 12px',
+              borderBottom: '1px solid var(--border)',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: '600',
+              color: '#3b82f6',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'background 0.15s',
+              background: 'transparent'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            {selectedValues.length === filteredOptions.length && filteredOptions.length > 0 ? (
+              <><Check size={12} /> Seçimi Kaldır</>
+            ) : (
+              <>Tümünü Seç ({filteredOptions.length})</>
+            )}
+          </div>
+
+          <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+            {filteredOptions.map(option => {
+              const isSelected = selectedValues.includes(option)
+              return (
+                <label
+                  key={option}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '7px 12px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)',
+                    borderBottom: '1px solid var(--border)',
+                    background: isSelected ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
+                    transition: 'background 0.12s'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = isSelected ? 'rgba(59, 130, 246, 0.06)' : 'transparent'
+                  }}
+                >
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    border: isSelected ? '1.5px solid #3b82f6' : '1.5px solid var(--border)',
+                    background: isSelected ? '#3b82f6' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s',
+                    flexShrink: 0
+                  }}>
+                    {isSelected && <Check size={10} color="#fff" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleValue(option)}
+                    style={{ display: 'none' }}
+                  />
+                  <span style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: '1.4'
+                  }}>
+                    {option}
+                  </span>
+                </label>
+              )
+            })}
+            {filteredOptions.length === 0 && (
+              <div style={{
+                padding: '20px',
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                textAlign: 'center',
+                fontStyle: 'italic'
+              }}>
+                Sonuç bulunamadı
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function AnalyticsPage() {
@@ -94,10 +386,8 @@ function AnalyticsPageContent() {
   const [selectedDomain, setSelectedDomain] = useState('')
   const [selectedActions, setSelectedActions] = useState<string[]>([])
 
-  // Multi-select dropdown open states for heatmap filters
-  const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
-  const [teamDropdownOpen2, setTeamDropdownOpen2] = useState(false)
-  const [actionDropdownOpen2, setActionDropdownOpen2] = useState(false)
+  // Exception Recommendation Department Filter
+  const [exceptionDeptFilter, setExceptionDeptFilter] = useState<string[]>([])
 
   // Applied filter snapshot - filteredIncidents uses this
   const [appliedFilters, setAppliedFilters] = useState({
@@ -158,7 +448,6 @@ function AnalyticsPageContent() {
   // User Incident Analysis States
   // Exception Recommendation Team Filter
   const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
-  const [exceptionTeamDropdownOpen, setExceptionTeamDropdownOpen] = useState(false)
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [exceptionDomainFilter, setExceptionDomainFilter] = useState('')
   const [exceptionActionFilter, setExceptionActionFilter] = useState<string[]>([])
@@ -167,11 +456,6 @@ function AnalyticsPageContent() {
   const [exceptionDateRange, setExceptionDateRange] = useState({ start: defaultStart, end: defaultEnd })
   const [userIncidents, setUserIncidents] = useState<Incident[]>([])
   const [loadingUserIncidents, setLoadingUserIncidents] = useState(false)
-
-  // Multi-select dropdown states
-  const [actionDropdownOpen, setActionDropdownOpen] = useState(false)
-  const [channelDropdownOpen, setChannelDropdownOpen] = useState(false)
-  const [policyDropdownOpen, setPolicyDropdownOpen] = useState(false)
 
   // Accordion states for exception recommendation
   const [expandedPolicies, setExpandedPolicies] = useState<Set<number>>(new Set())
@@ -256,18 +540,10 @@ function AnalyticsPageContent() {
     })
   }
 
-  // Close dropdowns when clicking outside
+  // Close column filter dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: Event) => {
       const target = event.target as HTMLElement
-      if (!target.closest('[data-dropdown]') && !target.closest('[data-heatmap-filter]')) {
-        setActionDropdownOpen(false)
-        setChannelDropdownOpen(false)
-        setPolicyDropdownOpen(false)
-        setDeptDropdownOpen(false)
-        setTeamDropdownOpen2(false)
-        setActionDropdownOpen2(false)
-      }
       if (!target.closest('[data-column-filter]')) {
         setOpenColumnFilter(null)
       }
@@ -309,7 +585,7 @@ function AnalyticsPageContent() {
     return {
       id: item.id,
       timestamp: item.timestamp,
-      userEmail: item.userEmail,
+      userEmail: item.user_email || item.userEmail,
       policy: item.policy,
       action: item.action || 'Permit',
       severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
@@ -321,10 +597,10 @@ function AnalyticsPageContent() {
         return dept
       })(),
       team: item.team,
-      fullName: item.fullName,
-      maxMatches: item.maxMatches || 0,
-      loginName: item.loginName,
-      emailAddress: item.emailAddress,
+      fullName: item.full_name || item.fullName,
+      maxMatches: item.max_matches || item.maxMatches || 0,
+      loginName: item.login_name || item.loginName,
+      emailAddress: item.email_address || item.emailAddress,
       violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
       channel: item.channel
     }
@@ -393,6 +669,21 @@ function AnalyticsPageContent() {
   const filteredIncidents = useMemo(() => {
     let filtered = incidents.filter(incident => {
       // Only apply table column filters, NOT heatmap appliedFilters
+
+      // Time column filter (date range)
+      if (columnFilters.time && (columnFilters.time[0] || columnFilters.time[1])) {
+        try {
+          const incidentDate = parseISO(incident.timestamp)
+          if (columnFilters.time[0]) {
+            const start = startOfDay(parseISO(columnFilters.time[0]))
+            if (incidentDate < start) return false
+          }
+          if (columnFilters.time[1]) {
+            const end = endOfDay(parseISO(columnFilters.time[1]))
+            if (incidentDate > end) return false
+          }
+        } catch { /* skip invalid dates */ }
+      }
 
       // Column filters
       if (columnFilters.user && columnFilters.user.length > 0) {
@@ -586,6 +877,7 @@ function AnalyticsPageContent() {
   }, [incidents])
 
   // Heatmap Data Calculation (using heatmap filtered incidents - independent from table column filters)
+  // Teams & domains always come from the FULL dataset so they never disappear when filters narrow results
   const heatmapData = useMemo(() => {
     const teams = new Set<string>()
     const domains = new Set<string>()
@@ -594,15 +886,21 @@ function AnalyticsPageContent() {
     const domainTotalCounts: Record<string, number> = {}
     const teamTotalCounts: Record<string, number> = {}
 
+    // Populate ALL teams & domains from the full dataset
+    incidents.forEach(incident => {
+      const rawTeam = incident.team || incident.department || 'Unknown'
+      const team = normalizeTeamName(rawTeam) || 'Hesap Araştırmaları'
+      const domain = incident.domain || 'Unknown'
+      teams.add(team)
+      domains.add(domain)
+    })
+
+    // Count only from filtered incidents
     heatmapFilteredIncidents.forEach(incident => {
-      // Use team, fallback to department if team is missing
       const rawTeam = incident.team || incident.department || 'Unknown'
       const team = normalizeTeamName(rawTeam) || 'Hesap Araştırmaları'
       const domain = incident.domain || 'Unknown'
       const action = incident.action?.toLowerCase() || 'permit'
-
-      teams.add(team)
-      domains.add(domain)
 
       if (!counts[team]) counts[team] = {}
       counts[team][domain] = (counts[team][domain] || 0) + 1
@@ -610,11 +908,9 @@ function AnalyticsPageContent() {
       if (!breakdown[team]) breakdown[team] = {}
       if (!breakdown[team][domain]) breakdown[team][domain] = { block: 0, permit: 0, authorized: 0, quarantine: 0, maxMatchTotal: 0, incidentCount: 0 }
 
-      // Add maxMatches to total for average calculation
       breakdown[team][domain].maxMatchTotal += (incident.maxMatches || 0)
       breakdown[team][domain].incidentCount++
 
-      // Action matching with includes for variations like BLOCKED, Block, blocked
       if (action.includes('block')) breakdown[team][domain].block++
       else if (action.includes('permit') || action.includes('released')) breakdown[team][domain].permit++
       else if (action.includes('authorized') || action.includes('allow')) breakdown[team][domain].authorized++
@@ -661,26 +957,24 @@ function AnalyticsPageContent() {
     })
 
     return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount, hasMoreDomains: otherDomains.length > 0 }
-  }, [heatmapFilteredIncidents, heatmapDomainCount])
+  }, [incidents, heatmapFilteredIncidents, heatmapDomainCount])
 
 
   const getHeatmapColor = (count: number, max: number) => {
-    if (count === 0) return 'transparent'
-    // Tier bazlı renklendirme
-    if (count > 100) return 'hsl(210, 90%, 20%)'  // En koyu
-    if (count > 75) return 'hsl(210, 90%, 28%)'
-    if (count > 50) return 'hsl(210, 90%, 35%)'
-    if (count > 30) return 'hsl(210, 90%, 42%)'
-    if (count > 20) return 'hsl(210, 90%, 50%)'
-    if (count > 15) return 'hsl(210, 90%, 58%)'
-    if (count > 10) return 'hsl(210, 90%, 65%)'
-    if (count > 5) return 'hsl(210, 90%, 73%)'
-    return 'hsl(210, 90%, 82%)'  // 1-5 arası en açık
+    if (count === 0) return 'rgba(148, 163, 184, 0.06)'
+    if (count > 100) return 'linear-gradient(135deg, hsl(220, 85%, 22%), hsl(220, 90%, 18%))'
+    if (count > 75) return 'linear-gradient(135deg, hsl(220, 85%, 30%), hsl(220, 90%, 25%))'
+    if (count > 50) return 'linear-gradient(135deg, hsl(220, 85%, 37%), hsl(220, 90%, 32%))'
+    if (count > 30) return 'linear-gradient(135deg, hsl(220, 85%, 44%), hsl(220, 90%, 38%))'
+    if (count > 20) return 'linear-gradient(135deg, hsl(220, 80%, 52%), hsl(220, 85%, 46%))'
+    if (count > 15) return 'linear-gradient(135deg, hsl(215, 75%, 60%), hsl(220, 80%, 54%))'
+    if (count > 10) return 'linear-gradient(135deg, hsl(215, 70%, 68%), hsl(220, 75%, 62%))'
+    if (count > 5) return 'linear-gradient(135deg, hsl(215, 65%, 76%), hsl(220, 70%, 72%))'
+    return 'linear-gradient(135deg, hsl(215, 60%, 84%), hsl(220, 65%, 80%))'
   }
 
   const getTextColor = (count: number, max: number) => {
-    if (count === 0) return 'var(--text-primary)'
-    // Koyu arka planlarda (count > 20) beyaz, açıklarda siyah
+    if (count === 0) return 'var(--text-muted)'
     return count > 20 ? '#ffffff' : '#1e293b'
   }
 
@@ -692,6 +986,8 @@ function AnalyticsPageContent() {
     const hasFilters = exceptionActionFilter.length > 0 ||
       exceptionChannelFilter.length > 0 ||
       exceptionPolicyFilter.length > 0 ||
+      exceptionTeamFilter.length > 0 ||
+      exceptionDeptFilter.length > 0 ||
       exceptionDomainFilter.trim()
 
     if (hasUserQuery || hasFilters) {
@@ -708,6 +1004,8 @@ function AnalyticsPageContent() {
     setExceptionActionFilter([])
     setExceptionChannelFilter([])
     setExceptionPolicyFilter([])
+    setExceptionTeamFilter([])
+    setExceptionDeptFilter([])
     setExceptionDateRange({ start: defaultStart, end: defaultEnd })
     setUserIncidents([])
     setExpandedPolicies(new Set())
@@ -795,6 +1093,13 @@ function AnalyticsPageContent() {
       // Domain filter
       if (domainQuery && incident.domain && !incident.domain.toLowerCase().includes(domainQuery)) {
         return false
+      }
+
+      // Department filter (multiple selection)
+      if (exceptionDeptFilter.length > 0) {
+        if (!exceptionDeptFilter.includes(incident.department || '')) {
+          return false
+        }
       }
 
       // Team filter (multiple selection)
@@ -1326,7 +1631,21 @@ function AnalyticsPageContent() {
 
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Team Based Analysis</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            }}>
+              <Shield size={20} color="#fff" />
+            </div>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Team Based Analysis</h1>
+          </div>
         </div>
 
         {/* Full Page Loading Screen */}
@@ -1362,14 +1681,28 @@ function AnalyticsPageContent() {
         {!loading && (<>
 
           {/* Heatmap Section */}
-          <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Team Based Analysis Heatmap</h2>
+          <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '24px', borderTop: '3px solid #3b82f6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 3px 10px rgba(59, 130, 246, 0.25)'
+              }}>
+                <BarChart3 size={17} color="#fff" />
+              </div>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Team Based Analysis Heatmap</h2>
+            </div>
 
-            {/* Inline Filters Row */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-              {/* Date Range - Start */}
+            {/* Inline Filters Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', alignItems: 'end', marginBottom: '16px', padding: '14px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              {/* Row 1: Start, End, Department, Team, User */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Start</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>Start</label>
                 <input
                   type="date"
                   value={dateRange.start}
@@ -1385,12 +1718,12 @@ function AnalyticsPageContent() {
                       return newer
                     })
                   }}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
-              {/* Date Range - End */}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>End</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>End</label>
                 <input
                   type="date"
                   value={dateRange.end}
@@ -1406,153 +1739,98 @@ function AnalyticsPageContent() {
                       return newer
                     })
                   }}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '130px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: dateError ? '1px solid #ef4444' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
+                {dateError && <span style={{ color: '#ef4444', fontSize: '9px', marginTop: '1px' }}>{dateError}</span>}
               </div>
 
-              {/* Department - Multi Select */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Department</label>
-                <button
-                  onClick={() => { setDeptDropdownOpen(!deptDropdownOpen); setTeamDropdownOpen2(false); setActionDropdownOpen2(false) }}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedDepartments.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedDepartments.length === 0 ? 'All' : `${selectedDepartments.length} selected`}</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-                {deptDropdownOpen && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                      <button onClick={() => { if (selectedDepartments.length === uniqueDepartments.length) { setSelectedDepartments([]) } else { setSelectedDepartments([...uniqueDepartments]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                        {selectedDepartments.length === uniqueDepartments.length ? 'Deselect All' : 'Select All'}
-                      </button>
-                    </div>
-                    {uniqueDepartments.map(dept => (
-                      <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                        <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => { setSelectedDepartments(prev => prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]) }} style={{ accentColor: '#3b82f6' }} />
-                        {dept}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SearchableMultiSelect
+                label="Department"
+                options={uniqueDepartments}
+                selectedValues={selectedDepartments}
+                onChange={setSelectedDepartments}
+                placeholder="All"
+                compact
+              />
 
-              {/* Team - Multi Select */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Team</label>
-                <button
-                  onClick={() => { setTeamDropdownOpen2(!teamDropdownOpen2); setDeptDropdownOpen(false); setActionDropdownOpen2(false) }}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedTeams.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{selectedTeams.length === 0 ? 'All' : `${selectedTeams.length} selected`}</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-                {teamDropdownOpen2 && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '200px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                      <button onClick={() => { if (selectedTeams.length === uniqueTeams.length) { setSelectedTeams([]) } else { setSelectedTeams([...uniqueTeams]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                        {selectedTeams.length === uniqueTeams.length ? 'Deselect All' : 'Select All'}
-                      </button>
-                    </div>
-                    {uniqueTeams.map(team => (
-                      <label key={team} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                        <input type="checkbox" checked={selectedTeams.includes(team)} onChange={() => { setSelectedTeams(prev => prev.includes(team) ? prev.filter(t => t !== team) : [...prev, team]) }} style={{ accentColor: '#3b82f6' }} />
-                        {team}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SearchableMultiSelect
+                label="Team"
+                options={uniqueTeams}
+                selectedValues={selectedTeams}
+                onChange={setSelectedTeams}
+                placeholder="All"
+                compact
+              />
 
-              {/* User */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>User</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>User</label>
                 <input
                   type="text"
                   placeholder="User..."
                   value={selectedUser}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedUser(e.target.value)}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* Manager Name */}
+              {/* Row 2: Manager Name, Policy, Domain, Action, Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Manager Name</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>Manager Name</label>
                 <input
                   type="text"
                   placeholder="Name..."
                   value={selectedFullName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedFullName(e.target.value)}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* Policy */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Policy</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>Policy</label>
                 <input
                   type="text"
                   placeholder="Policy..."
                   value={selectedPolicy}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedPolicy(e.target.value)}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* Domain */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Domain</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: '0.5px' }}>Domain</label>
                 <input
                   type="text"
                   placeholder="Domain..."
                   value={selectedDomain}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setSelectedDomain(e.target.value)}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', width: '110px' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* Action - Multi Select */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Action</label>
-                <button
-                  onClick={() => { setActionDropdownOpen2(!actionDropdownOpen2); setDeptDropdownOpen(false); setTeamDropdownOpen2(false) }}
-                  style={{ padding: '5px 8px', borderRadius: '4px', border: selectedActions.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '110px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{selectedActions.length === 0 ? 'All' : `${selectedActions.length} selected`}</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-                {actionDropdownOpen2 && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '160px', maxHeight: '250px', overflowY: 'auto', marginTop: '2px' }}>
-                    <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                      <button onClick={() => { if (selectedActions.length === uniqueActions.length) { setSelectedActions([]) } else { setSelectedActions([...uniqueActions]) } }} style={{ fontSize: '11px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '500' }}>
-                        {selectedActions.length === uniqueActions.length ? 'Deselect All' : 'Select All'}
-                      </button>
-                    </div>
-                    {uniqueActions.map(action => (
-                      <label key={action} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
-                        <input type="checkbox" checked={selectedActions.includes(action)} onChange={() => { setSelectedActions(prev => prev.includes(action) ? prev.filter(a => a !== action) : [...prev, action]) }} style={{ accentColor: '#3b82f6' }} />
-                        {action}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SearchableMultiSelect
+                label="Action"
+                options={uniqueActions}
+                selectedValues={selectedActions}
+                onChange={setSelectedActions}
+                placeholder="All"
+                compact
+              />
 
-              {/* Buttons */}
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', alignSelf: 'end' }}>
                 <button
                   onClick={applyFilters}
                   style={{
-                    padding: '5px 14px',
-                    borderRadius: '4px',
+                    flex: 1,
+                    padding: '6px 0',
+                    borderRadius: '6px',
                     border: 'none',
                     background: '#3b82f6',
                     color: '#fff',
                     fontSize: '12px',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    transition: 'background 0.2s'
                   }}
                 >
                   Filtrele
@@ -1560,21 +1838,22 @@ function AnalyticsPageContent() {
                 <button
                   onClick={resetFilters}
                   style={{
-                    padding: '5px 14px',
-                    borderRadius: '4px',
+                    flex: 1,
+                    padding: '6px 0',
+                    borderRadius: '6px',
                     border: '1px solid var(--border)',
-                    background: 'var(--surface-hover)',
+                    background: 'var(--surface)',
                     color: 'var(--text-primary)',
                     fontSize: '12px',
                     fontWeight: '500',
                     cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    transition: 'background 0.2s'
                   }}
                 >
                   Temizle
                 </button>
               </div>
-              {dateError && <span style={{ color: '#ef4444', fontSize: '10px', alignSelf: 'center' }}>{dateError}</span>}
             </div>
 
             {/* Heatmap Controls - Hidden items and collapse */}
@@ -1655,49 +1934,65 @@ function AnalyticsPageContent() {
                 <div style={{ position: 'relative', overflowX: 'auto', maxWidth: '100%' }}>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `180px repeat(${paginatedTeams.length}, 100px)`,
-                    gap: '2px',
+                    gridTemplateColumns: `200px repeat(${paginatedTeams.length}, 110px)`,
+                    gap: '3px',
                     width: 'fit-content',
                     margin: '0 auto'
                   }}>
-                    {/* Header Row */}
+                    {/* Header Row - Corner Cell */}
                     <div style={{
-                      padding: '8px',
-                      fontWeight: '600',
-                      color: 'var(--text-secondary)',
-                      fontSize: '12px',
+                      padding: '10px 12px',
+                      fontWeight: '700',
+                      color: '#3b82f6',
+                      fontSize: '11px',
+                      textTransform: 'none',
+                      letterSpacing: '0.5px',
                       position: 'sticky',
                       left: 0,
                       zIndex: 10,
-                      background: 'var(--background-secondary)'
-                    }}>Domain \ Team</div>
-                    {paginatedTeams.map(team => (
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(6, 182, 212, 0.06))',
+                      borderRadius: '8px 0 0 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      borderBottom: '2px solid rgba(59, 130, 246, 0.15)',
+                      borderRight: '2px solid rgba(59, 130, 246, 0.15)'
+                    }}>
+                      <span style={{ display: 'inline-flex', width: '6px', height: '6px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }} />
+                      Domain / Team
+                    </div>
+                    {paginatedTeams.map((team, idx) => (
                       <div key={team} style={{
-                        padding: '8px 4px',
-                        fontWeight: '600',
-                        color: 'var(--text-secondary)',
-                        fontSize: '13px',
+                        padding: '10px 6px',
+                        fontWeight: '700',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
                         textAlign: 'center',
-                        background: 'var(--background-secondary)',
-                        borderRadius: '2px',
-                        minHeight: '60px',
-                        maxHeight: '60px',
+                        background: 'linear-gradient(180deg, rgba(59, 130, 246, 0.07) 0%, rgba(59, 130, 246, 0.03) 100%)',
+                        borderRadius: idx === paginatedTeams.length - 1 ? '0 8px 0 0' : '0',
+                        minHeight: '64px',
+                        maxHeight: '64px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '100px',
+                        width: '110px',
                         cursor: 'pointer',
-                        transition: 'opacity 0.2s'
+                        transition: 'all 0.2s',
+                        borderBottom: '2px solid rgba(59, 130, 246, 0.15)',
+                        letterSpacing: '0.2px'
                       }} title={`${team} - Gizlemek için tıklayın`}
-                        onClick={() => setHiddenTeams(prev => new Set([...Array.from(prev), team]))}>
+                        onClick={() => setHiddenTeams(prev => new Set([...Array.from(prev), team]))}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(180deg, rgba(59, 130, 246, 0.07) 0%, rgba(59, 130, 246, 0.03) 100%)' }}
+                      >
                         <span style={{
                           wordWrap: 'break-word',
                           wordBreak: 'break-word',
                           overflowWrap: 'break-word',
-                          lineHeight: '1.3',
+                          lineHeight: '1.35',
                           overflow: 'hidden',
                           display: '-webkit-box',
-                          WebkitLineClamp: 2,
+                          WebkitLineClamp: 3,
                           WebkitBoxOrient: 'vertical',
                           textAlign: 'center',
                           width: '100%'
@@ -1708,16 +2003,20 @@ function AnalyticsPageContent() {
                     ))}
 
                     {/* Data Rows */}
-                    {visibleDomains.map((domain, rowIndex) => (
+                    {visibleDomains.map((domain, rowIdx) => (
                       <React.Fragment key={domain}>
                         {/* Row Header - Sticky */}
                         <div key={`row-${domain}`} style={{
-                          padding: '8px',
+                          padding: '8px 12px',
                           fontWeight: '600',
                           color: domain === 'Diğer' ? '#3b82f6' : 'var(--text-primary)',
                           fontSize: '12px',
-                          background: domain === 'Diğer' ? 'rgba(59, 130, 246, 0.08)' : 'var(--background-secondary)',
-                          borderRadius: '2px',
+                          background: domain === 'Diğer'
+                            ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.04))'
+                            : rowIdx % 2 === 0
+                              ? 'rgba(148, 163, 184, 0.04)'
+                              : 'rgba(148, 163, 184, 0.08)',
+                          borderRadius: rowIdx === visibleDomains.length - 1 ? '0 0 0 8px' : '0',
                           display: 'flex',
                           alignItems: 'center',
                           whiteSpace: 'nowrap',
@@ -1727,8 +2026,10 @@ function AnalyticsPageContent() {
                           left: 0,
                           zIndex: 5,
                           cursor: 'pointer',
-                          gap: '4px',
-                          transition: 'opacity 0.2s'
+                          gap: '6px',
+                          transition: 'all 0.2s',
+                          borderRight: '2px solid rgba(59, 130, 246, 0.1)',
+                          letterSpacing: '0.1px'
                         }} title={domain === 'Diğer' ? 'Tıklayarak 10 domain daha göster' : `${domain} - Gizlemek için tıklayın`}
                           onClick={() => {
                             if (domain === 'Diğer') {
@@ -1737,10 +2038,18 @@ function AnalyticsPageContent() {
                               setHiddenDomains(prev => new Set([...Array.from(prev), domain]))
                             }
                           }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)' }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = domain === 'Diğer'
+                              ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.04))'
+                              : rowIdx % 2 === 0
+                                ? 'rgba(148, 163, 184, 0.04)'
+                                : 'rgba(148, 163, 184, 0.08)'
+                          }}
                         >
-                          {domain}
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{domain}</span>
                           {domain === 'Diğer' && (
-                            <ChevronDown size={12} style={{ marginLeft: '2px' }} />
+                            <ChevronDown size={12} style={{ flexShrink: 0 }} />
                           )}
                         </div>
 
@@ -1748,24 +2057,29 @@ function AnalyticsPageContent() {
                         {paginatedTeams.map(team => {
                           const count = heatmapData.counts[team]?.[domain] || 0
                           const bd = heatmapData.breakdown[team]?.[domain] || { block: 0, permit: 0, authorized: 0, quarantine: 0 }
+                          const heatColor = getHeatmapColor(count, heatmapData.maxCount)
+                          const showTooltipBelow = rowIdx < 2
                           return (
                             <div key={`${team}-${domain}`} style={{
-                              height: '30px',
-                              width: '100px',
+                              height: '34px',
+                              width: '110px',
                               textAlign: 'center',
-                              background: getHeatmapColor(count, heatmapData.maxCount),
+                              background: heatColor,
                               color: getTextColor(count, heatmapData.maxCount),
-                              borderRadius: '2px',
-                              fontSize: '10px',
-                              fontWeight: count > 0 ? '600' : '400',
-                              transition: 'transform 0.2s',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: count > 0 ? '700' : '400',
+                              transition: 'all 0.2s',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              position: 'relative'
+                              position: 'relative',
+                              boxShadow: count > 0 ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
                             }}
                               className="group"
+                              onMouseEnter={(e) => { if (count > 0) e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.zIndex = '2' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '0' }}
                             >
                               {count > 0 ? count : ''}
 
@@ -1773,36 +2087,42 @@ function AnalyticsPageContent() {
                               {count > 0 && (
                                 <div className="hidden group-hover:block" style={{
                                   position: 'absolute',
-                                  ...(rowIndex < 3 ? { top: '100%', marginTop: '4px' } : { bottom: '100%', marginBottom: '4px' }),
+                                  ...(showTooltipBelow
+                                    ? { top: '100%', marginTop: '6px' }
+                                    : { bottom: '100%', marginBottom: '6px' }),
                                   left: '50%',
                                   transform: 'translateX(-50%)',
                                   background: 'var(--surface)',
-                                  border: '1px solid var(--border)',
-                                  padding: '8px',
-                                  borderRadius: '4px',
-                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                  zIndex: 10,
-                                  minWidth: '150px',
-                                  pointerEvents: 'none',
-                                  marginBottom: '4px'
+                                  border: '1px solid rgba(99, 102, 241, 0.15)',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                                  zIndex: 20,
+                                  minWidth: '170px',
+                                  pointerEvents: 'none'
                                 }}>
-                                  <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '4px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', color: 'var(--text-primary)' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: '700', marginBottom: '6px', borderBottom: '1px solid var(--border)', paddingBottom: '6px', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>
                                     {domain} / {team}
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                                    <span>Block:</span> <span style={{ color: '#ef4444', fontWeight: '600' }}>{bd.block}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Block</span>
+                                    <span style={{ color: '#ef4444', fontWeight: '700' }}>{bd.block}</span>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                                    <span>Quarantine:</span> <span style={{ color: '#f59e0b', fontWeight: '600' }}>{bd.quarantine}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />Quarantine</span>
+                                    <span style={{ color: '#f59e0b', fontWeight: '700' }}>{bd.quarantine}</span>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                                    <span>Authorized:</span> <span style={{ color: '#3b82f6', fontWeight: '600' }}>{bd.authorized}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />Authorized</span>
+                                    <span style={{ color: '#3b82f6', fontWeight: '700' }}>{bd.authorized}</span>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
-                                    <span>Released:</span> <span style={{ color: '#10b981', fontWeight: '600' }}>{bd.permit}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />Released</span>
+                                    <span style={{ color: '#10b981', fontWeight: '700' }}>{bd.permit}</span>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>
-                                    <span>Avg Max Match:</span> <span style={{ color: '#8b5cf6', fontWeight: '600' }}>{bd.incidentCount > 0 ? (bd.maxMatchTotal / bd.incidentCount).toFixed(1) : 0}</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid var(--border)', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />Avg Max Match</span>
+                                    <span style={{ color: '#8b5cf6', fontWeight: '700' }}>{bd.incidentCount > 0 ? (bd.maxMatchTotal / bd.incidentCount).toFixed(1) : 0}</span>
                                   </div>
                                 </div>
                               )}
@@ -1838,13 +2158,27 @@ function AnalyticsPageContent() {
           </div>
 
           {/* Incidents Table */}
-          <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '32px', borderTop: '3px solid #f59e0b' }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                  Incidents List
-                </h2>
-                {Object.values(columnFilters).some(v => v && v.length > 0) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 3px 10px rgba(245, 158, 11, 0.25)'
+                  }}>
+                    <ListChecks size={16} color="#fff" />
+                  </div>
+                  <h2 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    Incidents List
+                  </h2>
+                </div>
+                {Object.entries(columnFilters).some(([k, v]) => v && v.length > 0 && (k !== 'time' || v.some(d => d))) && (
                   <button
                     onClick={() => {
                       setColumnFilters({})
@@ -1891,7 +2225,7 @@ function AnalyticsPageContent() {
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+                <tr style={{ background: 'rgba(245, 158, 11, 0.06)', borderBottom: '1px solid rgba(245, 158, 11, 0.15)' }}>
                   {(['time', 'user', 'fullName', 'department', 'team', 'policy', 'domain', 'max', 'action'] as const).map(column => {
                     const columnLabels: Record<string, string> = {
                       time: 'Time',
@@ -1914,7 +2248,7 @@ function AnalyticsPageContent() {
                           textAlign: 'left',
                           fontSize: '13px',
                           fontWeight: '600',
-                          color: isSorted ? '#3b82f6' : 'var(--text-primary)',
+                          color: isSorted ? '#f59e0b' : 'var(--text-primary)',
                           width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto',
                           borderBottom: 'none'
                         }}
@@ -1940,7 +2274,7 @@ function AnalyticsPageContent() {
                   })}
                 </tr>
                 {/* Second row for filters */}
-                <tr style={{ background: 'var(--background-secondary)', borderBottom: '2px solid var(--border)' }}>
+                <tr style={{ background: 'rgba(245, 158, 11, 0.04)', borderBottom: '2px solid rgba(245, 158, 11, 0.18)' }}>
                   {(['time', 'user', 'fullName', 'department', 'team', 'policy', 'domain', 'max', 'action'] as const).map(column => {
                     const uniqueValues = getUniqueColumnValues(column)
                     const searchQuery = columnFilterSearch[column] || ''
@@ -1964,7 +2298,54 @@ function AnalyticsPageContent() {
                           verticalAlign: 'top'
                         }}
                       >
-                        {column !== 'time' && column !== 'max' ? (
+                        {column === 'time' ? (
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <input
+                              type="date"
+                              value={(columnFilters.time && columnFilters.time[0]) || ''}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setColumnFilters(prev => {
+                                  const current = prev.time || ['', '']
+                                  return { ...prev, time: [val, current[1] || ''] }
+                                })
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '5px 4px',
+                                borderRadius: '4px',
+                                border: (columnFilters.time && columnFilters.time[0]) ? '1px solid #f59e0b' : '1px solid var(--border)',
+                                background: 'var(--surface)',
+                                color: 'var(--text-primary)',
+                                fontSize: '11px',
+                                boxSizing: 'border-box',
+                                minWidth: 0
+                              }}
+                            />
+                            <input
+                              type="date"
+                              value={(columnFilters.time && columnFilters.time[1]) || ''}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setColumnFilters(prev => {
+                                  const current = prev.time || ['', '']
+                                  return { ...prev, time: [current[0] || '', val] }
+                                })
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '5px 4px',
+                                borderRadius: '4px',
+                                border: (columnFilters.time && columnFilters.time[1]) ? '1px solid #f59e0b' : '1px solid var(--border)',
+                                background: 'var(--surface)',
+                                color: 'var(--text-primary)',
+                                fontSize: '11px',
+                                boxSizing: 'border-box',
+                                minWidth: 0
+                              }}
+                            />
+                          </div>
+                        ) : column !== 'max' ? (
                           isMultiSelect ? (
                             <>
                               <button
@@ -2186,117 +2567,45 @@ function AnalyticsPageContent() {
 
           {/* User Incident Report Section */}
           {!loading && (
-            <div style={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '24px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '20px' }}>Exception Recommendation</h2>
-
-              <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '16px' }}>
-                <div style={{ position: 'relative' }} data-dropdown>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                    Filter by Team
-                  </label>
-                  <div
-                    onClick={() => {
-                      setExceptionTeamDropdownOpen(!exceptionTeamDropdownOpen)
-                      setActionDropdownOpen(false)
-                      setChannelDropdownOpen(false)
-                      setPolicyDropdownOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      minHeight: '20px'
-                    }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionTeamFilter.length === 0
-                        ? 'All Teams'
-                        : exceptionTeamFilter.length === 1
-                          ? exceptionTeamFilter[0]
-                          : `${exceptionTeamFilter.length} selected`}
-                    </span>
-                    <span style={{ marginLeft: '8px' }}>{exceptionTeamDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
-                  </div>
-                  {exceptionTeamDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        background: 'var(--background)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflowY: 'auto'
-                      }}
-                    >
-                      <div
-                        onClick={() => {
-                          if (exceptionTeamFilter.length === uniqueTeams.length) {
-                            setExceptionTeamFilter([])
-                          } else {
-                            setExceptionTeamFilter([...uniqueTeams])
-                          }
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderBottom: '1px solid var(--border)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                          background: exceptionTeamFilter.length === uniqueTeams.length ? 'var(--surface-hover)' : 'transparent'
-                        }}
-                      >
-                        {exceptionTeamFilter.length === uniqueTeams.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
-                      </div>
-                      {uniqueTeams.map(team => (
-                        <label
-                          key={team}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            color: 'var(--text-primary)',
-                            borderBottom: '1px solid var(--border)',
-                            background: exceptionTeamFilter.includes(team) ? 'var(--surface-hover)' : 'transparent'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={exceptionTeamFilter.includes(team)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setExceptionTeamFilter([...exceptionTeamFilter, team])
-                              } else {
-                                setExceptionTeamFilter(exceptionTeamFilter.filter(t => t !== team))
-                              }
-                            }}
-                            style={{ marginRight: '8px', cursor: 'pointer' }}
-                          />
-                          <span>{team}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+            <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginTop: '24px', borderTop: '3px solid #10b981' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 3px 10px rgba(16, 185, 129, 0.25)'
+                }}>
+                  <Sparkles size={17} color="#fff" />
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #10b981, #059669)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Exception Recommendation</h2>
+              </div>
+
+              <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', padding: '16px', background: 'rgba(16, 185, 129, 0.03)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.12)' }}>
+                {/* Department Filter */}
+                <SearchableMultiSelect
+                  label="Filter by Department"
+                  options={uniqueDepartments}
+                  selectedValues={exceptionDeptFilter}
+                  onChange={setExceptionDeptFilter}
+                  placeholder="All Departments"
+                />
+
+                {/* Team Filter */}
+                <SearchableMultiSelect
+                  label="Filter by Team"
+                  options={uniqueTeams}
+                  selectedValues={exceptionTeamFilter}
+                  onChange={setExceptionTeamFilter}
+                  placeholder="All Teams"
+                />
+
+                {/* Date Range */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>
                     Date Range
                   </label>
                   <div style={{ display: 'flex', gap: '4px' }}>
@@ -2306,12 +2615,13 @@ function AnalyticsPageContent() {
                       onChange={(e) => setExceptionDateRange(prev => ({ ...prev, start: e.target.value }))}
                       style={{
                         flex: 1,
-                        padding: '9px 6px',
-                        borderRadius: '6px',
+                        padding: '10px 8px',
+                        borderRadius: '8px',
                         border: '1px solid var(--border)',
-                        background: 'var(--background)',
+                        background: 'var(--surface)',
                         color: 'var(--text-primary)',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        transition: 'border-color 0.2s'
                       }}
                     />
                     <input
@@ -2320,368 +2630,98 @@ function AnalyticsPageContent() {
                       onChange={(e) => setExceptionDateRange(prev => ({ ...prev, end: e.target.value }))}
                       style={{
                         flex: 1,
-                        padding: '9px 6px',
-                        borderRadius: '6px',
+                        padding: '10px 8px',
+                        borderRadius: '8px',
                         border: '1px solid var(--border)',
-                        background: 'var(--background)',
+                        background: 'var(--surface)',
                         color: 'var(--text-primary)',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        transition: 'border-color 0.2s'
                       }}
                     />
                   </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+
+                {/* Search User */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>
                     Search User
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Enter user email, login name, or full name..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      placeholder="Email, login name or full name..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 32px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        transition: 'border-color 0.2s',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
+
+                {/* Domain Filter */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>
                     Filter by Domain
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Enter domain to filter..."
-                    value={exceptionDomainFilter}
-                    onChange={(e) => setExceptionDomainFilter(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px'
-                    }}
-                  />
-                </div>
-                <div style={{ position: 'relative' }} data-dropdown>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                    Filter by Action
-                  </label>
-                  <div
-                    onClick={() => {
-                      setActionDropdownOpen(!actionDropdownOpen)
-                      setChannelDropdownOpen(false)
-                      setPolicyDropdownOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      minHeight: '20px'
-                    }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionActionFilter.length === 0
-                        ? 'All Actions'
-                        : exceptionActionFilter.length === 1
-                          ? exceptionActionFilter[0]
-                          : `${exceptionActionFilter.length} selected`}
-                    </span>
-                    <span style={{ marginLeft: '8px' }}>{actionDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
-                  </div>
-                  {actionDropdownOpen && (
-                    <div
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      placeholder="Enter domain to filter..."
+                      value={exceptionDomainFilter}
+                      onChange={(e) => setExceptionDomainFilter(e.target.value)}
                       style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        background: 'var(--background)',
+                        width: '100%',
+                        padding: '10px 12px 10px 32px',
+                        borderRadius: '8px',
                         border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflowY: 'auto'
+                        background: 'var(--surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        transition: 'border-color 0.2s',
+                        boxSizing: 'border-box'
                       }}
-                    >
-                      <div
-                        onClick={() => {
-                          if (exceptionActionFilter.length === uniqueActions.length) {
-                            setExceptionActionFilter([])
-                          } else {
-                            setExceptionActionFilter([...uniqueActions])
-                          }
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderBottom: '1px solid var(--border)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                          background: exceptionActionFilter.length === uniqueActions.length ? 'var(--surface-hover)' : 'transparent'
-                        }}
-                      >
-                        {exceptionActionFilter.length === uniqueActions.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
-                      </div>
-                      {uniqueActions.map(action => (
-                        <label
-                          key={action}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            color: 'var(--text-primary)',
-                            borderBottom: '1px solid var(--border)',
-                            background: exceptionActionFilter.includes(action) ? 'var(--surface-hover)' : 'transparent'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={exceptionActionFilter.includes(action)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setExceptionActionFilter([...exceptionActionFilter, action])
-                              } else {
-                                setExceptionActionFilter(exceptionActionFilter.filter(a => a !== action))
-                              }
-                            }}
-                            style={{ marginRight: '8px', cursor: 'pointer' }}
-                          />
-                          <span>{action}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div style={{ position: 'relative' }} data-dropdown>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                    Filter by Channel
-                  </label>
-                  <div
-                    onClick={() => {
-                      setChannelDropdownOpen(!channelDropdownOpen)
-                      setActionDropdownOpen(false)
-                      setPolicyDropdownOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      minHeight: '20px'
-                    }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionChannelFilter.length === 0
-                        ? 'All Channels'
-                        : exceptionChannelFilter.length === 1
-                          ? exceptionChannelFilter[0]
-                          : `${exceptionChannelFilter.length} selected`}
-                    </span>
-                    <span style={{ marginLeft: '8px' }}>{channelDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+                    />
                   </div>
-                  {channelDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        background: 'var(--background)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflowY: 'auto'
-                      }}
-                    >
-                      <div
-                        onClick={() => {
-                          if (exceptionChannelFilter.length === uniqueChannels.length) {
-                            setExceptionChannelFilter([])
-                          } else {
-                            setExceptionChannelFilter([...uniqueChannels])
-                          }
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderBottom: '1px solid var(--border)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                          background: exceptionChannelFilter.length === uniqueChannels.length ? 'var(--surface-hover)' : 'transparent'
-                        }}
-                      >
-                        {exceptionChannelFilter.length === uniqueChannels.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
-                      </div>
-                      {uniqueChannels.map(channel => (
-                        <label
-                          key={channel}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            color: 'var(--text-primary)',
-                            borderBottom: '1px solid var(--border)',
-                            background: exceptionChannelFilter.includes(channel) ? 'var(--surface-hover)' : 'transparent'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={exceptionChannelFilter.includes(channel)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setExceptionChannelFilter([...exceptionChannelFilter, channel])
-                              } else {
-                                setExceptionChannelFilter(exceptionChannelFilter.filter(c => c !== channel))
-                              }
-                            }}
-                            style={{ marginRight: '8px', cursor: 'pointer' }}
-                          />
-                          <span>{channel}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                <div style={{ position: 'relative' }} data-dropdown>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                    Filter by Policy
-                  </label>
-                  <div
-                    onClick={() => {
-                      setPolicyDropdownOpen(!policyDropdownOpen)
-                      setActionDropdownOpen(false)
-                      setChannelDropdownOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      minHeight: '20px'
-                    }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {exceptionPolicyFilter.length === 0
-                        ? 'All Policies'
-                        : exceptionPolicyFilter.length === 1
-                          ? exceptionPolicyFilter[0]
-                          : `${exceptionPolicyFilter.length} selected`}
-                    </span>
-                    <span style={{ marginLeft: '8px' }}>{policyDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
-                  </div>
-                  {policyDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        background: 'var(--background)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                        zIndex: 1000,
-                        maxHeight: '200px',
-                        overflowY: 'auto'
-                      }}
-                    >
-                      <div
-                        onClick={() => {
-                          if (exceptionPolicyFilter.length === uniquePolicies.length) {
-                            setExceptionPolicyFilter([])
-                          } else {
-                            setExceptionPolicyFilter([...uniquePolicies])
-                          }
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderBottom: '1px solid var(--border)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                          background: exceptionPolicyFilter.length === uniquePolicies.length ? 'var(--surface-hover)' : 'transparent'
-                        }}
-                      >
-                        {exceptionPolicyFilter.length === uniquePolicies.length ? <><Check size={12} /> Deselect All</> : 'Select All'}
-                      </div>
-                      {uniquePolicies.map(policy => (
-                        <label
-                          key={policy}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            color: 'var(--text-primary)',
-                            borderBottom: '1px solid var(--border)',
-                            background: exceptionPolicyFilter.includes(policy) ? 'var(--surface-hover)' : 'transparent'
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={exceptionPolicyFilter.includes(policy)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setExceptionPolicyFilter([...exceptionPolicyFilter, policy])
-                              } else {
-                                setExceptionPolicyFilter(exceptionPolicyFilter.filter(p => p !== policy))
-                              }
-                            }}
-                            style={{ marginRight: '8px', cursor: 'pointer' }}
-                          />
-                          <span>{policy}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
+                {/* Action Filter */}
+                <SearchableMultiSelect
+                  label="Filter by Action"
+                  options={uniqueActions}
+                  selectedValues={exceptionActionFilter}
+                  onChange={setExceptionActionFilter}
+                  placeholder="All Actions"
+                />
+
+                {/* Channel Filter */}
+                <SearchableMultiSelect
+                  label="Filter by Channel"
+                  options={uniqueChannels}
+                  selectedValues={exceptionChannelFilter}
+                  onChange={setExceptionChannelFilter}
+                  placeholder="All Channels"
+                />
+
+                {/* Policy Filter */}
+                <SearchableMultiSelect
+                  label="Filter by Policy"
+                  options={uniquePolicies}
+                  selectedValues={exceptionPolicyFilter}
+                  onChange={setExceptionPolicyFilter}
+                  placeholder="All Policies"
+                />
               </div>
 
               {/* Recommend Button and Clear Filters */}
@@ -2690,6 +2730,8 @@ function AnalyticsPageContent() {
                 const hasFilters = exceptionActionFilter.length > 0 ||
                   exceptionChannelFilter.length > 0 ||
                   exceptionPolicyFilter.length > 0 ||
+                  exceptionTeamFilter.length > 0 ||
+                  exceptionDeptFilter.length > 0 ||
                   exceptionDomainFilter.trim()
                 const canRecommend = hasUserQuery || hasFilters
 
@@ -2826,9 +2868,9 @@ function AnalyticsPageContent() {
                     {uniqueUserPolicies.length > 0 && (
                       <div className="hidden group-hover:block" style={{
                         position: 'absolute',
-                        top: '100%',
+                        bottom: '100%',
                         left: 0,
-                        marginTop: '8px',
+                        marginBottom: '8px',
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
                         padding: '12px',
@@ -2880,9 +2922,9 @@ function AnalyticsPageContent() {
                     {uniqueUserChannels.length > 0 && (
                       <div className="hidden group-hover:block" style={{
                         position: 'absolute',
-                        top: '100%',
+                        bottom: '100%',
                         left: 0,
-                        marginTop: '8px',
+                        marginBottom: '8px',
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
                         padding: '12px',

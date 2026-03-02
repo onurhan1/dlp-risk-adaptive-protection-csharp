@@ -5,35 +5,35 @@ import apiClient from '@/lib/axios'
 import EntityDetailModal from '@/components/EntityDetailModal'
 
 interface AIBehavioralAnalysis {
-  entityType: string
-  entityId: string
-  riskScore: number
-  anomalyLevel: string
-  aiExplanation: string
-  aiRecommendation: string
-  referenceIncidentIds: number[]
-  analysisMetadata: Record<string, any>
-  analysisDate: string
+  entity_type: string
+  entity_id: string
+  risk_score: number
+  anomaly_level: string
+  ai_explanation: string
+  ai_recommendation: string
+  reference_incident_ids: number[]
+  analysis_metadata: Record<string, any>
+  analysis_date: string
 }
 
 interface AIBehavioralOverview {
-  totalAnalyzed: number
-  highAnomalyCount: number
-  mediumAnomalyCount: number
-  lowAnomalyCount: number
-  userAnomalies: AIBehavioralAnalysis[]
-  channelAnomalies: AIBehavioralAnalysis[]
-  departmentAnomalies: AIBehavioralAnalysis[]
-  destinationAnomalies: AIBehavioralAnalysis[]
-  ruleAnomalies: AIBehavioralAnalysis[]
-  uniqueUsers: string[]
-  uniqueChannels: string[]
-  uniqueDepartments: string[]
-  uniqueDestinations: string[]
-  uniqueRules: string[]
-  topAnomalies: AIBehavioralAnalysis[]
-  anomalyByChannel: Record<string, number>
-  anomalyByDepartment: Record<string, number>
+  total_analyzed: number
+  high_anomaly_count: number
+  medium_anomaly_count: number
+  low_anomaly_count: number
+  user_anomalies: AIBehavioralAnalysis[]
+  channel_anomalies: AIBehavioralAnalysis[]
+  department_anomalies: AIBehavioralAnalysis[]
+  destination_anomalies: AIBehavioralAnalysis[]
+  rule_anomalies: AIBehavioralAnalysis[]
+  unique_users: string[]
+  unique_channels: string[]
+  unique_departments: string[]
+  unique_destinations: string[]
+  unique_rules: string[]
+  top_anomalies: AIBehavioralAnalysis[]
+  anomaly_by_channel: Record<string, number>
+  anomaly_by_department: Record<string, number>
 }
 
 type EntityTab = 'users' | 'channels' | 'departments' | 'destinations' | 'rules'
@@ -89,7 +89,7 @@ export default function AIBehavioralPage() {
         const azureMap = new Map<string, number>()
         if (azureAIRes.data?.users) {
           azureAIRes.data.users.forEach((u: any) => {
-            azureMap.set(u.userEmail, u.averageRiskScore)
+            azureMap.set(u.user_email || u.userEmail, u.average_risk_score || u.averageRiskScore)
           })
         }
         setAzureAIUsers(azureMap)
@@ -152,15 +152,15 @@ export default function AIBehavioralPage() {
 
     switch (activeTab) {
       case 'users':
-        return { anomalies: overview.userAnomalies || [], uniqueValues: overview.uniqueUsers || [] }
+        return { anomalies: overview.user_anomalies || [], uniqueValues: overview.unique_users || [] }
       case 'channels':
-        return { anomalies: overview.channelAnomalies || [], uniqueValues: overview.uniqueChannels || [] }
+        return { anomalies: overview.channel_anomalies || [], uniqueValues: overview.unique_channels || [] }
       case 'departments':
-        return { anomalies: overview.departmentAnomalies || [], uniqueValues: overview.uniqueDepartments || [] }
+        return { anomalies: overview.department_anomalies || [], uniqueValues: overview.unique_departments || [] }
       case 'destinations':
-        return { anomalies: overview.destinationAnomalies || [], uniqueValues: overview.uniqueDestinations || [] }
+        return { anomalies: overview.destination_anomalies || [], uniqueValues: overview.unique_destinations || [] }
       case 'rules':
-        return { anomalies: overview.ruleAnomalies || [], uniqueValues: overview.uniqueRules || [] }
+        return { anomalies: overview.rule_anomalies || [], uniqueValues: overview.unique_rules || [] }
       default:
         return { anomalies: [], uniqueValues: [] }
     }
@@ -173,13 +173,13 @@ export default function AIBehavioralPage() {
     // Filter by text
     if (filterText.trim()) {
       anomalies = anomalies.filter(a =>
-        a.entityId.toLowerCase().includes(filterText.toLowerCase())
+        a.entity_id.toLowerCase().includes(filterText.toLowerCase())
       )
     }
 
     // Filter by Azure AI analysis (only for users tab)
     if (showOnlyAzureAI && activeTab === 'users') {
-      anomalies = anomalies.filter(a => azureAIUsers.has(a.entityId))
+      anomalies = anomalies.filter(a => azureAIUsers.has(a.entity_id))
     }
 
     return anomalies
@@ -200,7 +200,7 @@ export default function AIBehavioralPage() {
   // Filter dropdown suggestions - show analyzed entities from anomalies
   const filteredSuggestions = useMemo(() => {
     // Get entity IDs from anomalies (these are the analyzed ones)
-    const analyzedEntityIds = currentTabData.anomalies.map(a => a.entityId)
+    const analyzedEntityIds = currentTabData.anomalies.map(a => a.entity_id)
 
     if (!filterText.trim()) {
       // When not typing, show all analyzed entities
@@ -213,11 +213,11 @@ export default function AIBehavioralPage() {
   }, [currentTabData.anomalies, filterText])
 
   const tabConfig = [
-    { key: 'users' as const, label: 'Users', count: overview?.userAnomalies?.length || 0 },
-    { key: 'channels' as const, label: 'Channels', count: overview?.channelAnomalies?.length || 0 },
-    { key: 'departments' as const, label: 'Departments', count: overview?.departmentAnomalies?.length || 0 },
-    { key: 'destinations' as const, label: 'Destinations', count: overview?.destinationAnomalies?.length || 0 },
-    { key: 'rules' as const, label: 'Rules', count: overview?.ruleAnomalies?.length || 0 },
+    { key: 'users' as const, label: 'Users', count: overview?.user_anomalies?.length || 0 },
+    { key: 'channels' as const, label: 'Channels', count: overview?.channel_anomalies?.length || 0 },
+    { key: 'departments' as const, label: 'Departments', count: overview?.department_anomalies?.length || 0 },
+    { key: 'destinations' as const, label: 'Destinations', count: overview?.destination_anomalies?.length || 0 },
+    { key: 'rules' as const, label: 'Rules', count: overview?.rule_anomalies?.length || 0 },
   ]
 
   if (loading) {
@@ -324,25 +324,25 @@ export default function AIBehavioralPage() {
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Total Analyzed</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                {overview.totalAnalyzed}
+                {overview.total_analyzed}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>High Anomalies</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#dc2626' }}>
-                {overview.highAnomalyCount}
+                {overview.high_anomaly_count}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Medium Anomalies</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
-                {overview.mediumAnomalyCount}
+                {overview.medium_anomaly_count}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Low Anomalies</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
-                {overview.lowAnomalyCount}
+                {overview.low_anomaly_count}
               </div>
             </div>
           </div>
@@ -497,9 +497,9 @@ export default function AIBehavioralPage() {
                       key={idx}
                       style={{
                         padding: '16px',
-                        background: selectedEntity?.entityId === anomaly.entityId ? 'var(--primary)' : 'var(--background)',
+                        background: selectedEntity?.entity_id === anomaly.entity_id ? 'var(--primary)' : 'var(--background)',
                         borderRadius: '8px',
-                        border: `2px solid ${getAnomalyColor(anomaly.anomalyLevel)}`,
+                        border: `2px solid ${getAnomalyColor(anomaly.anomaly_level)}`,
                         transition: 'all 0.2s'
                       }}
                     >
@@ -507,14 +507,14 @@ export default function AIBehavioralPage() {
                         <div
                           style={{ flex: 1, cursor: 'pointer' }}
                           onClick={() => {
-                            window.location.href = `/ai-behavioral?entityType=${encodeURIComponent(anomaly.entityType)}&entityId=${encodeURIComponent(anomaly.entityId)}`
+                            window.location.href = `/ai-behavioral?entityType=${encodeURIComponent(anomaly.entity_type)}&entityId=${encodeURIComponent(anomaly.entity_id)}`
                           }}
                         >
-                          <div style={{ fontSize: '14px', fontWeight: '600', color: selectedEntity?.entityId === anomaly.entityId ? 'white' : 'var(--text-primary)' }}>
-                            {anomaly.entityId}
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: selectedEntity?.entity_id === anomaly.entity_id ? 'white' : 'var(--text-primary)' }}>
+                            {anomaly.entity_id}
                           </div>
-                          <div style={{ fontSize: '12px', color: selectedEntity?.entityId === anomaly.entityId ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', marginTop: '4px' }}>
-                            {anomaly.aiExplanation}
+                          <div style={{ fontSize: '12px', color: selectedEntity?.entity_id === anomaly.entity_id ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', marginTop: '4px' }}>
+                            {anomaly.ai_explanation}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -522,22 +522,22 @@ export default function AIBehavioralPage() {
                             <div style={{
                               padding: '4px 12px',
                               borderRadius: '12px',
-                              background: getAnomalyColor(anomaly.anomalyLevel),
+                              background: getAnomalyColor(anomaly.anomaly_level),
                               color: 'white',
                               fontSize: '12px',
                               fontWeight: '600'
                             }}>
-                              {anomaly.anomalyLevel.toUpperCase()}
+                              {anomaly.anomaly_level.toUpperCase()}
                             </div>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <div style={{
                                 fontSize: '20px',
                                 fontWeight: '700',
-                                color: selectedEntity?.entityId === anomaly.entityId ? 'white' : getRiskColor(anomaly.riskScore)
+                                color: selectedEntity?.entity_id === anomaly.entity_id ? 'white' : getRiskColor(anomaly.risk_score)
                               }}>
-                                {anomaly.riskScore}
+                                {anomaly.risk_score}
                               </div>
-                              {activeTab === 'users' && azureAIUsers.has(anomaly.entityId) && (
+                              {activeTab === 'users' && azureAIUsers.has(anomaly.entity_id) && (
                                 <div style={{
                                   display: 'flex',
                                   flexDirection: 'column',
@@ -548,7 +548,7 @@ export default function AIBehavioralPage() {
                                 }}>
                                   <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}>Azure AI</span>
                                   <span style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>
-                                    {azureAIUsers.get(anomaly.entityId)}
+                                    {azureAIUsers.get(anomaly.entity_id)}
                                   </span>
                                 </div>
                               )}
@@ -557,7 +557,7 @@ export default function AIBehavioralPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              setDetailEntity({ type: anomaly.entityType, id: anomaly.entityId })
+                              setDetailEntity({ type: anomaly.entity_type, id: anomaly.entity_id })
                               setDetailModalOpen(true)
                             }}
                             style={{
@@ -589,11 +589,11 @@ export default function AIBehavioralPage() {
           <div style={{ background: 'var(--surface)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                Analysis Details: {selectedEntity.entityType.toUpperCase()} - {selectedEntity.entityId}
+                Analysis Details: {selectedEntity.entity_type.toUpperCase()} - {selectedEntity.entity_id}
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => analyzeEntity(selectedEntity.entityType, selectedEntity.entityId)}
+                  onClick={() => analyzeEntity(selectedEntity.entity_type, selectedEntity.entity_id)}
                   disabled={analyzing}
                   style={{
                     padding: '8px 16px',
@@ -626,8 +626,8 @@ export default function AIBehavioralPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: getRiskColor(selectedEntity.riskScore) }}>
-                  {selectedEntity.riskScore}
+                <div style={{ fontSize: '32px', fontWeight: '700', color: getRiskColor(selectedEntity.risk_score) }}>
+                  {selectedEntity.risk_score}
                 </div>
               </div>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
@@ -635,24 +635,24 @@ export default function AIBehavioralPage() {
                 <div style={{
                   fontSize: '20px',
                   fontWeight: '700',
-                  color: getAnomalyColor(selectedEntity.anomalyLevel)
+                  color: getAnomalyColor(selectedEntity.anomaly_level)
                 }}>
-                  {selectedEntity.anomalyLevel.toUpperCase()}
+                  {selectedEntity.anomaly_level.toUpperCase()}
                 </div>
               </div>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
-                  {selectedEntity.referenceIncidentIds.length}
+                  {selectedEntity.reference_incident_ids.length}
                 </div>
-                {selectedEntity.referenceIncidentIds.length > 0 && (
+                {selectedEntity.reference_incident_ids.length > 0 && (
                   <div style={{ marginTop: '8px' }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>View in Investigation:</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {selectedEntity.referenceIncidentIds.slice(0, 5).map((incidentId) => (
+                      {selectedEntity.reference_incident_ids.slice(0, 5).map((incidentId) => (
                         <a
                           key={incidentId}
-                          href={`/investigation?user=${encodeURIComponent(selectedEntity.entityId)}&incident=${incidentId}`}
+                          href={`/investigation?user=${encodeURIComponent(selectedEntity.entity_id)}&incident=${incidentId}`}
                           style={{
                             padding: '4px 8px',
                             background: 'var(--primary)',
@@ -666,9 +666,9 @@ export default function AIBehavioralPage() {
                           #{incidentId}
                         </a>
                       ))}
-                      {selectedEntity.referenceIncidentIds.length > 5 && (
+                      {selectedEntity.reference_incident_ids.length > 5 && (
                         <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px' }}>
-                          +{selectedEntity.referenceIncidentIds.length - 5} more
+                          +{selectedEntity.reference_incident_ids.length - 5} more
                         </span>
                       )}
                     </div>
@@ -680,23 +680,23 @@ export default function AIBehavioralPage() {
             <div style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Explanation</h3>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                {selectedEntity.aiExplanation}
+                {selectedEntity.ai_explanation}
               </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Recommendation</h3>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                {selectedEntity.aiRecommendation}
+                {selectedEntity.ai_recommendation}
               </div>
             </div>
 
-            {Object.keys(selectedEntity.analysisMetadata).length > 0 && (
+            {Object.keys(selectedEntity.analysis_metadata || {}).length > 0 && (
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Analysis Metadata</h3>
                 <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <pre style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0, whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(selectedEntity.analysisMetadata, null, 2)}
+                    {JSON.stringify(selectedEntity.analysis_metadata, null, 2)}
                   </pre>
                 </div>
               </div>

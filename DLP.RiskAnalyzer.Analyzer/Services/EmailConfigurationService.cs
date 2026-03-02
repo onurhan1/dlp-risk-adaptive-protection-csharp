@@ -39,7 +39,7 @@ public class EmailConfigurationService
     public async Task<EmailSettingsResponse> GetAsync(bool includeSensitive = false, CancellationToken cancellationToken = default)
     {
         var settings = await _context.SystemSettings.AsNoTracking()
-            .Where(s => s.Key.StartsWith("email_", StringComparison.OrdinalIgnoreCase))
+            .Where(s => s.Key.StartsWith("email_"))
             .ToListAsync(cancellationToken);
 
         var dict = settings.ToDictionary(s => s.Key, s => s);
