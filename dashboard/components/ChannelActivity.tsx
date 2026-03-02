@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { Mail, Globe, Usb, Printer, ClipboardList, ShieldCheck, Cloud, ArrowUpRight, Package, FileText } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -128,24 +129,25 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
   const currentData = activeTab === 'channel' ? channels : destinations
   const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444']
 
-  const getIcon = (name: string, isChannel: boolean): string => {
+  const getIcon = (name: string, isChannel: boolean): React.ReactNode => {
+    const iconProps = { size: 20, strokeWidth: 1.5 }
     if (isChannel) {
-      const icons: Record<string, string> = {
-        'Email': '📧',
-        'Web': '🌐',
-        'Removable Storage': '💾',
-        'Print': '🖨️',
-        'System log event': '📋',
-        'Security': '🔒'
+      const icons: Record<string, React.ReactNode> = {
+        'Email': <Mail {...iconProps} />,
+        'Web': <Globe {...iconProps} />,
+        'Removable Storage': <Usb {...iconProps} />,
+        'Print': <Printer {...iconProps} />,
+        'System log event': <ClipboardList {...iconProps} />,
+        'Security': <ShieldCheck {...iconProps} />
       }
-      return icons[name] || '📄'
+      return icons[name] || <FileText {...iconProps} />
     } else {
-      if (name.includes('gmail') || name.includes('mail')) return '📧'
-      if (name.includes('dropbox') || name.includes('drive') || name.includes('onedrive')) return '☁️'
-      if (name.includes('transfer')) return '↗️'
-      if (name.includes('box')) return '📦'
-      if (name.includes('USB')) return '💾'
-      return '🌐'
+      if (name.includes('gmail') || name.includes('mail')) return <Mail {...iconProps} />
+      if (name.includes('dropbox') || name.includes('drive') || name.includes('onedrive')) return <Cloud {...iconProps} />
+      if (name.includes('transfer')) return <ArrowUpRight {...iconProps} />
+      if (name.includes('box')) return <Package {...iconProps} />
+      if (name.includes('USB')) return <Usb {...iconProps} />
+      return <Globe {...iconProps} />
     }
   }
 
@@ -269,7 +271,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                   e.currentTarget.style.borderColor = 'var(--border)'
                 }}
               >
-                <div style={{ fontSize: '24px', flexShrink: 0 }}>{icon}</div>
+                <div style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: color, background: `${color}15`, borderRadius: '8px' }}>{icon}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     title={name}

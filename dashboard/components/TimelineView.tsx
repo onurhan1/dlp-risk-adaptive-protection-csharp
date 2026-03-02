@@ -37,7 +37,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
   const fetchTimeline = async () => {
     if (!userEmail) return
-    
+
     setLoading(true)
     try {
       const apiUrl = getApiUrlDynamic()
@@ -48,7 +48,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           order_by: 'timestamp_desc'
         }
       })
-      
+
       // Transform incidents to timeline events
       const timelineEvents = response.data.map((incident: any) => ({
         id: incident.id,
@@ -60,7 +60,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         channel: incident.channel,
         action: 'Permit' // Default, can be from incident data
       }))
-      
+
       setEvents(timelineEvents)
     } catch (error) {
       if (process.env.NODE_ENV !== 'production') {
@@ -86,31 +86,31 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
   const getTags = (incident: any): string[] => {
     const tags: string[] = []
-    
+
     if (incident.data_type === 'PII' || incident.data_type === 'PCI' || incident.data_type === 'CCN') {
       tags.push('Data exfiltration')
     }
     if (incident.severity >= 4) {
       tags.push('High severity')
     }
-    
+
     return tags
   }
 
   const getSeverityColor = (severity: string): string => {
     switch (severity) {
-      case 'High': return '#f44336'
-      case 'Medium': return '#ff9800'
-      case 'Low': return '#4caf50'
-      default: return '#9e9e9e'
+      case 'High': return '#ef4444'
+      case 'Medium': return '#f59e0b'
+      case 'Low': return '#10b981'
+      default: return '#94a3b8'
     }
   }
 
   const getTagColor = (tag: string): string => {
-    if (tag === 'Data exfiltration') return '#f44336'
-    if (tag === 'System modification') return '#ff9800'
+    if (tag === 'Data exfiltration') return '#ef4444'
+    if (tag === 'System modification') return '#f59e0b'
     if (tag === 'Defense evasion') return '#9c27b0'
-    return '#2196f3'
+    return '#3b82f6'
   }
 
   const handleFilterClick = (e?: React.MouseEvent | React.KeyboardEvent) => {
@@ -149,7 +149,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
   }
 
   // Filter events if filter is active (show only high severity)
-  const filteredEvents = filterActive 
+  const filteredEvents = filterActive
     ? events.filter(e => e.severity === 'High')
     : events
 
@@ -196,7 +196,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
           .reopen-btn {
             margin-top: 12px;
             padding: 8px 16px;
-            background: #2196f3;
+            background: #3b82f6;
             color: white;
             border: none;
             border-radius: 4px;
@@ -211,9 +211,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
     <div className="timeline-view">
       <div className="timeline-header">
         <h3>Timeline</h3>
-        <div 
-          className="close-btn" 
-          onClick={handleCloseClick} 
+        <div
+          className="close-btn"
+          onClick={handleCloseClick}
           role="button"
           tabIndex={0}
           title="Close timeline"
@@ -234,7 +234,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
             <h4>{userEmail}</h4>
             <span className="user-title">User Profile</span>
           </div>
-          <button 
+          <button
             className="insights-btn"
             onClick={() => {
               if (userEmail) {
@@ -248,7 +248,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       )}
 
       <div className="timeline-controls">
-        <div 
+        <div
           className={`filter-btn ${filterActive ? 'active' : ''}`}
           onClick={handleFilterClick}
           role="button"
@@ -263,7 +263,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         >
           ⚡
         </div>
-        <div 
+        <div
           className="sort-btn"
           onClick={handleSortClick}
           role="button"
@@ -289,7 +289,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
               <div className="date-header">
                 {date} ({dateEvents.length} {dateEvents.length === 1 ? 'alert' : 'alerts'})
               </div>
-              
+
               {dateEvents.map((event) => (
                 <div
                   key={event.id}
@@ -368,13 +368,13 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .close-btn:hover {
-          color: #f44336;
+          color: #ef4444;
           background: rgba(244, 67, 54, 0.1);
           border-radius: 4px;
         }
 
         .close-btn:focus {
-          outline: 2px solid #2196f3;
+          outline: 2px solid #3b82f6;
           outline-offset: 2px;
         }
 
@@ -400,7 +400,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
 
         .insights-btn {
           padding: 8px 16px;
-          background: #4caf50;
+          background: #10b981;
           color: white;
           border: none;
           border-radius: 4px;
@@ -452,7 +452,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         }
 
         .filter-btn:focus, .sort-btn:focus {
-          outline: 2px solid #2196f3;
+          outline: 2px solid #3b82f6;
           outline-offset: 2px;
         }
 

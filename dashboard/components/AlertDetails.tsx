@@ -47,7 +47,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
       <div className="alert-header">
         <h3>Alert details</h3>
         <div className="header-actions">
-          <RemediateButton 
+          <RemediateButton
             incidentId={event.id}
             onRemediated={() => {
               // Refresh or update UI
@@ -130,7 +130,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
           <p className="instruction">
             Filter the table below by classification type or search for a specific file.
           </p>
-          
+
           <div className="forensics-filters">
             <input
               type="text"
@@ -240,18 +240,18 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
         }
 
         .severity-badge.high {
-          background: #ffebee;
-          color: #c62828;
+          background: rgba(239, 68, 68, 0.1);
+          color: #dc2626;
         }
 
         .severity-badge.medium {
-          background: #fff3e0;
-          color: #e65100;
+          background: rgba(249, 115, 22, 0.1);
+          color: #ea580c;
         }
 
         .severity-badge.low {
-          background: #e8f5e9;
-          color: #2e7d32;
+          background: rgba(16, 185, 129, 0.1);
+          color: #16a34a;
         }
 
         .alert-summary {
@@ -288,7 +288,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .classification-tag {
           padding: 2px 8px;
-          background: #2196f3;
+          background: #3b82f6;
           color: white;
           border-radius: 12px;
           font-size: 11px;
@@ -353,8 +353,8 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .tag {
           padding: 4px 10px;
-          background: #e3f2fd;
-          color: #1976d2;
+          background: rgba(59, 130, 246, 0.1);
+          color: #2563eb;
           border-radius: 12px;
           font-size: 11px;
           font-weight: 500;
@@ -383,7 +383,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .classifiers-btn {
           padding: 8px 16px;
-          background: #00acc1;
+          background: #0ea5e9;
           color: white;
           border: none;
           border-radius: 4px;
@@ -457,8 +457,8 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
 
         .file-class-tag {
           padding: 2px 6px;
-          background: #e3f2fd;
-          color: #1976d2;
+          background: rgba(59, 130, 246, 0.1);
+          color: #2563eb;
           border-radius: 8px;
           font-size: 10px;
         }

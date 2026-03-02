@@ -100,7 +100,7 @@ function FilterDropdown({
             <label style={{
                 fontSize: '10px',
                 color: 'var(--text-muted)',
-                textTransform: 'uppercase',
+                textTransform: 'none',
                 display: 'block',
                 marginBottom: '4px'
             }}>
@@ -326,7 +326,7 @@ export default function ActionIncidentsModal({
 
     const actionColors: Record<string, string> = {
         BLOCK: '#ef4444',
-        QUARANTINE: '#9013ff',
+        QUARANTINE: '#8b5cf6',
         AUTHORIZED: '#10b981',
         RELEASED: '#f59e0b',
         TOTAL: '#3b82f6'
@@ -570,14 +570,14 @@ export default function ActionIncidentsModal({
                                     position: 'sticky',
                                     top: 0
                                 }}>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', width: '40px' }}>#</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Login Name</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Destination</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Channel</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy/Rule</th>
-                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Matches</th>
-                                    {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>}
-                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date/Time</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none', width: '40px' }}>#</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Login Name</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Destination</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Channel</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Policy/Rule</th>
+                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Matches</th>
+                                    {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Status</th>}
+                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Date/Time</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -614,7 +614,7 @@ export default function ActionIncidentsModal({
                                                 borderRadius: '4px',
                                                 fontSize: '11px',
                                                 fontWeight: '600',
-                                                textTransform: 'uppercase'
+                                                textTransform: 'none'
                                             }}>
                                                 {incident.channel}
                                             </span>
@@ -648,11 +648,11 @@ export default function ActionIncidentsModal({
                                                     borderRadius: '4px',
                                                     fontSize: '10px',
                                                     fontWeight: '700',
-                                                    textTransform: 'uppercase',
+                                                    textTransform: 'none',
                                                     color: 'white',
                                                     backgroundColor:
                                                         incident.action?.toUpperCase() === 'BLOCK' || incident.action?.toUpperCase() === 'BLOCKED' ? '#ef4444' :
-                                                            incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#9013ff' :
+                                                            incident.action?.toUpperCase() === 'QUARANTINE' || incident.action?.toUpperCase() === 'QUARANTINED' ? '#8b5cf6' :
                                                                 incident.action?.toUpperCase() === 'AUTHORIZED' ? '#10b981' :
                                                                     incident.action?.toUpperCase() === 'RELEASED' ? '#f59e0b' : '#6b7280'
                                                 }}>

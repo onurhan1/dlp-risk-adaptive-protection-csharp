@@ -1369,7 +1369,7 @@ function AnalyticsPageContent() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end', marginBottom: '16px', padding: '12px', background: 'var(--background)', borderRadius: '6px', border: '1px solid var(--border)' }}>
               {/* Date Range - Start */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Start</label>
                 <input
                   type="date"
                   value={dateRange.start}
@@ -1390,7 +1390,7 @@ function AnalyticsPageContent() {
               </div>
               {/* Date Range - End */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>End</label>
                 <input
                   type="date"
                   value={dateRange.end}
@@ -1412,7 +1412,7 @@ function AnalyticsPageContent() {
 
               {/* Department - Multi Select */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Department</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Department</label>
                 <button
                   onClick={() => { setDeptDropdownOpen(!deptDropdownOpen); setTeamDropdownOpen2(false); setActionDropdownOpen2(false) }}
                   style={{ padding: '5px 8px', borderRadius: '4px', border: selectedDepartments.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
@@ -1439,7 +1439,7 @@ function AnalyticsPageContent() {
 
               {/* Team - Multi Select */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Team</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Team</label>
                 <button
                   onClick={() => { setTeamDropdownOpen2(!teamDropdownOpen2); setDeptDropdownOpen(false); setActionDropdownOpen2(false) }}
                   style={{ padding: '5px 8px', borderRadius: '4px', border: selectedTeams.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '130px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
@@ -1466,7 +1466,7 @@ function AnalyticsPageContent() {
 
               {/* User */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>User</label>
                 <input
                   type="text"
                   placeholder="User..."
@@ -1478,7 +1478,7 @@ function AnalyticsPageContent() {
 
               {/* Manager Name */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Manager Name</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Manager Name</label>
                 <input
                   type="text"
                   placeholder="Name..."
@@ -1490,7 +1490,7 @@ function AnalyticsPageContent() {
 
               {/* Policy */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Policy</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Policy</label>
                 <input
                   type="text"
                   placeholder="Policy..."
@@ -1502,7 +1502,7 @@ function AnalyticsPageContent() {
 
               {/* Domain */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Domain</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Domain</label>
                 <input
                   type="text"
                   placeholder="Domain..."
@@ -1514,7 +1514,7 @@ function AnalyticsPageContent() {
 
               {/* Action - Multi Select */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }} data-heatmap-filter>
-                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</label>
+                <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Action</label>
                 <button
                   onClick={() => { setActionDropdownOpen2(!actionDropdownOpen2); setDeptDropdownOpen(false); setTeamDropdownOpen2(false) }}
                   style={{ padding: '5px 8px', borderRadius: '4px', border: selectedActions.length > 0 ? '1px solid #3b82f6' : '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', minWidth: '110px', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}
@@ -1708,7 +1708,7 @@ function AnalyticsPageContent() {
                     ))}
 
                     {/* Data Rows */}
-                    {visibleDomains.map(domain => (
+                    {visibleDomains.map((domain, rowIndex) => (
                       <React.Fragment key={domain}>
                         {/* Row Header - Sticky */}
                         <div key={`row-${domain}`} style={{
@@ -1773,7 +1773,7 @@ function AnalyticsPageContent() {
                               {count > 0 && (
                                 <div className="hidden group-hover:block" style={{
                                   position: 'absolute',
-                                  bottom: '100%',
+                                  ...(rowIndex < 3 ? { top: '100%', marginTop: '4px' } : { bottom: '100%', marginBottom: '4px' }),
                                   left: '50%',
                                   transform: 'translateX(-50%)',
                                   background: 'var(--surface)',
@@ -2826,9 +2826,9 @@ function AnalyticsPageContent() {
                     {uniqueUserPolicies.length > 0 && (
                       <div className="hidden group-hover:block" style={{
                         position: 'absolute',
-                        bottom: '100%',
+                        top: '100%',
                         left: 0,
-                        marginBottom: '8px',
+                        marginTop: '8px',
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
                         padding: '12px',
@@ -2880,9 +2880,9 @@ function AnalyticsPageContent() {
                     {uniqueUserChannels.length > 0 && (
                       <div className="hidden group-hover:block" style={{
                         position: 'absolute',
-                        bottom: '100%',
+                        top: '100%',
                         left: 0,
-                        marginBottom: '8px',
+                        marginTop: '8px',
                         background: 'var(--surface)',
                         border: '1px solid var(--border)',
                         padding: '12px',
@@ -3266,7 +3266,7 @@ function AnalyticsPageContent() {
                                                           borderRadius: '4px',
                                                           background: 'rgba(245, 158, 11, 0.15)',
                                                           color: '#f59e0b',
-                                                          textTransform: 'uppercase' as const
+                                                          textTransform: 'none' as const
                                                         }}>
                                                           Exception
                                                         </span>

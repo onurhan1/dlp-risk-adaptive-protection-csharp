@@ -72,7 +72,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
     const [loadingRiskyUsers, setLoadingRiskyUsers] = useState(false)
     const [showActionModal, setShowActionModal] = useState(false)
     const [selectedAction, setSelectedAction] = useState<string>('')
-    
+
     // Pagination for risky users
     const [riskyUsersPage, setRiskyUsersPage] = useState(1)
     const riskyUsersPageSize = 15
@@ -178,10 +178,10 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
     }
 
     const getRiskColor = (score: number): string => {
-        if (score >= 91) return '#d32f2f'
-        if (score >= 61) return '#f57c00'
-        if (score >= 41) return '#fbc02d'
-        return '#4caf50'
+        if (score >= 91) return '#ef4444'
+        if (score >= 61) return '#f59e0b'
+        if (score >= 41) return '#eab308'
+        return '#10b981'
     }
 
     const fetchActionIncidents = (action: string) => {
@@ -405,7 +405,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                             {[
                                                 { key: 'AUTHORIZED', value: dailySummary.action_summary.authorized, color: '#10b981' },
                                                 { key: 'BLOCK', value: dailySummary.action_summary.block, color: '#ef4444' },
-                                                { key: 'QUARANTINE', value: dailySummary.action_summary.quarantine, color: '#9013ff' },
+                                                { key: 'QUARANTINE', value: dailySummary.action_summary.quarantine, color: '#8b5cf6' },
                                                 { key: 'RELEASED', value: dailySummary.action_summary.released || 0, color: '#f59e0b' },
                                                 { key: 'TOTAL', value: dailySummary.action_summary.total, color: '#3b82f6' }
                                             ].map((item) => (
@@ -444,7 +444,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                                 </thead>
                                                 <tbody>
                                                     {dailySummary.top_users.length === 0 ? (
-                                                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No data</td></tr>
+                                                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
                                                     ) : (
                                                         dailySummary.top_users.map((user, idx) => (
                                                             <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -483,7 +483,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                                 </thead>
                                                 <tbody>
                                                     {dailySummary.channel_breakdown.length === 0 ? (
-                                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No data</td></tr>
+                                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
                                                     ) : (
                                                         dailySummary.channel_breakdown.map((channel, idx) => (
                                                             <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -509,7 +509,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
                                         <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Top 10 Policies</h3>
                                         {dailySummary.top_policies.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No data</div>
+                                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</div>
                                         ) : (
                                             dailySummary.top_policies.map((policy, idx) => (
                                                 <div key={idx} style={{ border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '8px' }}>
@@ -528,14 +528,14 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                                             <span style={{ transform: expandedPolicies.has(policy.policy_name) ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
                                                             <span style={{ fontWeight: '500', fontSize: '13px' }}>{policy.policy_name}</span>
                                                         </div>
-                                                        <span style={{ padding: '3px 10px', backgroundColor: '#f57c00', color: 'white', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
+                                                        <span style={{ padding: '3px 10px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
                                                             {policy.total_alerts} alerts
                                                         </span>
                                                     </div>
                                                     {expandedPolicies.has(policy.policy_name) && (
                                                         <div style={{ padding: '10px 14px 10px 40px', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
                                                             {policy.top_rules.length === 0 ? (
-                                                                <div style={{ color: '#999' }}>No rules available</div>
+                                                                <div style={{ color: 'var(--text-muted)' }}>No rules available</div>
                                                             ) : (
                                                                 policy.top_rules.map((rule, rIdx) => (
                                                                     <div key={rIdx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: rIdx < policy.top_rules.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -564,7 +564,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                             </thead>
                                             <tbody>
                                                 {dailySummary.top_destinations.length === 0 ? (
-                                                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No data</td></tr>
+                                                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
                                                 ) : (
                                                     dailySummary.top_destinations.map((dest, idx) => (
                                                         <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -636,7 +636,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                             ))}
                                         </tbody>
                                     </table>
-                                    
+
                                     {/* Pagination */}
                                     {riskyUsers.length > riskyUsersPageSize && (
                                         <div style={{ marginTop: '16px' }}>

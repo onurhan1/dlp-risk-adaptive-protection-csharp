@@ -46,7 +46,7 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
   const getRiskColor = (score: number): string => {
     if (score >= 80) return '#f44336' // Red
     if (score >= 50) return '#ff9800' // Orange
-    return '#4caf50' // Green
+    return '#10b981' // Green
   }
 
   const startItem = (page - 1) * pageSize + 1
@@ -58,7 +58,7 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
         <span>Risk</span>
         <span>User</span>
       </div>
-      
+
       <div className="user-list">
         {loading ? (
           <div className="loading">Loading users...</div>
@@ -78,7 +78,7 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
                     cy="20"
                     r="18"
                     fill="none"
-                    stroke="#e0e0e0"
+                    stroke="var(--border)"
                     strokeWidth="3"
                   />
                   <circle
@@ -114,15 +114,15 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
 
       {total > 0 && (
         <div className="pagination">
-          <button 
-            onClick={() => setPage(p => Math.max(1, p - 1))} 
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
           >
             Previous
           </button>
           <span>{startItem}-{endItem} of {total} items</span>
-          <button 
-            onClick={() => setPage(p => p + 1)} 
+          <button
+            onClick={() => setPage(p => p + 1)}
             disabled={endItem >= total}
           >
             Next
@@ -146,8 +146,8 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
           justify-content: space-between;
           padding: 8px 12px;
           font-weight: 600;
-          color: #666;
-          border-bottom: 1px solid #e0e0e0;
+          color: var(--text-muted);
+          border-bottom: 1px solid var(--border);
           margin-bottom: 8px;
         }
 
@@ -166,12 +166,12 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
         }
 
         .user-item:hover {
-          background-color: #f5f5f5;
+          background-color: var(--surface-hover);
         }
 
         .user-item.selected {
-          background-color: #e3f2fd;
-          border-left: 3px solid #2196f3;
+          background-color: var(--surface-active);
+          border-left: 3px solid #3b82f6;
         }
 
         .risk-score {
@@ -189,14 +189,14 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
 
         .user-name {
           font-weight: 500;
-          color: #333;
+          color: var(--text-primary);
         }
 
         .loading,
         .empty {
           text-align: center;
           padding: 20px;
-          color: #666;
+          color: var(--text-muted);
         }
 
         .pagination {
@@ -204,7 +204,7 @@ export default function UserRiskList({ onUserSelect, selectedUser }: UserRiskLis
           justify-content: space-between;
           align-items: center;
           padding: 12px;
-          border-top: 1px solid #e0e0e0;
+          border-top: 1px solid var(--border);
           margin-top: 8px;
           font-size: 12px;
         }

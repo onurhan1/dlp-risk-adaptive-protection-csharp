@@ -169,12 +169,12 @@ export default function UsersTab() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                         <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>ID</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Username</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Email</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Role</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Status</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Actions</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>ID</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Username</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Email</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Role</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Status</th>
+                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -228,21 +228,21 @@ export default function UsersTab() {
                         <h3 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{editingUser ? 'Edit User' : 'Create New User'}</h3>
                         <form onSubmit={handleSubmit}>
                             <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Username</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Username</label>
                                 <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                             </div>
                             <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Email</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Email</label>
                                 <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                             </div>
                             {!editingUser && (
                                 <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Password</label>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Password</label>
                                     <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                                 </div>
                             )}
                             <div style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Role</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Role</label>
                                 <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }}>
                                     <option value="standard">Standard</option>
                                     <option value="admin">Admin</option>

@@ -117,7 +117,7 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
       <style jsx>{`
         .remediate-btn {
           padding: 6px 12px;
-          background: #4caf50;
+          background: #10b981;
           color: white;
           border: none;
           border-radius: 4px;

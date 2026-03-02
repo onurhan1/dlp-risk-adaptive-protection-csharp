@@ -2,91 +2,131 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Tenable Security Center Color Scheme */
-  --primary: #00a8e8; /* Tenable Blue */
-  --primary-dark: #0066cc;
-  --primary-light: #5bc0de;
-  --secondary: #2c3e50; /* Dark Blue-Gray */
-  --accent: #00d4ff;
-  --success: #5cb85c;
-  --warning: #f0ad4e;
-  --danger: #d9534f;
-  --info: #5bc0de;
+/* ==========================================
+   INTER FONT — Local files (offline-ready)
+   ========================================== */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* Dark Theme (Default) */
-.dark-theme {
-  --background: #222839; /* Ana ekran - daha açık */
-  --background-secondary: #2a3045;
-  --surface: #313750; /* Card Background - daha açık */
-  --surface-hover: #3a4058;
-  --surface-active: #424862;
-  
-  /* Sidebar specific - çok koyu */
-  --sidebar-bg: #0d1017;
-  --sidebar-bg-end: #12151e;
-  --sidebar-text: #9aa3b0;
-  --sidebar-text-hover: #e8eaed;
-  --sidebar-text-active: #00a8e8;
-  --sidebar-border: #1e2230;
-  --sidebar-hover-bg: #171b26;
-  --sidebar-active-bg: #141824;
-  
-  /* Text Colors */
-  --text-primary: #e8eaed;
-  --text-secondary: #b0b8c4;
-  --text-muted: #8a9199;
-  --text-inverse: #1a1f2e;
-  
-  /* Borders */
-  --border: #3a4054;
-  --border-hover: #4a5064;
-  --border-light: #2d3447;
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.7);
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================
+   CSS VARIABLES — Figma Slate Design System
+   ========================================== */
+:root {
+  /* Semantic Colors */
+  --primary: #0F172A;
+  --primary-dark: #020617;
+  --primary-light: #334155;
+  --accent: #3B82F6;
+  --accent-light: #60A5FA;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #6366F1;
 }
 
 /* Light Theme */
 .light-theme {
-  --background: #f5f7fa; /* Light Gray-Blue */
-  --background-secondary: #ffffff;
-  --surface: #ffffff; /* White */
-  --surface-hover: #f8fafc;
-  --surface-active: #f1f5f9;
-  
-  /* Sidebar specific - aydınlık modda da koyu sidebar */
-  --sidebar-bg: #0d1017;
-  --sidebar-bg-end: #12151e;
-  --sidebar-text: #9aa3b0;
-  --sidebar-text-hover: #e8eaed;
-  --sidebar-text-active: #00a8e8;
-  --sidebar-border: #1e2230;
-  --sidebar-hover-bg: #171b26;
-  --sidebar-active-bg: #141824;
-  
+  --background: #F8FAFC;
+  --background-secondary: #F1F5F9;
+  --surface: #FFFFFF;
+  --surface-hover: #F8FAFC;
+  --surface-active: #F1F5F9;
+
+  /* Sidebar — dark sidebar persists in both themes */
+  --sidebar-bg: #0F172A;
+  --sidebar-bg-end: #1E293B;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-hover: #F1F5F9;
+  --sidebar-text-active: #3B82F6;
+  --sidebar-border: #334155;
+  --sidebar-hover-bg: #1E293B;
+  --sidebar-active-bg: #1E293B;
+
   /* Text Colors */
-  --text-primary: #1e293b; /* Dark Gray */
+  --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --text-inverse: #ffffff;
-  
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --text-light: #94A3B8;
+
   /* Borders */
-  --border: #e2e8f0;
-  --border-hover: #cbd5e1;
-  --border-light: #f1f5f9;
-  
+  --border: #E2E8F0;
+  --border-hover: #CBD5E1;
+  --border-light: #F1F5F9;
+
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px -1px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 24px -3px rgba(15, 23, 42, 0.1);
+  --shadow-xl: 0 20px 40px -5px rgba(15, 23, 42, 0.12);
+}
+
+/* Dark Theme (Default) */
+.dark-theme {
+  --background: #0F172A;
+  --background-secondary: #1E293B;
+  --surface: #1E293B;
+  --surface-hover: #334155;
+  --surface-active: #475569;
+
+  /* Sidebar */
+  --sidebar-bg: #020617;
+  --sidebar-bg-end: #0F172A;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-hover: #F1F5F9;
+  --sidebar-text-active: #3B82F6;
+  --sidebar-border: #1E293B;
+  --sidebar-hover-bg: #1E293B;
+  --sidebar-active-bg: #1E293B;
+
+  /* Text Colors */
+  --text-primary: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-inverse: #0F172A;
+  --text-light: #64748B;
+
+  /* Borders */
+  --border: #334155;
+  --border-hover: #475569;
+  --border-light: #1E293B;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 24px -3px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.3);
 }
 
 /* Default to dark theme */
@@ -102,6 +142,9 @@ html.light-theme {
   color-scheme: light;
 }
 
+/* ==========================================
+   BASE RESET & TYPOGRAPHY
+   ========================================== */
 * {
   margin: 0;
   padding: 0;
@@ -113,14 +156,14 @@ body {
   max-width: 100vw;
   overflow: hidden;
   height: 100%;
-  /* Windows Server 2025 optimized font stack - Segoe UI is native to Windows 11/Server 2025 */
-  font-family: 'Segoe UI', 'Segoe UI Variable', 'Segoe UI Historic', 'Segoe UI Emoji', Tahoma, Arial, Verdana, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--background);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'kern' 1, 'liga' 1;
-  font-size: 16px; /* Increased from default 14px */
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 body {
@@ -132,20 +175,24 @@ a {
   text-decoration: none;
 }
 
-/* Container */
+/* ==========================================
+   CONTAINER
+   ========================================== */
 .container {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 24px;
 }
 
-/* Card - Tenable Style */
+/* ==========================================
+   CARD — Figma Style (rounded-2xl, subtle shadow)
+   ========================================== */
 .card {
   background: var(--surface);
-  border-radius: 6px;
+  border-radius: 16px;
   padding: 24px;
   box-shadow: var(--shadow);
-  border: 1px solid var(--border);
+  border: none;
   transition: all 0.2s ease;
   color: var(--text-primary);
   overflow: hidden;
@@ -153,38 +200,39 @@ a {
 
 .card:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--border-hover);
-  transform: translateY(-2px);
 }
 
 .card h2 {
   margin: 0 0 16px 0;
   color: var(--text-primary);
-  font-size: 22px; /* Increased from 18px */
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .card h3 {
   margin: 0 0 12px 0;
   color: var(--text-primary);
-  font-size: 19px; /* Increased from 16px */
+  font-size: 14px;
   font-weight: 600;
 }
 
-/* Button */
+/* ==========================================
+   BUTTON — Figma Style (clean, border-based)
+   ========================================== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 24px; /* Increased padding */
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
   font-weight: 500;
-  font-size: 16px; /* Increased from 14px */
+  font-size: 14px;
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  gap: 8px;
+  gap: 6px;
+  font-family: 'Inter', sans-serif;
 }
 
 .btn-primary {
@@ -192,12 +240,22 @@ a {
   color: white;
 }
 
+.light-theme .btn-primary {
+  background-color: #0F172A;
+  color: #FFFFFF;
+}
+
+.dark-theme .btn-primary {
+  background-color: #F1F5F9;
+  color: #0F172A;
+}
+
 .btn-primary:hover {
-  background-color: var(--primary-dark);
+  opacity: 0.9;
 }
 
 .btn-secondary {
-  background-color: var(--surface);
+  background-color: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border);
 }
@@ -207,26 +265,28 @@ a {
   border-color: var(--border-hover);
 }
 
-/* Badge */
+/* ==========================================
+   BADGE — Figma Style (soft colored badges)
+   ========================================== */
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 14px; /* Increased padding */
-  border-radius: 12px;
-  font-size: 14px; /* Increased from 12px */
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .badge-circle {
-  width: 38px; /* Increased from 32px */
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px; /* Increased from 14px */
+  font-size: 14px;
   font-weight: 700;
   color: white;
 }
@@ -240,7 +300,7 @@ a {
 }
 
 .badge-risk-medium {
-  background-color: #fbbf24;
+  background-color: #6366f1;
 }
 
 .badge-risk-low {
@@ -251,29 +311,83 @@ a {
   background-color: #6b7280;
 }
 
-/* Input */
+/* Soft badge variants (Figma style) */
+.badge-soft-critical {
+  background-color: #FEF2F2;
+  color: #EF4444;
+}
+
+.dark-theme .badge-soft-critical {
+  background-color: #450a0a;
+  color: #FCA5A5;
+}
+
+.badge-soft-high {
+  background-color: #FEF3C7;
+  color: #F59E0B;
+}
+
+.dark-theme .badge-soft-high {
+  background-color: #451a03;
+  color: #FCD34D;
+}
+
+.badge-soft-medium {
+  background-color: #EEF2FF;
+  color: #6366F1;
+}
+
+.dark-theme .badge-soft-medium {
+  background-color: #1e1b4b;
+  color: #A5B4FC;
+}
+
+.badge-soft-low {
+  background-color: #F0FDF4;
+  color: #10B981;
+}
+
+.dark-theme .badge-soft-low {
+  background-color: #052e16;
+  color: #86EFAC;
+}
+
+/* ==========================================
+   INPUT — Figma Style
+   ========================================== */
 .input {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 12px 14px; /* Increased padding */
+  border-radius: 8px;
+  padding: 8px 12px;
   color: var(--text-primary);
-  font-size: 16px; /* Increased from 14px */
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
   transition: all 0.2s;
   width: 100%;
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  border-color: var(--text-muted);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+}
+
+.light-theme .input:focus {
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+}
+
+.dark-theme .input:focus {
+  box-shadow: 0 0 0 3px rgba(241, 245, 249, 0.06);
 }
 
 .input::placeholder {
   color: var(--text-muted);
 }
 
-/* Data Table - flexible layout */
+/* ==========================================
+   DATA TABLE — Figma Style (clean, no uppercase)
+   ========================================== */
 .data-table {
   width: 100%;
   border-collapse: separate;
@@ -283,7 +397,7 @@ a {
 
 .data-table th,
 .data-table td {
-  padding: 12px 14px;
+  padding: 12px 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -292,17 +406,17 @@ a {
 .data-table th {
   background: var(--surface-hover);
   font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  border-bottom: 2px solid var(--border);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .data-table td {
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .data-table tr:hover {
@@ -313,7 +427,9 @@ a {
   border-bottom: none;
 }
 
-/* Table */
+/* ==========================================
+   TABLE MODERN — Figma Style
+   ========================================== */
 .table-modern {
   width: 100%;
   border-collapse: separate;
@@ -322,21 +438,21 @@ a {
 
 .table-modern th {
   background: var(--surface-hover);
-  padding: 14px 18px; /* Increased padding */
+  padding: 12px 16px;
   text-align: left;
   font-weight: 600;
-  font-size: 14px; /* Increased from 12px */
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  border-bottom: 2px solid var(--border);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .table-modern td {
-  padding: 14px 18px; /* Increased padding */
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
-  font-size: 16px; /* Increased from 14px */
+  font-size: 14px;
 }
 
 .table-modern tr:hover {
@@ -347,7 +463,9 @@ a {
   border-bottom: none;
 }
 
-/* Sidebar - Tenable Style */
+/* ==========================================
+   SIDEBAR — Figma Style (always dark)
+   ========================================== */
 .sidebar {
   position: fixed;
   left: 0;
@@ -364,14 +482,6 @@ a {
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 
-.dark-theme .sidebar {
-  background: linear-gradient(180deg, #0d1017 0%, #12151e 100%);
-}
-
-.light-theme .sidebar {
-  background: linear-gradient(180deg, #0d1017 0%, #12151e 100%);
-}
-
 .sidebar-logo {
   padding: 20px 16px;
   border-bottom: 1px solid var(--sidebar-border);
@@ -380,7 +490,7 @@ a {
 
 .sidebar-icon {
   width: 100%;
-  height: 58px;
+  height: 48px;
   border-radius: 0;
   display: flex;
   align-items: center;
@@ -390,7 +500,7 @@ a {
   transition: all 0.2s;
   padding: 0 16px;
   gap: 12px;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 500;
   border-left: 3px solid transparent;
   text-decoration: none;
@@ -399,19 +509,19 @@ a {
 .sidebar-icon:hover {
   background-color: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
-  border-left-color: var(--primary);
+  border-left-color: var(--accent);
 }
 
 .sidebar-icon.active {
   background-color: var(--sidebar-active-bg);
   color: var(--sidebar-text-active);
-  border-left-color: var(--primary);
+  border-left-color: var(--accent);
   font-weight: 600;
 }
 
 .sidebar-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 }
 
@@ -426,7 +536,7 @@ a {
   align-items: center;
   gap: 10px;
   padding: 8px 16px 8px 44px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--sidebar-text);
   cursor: pointer;
@@ -438,13 +548,13 @@ a {
 .sidebar-subitem:hover {
   background-color: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
-  border-left-color: var(--primary);
+  border-left-color: var(--accent);
 }
 
 .sidebar-subitem.active {
   background-color: var(--sidebar-active-bg);
   color: var(--sidebar-text-active);
-  border-left-color: var(--primary);
+  border-left-color: var(--accent);
   font-weight: 600;
 }
 
@@ -454,7 +564,9 @@ a {
   flex-shrink: 0;
 }
 
-/* Navigation - Tenable Style */
+/* ==========================================
+   NAVIGATION — Figma Style (clean top bar)
+   ========================================== */
 .nav-modern {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -467,10 +579,12 @@ a {
 .main-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 
-/* Utilities */
+/* ==========================================
+   UTILITIES
+   ========================================== */
 .text-right {
   text-align: right;
 }
@@ -479,12 +593,29 @@ a {
   text-align: center;
 }
 
-.mt-1 { margin-top: 4px; }
-.mt-2 { margin-top: 8px; }
-.mt-4 { margin-top: 16px; }
-.mb-1 { margin-bottom: 4px; }
-.mb-2 { margin-bottom: 8px; }
-.mb-4 { margin-bottom: 16px; }
+.mt-1 {
+  margin-top: 4px;
+}
+
+.mt-2 {
+  margin-top: 8px;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
+
+.mb-1 {
+  margin-bottom: 4px;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
+}
 
 .flex {
   display: flex;
@@ -502,7 +633,9 @@ a {
   gap: 16px;
 }
 
-/* Loading */
+/* ==========================================
+   LOADING
+   ========================================== */
 .loading {
   display: flex;
   align-items: center;
@@ -511,24 +644,74 @@ a {
   color: var(--text-secondary);
 }
 
-/* Responsive */
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
 @media (max-width: 768px) {
   .container {
     padding: 16px;
   }
-  
+
   .card {
     padding: 16px;
+    border-radius: 12px;
   }
 }
 
-/* Loading Animations */
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(-8px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ==========================================
+   SCROLLBAR — Figma Style (subtle, thin)
+   ========================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
 }

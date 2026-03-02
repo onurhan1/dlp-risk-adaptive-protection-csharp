@@ -248,7 +248,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                                         borderRadius: '4px',
                                         background: 'rgba(245, 158, 11, 0.15)',
                                         color: '#f59e0b',
-                                        textTransform: 'uppercase' as const
+                                        textTransform: 'none' as const
                                       }}>
                                         Exception
                                       </span>
@@ -430,10 +430,10 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             <table style={{ width: '100%', fontSize: '14px' }}>
               <thead style={{ background: 'var(--background-secondary)' }}>
                 <tr>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Name</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Size</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Protected</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Classification</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Name</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Size</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Protected</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Classification</th>
                 </tr>
               </thead>
               <tbody style={{ borderTop: '1px solid var(--border)' }}>

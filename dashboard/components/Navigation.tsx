@@ -5,6 +5,16 @@ import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
 import { usePathname, useSearchParams } from 'next/navigation'
+import {
+  Sun,
+  Moon,
+  Settings,
+  FileText,
+  HelpCircle,
+  User,
+  LogOut,
+  ChevronDown,
+} from 'lucide-react'
 
 const getPageTitleKey = (pathname: string, search: string): string => {
   if (pathname === '/' || pathname === '') return 'nav.dashboard'
@@ -74,55 +84,24 @@ export default function Navigation() {
             <span className="lang-label">{locale === 'tr' ? 'TR' : 'EN'}</span>
           </button>
           <button onClick={toggleTheme} className="theme-toggle-btn" title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
-            {theme === 'dark' ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-              </svg>
-            )}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <div className="settings-menu-wrapper">
             <button className="settings-btn" title={t('nav.settings')} onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              </svg>
+              <Settings size={18} />
             </button>
             {settingsMenuOpen && (
               <div className="settings-dropdown">
                 <a href="/settings" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
+                  <Settings size={16} />
                   <span>{t('nav.settings')}</span>
                 </a>
                 <a href="/release-notes" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                  </svg>
+                  <FileText size={16} />
                   <span>{t('nav.releaseNotes')}</span>
                 </a>
                 <a href="/faq" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
+                  <HelpCircle size={16} />
                   <span>{t('nav.faq')}</span>
                 </a>
               </div>
@@ -131,23 +110,14 @@ export default function Navigation() {
           {username && (
             <div className="user-menu-wrapper">
               <button className="user-menu-trigger" onClick={() => setUserMenuOpen(!userMenuOpen)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
+                <User size={18} />
                 <span>{username}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="chevron-icon">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                <ChevronDown size={14} style={{ opacity: 0.6 }} />
               </button>
               {userMenuOpen && (
                 <div className="user-dropdown">
                   <button onClick={() => { logout(); setUserMenuOpen(false); }} className="dropdown-item">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                      <polyline points="16 17 21 12 16 7"></polyline>
-                      <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
+                    <LogOut size={16} />
                     <span>Logout</span>
                   </button>
                 </div>
@@ -161,7 +131,7 @@ export default function Navigation() {
           background: var(--surface);
           color: var(--text-primary);
           padding: 0;
-          box-shadow: var(--shadow);
+          box-shadow: none;
           border-bottom: 1px solid var(--border);
         }
         
@@ -175,71 +145,36 @@ export default function Navigation() {
         }
         
         .header-brand {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
           color: var(--text-primary);
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
         }
         
         .header-nav {
           display: flex;
-          gap: 8px;
+          gap: 6px;
           align-items: center;
-        }
-        
-        .nav-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: var(--text-secondary);
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          padding: 8px 16px;
-          border-radius: 6px;
-          transition: all 0.2s;
-        }
-        
-        .nav-item:hover {
-          background: var(--surface-hover);
-          color: var(--text-primary);
-        }
-        
-        .nav-item.active {
-          background: var(--surface-active);
-          color: var(--primary);
-        }
-        
-        .nav-item svg {
-          width: 18px;
-          height: 18px;
         }
 
         .theme-toggle-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 40px;
-          height: 40px;
-          background: var(--surface-hover);
+          width: 36px;
+          height: 36px;
+          background: transparent;
           border: 1px solid var(--border);
           border-radius: 8px;
           cursor: pointer;
-          color: var(--text-primary);
+          color: var(--text-muted);
           transition: all 0.2s;
-          margin-right: 12px;
         }
 
         .theme-toggle-btn:hover {
-          background: var(--surface-active);
-          border-color: var(--primary);
-          color: var(--primary);
-          transform: rotate(15deg);
-        }
-
-        .theme-toggle-btn svg {
-          width: 20px;
-          height: 20px;
+          background: var(--surface-hover);
+          color: var(--text-primary);
+          border-color: var(--border-hover);
         }
 
         .lang-toggle-btn {
@@ -247,23 +182,23 @@ export default function Navigation() {
           align-items: center;
           justify-content: center;
           gap: 6px;
-          height: 40px;
-          padding: 0 14px;
-          background: var(--surface-hover);
+          height: 36px;
+          padding: 0 12px;
+          background: transparent;
           border: 1px solid var(--border);
           border-radius: 8px;
           cursor: pointer;
-          color: var(--text-primary);
+          color: var(--text-muted);
           font-size: 13px;
           font-weight: 600;
           transition: all 0.2s;
-          margin-right: 4px;
+          font-family: 'Inter', sans-serif;
         }
 
         .lang-toggle-btn:hover {
-          background: var(--surface-active);
-          border-color: var(--primary);
-          color: var(--primary);
+          background: var(--surface-hover);
+          color: var(--text-primary);
+          border-color: var(--border-hover);
         }
 
         .lang-label {
@@ -274,42 +209,36 @@ export default function Navigation() {
 
         .settings-menu-wrapper {
           position: relative;
-          margin-right: 4px;
         }
 
         .settings-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 40px;
-          height: 40px;
-          background: var(--surface-hover);
+          width: 36px;
+          height: 36px;
+          background: transparent;
           border: 1px solid var(--border);
           border-radius: 8px;
           cursor: pointer;
-          color: var(--text-primary);
+          color: var(--text-muted);
           transition: all 0.2s;
         }
 
         .settings-btn:hover {
-          background: var(--surface-active);
-          border-color: var(--primary);
-          color: var(--primary);
-        }
-
-        .settings-btn svg {
-          width: 20px;
-          height: 20px;
+          background: var(--surface-hover);
+          color: var(--text-primary);
+          border-color: var(--border-hover);
         }
 
         .settings-dropdown {
           position: absolute;
-          top: calc(100% + 6px);
+          top: calc(100% + 8px);
           right: 0;
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: 8px;
-          box-shadow: var(--shadow-lg);
+          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
           min-width: 200px;
           padding: 4px;
           z-index: 1000;
@@ -322,13 +251,13 @@ export default function Navigation() {
 
         .settings-dropdown .dropdown-item:hover {
           background: var(--surface-hover);
-          color: var(--primary);
+          color: var(--text-primary);
         }
 
         .user-menu-wrapper {
           position: relative;
-          margin-left: 16px;
-          padding-left: 16px;
+          margin-left: 12px;
+          padding-left: 12px;
           border-left: 1px solid var(--border);
         }
 
@@ -336,42 +265,31 @@ export default function Navigation() {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: var(--surface-hover);
+          background: transparent;
           border: 1px solid var(--border);
           color: var(--text-primary);
-          padding: 8px 14px;
+          padding: 6px 12px;
           border-radius: 8px;
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
+          font-family: 'Inter', sans-serif;
         }
 
         .user-menu-trigger:hover {
-          background: var(--surface-active);
-          border-color: var(--primary);
-        }
-
-        .user-menu-trigger svg {
-          width: 20px;
-          height: 20px;
-          flex-shrink: 0;
-        }
-
-        .chevron-icon {
-          width: 14px !important;
-          height: 14px !important;
-          opacity: 0.6;
+          background: var(--surface-hover);
+          border-color: var(--border-hover);
         }
 
         .user-dropdown {
           position: absolute;
-          top: calc(100% + 6px);
+          top: calc(100% + 8px);
           right: 0;
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: 8px;
-          box-shadow: var(--shadow-lg);
+          box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
           min-width: 160px;
           padding: 4px;
           z-index: 1000;
@@ -391,22 +309,18 @@ export default function Navigation() {
           background: none;
           border: none;
           color: var(--text-primary);
-          padding: 10px 14px;
+          padding: 8px 12px;
           border-radius: 6px;
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
-          transition: all 0.2s;
+          transition: all 0.15s;
+          font-family: 'Inter', sans-serif;
         }
 
         .dropdown-item:hover {
           background: var(--surface-hover);
-          color: var(--danger);
-        }
-
-        .dropdown-item svg {
-          width: 16px;
-          height: 16px;
+          color: var(--danger, #EF4444);
         }
 
         @media (max-width: 768px) {
@@ -415,11 +329,7 @@ export default function Navigation() {
           }
           
           .header-nav {
-            gap: 6px;
-          }
-          
-          .nav-item span {
-            display: none;
+            gap: 4px;
           }
 
           .user-menu-wrapper {
@@ -428,10 +338,6 @@ export default function Navigation() {
           }
 
           .user-menu-trigger span {
-            display: none;
-          }
-
-          .chevron-icon {
             display: none;
           }
 

@@ -189,7 +189,7 @@ export default function ReleaseNotesPage() {
                                                 background: '#10b981',
                                                 padding: '2px 8px',
                                                 borderRadius: '10px',
-                                                textTransform: 'uppercase',
+                                                textTransform: 'none',
                                             }}>
                                                 {locale === 'tr' ? 'Güncel' : 'Latest'}
                                             </span>

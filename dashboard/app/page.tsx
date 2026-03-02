@@ -376,7 +376,7 @@ export default function Home() {
   return (
     <div className="dashboard-page" style={{ position: 'relative' }}>
       <LoadingOverlay isLoading={loading} message={t('common.loading')} />
-      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1>{t('dashboard.title')}</h1>
           <p className="dashboard-subtitle">{t('dashboard.subtitle')}</p>
@@ -384,22 +384,22 @@ export default function Home() {
         <button
           onClick={() => setShowReportModal(true)}
           style={{
-            padding: '10px 20px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-            color: 'white',
-            border: 'none',
+            padding: '8px 16px',
+            background: 'var(--surface)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
             borderRadius: '8px',
             cursor: 'pointer',
-            fontWeight: '600',
+            fontWeight: '500',
             fontSize: '14px',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            fontFamily: 'Inter, sans-serif',
           }}
         >
-          <FileBarChart size={18} /> {t('dashboard.dailyReport')}
+          <FileBarChart size={16} /> {t('dashboard.dailyReport')}
         </button>
       </div>
 
@@ -412,44 +412,53 @@ export default function Home() {
               {dateRange.start} — {dateRange.end}
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '32px', alignItems: 'center' }}>
             {/* Donut Chart */}
             <div style={{ height: '300px', position: 'relative' }}>
-              <Plot
-                data={[{
-                  values: [
-                    actionSummary.authorized,
-                    actionSummary.block,
-                    actionSummary.quarantine,
-                    actionSummary.released || 0,
-                  ],
-                  labels: ['AUTHORIZED', 'BLOCK', 'QUARANTINE', 'RELEASED'],
-                  type: 'pie',
-                  hole: 0.55,
-                  marker: {
-                    colors: ['#10b981', '#ef4444', '#a855f7', '#f59e0b'],
-                    line: { color: 'rgba(128,128,128,0.3)', width: 1 }
-                  },
-                  textinfo: 'none',
-                  hoverinfo: 'label+value+percent',
-                  sort: false,
-                }]}
-                layout={{
-                  margin: { t: 10, b: 10, l: 10, r: 10 },
-                  showlegend: false,
-                  paper_bgcolor: 'transparent',
-                  plot_bgcolor: 'transparent',
-                  annotations: [{
-                    text: `<b>${actionSummary.total}</b><br><span style="font-size:13px">${t('common.total')}</span>`,
-                    showarrow: false,
-                    font: { size: 24, color: plotTextPrimary },
-                    x: 0.5, y: 0.5,
-                  }],
-                  height: 300,
-                }}
-                config={{ displayModeBar: false, responsive: true }}
-                style={{ width: '100%', height: '100%' }}
-              />
+              {(() => {
+                const totalVal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0))
+                return (
+                  <Plot
+                    data={[{
+                      values: [
+                        actionSummary.authorized,
+                        actionSummary.block,
+                        actionSummary.quarantine,
+                        actionSummary.released || 0,
+                      ],
+                      labels: ['Authorized', 'Block', 'Quarantine', 'Released'],
+                      type: 'pie',
+                      hole: 0.6,
+                      marker: {
+                        colors: ['#10b981', '#ef4444', '#8b5cf6', '#f59e0b'],
+                        line: { color: 'white', width: 3 }
+                      },
+                      textinfo: 'percent',
+                      textposition: 'inside',
+                      textfont: { size: 13, color: '#ffffff', family: 'Inter, sans-serif' },
+                      hoverinfo: 'label+value+percent',
+                      sort: false,
+                      direction: 'clockwise',
+                      rotation: 90,
+                    }]}
+                    layout={{
+                      margin: { t: 10, b: 10, l: 10, r: 10 },
+                      showlegend: false,
+                      paper_bgcolor: 'transparent',
+                      plot_bgcolor: 'transparent',
+                      annotations: [{
+                        text: `<b style="font-size:28px">${totalVal}</b><br><span style="font-size:12px;color:${plotTextMuted}">Toplam</span>`,
+                        showarrow: false,
+                        font: { size: 28, color: plotTextPrimary, family: 'Inter, sans-serif' },
+                        x: 0.5, y: 0.5,
+                      }],
+                      height: 300,
+                    }}
+                    config={{ displayModeBar: false, responsive: true }}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                )
+              })()}
               {/* Clickable Total center overlay */}
               <div
                 onClick={() => fetchActionIncidents('TOTAL')}
@@ -468,36 +477,37 @@ export default function Home() {
               />
             </div>
 
-            {/* Action Cards Grid */}
+            {/* Action Cards Grid — Figma colored left-bar pattern */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
               {[
-                { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
-                { action: 'BLOCK', value: actionSummary.block, color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
-                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' },
-                { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
-              ].map(({ action, value, gradient }) => (
+                { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981' },
+                { action: 'BLOCK', value: actionSummary.block, color: '#ef4444' },
+                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7' },
+                { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b' },
+              ].map(({ action, value, color }) => (
                 <div
                   key={action}
                   onClick={() => fetchActionIncidents(action)}
                   style={{
-                    background: gradient,
-                    padding: '16px',
-                    borderRadius: '10px',
-                    color: 'white',
+                    background: 'var(--background)',
+                    padding: '16px 16px 16px 20px',
+                    borderRadius: '12px',
                     cursor: 'pointer',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    transition: 'all 0.2s',
+                    borderLeft: `4px solid ${color}`,
+                    border: '1px solid var(--border)',
+                    borderLeftWidth: '4px',
+                    borderLeftColor: color,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)'
-                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)'
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px', letterSpacing: '0.5px' }}>{action}</div>
-                  <div style={{ fontSize: '32px', fontWeight: '700' }}>{value}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: '500' }}>{action}</div>
+                  <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -510,10 +520,10 @@ export default function Home() {
       <div className="card">
         <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <TrendingUp size={28} style={{ color: '#3b82f6' }} /> {t('dashboard.dailyTrends')}
+            <h2 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TrendingUp size={20} style={{ color: '#3b82f6' }} /> {t('dashboard.dailyTrends')}
             </h2>
-            <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '15px' }}>
+            <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
               {t('dashboard.showing')} {dailySummary.length} {t('dashboard.days')} • {trendsDateRange.start} {t('common.to')} {trendsDateRange.end}
             </p>
           </div>
@@ -651,13 +661,13 @@ export default function Home() {
         })()}
       </div>
 
-      {/* Two Column Layout - Period Top Users & 24h Top Users */}
-      <div className="dashboard-grid">
+      {/* Two Column Layout - Period Top Users & 24h Top Users — STACKED */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
         {/* Top Risky Users with Period Selector */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
-            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Target size={20} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+              <Target size={18} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <select
@@ -696,11 +706,11 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '40%' }}>{t('common.user')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.riskScore')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.daysActive')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.incidents')}</th>
-                <th className="text-right" style={{ width: '18%' }}>{t('common.actions')}</th>
+                <th style={{ width: '35%', minWidth: '120px' }}>{t('common.user')}</th>
+                <th className="text-center" style={{ width: '12%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.riskScore')}</th>
+                <th className="text-center" style={{ width: '14%', minWidth: '80px', textAlign: 'center' }}>{t('dashboard.daysActive')}</th>
+                <th className="text-center" style={{ width: '14%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.incidents')}</th>
+                <th className="text-right" style={{ width: '25%', minWidth: '110px', textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -727,9 +737,9 @@ export default function Home() {
                         fontSize: '12px',
                         fontWeight: '600',
                         color: 'white',
-                        backgroundColor: user.risk_score >= 75 ? '#d32f2f' :
-                          user.risk_score >= 50 ? '#f57c00' :
-                            user.risk_score >= 25 ? '#fbc02d' : '#4caf50'
+                        backgroundColor: user.risk_score >= 75 ? '#ef4444' :
+                          user.risk_score >= 50 ? '#f59e0b' :
+                            user.risk_score >= 25 ? '#eab308' : '#10b981'
                       }}>
                         {Math.round(user.risk_score)}
                       </span>
@@ -779,11 +789,11 @@ export default function Home() {
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
-            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap size={20} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+              <Zap size={18} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '13px', backgroundColor: '#f57c00', padding: '10px 16px', borderRadius: '6px', color: 'white', fontWeight: '600', height: '36px', display: 'flex', alignItems: 'center' }}>Last 24 Hours</span>
+              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>Last 24 Hours</span>
               <GridExport
                 data={topUsers24h}
                 fileName="todays-active-users"
@@ -799,11 +809,11 @@ export default function Home() {
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '40%' }}>{t('common.user')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.riskScore')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.blocks')}</th>
-                <th className="text-center" style={{ width: '14%' }}>{t('dashboard.incidents')}</th>
-                <th className="text-right" style={{ width: '18%' }}>{t('common.actions')}</th>
+                <th style={{ width: '35%', minWidth: '120px' }}>{t('common.user')}</th>
+                <th className="text-center" style={{ width: '12%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.riskScore')}</th>
+                <th className="text-center" style={{ width: '14%', minWidth: '80px', textAlign: 'center' }}>{t('dashboard.blocks')}</th>
+                <th className="text-center" style={{ width: '14%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.incidents')}</th>
+                <th className="text-right" style={{ width: '25%', minWidth: '110px', textAlign: 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -830,9 +840,9 @@ export default function Home() {
                         fontSize: '12px',
                         fontWeight: '600',
                         color: 'white',
-                        backgroundColor: user.risk_score >= 75 ? '#d32f2f' :
-                          user.risk_score >= 50 ? '#f57c00' :
-                            user.risk_score >= 25 ? '#fbc02d' : '#4caf50'
+                        backgroundColor: user.risk_score >= 75 ? '#ef4444' :
+                          user.risk_score >= 50 ? '#f59e0b' :
+                            user.risk_score >= 25 ? '#eab308' : '#10b981'
                       }}>
                         {Math.round(user.risk_score)}
                       </span>
@@ -988,7 +998,7 @@ export default function Home() {
                 const percentage = maxCount > 0 ? (rule.total_alerts / maxCount) * 100 : 0
                 return (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ minWidth: '150px', fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.rule_name}>
+                    <div style={{ width: '220px', flexShrink: 0, fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.rule_name}>
                       {rule.rule_name}
                     </div>
                     <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -1019,7 +1029,7 @@ export default function Home() {
                 color: 'white'
               }}><ShieldAlert size={24} /></div>
               <div>
-                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '22px', fontWeight: '700' }}>{t('dashboard.potentialExfiltration')}</h2>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600' }}>{t('dashboard.potentialExfiltration')}</h2>
                 <p style={{ margin: '2px 0 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
                   {t('dashboard.highVolumeTransfer')}
                 </p>
@@ -1307,22 +1317,22 @@ export default function Home() {
         }
 
         .dashboard-header h1 {
-          font-size: 28px;
-          font-weight: 700;
+          font-size: 20px;
+          font-weight: 600;
           color: var(--text-primary);
-          margin: 0 0 8px 0;
-          letter-spacing: -0.02em;
+          margin: 0 0 4px 0;
+          letter-spacing: -0.01em;
         }
 
         .dashboard-subtitle {
-          font-size: 14px;
-          color: var(--text-secondary);
+          font-size: 13px;
+          color: var(--text-muted);
           margin: 0;
         }
 
         .dashboard-filters {
           display: flex;
-          gap: 16px;
+          gap: 12px;
           margin-bottom: 24px;
           flex-wrap: wrap;
           align-items: flex-end;
@@ -1336,73 +1346,50 @@ export default function Home() {
 
         .filter-group label {
           font-size: 12px;
-          color: var(--text-secondary);
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          color: var(--text-muted);
+          font-weight: 500;
         }
 
         .filter-input,
         .filter-select {
-          padding: 10px 14px;
+          padding: 8px 12px;
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: 8px;
           font-size: 14px;
           background: var(--surface);
           color: var(--text-primary);
-          min-width: 180px;
+          min-width: 140px;
           transition: all 0.2s;
+          font-family: 'Inter', sans-serif;
         }
 
         .filter-input:focus,
         .filter-select:focus {
           outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(0, 168, 232, 0.1);
-        }
-
-        .download-btn {
-          background-color: var(--primary);
-          color: white;
-          padding: 10px 20px;
-          border: none;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          margin-left: auto;
-          box-shadow: 0 2px 8px rgba(0, 168, 232, 0.3);
-        }
-
-        .download-btn:hover {
-          background-color: var(--primary-dark);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(0, 168, 232, 0.4);
+          border-color: var(--text-muted);
+          box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
         }
 
         .card {
           background: var(--surface);
-          border-radius: 6px;
+          border-radius: 16px;
           padding: 24px;
-          box-shadow: var(--shadow);
-          border: 1px solid var(--border);
+          box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+          border: none;
           margin-bottom: 24px;
-          transition: all 0.2s;
+          transition: box-shadow 0.2s;
         }
 
         .card:hover {
-          box-shadow: var(--shadow-md);
-          border-color: var(--border-hover);
-          transform: translateY(-2px);
+          box-shadow: 0 4px 12px -1px rgba(15, 23, 42, 0.08);
         }
 
         .card h2 {
           margin: 0 0 16px 0;
           color: var(--text-primary);
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
         }
 
         .dashboard-grid {
@@ -1426,29 +1413,34 @@ export default function Home() {
         }
 
         .total-label {
-          font-size: 14px;
-          color: #666;
+          font-size: 13px;
+          color: var(--text-muted);
         }
 
         .data-table {
           width: 100%;
-          border-collapse: collapse;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+
+        .card {
+          overflow-x: auto;
         }
 
         .data-table th {
-          background: var(--background-secondary);
-          padding: 12px;
+          background: var(--surface-hover);
+          padding: 10px 16px;
           text-align: left;
-          font-size: 11px;
-          font-weight: 700;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          border-bottom: 2px solid var(--border);
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-muted);
+          text-transform: none;
+          letter-spacing: 0;
+          border-bottom: 1px solid var(--border);
         }
 
         .data-table td {
-          padding: 12px;
+          padding: 10px 16px;
           border-bottom: 1px solid var(--border);
           font-size: 14px;
           color: var(--text-primary);
@@ -1456,6 +1448,10 @@ export default function Home() {
 
         .data-table tr:hover {
           background: var(--surface-hover);
+        }
+
+        .data-table tr:last-child td {
+          border-bottom: none;
         }
 
         .user-cell {
@@ -1475,17 +1471,17 @@ export default function Home() {
         .loading-cell,
         .empty-cell {
           text-align: center;
-          color: #999;
+          color: var(--text-muted);
           padding: 40px !important;
         }
 
         .chart-header {
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
 
         .chart-subtitle {
-          font-size: 14px;
-          color: #666;
+          font-size: 13px;
+          color: var(--text-muted);
           margin: 4px 0 0 0;
         }
 
@@ -1501,16 +1497,11 @@ export default function Home() {
           }
 
           .dashboard-header h1 {
-            font-size: 24px;
+            font-size: 18px;
           }
 
           .dashboard-filters {
             flex-direction: column;
-          }
-
-          .download-btn {
-            margin-left: 0;
-            width: 100%;
           }
         }
       `}</style>

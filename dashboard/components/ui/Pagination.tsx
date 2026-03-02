@@ -1,6 +1,12 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
+import {
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+} from 'lucide-react'
 
 export interface PaginationProps {
     currentPage: number
@@ -29,10 +35,10 @@ export interface PaginationProps {
 }
 
 const defaultLabels = {
-    first: '⏮',
-    previous: '◀',
-    next: '▶',
-    last: '⏭',
+    first: 'İlk',
+    previous: 'Önceki',
+    next: 'Sonraki',
+    last: 'Son',
     page: 'Sayfa',
     of: '/',
     totalItems: 'toplam kayıt',
@@ -74,69 +80,83 @@ export default function Pagination({
 
     if (totalPages <= 1 && !showTotalItems) return null
 
-    // Generate visible page numbers
-    const getPageNumbers = (): (number | '...')[] => {
-        if (totalPages <= 7) {
-            return Array.from({ length: totalPages }, (_, i) => i + 1)
-        }
+    // Button base classes
+    const btnBase = `p-2 rounded-lg transition-colors flex items-center justify-center`
+    const btnEnabled = `text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F1F5F9] hover:bg-[#F8FAFC] dark:hover:bg-[#334155] cursor-pointer`
+    const btnDisabled = `opacity-30 cursor-not-allowed text-[#64748B] dark:text-[#94A3B8]`
 
-        const pages: (number | '...')[] = [1]
-
-        if (currentPage > 3) pages.push('...')
-
-        const start = Math.max(2, currentPage - 1)
-        const end = Math.min(totalPages - 1, currentPage + 1)
-
-        for (let i = start; i <= end; i++) {
-            pages.push(i)
-        }
-
-        if (currentPage < totalPages - 2) pages.push('...')
-
-        if (totalPages > 1) pages.push(totalPages)
-
-        return pages
-    }
+    const iconSize = compact ? 14 : 16
 
     return (
         <div style={{
             display: 'flex',
-            flexDirection: compact ? 'row' : 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: compact ? '8px' : '16px',
-            padding: '12px 0',
+            gap: '12px',
+            paddingTop: '16px',
             borderTop: '1px solid var(--border)',
-            marginTop: '12px',
+            marginTop: '16px',
             flexWrap: 'wrap',
-            fontSize: compact ? '11px' : '12px',
         }}>
-            {/* Left: Total items info */}
-            {showTotalItems && totalItems !== undefined && (
-                <div style={{
-                    color: 'var(--text-muted)',
-                    fontSize: compact ? '11px' : '12px',
-                    whiteSpace: 'nowrap',
-                }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>{totalItems.toLocaleString()}</strong> {labels.totalItems}
-                </div>
-            )}
-
-            {/* Center: Navigation */}
+            {/* Left: Page info & total */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: compact ? '2px' : '4px',
+                gap: '12px',
+                fontSize: '13px',
+                color: 'var(--text-muted)',
             }}>
+                <span>
+                    {labels.page} {currentPage} {labels.of} {totalPages}
+                </span>
+                {showTotalItems && totalItems !== undefined && (
+                    <span>
+                        · <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{totalItems.toLocaleString()}</strong> {labels.totalItems}
+                    </span>
+                )}
+            </div>
+
+            {/* Right: Navigation */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+            }}>
+                {/* Page size selector */}
+                {showPageSizeSelector && onPageSizeChange && pageSize && (
+                    <select
+                        value={pageSize}
+                        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                        style={{
+                            padding: '4px 8px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--surface)',
+                            color: 'var(--text-primary)',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            marginRight: '8px',
+                            fontFamily: 'Inter, sans-serif',
+                        }}
+                    >
+                        {pageSizeOptions.map((size) => (
+                            <option key={size} value={size}>
+                                {size} / {labels.page}
+                            </option>
+                        ))}
+                    </select>
+                )}
+
                 {/* First page */}
                 {showFirstLast && !compact && (
                     <button
                         disabled={currentPage <= 1}
                         onClick={() => onPageChange(1)}
-                        style={navButtonStyle(currentPage <= 1, compact)}
-                        title="İlk Sayfa"
+                        className={`${btnBase} ${currentPage <= 1 ? btnDisabled : btnEnabled}`}
+                        title={labels.first}
                     >
-                        {labels.first}
+                        <ChevronsLeft size={iconSize} />
                     </button>
                 )}
 
@@ -144,48 +164,57 @@ export default function Pagination({
                 <button
                     disabled={currentPage <= 1}
                     onClick={() => onPageChange(currentPage - 1)}
-                    style={navButtonStyle(currentPage <= 1, compact)}
-                    title="Önceki"
+                    className={`${btnBase} ${currentPage <= 1 ? btnDisabled : btnEnabled}`}
+                    title={labels.previous}
                 >
-                    {labels.previous}
+                    <ChevronLeft size={iconSize} />
                 </button>
 
-                {/* Page numbers */}
-                {!compact && totalPages > 1 && getPageNumbers().map((page, idx) => (
-                    page === '...' ? (
-                        <span key={`dots-${idx}`} style={{
-                            padding: '0 4px',
+                {/* Page input */}
+                {showPageInput && totalPages > 1 && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        margin: '0 4px',
+                    }}>
+                        <span style={{
+                            fontSize: '13px',
                             color: 'var(--text-muted)',
-                            fontSize: '12px',
-                        }}>…</span>
-                    ) : (
-                        <button
-                            key={page}
-                            onClick={() => onPageChange(page)}
+                        }}>
+                            {labels.goToPage}
+                        </span>
+                        <input
+                            type="number"
+                            min={1}
+                            max={totalPages}
+                            placeholder={`${currentPage}`}
+                            value={pageInput}
+                            onChange={(e) => setPageInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onBlur={handlePageInput}
                             style={{
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                border: currentPage === page ? '1px solid #3b82f6' : '1px solid transparent',
-                                background: currentPage === page ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                color: currentPage === page ? '#3b82f6' : 'var(--text-primary)',
-                                fontWeight: currentPage === page ? '700' : '400',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                minWidth: '32px',
+                                width: '48px',
+                                padding: '4px 6px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)',
+                                background: 'var(--surface)',
+                                color: 'var(--text-primary)',
+                                fontSize: '13px',
+                                textAlign: 'center',
+                                outline: 'none',
+                                fontFamily: 'Inter, sans-serif',
                             }}
-                        >
-                            {page}
-                        </button>
-                    )
-                ))}
+                        />
+                    </div>
+                )}
 
                 {/* Compact: Page X / Y display */}
-                {compact && (
+                {compact && !showPageInput && (
                     <span style={{
                         padding: '0 8px',
                         color: 'var(--text-muted)',
-                        fontSize: '12px',
+                        fontSize: '13px',
                         whiteSpace: 'nowrap',
                     }}>
                         {currentPage} {labels.of} {totalPages}
@@ -196,10 +225,10 @@ export default function Pagination({
                 <button
                     disabled={currentPage >= totalPages}
                     onClick={() => onPageChange(currentPage + 1)}
-                    style={navButtonStyle(currentPage >= totalPages, compact)}
-                    title="Sonraki"
+                    className={`${btnBase} ${currentPage >= totalPages ? btnDisabled : btnEnabled}`}
+                    title={labels.next}
                 >
-                    {labels.next}
+                    <ChevronRight size={iconSize} />
                 </button>
 
                 {/* Last page */}
@@ -207,114 +236,13 @@ export default function Pagination({
                     <button
                         disabled={currentPage >= totalPages}
                         onClick={() => onPageChange(totalPages)}
-                        style={navButtonStyle(currentPage >= totalPages, compact)}
-                        title="Son Sayfa"
+                        className={`${btnBase} ${currentPage >= totalPages ? btnDisabled : btnEnabled}`}
+                        title={labels.last}
                     >
-                        {labels.last}
+                        <ChevronsRight size={iconSize} />
                     </button>
-                )}
-            </div>
-
-            {/* Right: Page input & page size */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-            }}>
-                {/* Direct page input */}
-                {showPageInput && totalPages > 1 && (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                    }}>
-                        <input
-                            type="number"
-                            min={1}
-                            max={totalPages}
-                            placeholder={`${currentPage}`}
-                            value={pageInput}
-                            onChange={(e) => setPageInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            style={{
-                                width: compact ? '40px' : '50px',
-                                padding: '4px 6px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--text-primary)',
-                                fontSize: '12px',
-                                textAlign: 'center',
-                                outline: 'none',
-                            }}
-                        />
-                        <button
-                            onClick={handlePageInput}
-                            style={{
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--text-primary)',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                            }}
-                        >
-                            {labels.goToPage}
-                        </button>
-                    </div>
-                )}
-
-                {/* Page size selector */}
-                {showPageSizeSelector && onPageSizeChange && pageSize && (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                    }}>
-                        <select
-                            value={pageSize}
-                            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                            style={{
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--text-primary)',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                outline: 'none',
-                            }}
-                        >
-                            {pageSizeOptions.map((size) => (
-                                <option key={size} value={size}>
-                                    {size}
-                                </option>
-                            ))}
-                        </select>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                            / {labels.page}
-                        </span>
-                    </div>
                 )}
             </div>
         </div>
     )
-}
-
-// Navigation button style helper
-function navButtonStyle(disabled: boolean, compact: boolean): React.CSSProperties {
-    return {
-        padding: compact ? '4px 6px' : '4px 10px',
-        borderRadius: '6px',
-        border: '1px solid var(--border)',
-        background: disabled ? 'var(--surface)' : 'var(--background)',
-        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: compact ? '10px' : '12px',
-        transition: 'all 0.15s ease',
-        opacity: disabled ? 0.5 : 1,
-        lineHeight: 1,
-    }
 }

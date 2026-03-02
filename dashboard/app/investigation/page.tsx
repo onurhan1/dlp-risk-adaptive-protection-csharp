@@ -428,7 +428,7 @@ function InvestigationPageContent() {
                 </div>
               ) : (
                 <>
-                  <div style={{ padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                  <div style={{ padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px', gap: '12px' }}>
                       <span>Risk</span>
                       <span>User</span>

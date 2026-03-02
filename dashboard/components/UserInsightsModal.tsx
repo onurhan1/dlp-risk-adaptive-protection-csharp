@@ -75,7 +75,7 @@ export default function UserInsightsModal({
     const [data, setData] = useState<ComprehensiveInsights | null>(null)
     const [activePeriod, setActivePeriod] = useState<PeriodFilter>('monthly')
     const [error, setError] = useState<string | null>(null)
-    
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
     const pageSize = 10
@@ -186,7 +186,7 @@ export default function UserInsightsModal({
                 <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, var(--surface) 0%, var(--background-secondary) 100%)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>User Risk Insights</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>User Risk Insights</div>
                             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.fullName || userName || userEmail}</h2>
                             {(data?.fullName || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
                         </div>
@@ -216,17 +216,17 @@ export default function UserInsightsModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📊 Period Averages Comparison</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>Weekly Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Weekly Avg</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.weekly.avgScore) }}>{data.periodAverages.weekly.avgScore.toFixed(1)}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.weekly.totalIncidents} incidents</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>Monthly Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Monthly Avg</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.monthly.avgScore) }}>{data.periodAverages.monthly.avgScore.toFixed(1)}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.monthly.totalIncidents} incidents</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>3-Month Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>3-Month Avg</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.periodAverages.quarterly.avgScore) }}>{data.periodAverages.quarterly.avgScore.toFixed(1)}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.periodAverages.quarterly.totalIncidents} incidents</div>
                                     </div>
@@ -236,22 +236,22 @@ export default function UserInsightsModal({
                             {/* Summary Cards */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Avg Daily Score</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Avg Daily Score</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: getRiskColor(data.summary.avgDailyScore) }}>{data.summary.avgDailyScore.toFixed(1)}</div>
                                     <div style={{ marginTop: '8px', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', display: 'inline-block', background: `${getRiskColor(data.summary.avgDailyScore)}20`, color: getRiskColor(data.summary.avgDailyScore) }}>{getRiskLevel(data.summary.avgDailyScore)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Total Incidents</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Total Incidents</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text-primary)' }}>{data.summary.totalIncidents.toLocaleString()}</div>
                                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>in {periodLabels[activePeriod].toLowerCase()}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Max Matches</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Max Matches</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: data.summary.maxMaxMatches > 100 ? '#dc2626' : 'var(--text-primary)' }}>{data.summary.maxMaxMatches.toLocaleString()}</div>
                                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {data.summary.avgMaxMatches.toFixed(1)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Trend</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Trend</div>
                                     <div style={{ fontSize: '36px' }}>{trendDirection === 'up' ? '📈' : trendDirection === 'down' ? '📉' : '➡️'}</div>
                                     <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: '600', color: trendDirection === 'up' ? '#ef4444' : trendDirection === 'down' ? '#10b981' : 'var(--text-secondary)' }}>{trendDirection === 'up' ? 'Increasing' : trendDirection === 'down' ? 'Decreasing' : 'Stable'}</div>
                                 </div>
@@ -340,7 +340,7 @@ export default function UserInsightsModal({
                                             ))}
                                         </tbody>
                                     </table>
-                                    
+
                                     {/* Pagination */}
                                     {data.dailyScores.length > pageSize && (
                                         <div style={{ marginTop: '16px' }}>

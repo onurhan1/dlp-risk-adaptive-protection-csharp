@@ -147,16 +147,16 @@ export default function LogsTab() {
             <div style={{ background: 'var(--background)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '12px' }}>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Start Date</label>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Start Date</label>
                         <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>End Date</label>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>End Date</label>
                         <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={inputStyle} />
                     </div>
                     {activeTab === 'audit' && (
                         <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Event Type</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Event Type</label>
                             <select value={eventType} onChange={(e) => setEventType(e.target.value)} style={{ ...inputStyle, minWidth: '150px' }}>
                                 <option value="">All Types</option>
                                 {eventTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -165,7 +165,7 @@ export default function LogsTab() {
                     )}
                     {activeTab === 'application' && (
                         <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Level</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Level</label>
                             <select value={appLevel} onChange={(e) => setAppLevel(e.target.value)} style={{ ...inputStyle, minWidth: '150px' }}>
                                 <option value="">All Levels</option>
                                 <option value="Information">Information</option>
@@ -192,11 +192,11 @@ export default function LogsTab() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                             <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Time</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Type</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Action</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Status</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Time</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Type</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>User</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Action</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -217,10 +217,10 @@ export default function LogsTab() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                             <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Time</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Level</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Category</th>
-                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Message</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Time</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Level</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Category</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Message</th>
                             </tr>
                         </thead>
                         <tbody>

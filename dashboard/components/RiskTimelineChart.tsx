@@ -125,10 +125,10 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
 
   const getRiskColor = (score: number): string => {
     // Updated thresholds for normalized 0-100 scale
-    if (score >= 75) return '#d32f2f'  // Critical (750-1000 in 1000-scale)
-    if (score >= 50) return '#f57c00'  // High (500-749)
-    if (score >= 25) return '#fbc02d'  // Medium (250-499)
-    return '#4caf50'  // Low (0-249)
+    if (score >= 75) return '#ef4444'  // Critical (750-1000 in 1000-scale)
+    if (score >= 50) return '#f59e0b'  // High (500-749)
+    if (score >= 25) return '#eab308'  // Medium (250-499)
+    return '#10b981'  // Low (0-249)
   }
 
   if (loading) {
@@ -145,7 +145,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
       type: 'scatter',
       mode: 'lines+markers',
       name: 'Total Incidents',
-      line: { color: '#1976d2', width: 3 },
+      line: { color: '#3b82f6', width: 3 },
       marker: { size: 8 }
     })
   }
@@ -217,7 +217,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
               <tbody>
                 {topUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                       No data available
                     </td>
                   </tr>
@@ -273,7 +273,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
               <tbody>
                 {topRules.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                       No data available
                     </td>
                   </tr>
@@ -281,10 +281,10 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
                   topRules.map((rule, idx) => (
                     <tr key={idx}>
                       <td>{idx + 1}</td>
-                      <td style={{ color: '#f57c00', fontWeight: '500' }}>{rule.rule_name}</td>
+                      <td style={{ color: '#f59e0b', fontWeight: '500' }}>{rule.rule_name}</td>
                       <td>
                         <span style={{
-                          backgroundColor: '#f57c00',
+                          backgroundColor: '#f59e0b',
                           color: 'white',
                           padding: '2px 8px',
                           borderRadius: '12px',
@@ -399,12 +399,10 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
 
         .users-table th,
         .rules-table th {
-          background: var(--background-secondary);
+          background: var(--surface-hover);
           font-weight: 600;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          font-size: 11px;
-          letter-spacing: 0.5px;
+          color: var(--text-muted);
+          font-size: 12px;
         }
 
         .users-table tr:hover,

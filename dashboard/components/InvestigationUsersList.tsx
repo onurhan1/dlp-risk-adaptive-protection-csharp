@@ -103,8 +103,8 @@ export default function InvestigationUsersList({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, flex: 1 }}>
       {/* Table Header */}
       <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Risk</span>
-        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>User</span>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Risk</span>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>User</span>
       </div>
 
       {/* User List */}

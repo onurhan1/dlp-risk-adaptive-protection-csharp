@@ -89,7 +89,7 @@ export default function GridFilters({
                         fontSize: '10px',
                         fontWeight: '600',
                         color: 'var(--text-muted)',
-                        textTransform: 'uppercase',
+                        textTransform: 'none',
                         letterSpacing: '0.05em',
                     }}>
                         {filter.label}

@@ -45,8 +45,8 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
     switch (action.toLowerCase()) {
       case 'block': return '#f44336'
       case 'encrypt': return '#ff9800'
-      case 'confirm prompt': return '#2196f3'
-      default: return '#4caf50'
+      case 'confirm prompt': return '#3b82f6'
+      default: return '#10b981'
     }
   }
 
@@ -54,7 +54,7 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
     <div className="policy-recommendation">
       <div className="recommendation-header">
         <span className="label">Recommended Action:</span>
-        <span 
+        <span
           className="action-badge"
           style={{ backgroundColor: getActionColor(recommendation.recommended_action) }}
         >
@@ -67,7 +67,7 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
       <style jsx>{`
         .policy-recommendation {
           padding: 12px;
-          background: #f5f5f5;
+          background: var(--surface-hover);
           border-radius: 4px;
           margin-top: 8px;
         }
@@ -79,7 +79,7 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
         }
         .label {
           font-size: 12px;
-          color: #666;
+          color: var(--text-muted);
           font-weight: 500;
         }
         .action-badge {
@@ -91,7 +91,7 @@ export default function PolicyRecommendation({ riskScore, riskLevel, channel, us
         }
         .recommendation-desc {
           font-size: 11px;
-          color: #666;
+          color: var(--text-muted);
           font-style: italic;
         }
       `}</style>

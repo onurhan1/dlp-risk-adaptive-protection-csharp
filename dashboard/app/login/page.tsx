@@ -102,11 +102,7 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="login-header">
           <div className="login-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2 17L12 22L22 17" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2 12L12 17L22 12" stroke="#283593" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <img src="/radar-karanlik.png" alt="RADAR" style={{ width: '64px', height: '64px', objectFit: 'contain' }} />
           </div>
           <h1>RADAR</h1>
           <p className="login-subtitle">Risk Adaptive Protection</p>
@@ -184,11 +180,11 @@ export default function LoginPage() {
         }
 
         :global(.dark-theme) .login-container {
-          background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 50%, #1a1f2e 100%);
+          background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
         }
 
         :global(.light-theme) .login-container {
-          background: linear-gradient(135deg, #f5f7fa 0%, #e2e8f0 50%, #f5f7fa 100%);
+          background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 50%, #F8FAFC 100%);
         }
 
         .login-container::before {
@@ -203,20 +199,20 @@ export default function LoginPage() {
         }
 
         :global(.dark-theme) .login-container::before {
-          background: radial-gradient(circle at 20% 50%, rgba(0, 168, 232, 0.1) 0%, transparent 50%),
-                      radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
+          background: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
         }
 
         :global(.light-theme) .login-container::before {
-          background: radial-gradient(circle at 20% 50%, rgba(0, 168, 232, 0.05) 0%, transparent 50%),
-                      radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%);
+          background: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
+                      radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 50%);
         }
 
         .login-card {
           background: var(--surface);
-          border-radius: 12px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-          border: 1px solid var(--border);
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(15, 23, 42, 0.15);
+          border: none;
           padding: 48px;
           width: 100%;
           max-width: 420px;
@@ -236,7 +232,7 @@ export default function LoginPage() {
         }
 
         .login-header h1 {
-          font-size: 28px;
+          font-size: 24px;
           font-weight: 700;
           color: var(--text-primary);
           margin: 0 0 8px 0;
@@ -245,7 +241,7 @@ export default function LoginPage() {
 
         .login-subtitle {
           font-size: 14px;
-          color: var(--text-secondary);
+          color: var(--text-muted);
           margin: 0;
         }
 
@@ -258,31 +254,30 @@ export default function LoginPage() {
         .form-group {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
 
         .form-group label {
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-muted);
         }
 
         .form-group input {
-          padding: 12px 16px;
+          padding: 10px 14px;
           border: 1px solid var(--border);
           border-radius: 8px;
-          font-size: 16px;
-          background: var(--background-secondary);
+          font-size: 14px;
+          background: var(--background);
           color: var(--text-primary);
-          transition: all 0.3s;
+          transition: all 0.2s;
+          font-family: 'Inter', sans-serif;
         }
 
         .form-group input:focus {
           outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(0, 168, 232, 0.1);
+          border-color: var(--text-muted);
+          box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
         }
 
         .form-group input::placeholder {
@@ -290,18 +285,24 @@ export default function LoginPage() {
         }
 
         .form-group input:disabled {
-          background-color: #f5f5f5;
+          opacity: 0.5;
           cursor: not-allowed;
         }
 
         .error-message {
-          background-color: rgba(217, 83, 79, 0.1);
-          color: #d9534f;
+          background-color: #FEF2F2;
+          color: #EF4444;
           padding: 12px;
           border-radius: 8px;
-          font-size: 14px;
+          font-size: 13px;
           text-align: center;
-          border: 1px solid rgba(217, 83, 79, 0.3);
+          border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        :global(.dark-theme) .error-message {
+          background-color: #450a0a;
+          color: #FCA5A5;
+          border-color: rgba(239, 68, 68, 0.3);
         }
 
         .form-options {
@@ -316,7 +317,7 @@ export default function LoginPage() {
           align-items: center;
           gap: 8px;
           cursor: pointer;
-          color: #666;
+          color: var(--text-muted);
         }
 
         .checkbox-label input {
@@ -326,39 +327,38 @@ export default function LoginPage() {
         .forgot-password {
           background: none;
           border: none;
-          color: #283593;
+          color: var(--text-muted);
           cursor: pointer;
-          font-size: 14px;
-          text-decoration: underline;
+          font-size: 13px;
           padding: 0;
+          font-family: 'Inter', sans-serif;
         }
 
         .forgot-password:hover {
-          color: #3949ab;
+          color: var(--text-primary);
+          text-decoration: underline;
         }
 
         .login-button {
-          background-color: var(--primary);
-          color: white;
-          padding: 14px;
+          background-color: var(--text-primary);
+          color: var(--background);
+          padding: 12px;
           border: none;
           border-radius: 8px;
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.3s;
+          transition: opacity 0.2s;
           margin-top: 8px;
-          box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
+          font-family: 'Inter', sans-serif;
         }
 
         .login-button:hover:not(:disabled) {
-          background-color: var(--primary-dark);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(0, 168, 232, 0.4);
+          opacity: 0.9;
         }
 
         .login-button:disabled {
-          background-color: #9fa8da;
+          opacity: 0.5;
           cursor: not-allowed;
         }
 
@@ -375,7 +375,7 @@ export default function LoginPage() {
           }
 
           .login-header h1 {
-            font-size: 24px;
+            font-size: 20px;
           }
         }
       `}</style>

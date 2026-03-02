@@ -110,7 +110,7 @@ export default function EntityDetailModal({
     const [selectedZScore, setSelectedZScore] = useState<{ key: string; detail: ZScoreDetail } | null>(null)
     const [showAllReferenceIncidents, setShowAllReferenceIncidents] = useState(false)
     const [hoveredIncident, setHoveredIncident] = useState<IncidentSummary | null>(null)
-    
+
     // Pagination for incidents tab
     const [incidentsPage, setIncidentsPage] = useState(1)
     const incidentsPageSize = 10
@@ -250,7 +250,7 @@ export default function EntityDetailModal({
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>
                                 {entityType} Analysis
                             </div>
                             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
@@ -291,7 +291,7 @@ export default function EntityDetailModal({
                             >
                                 {view === 'overview' ? '📊 Overview' :
                                     view === 'trends' ? '📈 Trends' :
-                                            '📋 Incidents'}
+                                        '📋 Incidents'}
                             </button>
                         ))}
                     </div>
@@ -318,7 +318,7 @@ export default function EntityDetailModal({
                                 padding: '24px',
                                 border: '1px solid var(--border)'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     Risk Assessment
                                 </h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -351,7 +351,7 @@ export default function EntityDetailModal({
                                             fontSize: '20px',
                                             fontWeight: '700',
                                             color: getRiskColor(data.riskScore),
-                                            textTransform: 'uppercase'
+                                            textTransform: 'none'
                                         }}>
                                             {data.anomalyLevel} RISK
                                         </div>
@@ -401,7 +401,7 @@ export default function EntityDetailModal({
                                                 fontSize: '12px',
                                                 fontWeight: '600',
                                                 color: getRiskColor(weeklyData.riskScore),
-                                                textTransform: 'uppercase'
+                                                textTransform: 'none'
                                             }}>
                                                 {weeklyData.anomalyLevel}
                                             </div>
@@ -451,7 +451,7 @@ export default function EntityDetailModal({
                                 padding: '24px',
                                 border: '1px solid var(--border)'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     Action Breakdown
                                 </h3>
                                 {Object.keys(data.actionCounts).length > 0 ? (
@@ -486,7 +486,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)',
                                 gridColumn: 'span 2'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     Z-Score Analysis <span style={{ fontSize: '11px', fontWeight: 'normal' }}>(click for details)</span>
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
@@ -604,7 +604,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)',
                                 gridColumn: 'span 2'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     🤖 AI Analysis
                                 </h3>
                                 <div style={{ marginBottom: '16px' }}>
@@ -630,7 +630,7 @@ export default function EntityDetailModal({
                                     border: '1px solid var(--border)',
                                     gridColumn: 'span 2'
                                 }}>
-                                    <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                         📋 Reference Incidents ({data.topIncidents.length})
                                     </h3>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', position: 'relative' }}>
@@ -732,27 +732,27 @@ export default function EntityDetailModal({
                                             </div>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Login</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Login</div>
                                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.loginName}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Channel</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Channel</div>
                                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{hoveredIncident.channel}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Action</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Action</div>
                                                     <div style={{
                                                         fontWeight: '700',
                                                         color: ACTION_COLORS[hoveredIncident.action] || 'var(--text-primary)'
                                                     }}>{hoveredIncident.action}</div>
                                                 </div>
                                                 <div>
-                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Max Matches</div>
+                                                    <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Max Matches</div>
                                                     <div style={{ fontWeight: '700', color: hoveredIncident.maxMatches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{hoveredIncident.maxMatches.toLocaleString()}</div>
                                                 </div>
                                             </div>
                                             <div style={{ marginTop: '12px' }}>
-                                                <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'uppercase' }}>Destination</div>
+                                                <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Destination</div>
                                                 <div style={{ fontWeight: '600', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{hoveredIncident.destination}</div>
                                             </div>
                                         </div>
@@ -769,7 +769,7 @@ export default function EntityDetailModal({
                                 padding: '24px',
                                 border: '1px solid var(--border)'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     📊 Weekly Incidents <span style={{ fontWeight: 'normal', fontSize: '12px' }}>(click week for daily details)</span>
                                 </h3>
                                 {data.weeklyTrends.length > 0 ? (
@@ -862,7 +862,7 @@ export default function EntityDetailModal({
                                 padding: '24px',
                                 border: '1px solid var(--border)'
                             }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                     📈 Monthly Trend
                                 </h3>
                                 {data.monthlyTrends.length > 0 ? (
@@ -890,7 +890,7 @@ export default function EntityDetailModal({
                                     padding: '24px',
                                     border: '1px solid var(--border)'
                                 }}>
-                                    <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                         🎯 Top Destinations
                                     </h3>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
@@ -925,19 +925,19 @@ export default function EntityDetailModal({
                             padding: '24px',
                             border: '1px solid var(--border)'
                         }}>
-                            <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
                                 📋 Top Incidents (by matches)
                             </h3>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>#</th>
-                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>User</th>
-                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Destination</th>
-                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Channel</th>
-                                        <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Action</th>
-                                        <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Matches</th>
-                                        <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>#</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>User</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>Destination</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>Channel</th>
+                                        <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>Action</th>
+                                        <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>Matches</th>
+                                        <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', color: 'var(--text-muted)', textTransform: 'none' }}>Date</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -971,7 +971,7 @@ export default function EntityDetailModal({
                                     ))}
                                 </tbody>
                             </table>
-                            
+
                             {/* Pagination */}
                             {data.topIncidents.length > incidentsPageSize && (
                                 <div style={{ marginTop: '16px' }}>
