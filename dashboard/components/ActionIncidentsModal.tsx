@@ -5,6 +5,7 @@ import axios from 'axios'
 import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
+import { Loader2, Inbox, Calendar } from 'lucide-react'
 
 interface ActionIncident {
     login_name: string
@@ -442,7 +443,7 @@ export default function ActionIncidentsModal({
                         backgroundColor: 'var(--background-secondary)',
                         borderRadius: '8px'
                     }}>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>📅 Date Range:</span>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Date Range:</span>
                         {isSingleDayMode ? (
                             <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
                                 {new Date(dateRange.start).toLocaleDateString('en-US', {
@@ -541,7 +542,8 @@ export default function ActionIncidentsModal({
                             color: 'var(--text-muted)'
                         }}>
                             <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
+                                <Loader2 size={32} style={{ marginBottom: '12px', animation: 'spin 1s linear infinite' }} />
+                                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                                 Loading incidents...
                             </div>
                         </div>
@@ -554,7 +556,7 @@ export default function ActionIncidentsModal({
                             padding: '60px',
                             color: 'var(--text-muted)'
                         }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+                            <Inbox size={48} style={{ marginBottom: '16px', opacity: 0.4 }} />
                             <div style={{ fontSize: '16px', fontWeight: '500' }}>No {action.toLowerCase()} incidents found</div>
                             <div style={{ fontSize: '13px', marginTop: '4px' }}>Try adjusting your filters or date range</div>
                         </div>
@@ -633,7 +635,7 @@ export default function ActionIncidentsModal({
                                                     fontSize: '12px',
                                                     fontWeight: '600',
                                                     color: 'white',
-                                                    backgroundColor: (incident.max_matches ?? 0) >= 10 ? '#dc2626' : (incident.max_matches ?? 0) >= 5 ? '#f59e0b' : '#10b981'
+                                                    backgroundColor: (incident.max_matches ?? 0) >= 10 ? '#ef4444' : (incident.max_matches ?? 0) >= 5 ? '#f59e0b' : '#10b981'
                                                 }}>
                                                     {incident.max_matches}
                                                 </span>
