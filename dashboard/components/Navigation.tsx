@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
@@ -33,6 +33,14 @@ const getPageTitleKey = (pathname: string, search: string): string => {
 }
 
 export default function Navigation() {
+  return (
+    <Suspense fallback={null}>
+      <NavigationContent />
+    </Suspense>
+  )
+}
+
+function NavigationContent() {
   const [mounted, setMounted] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
