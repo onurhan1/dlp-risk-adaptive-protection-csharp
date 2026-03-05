@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Globe,
   FileText as FileTextIcon,
+  ListChecks,
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -124,6 +125,13 @@ export default function Sidebar() {
                   >
                     <FileTextIcon size={16} />
                     <span>{t('nav.mercekAnaliz')}</span>
+                  </Link>
+                  <Link
+                    href="/exceptions/exception-list"
+                    className={`sidebar-subitem ${pathname === '/exceptions/exception-list' ? 'active' : ''}`}
+                  >
+                    <ListChecks size={16} />
+                    <span>{t('nav.exceptionList')}</span>
                   </Link>
                 </div>
               )}

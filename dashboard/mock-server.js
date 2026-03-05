@@ -600,6 +600,41 @@ function handleRequest(pathname, query, method, body) {
         return allIncidents.filter(i => i.action === 'Released').slice(0, 10)
     }
 
+    // Policy Exceptions
+    if (pathname === '/api/policy-exceptions') {
+        const exceptionNames = [
+            'Muhasebe Departmanı Email İstisnası',
+            'IT Yönetici USB İstisnası',
+            'Saha Ekibi Cloud Erişim İzni',
+            'Hukuk Departmanı Dosya Paylaşım İzni',
+            'CEO Asistanı Tam Yetki',
+            'Dış Denetçi Geçici Erişim',
+            'VPN Kullanıcıları Geçici İstisna',
+            'Yedekleme Sistemi İstisnası',
+            'Test Ortamı Genel İstisna',
+            'Legacy Sistem Entegrasyon İstisnası',
+            'Satış Ekibi CRM Erişimi',
+            'Pazarlama Email Kampanya İzni',
+        ]
+        const data = policies.slice(0, 3).map((policyName, pIdx) => ({
+            policyName,
+            rules: Array.from({ length: randomInt(2, 4) }, (_, rIdx) => ({
+                ruleName: `Rule-${pIdx * 10 + rIdx + 1}`,
+                exceptions: exceptionNames.slice(pIdx * 4 + rIdx, pIdx * 4 + rIdx + randomInt(1, 3))
+            }))
+        }))
+        return {
+            success: true,
+            totalExceptions: exceptionNames.length,
+            totalPolicies: data.length,
+            lastSyncedAt: generateDate(randomInt(0, 2)),
+            data
+        }
+    }
+    if (pathname === '/api/policy-exceptions/sync') {
+        return { success: true, message: 'Sync completed: 12 exceptions saved', syncedCount: 12, syncedAt: new Date().toISOString() }
+    }
+
     // Fallback
     return { message: 'Mock endpoint not found', path: pathname }
 }
@@ -661,5 +696,6 @@ server.listen(PORT, () => {
     console.log('  /api/logs/*              - Audit logs')
     console.log('  /api/domain-features/*   - Domain features')
     console.log('  /api/mercek/*            - Mercek analysis')
+    console.log('  /api/policy-exceptions   - Policy exceptions')
     console.log('')
 })
