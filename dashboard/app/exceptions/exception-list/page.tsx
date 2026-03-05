@@ -386,31 +386,40 @@ function ExceptionListContent() {
     const fetchData = async () => {
         setLoading(true)
         try {
-            const [exceptionsRes, incidentsRes] = await Promise.all([
-                apiClient.get('/api/policy-exceptions'),
-                apiClient.get('/api/incidents', { params: { limit: 1000000000, order_by: 'timestamp_desc' } })
-            ])
+            // Fetch exceptions and incidents independently — one failure should not block the other
+            const exceptionsPromise = apiClient.get('/api/policy-exceptions', { timeout: 30000 })
+                .then(res => {
+                    if (res.data?.success) {
+                        setExceptionData(res.data.data || [])
+                        setLastSyncedAt(res.data.lastSyncedAt || null)
+                        setTotalExceptionsCount(res.data.totalExceptions || 0)
+                    }
+                })
+                .catch(err => console.error('Error fetching exceptions:', err))
 
-            if (exceptionsRes.data?.success) {
-                setExceptionData(exceptionsRes.data.data || [])
-                setLastSyncedAt(exceptionsRes.data.lastSyncedAt || null)
-                setTotalExceptionsCount(exceptionsRes.data.totalExceptions || 0)
-            }
+            const incidentsPromise = apiClient.get('/api/incidents', {
+                params: { limit: 10000, order_by: 'timestamp_desc' },
+                timeout: 60000
+            })
+                .then(res => {
+                    const incidentArr = Array.isArray(res.data) ? res.data : []
+                    setIncidents(incidentArr.map((item: any) => ({
+                        id: item.id,
+                        timestamp: item.timestamp,
+                        policy: item.policy,
+                        violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
+                        userEmail: item.user_email || item.userEmail,
+                        loginName: item.login_name || item.loginName,
+                        fullName: item.full_name || item.fullName,
+                        action: item.action || 'Permit',
+                        channel: item.channel,
+                        destination: item.destination,
+                        severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
+                    })))
+                })
+                .catch(err => console.error('Error fetching incidents:', err))
 
-            const incidentArr = Array.isArray(incidentsRes.data) ? incidentsRes.data : []
-            setIncidents(incidentArr.map((item: any) => ({
-                id: item.id,
-                timestamp: item.timestamp,
-                policy: item.policy,
-                violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
-                userEmail: item.user_email || item.userEmail,
-                loginName: item.login_name || item.loginName,
-                fullName: item.full_name || item.fullName,
-                action: item.action || 'Permit',
-                channel: item.channel,
-                destination: item.destination,
-                severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
-            })))
+            await Promise.all([exceptionsPromise, incidentsPromise])
         } catch (error) {
             console.error('Error fetching data:', error)
         } finally {
