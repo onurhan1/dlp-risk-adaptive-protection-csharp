@@ -399,12 +399,31 @@ function ExceptionListContent() {
                         const rawData = res.data.data || []
                         console.log('--- POLICY EXCEPTIONS SUCCESS DATA ---', rawData)
 
-                        setExceptionData(rawData)
-                        setLastSyncedAt(res.data.lastSyncedAt || null)
-                        setTotalExceptionsCount(res.data.totalExceptions || 0)
+                        // Map snake_case from backend to camelCase for frontend
+                        const mappedData = rawData.map((p: any) => ({
+                            policyName: p.policy_name || p.policyName,
+                            rules: (p.rules || []).map((r: any) => ({
+                                ruleName: r.rule_name || r.ruleName,
+                                exceptions: r.exceptions || []
+                            }))
+                        }))
+
+                        setExceptionData(mappedData)
+                        setLastSyncedAt(res.data.last_synced_at || res.data.lastSyncedAt || null)
+                        setTotalExceptionsCount(res.data.total_exceptions || res.data.totalExceptions || 0)
                     } else if (Array.isArray(res.data)) {
                         console.log('--- POLICY EXCEPTIONS DIRECT ARRAY ---', res.data)
-                        setExceptionData(res.data)
+
+                        // Map snake_case from backend to camelCase for frontend
+                        const mappedData = res.data.map((p: any) => ({
+                            policyName: p.policy_name || p.policyName,
+                            rules: (p.rules || []).map((r: any) => ({
+                                ruleName: r.rule_name || r.ruleName,
+                                exceptions: r.exceptions || []
+                            }))
+                        }))
+
+                        setExceptionData(mappedData)
                         setTotalExceptionsCount(res.data.length || 0)
                     } else if (res.data?.error) {
                         setApiError(`Backend Error: ${res.data.error}`)
