@@ -485,18 +485,30 @@ function ExceptionListContent() {
         const map = new Map<string, ExceptionStats>()
         const now = new Date()
 
-        // Filter incidents by date range
+        // Filter incidents by date range (supports partial range)
         const filteredIncidents = incidents.filter(inc => {
-            if (!dateRange.start || !dateRange.end) return true
+            if (!dateRange.start && !dateRange.end) return true; // No filter applied
+
             try {
-                const incDate = parseISO(inc.timestamp)
-                const start = startOfDay(parseISO(dateRange.start))
-                const end = endOfDay(parseISO(dateRange.end))
-                return isWithinInterval(incDate, { start, end })
+                const incDate = parseISO(inc.timestamp);
+
+                let isAfterStart = true;
+                if (dateRange.start) {
+                    const start = startOfDay(parseISO(dateRange.start));
+                    isAfterStart = incDate.getTime() >= start.getTime();
+                }
+
+                let isBeforeEnd = true;
+                if (dateRange.end) {
+                    const end = endOfDay(parseISO(dateRange.end));
+                    isBeforeEnd = incDate.getTime() <= end.getTime();
+                }
+
+                return isAfterStart && isBeforeEnd;
             } catch {
-                return true
+                return true; // If parsing fails, don't filter it out
             }
-        })
+        });
 
         // For each exception name, count incidents where that name appears in violationTriggers or policy
         exceptionData.forEach(policy => {
@@ -572,9 +584,11 @@ function ExceptionListContent() {
         let staleCount = 0
         let mostActiveException = ''
         let mostActiveCount = 0
+        let totalMappedIncidents = 0
 
         exceptionStatsMap.forEach((stats, key) => {
             if (stats.isStale) staleCount++
+            totalMappedIncidents += stats.incidentCount
             if (stats.incidentCount > mostActiveCount) {
                 mostActiveCount = stats.incidentCount
                 const parts = key.split('|')
@@ -582,7 +596,7 @@ function ExceptionListContent() {
             }
         })
 
-        return { staleCount, mostActiveException, mostActiveCount }
+        return { staleCount, mostActiveException, mostActiveCount, totalMappedIncidents }
     }, [exceptionStatsMap])
 
     // ─── Unique lists for dropdowns ───────────────────────────────────────────
@@ -744,7 +758,7 @@ function ExceptionListContent() {
             {/* ── Summary Cards ────────────────────────────────────────────────── */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '16px',
                 marginBottom: '24px'
             }}>
@@ -776,6 +790,43 @@ function ExceptionListContent() {
                         </div>
                         <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
                             {totalExceptionsCount}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mapped Incidents (New Card) */}
+                <div style={{
+                    background: 'var(--surface)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                }}>
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <ListChecks size={22} color="#fff" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>
+                            İstisnaya Takılan Olay
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                                {summaryStats.totalMappedIncidents}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            Filtrelenen Olay İçinden
                         </div>
                     </div>
                 </div>
@@ -944,9 +995,16 @@ function ExceptionListContent() {
                 }}>
                     {/* Date Range */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', letterSpacing: '0.3px' }}>
-                            {t('exceptionList.dateRange')}
-                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', letterSpacing: '0.3px' }}>
+                                {t('exceptionList.dateRange')}
+                            </label>
+                            {dateRange.start && dateRange.end && (
+                                <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: '500', background: 'rgba(59, 130, 246, 0.1)', padding: '1px 6px', borderRadius: '8px' }}>
+                                    {Math.abs(differenceInDays(parseISO(dateRange.end), parseISO(dateRange.start)))} Gün Seçili
+                                </span>
+                            )}
+                        </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <input
                                 type="date"
