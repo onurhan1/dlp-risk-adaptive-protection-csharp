@@ -385,61 +385,55 @@ public class RiskController : ControllerBase
                             (normalizedAction == "QUARANTINE"  && i.Action.ToUpper() == "QUARANTINED")));
             }
 
-            // ── P-03: Fire all independent DB queries in parallel ────────────
-            var usersTask = query
+            // ── P-03 Fix Reverted: EF Core DbContext does not support concurrent execution. ────────────
+            // We must run these sequentially, otherwise we get a 500 InvalidOperationException
+            var users = await query
                 .Where(i => i.LoginName != null && i.LoginName != "")
                 .Select(i => i.LoginName!)
                 .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var destinationsTask = query
+            var destinations = await query
                 .Where(i => i.Destination != null && i.Destination != "")
                 .Select(i => i.Destination!)
                 .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var channelsTask = query
+            var channels = await query
                 .Where(i => i.Channel != null && i.Channel != "")
                 .Select(i => i.Channel!)
                 .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var policiesTask = query
+            var policies = await query
                 .Where(i => i.Policy != null && i.Policy != "")
                 .Select(i => i.Policy!)
                 .Distinct().OrderBy(x => x)
                 .ToListAsync();
 
-            var triggersTask = query
+            var triggers = await query
                 .Where(i => i.ViolationTriggers != null && i.ViolationTriggers != "")
                 .Select(i => i.ViolationTriggers!)
                 .Distinct()
                 .ToListAsync();
 
-            var minDateTask = _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
-            var maxDateTask = _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
-
-            // Await all in parallel — reduces total round-trip latency
-            await Task.WhenAll(usersTask, destinationsTask, channelsTask,
-                               policiesTask, triggersTask, minDateTask, maxDateTask);
+            var minDate = await _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
+            var maxDate = await _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
 
             // ── M-02: Rule extraction via ViolationTriggerParser ─────────────
             var rules = new HashSet<string>();
-            foreach (var triggerJson in triggersTask.Result)
+            foreach (var triggerJson in triggers)
             {
                 foreach (var ruleName in ViolationTriggerParser.ExtractAllRuleNames(triggerJson))
                     rules.Add(ruleName);
             }
 
-            var minDate = minDateTask.Result;
-            var maxDate = maxDateTask.Result;
-
             return Ok(new
             {
-                users        = usersTask.Result,
-                destinations = destinationsTask.Result,
-                channels     = channelsTask.Result,
-                policies     = policiesTask.Result,
+                users        = users,
+                destinations = destinations,
+                channels     = channels,
+                policies     = policies,
                 rules        = rules.OrderBy(r => r).ToList(),
                 dateRange = new
                 {
