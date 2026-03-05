@@ -80,7 +80,7 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
     }, [])
 
     const filteredOptions = options.filter(opt =>
-        opt.toLowerCase().includes(searchQuery.toLowerCase())
+        opt && opt.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     const toggleValue = (value: string) => {
@@ -548,7 +548,7 @@ function ExceptionListContent() {
     // ─── Unique lists for dropdowns ───────────────────────────────────────────
 
     const allPolicies = useMemo(() =>
-        exceptionData.map(p => p.policyName).sort(),
+        exceptionData.map(p => p.policyName).filter(Boolean).sort(),
         [exceptionData]
     )
 
@@ -557,7 +557,7 @@ function ExceptionListContent() {
         const relevantPolicies = selectedPolicies.length > 0
             ? exceptionData.filter(p => selectedPolicies.includes(p.policyName))
             : exceptionData
-        relevantPolicies.forEach(p => p.rules.forEach(r => rules.add(r.ruleName)))
+        relevantPolicies.forEach(p => p.rules.forEach(r => { if (r.ruleName) rules.add(r.ruleName) }))
         return Array.from(rules).sort()
     }, [exceptionData, selectedPolicies])
 
