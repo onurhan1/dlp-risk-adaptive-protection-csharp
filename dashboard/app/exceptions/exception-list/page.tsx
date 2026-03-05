@@ -392,12 +392,25 @@ function ExceptionListContent() {
             // Fetch exceptions and incidents independently — one failure should not block the other
             const exceptionsPromise = apiClient.get('/api/policy-exceptions', { timeout: 30000 })
                 .then(res => {
+                    console.log('--- POLICY EXCEPTIONS RAW RES ---', res.data)
+                    // Bazen data doğrudan dizi dönebilir, bazen {success: true, data: [...]} dönebilir.
+                    // C# backend'ine göre { success: true, data: [...] } formatında gelmesi lazım.
                     if (res.data?.success) {
-                        setExceptionData(res.data.data || [])
+                        const rawData = res.data.data || []
+                        console.log('--- POLICY EXCEPTIONS SUCCESS DATA ---', rawData)
+
+                        setExceptionData(rawData)
                         setLastSyncedAt(res.data.lastSyncedAt || null)
                         setTotalExceptionsCount(res.data.totalExceptions || 0)
+                    } else if (Array.isArray(res.data)) {
+                        console.log('--- POLICY EXCEPTIONS DIRECT ARRAY ---', res.data)
+                        setExceptionData(res.data)
+                        setTotalExceptionsCount(res.data.length || 0)
                     } else if (res.data?.error) {
                         setApiError(`Backend Error: ${res.data.error}`)
+                    } else {
+                        console.warn('--- UNEXPECTED POLICY EXCEPTIONS FORMAT ---', res.data)
+                        setApiError(`Beklenmeyen veri formatı: ${JSON.stringify(res.data).substring(0, 100)}...`)
                     }
                 })
                 .catch(err => {
