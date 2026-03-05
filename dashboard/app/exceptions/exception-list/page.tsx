@@ -1109,7 +1109,7 @@ function ExceptionListContent() {
                             const isPolicyExpanded = expandedPolicies.has(pIdx)
 
                             return (
-                                <div key={policy.policyName}>
+                                <div key={policy.policyName || `policy-${pIdx}`}>
                                     {/* Policy Row */}
                                     <div
                                         onClick={() => togglePolicy(pIdx)}
@@ -1176,7 +1176,7 @@ function ExceptionListContent() {
                                         const isRuleExpanded = expandedRules.has(`${pIdx}-${rIdx}`)
 
                                         return (
-                                            <div key={rule.ruleName}>
+                                            <div key={rule.ruleName || `rule-${pIdx}-${rIdx}`}>
                                                 {/* Rule Row */}
                                                 <div
                                                     onClick={() => toggleRule(pIdx, rIdx)}
@@ -1246,7 +1246,7 @@ function ExceptionListContent() {
 
                                                     return (
                                                         <div
-                                                            key={`${exc}-${eIdx}`}
+                                                            key={`${exc || 'exc'}-${pIdx}-${rIdx}-${eIdx}`}
                                                             style={{
                                                                 display: 'grid',
                                                                 gridTemplateColumns: '1fr 120px 120px 140px 100px',
