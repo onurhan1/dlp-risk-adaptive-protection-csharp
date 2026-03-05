@@ -76,10 +76,13 @@ public class DlpConfigurationSyncService : BackgroundService
         if (remoteConfig != null)
         {
             // Validate that config is actually configured (not placeholder values)
-            if (remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
-                remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username))
+            if (string.IsNullOrWhiteSpace(remoteConfig.ManagerIP) ||
+                remoteConfig.ManagerPort <= 0 ||
+                remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+                (remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username)))
             {
-                _logger.LogWarning("DLP API settings are not configured. Collector will not fetch incidents until settings are configured via Settings page.");
+                _logger.LogWarning("DLP API settings are not configured or invalid (IP={Ip}, Port={Port}). Collector will not fetch incidents until settings are configured via Settings page.",
+                    remoteConfig.ManagerIP, remoteConfig.ManagerPort);
                 _logger.LogWarning("Please configure DLP API settings in the dashboard: Settings → DLP API Configuration");
                 return; // Don't update config with placeholder values
             }
@@ -150,10 +153,13 @@ public class DlpConfigurationSyncService : BackgroundService
         if (remoteConfig != null)
         {
             // Validate that config is actually configured (not placeholder values)
-            if (remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
-                remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username))
+            if (string.IsNullOrWhiteSpace(remoteConfig.ManagerIP) ||
+                remoteConfig.ManagerPort <= 0 ||
+                remoteConfig.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+                (remoteConfig.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(remoteConfig.Username)))
             {
-                _logger.LogWarning("DLP API settings are not configured. Skipping config update.");
+                _logger.LogWarning("DLP API settings are not configured or invalid (IP={Ip}, Port={Port}). Skipping config update.",
+                    remoteConfig.ManagerIP, remoteConfig.ManagerPort);
                 return; // Don't update config with placeholder values
             }
             
