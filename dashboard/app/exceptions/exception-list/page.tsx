@@ -383,8 +383,11 @@ function ExceptionListContent() {
         fetchData()
     }, [])
 
+    const [apiError, setApiError] = useState<string | null>(null)
+
     const fetchData = async () => {
         setLoading(true)
+        setApiError(null)
         try {
             // Fetch exceptions and incidents independently — one failure should not block the other
             const exceptionsPromise = apiClient.get('/api/policy-exceptions', { timeout: 30000 })
@@ -393,9 +396,14 @@ function ExceptionListContent() {
                         setExceptionData(res.data.data || [])
                         setLastSyncedAt(res.data.lastSyncedAt || null)
                         setTotalExceptionsCount(res.data.totalExceptions || 0)
+                    } else if (res.data?.error) {
+                        setApiError(`Backend Error: ${res.data.error}`)
                     }
                 })
-                .catch(err => console.error('Error fetching exceptions:', err))
+                .catch(err => {
+                    console.error('Error fetching exceptions:', err)
+                    setApiError(err.response?.data?.error || err.message || 'Unknown network error')
+                })
 
             const incidentsPromise = apiClient.get('/api/incidents', {
                 params: { limit: 10000, order_by: 'timestamp_desc' },
@@ -679,6 +687,27 @@ function ExceptionListContent() {
                     {t('exceptionList.subtitle')}
                 </p>
             </div>
+
+            {/* ── API Error Banner ─────────────────────────────────────────────── */}
+            {apiError && (
+                <div style={{
+                    marginBottom: '24px',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px'
+                }}>
+                    <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                        <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>API Bağlantı Hatası</div>
+                        <div style={{ fontSize: '13px', fontFamily: 'monospace' }}>{apiError}</div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Summary Cards ────────────────────────────────────────────────── */}
             <div style={{
