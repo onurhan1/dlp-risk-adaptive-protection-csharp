@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
+import { BarChart3 } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -372,7 +373,7 @@ export default function InvestigationTimeline({
                 e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
               }}
             >
-              <span>📊</span>
+              <span><BarChart3 size={14} /></span>
               User Insights
             </button>
           </div>

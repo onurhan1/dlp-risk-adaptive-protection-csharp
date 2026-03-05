@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
+import { BarChart3 } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -242,7 +243,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
               }
             }}
           >
-            <span>📊</span> User Insights
+            <span><BarChart3 size={14} /></span> User Insights
           </button>
         </div>
       )}

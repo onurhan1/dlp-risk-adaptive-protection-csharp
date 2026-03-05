@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
 import Pagination from './ui/Pagination'
+import { Loader2, AlertTriangle, BarChart3, TrendingUp, TrendingDown, Minus, Target, ClipboardList, Bot, Clock, Calendar } from 'lucide-react'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -184,10 +185,10 @@ export default function EntityDetailModal({
 
     const getZScoreStatus = (z: number) => {
         const absZ = Math.abs(z)
-        if (absZ >= 3) return { label: 'CRITICAL', color: '#dc2626', icon: '🔴' }
-        if (absZ >= 2) return { label: 'HIGH', color: '#ef4444', icon: '🟠' }
-        if (absZ >= 1) return { label: 'MEDIUM', color: '#f59e0b', icon: '🟡' }
-        return { label: 'NORMAL', color: '#10b981', icon: '🟢' }
+        if (absZ >= 3) return { label: 'CRITICAL', color: '#dc2626', dot: '#dc2626' }
+        if (absZ >= 2) return { label: 'HIGH', color: '#ef4444', dot: '#ef4444' }
+        if (absZ >= 1) return { label: 'MEDIUM', color: '#f59e0b', dot: '#f59e0b' }
+        return { label: 'NORMAL', color: '#10b981', dot: '#10b981' }
     }
 
     // Plotly layout config (dark theme)
@@ -289,9 +290,9 @@ export default function EntityDetailModal({
                                     color: activeView === view ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                {view === 'overview' ? '📊 Overview' :
-                                    view === 'trends' ? '📈 Trends' :
-                                        '📋 Incidents'}
+                                {view === 'overview' ? <><BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Overview</> :
+                                    view === 'trends' ? <><TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Trends</> :
+                                        <><ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Incidents</>}
                             </button>
                         ))}
                     </div>
@@ -301,12 +302,13 @@ export default function EntityDetailModal({
                 <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
                     {loading ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+                            <div style={{ marginBottom: '16px' }}><Loader2 size={48} style={{ animation: 'spin 1s linear infinite' }} /></div>
+                            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                             Loading detailed analysis...
                         </div>
                     ) : error ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+                            <div style={{ marginBottom: '16px' }}><AlertTriangle size={48} /></div>
                             {error}
                         </div>
                     ) : data && activeView === 'overview' ? (
@@ -413,12 +415,12 @@ export default function EntityDetailModal({
                                             </div>
                                             {(() => {
                                                 const diff = weeklyData.risk_score - data.risk_score
-                                                const trendIcon = diff > 5 ? '📈' : diff < -5 ? '📉' : '➡️'
+                                                const trendIcon = diff > 5 ? 'up' : diff < -5 ? 'down' : 'stable'
                                                 const trendColor = diff > 5 ? '#ef4444' : diff < -5 ? '#10b981' : '#6b7280'
                                                 const trendText = diff > 5 ? 'Rising' : diff < -5 ? 'Declining' : 'Stable'
                                                 return (
                                                     <>
-                                                        <div style={{ fontSize: '24px' }}>{trendIcon}</div>
+                                                        <div style={{ fontSize: '24px' }}>{trendIcon === 'up' ? <TrendingUp size={24} color={trendColor} /> : trendIcon === 'down' ? <TrendingDown size={24} color={trendColor} /> : <Minus size={24} color={trendColor} />}</div>
                                                         <div style={{ fontSize: '14px', fontWeight: '700', color: trendColor }}>
                                                             {diff > 0 ? '+' : ''}{diff} ({trendText})
                                                         </div>
@@ -438,8 +440,8 @@ export default function EntityDetailModal({
                                         gridTemplateColumns: '1fr 1fr',
                                         gap: '8px'
                                     }}>
-                                        <div>📊 Weekly Incidents: <strong>{weeklyData.total_incidents}</strong></div>
-                                        <div>📊 Monthly Incidents: <strong>{data.total_incidents}</strong></div>
+                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Weekly Incidents: <strong>{weeklyData.total_incidents}</strong></div>
+                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Monthly Incidents: <strong>{data.total_incidents}</strong></div>
                                     </div>
                                 </div>
                             )}
@@ -530,7 +532,7 @@ export default function EntityDetailModal({
                                                     <span style={{ fontWeight: '700', color: status.color }}>
                                                         {value.toFixed(2)}
                                                     </span>
-                                                    <span>{status.icon}</span>
+                                                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: status.dot, display: 'inline-block' }}></span>
                                                 </div>
                                             </div>
                                         )
@@ -561,7 +563,7 @@ export default function EntityDetailModal({
                                             }}
                                         >×</button>
                                         <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)', textTransform: 'capitalize' }}>
-                                            📊 {selectedZScore.key.replace(/_/g, ' ')} Calculation Details
+                                            <BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {selectedZScore.key.replace(/_/g, ' ')} Calculation Details
                                         </h4>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '12px' }}>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
@@ -605,7 +607,7 @@ export default function EntityDetailModal({
                                 gridColumn: 'span 2'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    🤖 AI Analysis
+                                    <Bot size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> AI Analysis
                                 </h3>
                                 <div style={{ marginBottom: '16px' }}>
                                     <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Explanation</div>
@@ -631,7 +633,7 @@ export default function EntityDetailModal({
                                     gridColumn: 'span 2'
                                 }}>
                                     <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                        📋 Reference Incidents ({data.top_incidents.length})
+                                        <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Reference Incidents ({data.top_incidents.length})
                                     </h3>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', position: 'relative' }}>
                                         {(showAllReferenceIncidents ? data.top_incidents : data.top_incidents.slice(0, 5)).map((inc, idx) => (
@@ -724,10 +726,10 @@ export default function EntityDetailModal({
                                                 borderBottom: '1px solid var(--border)'
                                             }}>
                                                 <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '14px' }}>
-                                                    📋 Incident #{hoveredIncident.id}
+                                                    <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Incident #{hoveredIncident.id}
                                                 </span>
                                                 <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                                                    🕐 {new Date(hoveredIncident.timestamp).toLocaleString()}
+                                                    <Clock size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }} /> {new Date(hoveredIncident.timestamp).toLocaleString()}
                                                 </span>
                                             </div>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
@@ -770,7 +772,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    📊 Weekly Incidents <span style={{ fontWeight: 'normal', fontSize: '12px' }}>(click week for daily details)</span>
+                                    <BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Weekly Incidents <span style={{ fontWeight: 'normal', fontSize: '12px' }}>(click week for daily details)</span>
                                 </h3>
                                 {data.weekly_trends.length > 0 ? (
                                     <Plot
@@ -822,8 +824,8 @@ export default function EntityDetailModal({
                                                 fontSize: '18px'
                                             }}
                                         >×</button>
-                                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)' }}>
-                                            📅 Daily Breakdown: {selectedWeek.label} ({selectedWeek.start_date} to {selectedWeek.end_date})
+                                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Calendar size={14} /> Daily Breakdown: {selectedWeek.label} ({selectedWeek.start_date} to {selectedWeek.end_date})
                                         </h4>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                             <thead>
@@ -863,7 +865,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    📈 Monthly Trend
+                                    <TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Monthly Trend
                                 </h3>
                                 {data.monthly_trends.length > 0 ? (
                                     <Plot
@@ -891,7 +893,7 @@ export default function EntityDetailModal({
                                     border: '1px solid var(--border)'
                                 }}>
                                     <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                        🎯 Top Destinations
+                                        <Target size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Top Destinations
                                     </h3>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
                                         {data.destination_patterns.slice(0, 10).map((dp, idx) => (
@@ -926,7 +928,7 @@ export default function EntityDetailModal({
                             border: '1px solid var(--border)'
                         }}>
                             <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                📋 Top Incidents (by matches)
+                                <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Top Incidents (by matches)
                             </h3>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>

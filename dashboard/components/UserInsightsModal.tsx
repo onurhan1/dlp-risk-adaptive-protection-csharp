@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
 import Pagination from './ui/Pagination'
+import { Loader2, Inbox, BarChart3, TrendingUp, TrendingDown, Minus, Target, ClipboardList, Calendar, CalendarDays, CalendarRange, AlertTriangle } from 'lucide-react'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -195,7 +196,11 @@ export default function UserInsightsModal({
                     <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
                         {(['daily', 'weekly', 'monthly', 'quarterly'] as PeriodFilter[]).map(period => (
                             <button key={period} onClick={() => setActivePeriod(period)} style={{ padding: '10px 24px', border: 'none', borderRadius: '24px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', transition: 'all 0.2s', background: activePeriod === period ? 'var(--primary)' : 'var(--background)', color: activePeriod === period ? 'white' : 'var(--text-secondary)' }}>
-                                {period === 'daily' && '📅'} {period === 'weekly' && '📆'} {period === 'monthly' && '🗓️'} {period === 'quarterly' && '📊'} {periodLabels[period]}
+                                {period === 'daily' && <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />}
+                                {period === 'weekly' && <CalendarDays size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />}
+                                {period === 'monthly' && <CalendarRange size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />}
+                                {period === 'quarterly' && <BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />}
+                                {periodLabels[period]}
                             </button>
                         ))}
                     </div>
@@ -204,16 +209,16 @@ export default function UserInsightsModal({
                 {/* Content */}
                 <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>Loading user insights...</div>
+                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Loader2 size={48} style={{ animation: 'spin 1s linear infinite' }} /></div><style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>Loading user insights...</div>
                     ) : error ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>{error}</div>
+                        <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}><div style={{ marginBottom: '16px' }}><AlertTriangle size={48} /></div>{error}</div>
                     ) : !data || data.daily_scores.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>No risk data available for this period</div>
+                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Inbox size={48} style={{ opacity: 0.4 }} /></div>No risk data available for this period</div>
                     ) : (
                         <div style={{ display: 'grid', gap: '24px' }}>
                             {/* Period Averages */}
                             <div style={{ background: 'linear-gradient(135deg, var(--background) 0%, var(--surface) 100%)', borderRadius: '12px', padding: '20px', border: '2px solid var(--primary)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📊 Period Averages Comparison</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> Period Averages Comparison</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Weekly Avg</div>
@@ -252,14 +257,14 @@ export default function UserInsightsModal({
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Trend</div>
-                                    <div style={{ fontSize: '36px' }}>{trendDirection === 'up' ? '📈' : trendDirection === 'down' ? '📉' : '➡️'}</div>
+                                    <div style={{ fontSize: '36px' }}>{trendDirection === 'up' ? <TrendingUp size={36} color="#ef4444" /> : trendDirection === 'down' ? <TrendingDown size={36} color="#10b981" /> : <Minus size={36} color="var(--text-secondary)" />}</div>
                                     <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: '600', color: trendDirection === 'up' ? '#ef4444' : trendDirection === 'down' ? '#10b981' : 'var(--text-secondary)' }}>{trendDirection === 'up' ? 'Increasing' : trendDirection === 'down' ? 'Decreasing' : 'Stable'}</div>
                                 </div>
                             </div>
 
                             {/* Action Breakdown */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>🎯 Action Breakdown</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><Target size={18} /> Action Breakdown</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.total_block_count}</div>
@@ -282,7 +287,7 @@ export default function UserInsightsModal({
 
                             {/* Risk Score Chart */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📈 Risk Score Trend - {periodLabels[activePeriod]}</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><TrendingUp size={18} /> Risk Score Trend - {periodLabels[activePeriod]}</h3>
                                 <Plot
                                     data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.daily_risk_score), type: 'scatter', mode: 'lines+markers', name: 'Daily Risk Score', line: { color: '#3b82f6', width: 3, shape: 'spline' }, marker: { size: 8, color: data.daily_scores.map(d => getRiskColor(d.daily_risk_score)) }, fill: 'tozeroy', fillcolor: 'rgba(59, 130, 246, 0.1)' }]}
                                     layout={{ ...plotlyLayout, height: 350, yaxis: { ...plotlyLayout.yaxis, title: 'Risk Score (0-100)', range: [0, 100] }, shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 75, y1: 75, line: { color: '#dc2626', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 50, y1: 50, line: { color: '#f59e0b', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 25, y1: 25, line: { color: '#eab308', width: 1, dash: 'dash' } }], annotations: [{ x: 1.02, xref: 'paper', y: 75, text: 'Critical', showarrow: false, font: { size: 10, color: '#dc2626' } }, { x: 1.02, xref: 'paper', y: 50, text: 'High', showarrow: false, font: { size: 10, color: '#f59e0b' } }, { x: 1.02, xref: 'paper', y: 25, text: 'Medium', showarrow: false, font: { size: 10, color: '#eab308' } }] }}
@@ -293,7 +298,7 @@ export default function UserInsightsModal({
 
                             {/* Incident & Matches Chart */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📊 Incidents & Matches</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> Incidents & Matches</h3>
                                 <Plot
                                     data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.incident_count), type: 'bar', name: 'Incidents', marker: { color: '#3b82f6', opacity: 0.8 } }, { x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.max_max_matches), type: 'scatter', mode: 'lines+markers', name: 'Max Matches', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }]}
                                     layout={{ ...plotlyLayout, height: 280, yaxis: { ...plotlyLayout.yaxis, title: 'Incident Count' }, yaxis2: { overlaying: 'y', side: 'right', title: 'Max Matches', gridcolor: 'transparent' } }}
@@ -304,7 +309,7 @@ export default function UserInsightsModal({
 
                             {/* Detailed Table */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 Detailed Daily History</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><ClipboardList size={18} /> Detailed Daily History</h3>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                         <thead>

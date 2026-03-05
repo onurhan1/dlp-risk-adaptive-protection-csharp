@@ -22,11 +22,16 @@ interface ActionIncident {
 interface PaginatedResponse {
     items: ActionIncident[]
     page: number
-    pageSize: number
-    totalCount: number
-    totalPages: number
-    hasNextPage: boolean
-    hasPreviousPage: boolean
+    pageSize?: number
+    page_size?: number
+    totalCount?: number
+    total_count?: number
+    totalPages?: number
+    total_pages?: number
+    hasNextPage?: boolean
+    has_next_page?: boolean
+    hasPreviousPage?: boolean
+    has_previous_page?: boolean
 }
 
 interface FilterOptions {
@@ -195,7 +200,7 @@ export default function ActionIncidentsModal({
 
     // Pagination state
     const [page, setPage] = useState(1)
-    const [pageSize] = useState(100)
+    const [pageSize] = useState(25)
     const [totalCount, setTotalCount] = useState(0)
     const [totalPages, setTotalPages] = useState(0)
 
@@ -291,8 +296,8 @@ export default function ActionIncidentsModal({
                 }
             })
             setIncidents(response.data.items || [])
-            setTotalCount(response.data.totalCount || 0)
-            setTotalPages(response.data.totalPages || 0)
+            setTotalCount(response.data.totalCount ?? response.data.total_count ?? 0)
+            setTotalPages(response.data.totalPages ?? response.data.total_pages ?? 0)
         } catch (error) {
             console.error('Error fetching action incidents:', error)
             setIncidents([])

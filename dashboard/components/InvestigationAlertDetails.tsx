@@ -1,6 +1,7 @@
 'use client'
 
 import RemediateButton from './RemediateButton'
+import { ClipboardList, CheckCircle } from 'lucide-react'
 
 interface InvestigationAlertDetailsProps {
   event?: {
@@ -230,7 +231,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                         {policy.rules.map((rule, rIdx) => (
                           <div key={rIdx} style={{ borderLeft: '2px solid #ef4444', paddingLeft: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>📋 {rule.ruleName}</span>
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ClipboardList size={13} /> {rule.ruleName}</span>
                             </div>
                             {renderClassifiers(rule.classifiers)}
 
@@ -488,7 +489,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '18px' }}>✅</span>
+                <span style={{ fontSize: '18px' }}><CheckCircle size={18} style={{ color: '#10b981' }} /></span>
                 <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated #{event.id}</span>
               </div>
               <RemediateButton

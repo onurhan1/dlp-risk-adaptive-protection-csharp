@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { AlertTriangle } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -44,7 +45,7 @@ export default function AnomalyIndicator({ userEmail }: AnomalyIndicatorProps) {
   return (
     <div className="anomaly-indicator">
       <div className="anomaly-badge">
-        ⚠️ Anomaly Detected
+        <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Anomaly Detected
       </div>
       <style jsx>{`
         .anomaly-indicator {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from '@/components/LanguageProvider'
+import { Rocket, Zap, Bug, ClipboardList } from 'lucide-react'
 
 interface ReleaseEntry {
     title: string
@@ -20,10 +21,10 @@ interface ReleaseVersion {
     entries: ReleaseEntry[]
 }
 
-const categoryIcons: Record<string, { icon: string; color: string; label: string; labelEn: string }> = {
-    feature: { icon: '🚀', color: '#10b981', label: 'Yeni Özellik', labelEn: 'New Feature' },
-    improvement: { icon: '⚡', color: '#3b82f6', label: 'İyileştirme', labelEn: 'Improvement' },
-    bugfix: { icon: '🐛', color: '#f59e0b', label: 'Düzeltme', labelEn: 'Bug Fix' },
+const categoryIcons: Record<string, { icon: React.ReactNode; color: string; label: string; labelEn: string }> = {
+    feature: { icon: <Rocket size={12} />, color: '#10b981', label: 'Yeni Özellik', labelEn: 'New Feature' },
+    improvement: { icon: <Zap size={12} />, color: '#3b82f6', label: 'İyileştirme', labelEn: 'Improvement' },
+    bugfix: { icon: <Bug size={12} />, color: '#f59e0b', label: 'Düzeltme', labelEn: 'Bug Fix' },
 }
 
 export default function ReleaseNotesPage() {
@@ -92,7 +93,7 @@ export default function ReleaseNotesPage() {
                     alignItems: 'center',
                     gap: '12px',
                 }}>
-                    📋 {t('releaseNotes.title')}
+                    <ClipboardList size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} /> {t('releaseNotes.title')}
                 </h1>
                 <p style={{
                     fontSize: '14px',
@@ -198,13 +199,13 @@ export default function ReleaseNotesPage() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {/* Category counts */}
                                         {features.length > 0 && (
-                                            <span style={{ fontSize: '11px', color: '#10b981' }}>🚀 {features.length}</span>
+                                            <span style={{ fontSize: '11px', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '2px' }}><Rocket size={11} /> {features.length}</span>
                                         )}
                                         {improvements.length > 0 && (
-                                            <span style={{ fontSize: '11px', color: '#3b82f6' }}>⚡ {improvements.length}</span>
+                                            <span style={{ fontSize: '11px', color: '#3b82f6', display: 'inline-flex', alignItems: 'center', gap: '2px' }}><Zap size={11} /> {improvements.length}</span>
                                         )}
                                         {bugfixes.length > 0 && (
-                                            <span style={{ fontSize: '11px', color: '#f59e0b' }}>🐛 {bugfixes.length}</span>
+                                            <span style={{ fontSize: '11px', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: '2px' }}><Bug size={11} /> {bugfixes.length}</span>
                                         )}
                                         <span style={{
                                             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',

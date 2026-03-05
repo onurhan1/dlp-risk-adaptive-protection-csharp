@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import apiClient from '@/lib/axios'
+import { Search } from 'lucide-react'
 
 interface AuditLog {
     id: number
@@ -179,7 +180,7 @@ export default function LogsTab() {
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={clearFilters} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Clear</button>
                     <button onClick={handleSearch} disabled={loading} style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                        {loading ? 'Searching...' : '🔍 Search'}
+                        {loading ? 'Searching...' : <><Search size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Search</>}
                     </button>
                 </div>
             </div>

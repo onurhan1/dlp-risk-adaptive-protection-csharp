@@ -1,6 +1,7 @@
 'use client'
 
 import RemediateButton from './RemediateButton'
+import { Zap, Lock } from 'lucide-react'
 
 interface AlertDetailsProps {
   event?: {
@@ -56,7 +57,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
           />
           <button className="play-btn">▶</button>
           <span className={`severity-badge ${event.severity.toLowerCase()}`}>
-            ⚡ {event.severity}
+            <Zap size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }} /> {event.severity}
           </span>
           <button className="play-btn">▶</button>
         </div>
@@ -175,7 +176,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
                   <td>{file.size}</td>
                   <td>
                     {file.protected ? (
-                      <span className="protected-icon">🔒</span>
+                      <span className="protected-icon"><Lock size={16} /></span>
                     ) : (
                       <span>-</span>
                     )}

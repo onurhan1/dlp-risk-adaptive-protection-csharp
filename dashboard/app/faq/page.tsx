@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { BookOpen, Lock, Check, X } from 'lucide-react'
 
 type Language = 'tr' | 'en'
 
@@ -19,7 +20,7 @@ export default function FAQPage() {
                 borderBottom: '1px solid var(--border)'
             }}>
                 <h1 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                    {language === 'tr' ? '📚 Sıkça Sorulan Sorular' : '📚 Frequently Asked Questions'}
+                    {language === 'tr' ? <><BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />Sıkça Sorulan Sorular</> : <><BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />Frequently Asked Questions</>}
                 </h1>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -40,7 +41,7 @@ export default function FAQPage() {
                             transition: 'all 0.2s'
                         }}
                     >
-                        🇹🇷 Türkçe
+                        TR Türkçe
                     </button>
                     <button
                         onClick={() => setLanguage('en')}
@@ -59,7 +60,7 @@ export default function FAQPage() {
                             transition: 'all 0.2s'
                         }}
                     >
-                        🇬🇧 English
+                        EN English
                     </button>
                 </div>
             </div>
@@ -330,19 +331,19 @@ function TurkishContent() {
             </SubSection>
 
             {/* Access Rights */}
-            <SectionTitle>🔐 Erişim Yetkileri Özeti</SectionTitle>
+            <SectionTitle><Lock size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} /> Erişim Yetkileri Özeti</SectionTitle>
             <Table
                 headers={['Sayfa', 'Admin', 'User']}
                 rows={[
-                    ['Dashboard', '✅', '✅'],
-                    ['Investigation', '✅', '❌'],
-                    ['Reports', '✅', '❌'],
-                    ['Users', '✅', '❌'],
-                    ['AI Behavioral', '✅', '❌'],
-                    ['Analytics', '✅', '❌'],
-                    ['Settings', '✅', '❌'],
-                    ['AI Settings', '✅', '❌'],
-                    ['Logs', '✅', '❌'],
+                    ['Dashboard', '✓', '✓'],
+                    ['Investigation', '✓', '✗'],
+                    ['Reports', '✓', '✗'],
+                    ['Users', '✓', '✗'],
+                    ['AI Behavioral', '✓', '✗'],
+                    ['Analytics', '✓', '✗'],
+                    ['Settings', '✓', '✗'],
+                    ['AI Settings', '✓', '✗'],
+                    ['Logs', '✓', '✗'],
                 ]}
             />
         </>
@@ -487,19 +488,19 @@ function EnglishContent() {
             </SubSection>
 
             {/* Access Rights */}
-            <SectionTitle>🔐 Access Rights Summary</SectionTitle>
+            <SectionTitle><Lock size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} /> Access Rights Summary</SectionTitle>
             <Table
                 headers={['Page', 'Admin', 'User']}
                 rows={[
-                    ['Dashboard', '✅', '✅'],
-                    ['Investigation', '✅', '❌'],
-                    ['Reports', '✅', '❌'],
-                    ['Users', '✅', '❌'],
-                    ['AI Behavioral', '✅', '❌'],
-                    ['Analytics', '✅', '❌'],
-                    ['Settings', '✅', '❌'],
-                    ['AI Settings', '✅', '❌'],
-                    ['Logs', '✅', '❌'],
+                    ['Dashboard', '✓', '✓'],
+                    ['Investigation', '✓', '✗'],
+                    ['Reports', '✓', '✗'],
+                    ['Users', '✓', '✗'],
+                    ['AI Behavioral', '✓', '✗'],
+                    ['Analytics', '✓', '✗'],
+                    ['Settings', '✓', '✗'],
+                    ['AI Settings', '✓', '✗'],
+                    ['Logs', '✓', '✗'],
                 ]}
             />
         </>

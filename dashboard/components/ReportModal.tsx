@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import ActionIncidentsModal from './ActionIncidentsModal'
 import Pagination from './ui/Pagination'
+import { Calendar, TrendingUp, Download } from 'lucide-react'
 
 interface ActionSummary {
     authorized: number
@@ -235,7 +236,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                     }}>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>
-                                {reportView === 'daily_summary' ? '📅 Daily Summary Reports' : '📈 Risky Users Trend Report'}
+                                {reportView === 'daily_summary' ? <><Calendar size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />Daily Summary Reports</> : <><TrendingUp size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />Risky Users Trend Report</>}
                             </h2>
                             <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
                                 {reportView === 'daily_summary'
@@ -290,7 +291,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     color: reportView === 'daily_summary' ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                📅 Daily Summary
+                                <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Daily Summary
                             </button>
                             <button
                                 onClick={() => setReportView('risky_users')}
@@ -305,7 +306,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     color: reportView === 'risky_users' ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                📈 Risky Users Trends
+                                <TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Risky Users Trends
                             </button>
                         </div>
 
@@ -381,7 +382,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                         opacity: generating ? 0.6 : 1
                                     }}
                                 >
-                                    {generating ? 'Generating PDF...' : '📥 Download PDF Report'}
+                                    {generating ? 'Generating PDF...' : <><Download size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Download PDF Report</>}
                                 </button>
                             )}
                         </div>

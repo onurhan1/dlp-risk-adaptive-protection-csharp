@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import EntityDetailModal from '@/components/EntityDetailModal'
+import { BarChart3, Bot } from 'lucide-react'
 
 interface AIBehavioralAnalysis {
   entity_type: string
@@ -304,7 +305,7 @@ export default function AIBehavioralPage() {
                 gap: '6px'
               }}
             >
-              🤖 {showOnlyAzureAI ? 'Showing AI Analyzed' : 'Show AI Analyzed Only'}
+              <Bot size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {showOnlyAzureAI ? 'Showing AI Analyzed' : 'Show AI Analyzed Only'}
               <span style={{
                 background: showOnlyAzureAI ? 'rgba(255,255,255,0.2)' : 'var(--primary)',
                 color: 'white',
@@ -572,7 +573,7 @@ export default function AIBehavioralPage() {
                               whiteSpace: 'nowrap'
                             }}
                           >
-                            📊 Analyze
+                            <BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Analyze
                           </button>
                         </div>
                       </div>

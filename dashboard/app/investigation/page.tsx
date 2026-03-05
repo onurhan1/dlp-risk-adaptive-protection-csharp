@@ -8,6 +8,7 @@ import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
+import { Zap, Brain } from 'lucide-react'
 
 interface TimelineEvent {
   id: number
@@ -620,7 +621,7 @@ function InvestigationPageContent() {
                   e.currentTarget.style.color = 'var(--text-secondary)'
                 }}
               >
-                ⚡
+                <Zap size={14} />
               </button>
               <button
                 style={{
@@ -689,7 +690,7 @@ function InvestigationPageContent() {
                     e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
-                  🧠 View AI Analysis
+                  <Brain size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> View AI Analysis
                 </button>
               </div>
               {loadingAI ? (
