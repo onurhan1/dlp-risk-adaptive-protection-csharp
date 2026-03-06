@@ -156,6 +156,7 @@ export default function Home() {
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
   const usersPerPage = 10
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
+  const [actionDataDateRange, setActionDataDateRange] = useState<{ min: string; max: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
   const [selectedDimension, setSelectedDimension] = useState('department')
@@ -280,6 +281,11 @@ export default function Home() {
 
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
+
+      // Set actual data date range from action-summary response
+      if (actionRes.data?.min_date && actionRes.data?.max_date) {
+        setActionDataDateRange({ min: actionRes.data.min_date, max: actionRes.data.max_date })
+      }
 
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
       setTopUsers24h(topUsers24hRes.data || [])
@@ -487,7 +493,7 @@ export default function Home() {
             <h2>{t('dashboard.actionAnalysis')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
-                {dateRange.start} — {dateRange.end}
+                {actionDataDateRange ? `${actionDataDateRange.min} — ${actionDataDateRange.max}` : `${dateRange.start} — ${dateRange.end}`}
               </span>
               <button
                 onClick={() => setShowManualCollect(!showManualCollect)}

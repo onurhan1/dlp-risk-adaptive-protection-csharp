@@ -53,6 +53,10 @@ public class RiskController : ControllerBase
             var unknown = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "UNKNOWN" || string.IsNullOrEmpty(a.Action))?.Count ?? 0;
             var total = authorized + block + quarantine + released + unknown;
 
+            // Get min and max dates from the data
+            var minDate = await query.MinAsync(i => (DateTime?)i.Timestamp);
+            var maxDate = await query.MaxAsync(i => (DateTime?)i.Timestamp);
+
             return Ok(new Dictionary<string, object>
             {
                 { "authorized", authorized },
@@ -61,6 +65,8 @@ public class RiskController : ControllerBase
                 { "released", released },
                 { "unknown", unknown },
                 { "total", total },
+                { "min_date", minDate?.ToString("yyyy-MM-dd") ?? "" },
+                { "max_date", maxDate?.ToString("yyyy-MM-dd") ?? "" },
                 { "actions", actionCounts.Select(a => new { action = a.Action, count = a.Count }).ToList() }
             });
         }
