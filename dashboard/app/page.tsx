@@ -201,10 +201,28 @@ export default function Home() {
   useEffect(() => {
     const savedJobId = localStorage.getItem('manualCollectJobId')
     if (savedJobId) {
-      setManualCollectJobId(savedJobId)
-      setIsCollecting(true)
-      setShowManualCollect(true)
-      setManualCollectStatus({ status: 'Running', progress: 0, message: 'Çekim devam ediyor...' })
+      // Verify the job still exists before restoring
+      const apiUrl = getApiUrlDynamic()
+      axios.get(`${apiUrl}/api/collector/manual-collect/status/${savedJobId}`)
+        .then((response) => {
+          const status = response.data
+          if (status.status === 'Completed' || status.status === 'Failed') {
+            // Job already finished, show result but don't poll
+            localStorage.removeItem('manualCollectJobId')
+            setManualCollectStatus(status)
+            setShowManualCollect(true)
+          } else {
+            // Job still active, resume polling
+            setManualCollectJobId(savedJobId)
+            setIsCollecting(true)
+            setShowManualCollect(true)
+            setManualCollectStatus(status)
+          }
+        })
+        .catch(() => {
+          // Job not found or API unreachable — clear stale data
+          localStorage.removeItem('manualCollectJobId')
+        })
     }
   }, [])
 
@@ -369,12 +387,14 @@ export default function Home() {
   useEffect(() => {
     if (!manualCollectJobId) return
 
+    let failCount = 0
     const pollInterval = setInterval(async () => {
       try {
         const apiUrl = getApiUrlDynamic()
         const response = await axios.get(`${apiUrl}/api/collector/manual-collect/status/${manualCollectJobId}`)
         const status = response.data
         setManualCollectStatus(status)
+        failCount = 0 // Reset on success
 
         if (status.status === 'Completed' || status.status === 'Failed') {
           clearInterval(pollInterval)
@@ -386,8 +406,17 @@ export default function Home() {
             setTimeout(() => fetchData(), 2000)
           }
         }
-      } catch (error) {
-        console.error('Error polling collect status:', error)
+      } catch (error: any) {
+        failCount++
+        console.error(`Error polling collect status (attempt ${failCount}):`, error)
+        // After 5 consecutive failures, stop polling and clean up
+        if (failCount >= 5) {
+          clearInterval(pollInterval)
+          setIsCollecting(false)
+          setManualCollectJobId(null)
+          localStorage.removeItem('manualCollectJobId')
+          setManualCollectStatus({ status: 'Failed', progress: 0, message: 'Bağlantı hatası — durum takip edilemiyor. Çekim arka planda devam ediyor olabilir.' })
+        }
       }
     }, 2000)
 
