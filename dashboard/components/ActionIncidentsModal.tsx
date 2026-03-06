@@ -40,9 +40,9 @@ interface FilterOptions {
     channels: string[]
     policies: string[]
     rules: string[]
-    dateRange: {
-        minDate: string
-        maxDate: string
+    date_range: {
+        min_date: string
+        max_date: string
     }
 }
 
@@ -239,10 +239,10 @@ export default function ActionIncidentsModal({
             setFilterOptions(response.data)
 
             // Set default date range from API if not single day mode
-            if (!isSingleDayMode && response.data.dateRange) {
+            if (!isSingleDayMode && response.data.date_range) {
                 setDateRange({
-                    start: response.data.dateRange.minDate,
-                    end: response.data.dateRange.maxDate
+                    start: response.data.date_range.min_date,
+                    end: response.data.date_range.max_date
                 })
             }
         } catch (error) {
