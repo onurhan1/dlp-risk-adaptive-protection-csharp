@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -67,13 +68,27 @@ public class AnalyzerConfigClient
         }
     }
 
+    /// <summary>
+    /// DTO matching the Analyzer's snake_case JSON output (SnakeCaseLower policy).
+    /// </summary>
     private class DlpRuntimeSettingsDto
     {
+        [JsonPropertyName("manager_ip")]
         public string? ManagerIp { get; set; }
+
+        [JsonPropertyName("manager_port")]
         public int ManagerPort { get; set; }
+
+        [JsonPropertyName("use_https")]
         public bool UseHttps { get; set; }
+
+        [JsonPropertyName("timeout_seconds")]
         public int TimeoutSeconds { get; set; }
+
+        [JsonPropertyName("username")]
         public string? Username { get; set; }
+
+        [JsonPropertyName("password")]
         public string? Password { get; set; }
     }
 }
