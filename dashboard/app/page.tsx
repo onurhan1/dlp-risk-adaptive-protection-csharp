@@ -197,6 +197,17 @@ export default function Home() {
   const [collectError, setCollectError] = useState<string | null>(null)
   const [showManualCollect, setShowManualCollect] = useState(false)
 
+  // Restore active manual collect job from localStorage on mount
+  useEffect(() => {
+    const savedJobId = localStorage.getItem('manualCollectJobId')
+    if (savedJobId) {
+      setManualCollectJobId(savedJobId)
+      setIsCollecting(true)
+      setShowManualCollect(true)
+      setManualCollectStatus({ status: 'Running', progress: 0, message: 'Çekim devam ediyor...' })
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
   }, [selectedDimension, dateRange.start, dateRange.end, selectedPeriod])
@@ -341,8 +352,11 @@ export default function Home() {
       const response = await axios.post(`${apiUrl}/api/collector/manual-collect`, body)
 
       if (response.data?.job_id) {
-        setManualCollectJobId(response.data.job_id)
+        const jobId = response.data.job_id
+        setManualCollectJobId(jobId)
         setManualCollectStatus({ status: 'Queued', progress: 0, message: t('dashboard.collectQueued') })
+        // Persist to localStorage so we can resume after navigation
+        localStorage.setItem('manualCollectJobId', jobId)
       }
     } catch (error: any) {
       console.error('Error starting manual collection:', error)
@@ -365,6 +379,8 @@ export default function Home() {
         if (status.status === 'Completed' || status.status === 'Failed') {
           clearInterval(pollInterval)
           setIsCollecting(false)
+          // Clear localStorage - job is done
+          localStorage.removeItem('manualCollectJobId')
           // Refresh dashboard data if completed
           if (status.status === 'Completed') {
             setTimeout(() => fetchData(), 2000)
