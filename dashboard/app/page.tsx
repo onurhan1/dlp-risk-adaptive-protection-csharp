@@ -322,20 +322,20 @@ export default function Home() {
           setCollectError(t('dashboard.collectHoursError'))
           return
         }
-        body = { lookbackHours: collectHours }
+        body = { lookback_hours: collectHours }
       } else {
         if (collectDateRange.start >= collectDateRange.end) {
           setCollectError(t('dashboard.collectDateError'))
           return
         }
-        body = { startDate: collectDateRange.start, endDate: collectDateRange.end }
+        body = { start_date: collectDateRange.start, end_date: collectDateRange.end }
       }
 
       setIsCollecting(true)
       const response = await axios.post(`${apiUrl}/api/collector/manual-collect`, body)
 
-      if (response.data?.jobId) {
-        setManualCollectJobId(response.data.jobId)
+      if (response.data?.job_id) {
+        setManualCollectJobId(response.data.job_id)
         setManualCollectStatus({ status: 'Queued', progress: 0, message: t('dashboard.collectQueued') })
       }
     } catch (error: any) {
@@ -678,9 +678,9 @@ export default function Home() {
                   gap: '8px',
                 }}>
                   ✅ {manualCollectStatus.message || t('dashboard.collectCompleted')}
-                  {manualCollectStatus.totalIncidents > 0 && (
+                  {manualCollectStatus.total_incidents > 0 && (
                     <span style={{ fontWeight: '600' }}>
-                      ({manualCollectStatus.totalIncidents} {t('dashboard.incidentsFound')})
+                      ({manualCollectStatus.total_incidents} {t('dashboard.incidentsFound')})
                     </span>
                   )}
                 </div>
