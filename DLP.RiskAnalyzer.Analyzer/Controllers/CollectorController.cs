@@ -81,9 +81,9 @@ public class CollectorController : ControllerBase
                 }
 
                 var daysDiff = (endDate - startDate).TotalDays;
-                if (daysDiff > 90)
+                if (daysDiff > 730)
                 {
-                    return BadRequest(new { success = false, detail = "Date range cannot exceed 90 days." });
+                    return BadRequest(new { success = false, detail = "Date range cannot exceed 730 days (2 years)." });
                 }
 
                 _logger.LogInformation("Manual collect requested: date-based, {Start} to {End} ({Days} days)",
