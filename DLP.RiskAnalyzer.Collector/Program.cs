@@ -72,6 +72,7 @@ class Program
                 services.AddSingleton<AnalyzerConfigClient>();
                 services.AddHostedService<DlpConfigurationSyncService>();
                 services.AddSingleton<CollectorLogService>();
+                services.AddSingleton<ManualCollectQueue>();
                 services.AddSingleton<DLPCollectorService>();
                 services.AddHostedService<CollectorBackgroundService>();
                 

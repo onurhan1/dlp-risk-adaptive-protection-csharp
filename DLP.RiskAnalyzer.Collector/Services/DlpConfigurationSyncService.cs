@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DLP.RiskAnalyzer.Shared.Constants;
+using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,7 @@ public class DlpConfigurationSyncService : BackgroundService
     private readonly DlpRuntimeConfigProvider _configProvider;
     private readonly IConnectionMultiplexer _redis;
     private readonly AnalyzerBridgeOptions _options;
+    private readonly ManualCollectQueue _manualCollectQueue;
     private readonly ILogger<DlpConfigurationSyncService> _logger;
     private ISubscriber? _subscriber;
 
@@ -20,12 +22,14 @@ public class DlpConfigurationSyncService : BackgroundService
         AnalyzerConfigClient configClient,
         DlpRuntimeConfigProvider configProvider,
         IConnectionMultiplexer redis,
+        ManualCollectQueue manualCollectQueue,
         IOptions<AnalyzerBridgeOptions> options,
         ILogger<DlpConfigurationSyncService> logger)
     {
         _configClient = configClient;
         _configProvider = configProvider;
         _redis = redis;
+        _manualCollectQueue = manualCollectQueue;
         _options = options.Value;
         _logger = logger;
     }
@@ -133,6 +137,30 @@ public class DlpConfigurationSyncService : BackgroundService
         });
 
         _logger.LogInformation("Subscribed to DLP config updates via Redis channel {Channel}", DlpConstants.DlpConfigChannel);
+
+        // Subscribe to manual collection commands
+        await _subscriber.SubscribeAsync(RedisChannel.Literal(DlpConstants.ManualCollectChannel), (channel, message) =>
+        {
+            try
+            {
+                var command = JsonSerializer.Deserialize<ManualCollectCommand>(message!);
+                if (command == null || string.IsNullOrEmpty(command.JobId))
+                {
+                    _logger.LogWarning("Received invalid manual collect command on channel {Channel}", channel);
+                    return;
+                }
+
+                _logger.LogInformation("Manual collect command received: JobId={JobId}, {Start} to {End}",
+                    command.JobId, command.StartDate, command.EndDate);
+                _manualCollectQueue.Enqueue(command);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process manual collect command.");
+            }
+        });
+
+        _logger.LogInformation("Subscribed to manual collect commands via Redis channel {Channel}", DlpConstants.ManualCollectChannel);
         }
         catch (StackExchange.Redis.RedisConnectionException ex)
         {

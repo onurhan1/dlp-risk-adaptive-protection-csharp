@@ -1,0 +1,11 @@
+﻿{
+  "version": "1.0.0",
+  "name": "dlp-risk-dashboard",
+  "dependencies": {
+    "recharts": {
+      "version": "3.7.0",
+      "resolved": "https://registry.npmjs.org/recharts/-/recharts-3.7.0.tgz",
+      "overridden": false
+    }
+  }
+}

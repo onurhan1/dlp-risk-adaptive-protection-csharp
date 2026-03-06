@@ -26,7 +26,9 @@ import {
   FileBarChart,
   ChevronRight,
   Activity,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Download
 } from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -181,6 +183,19 @@ export default function Home() {
   const [showReportModal, setShowReportModal] = useState(false)
   const [selectedHighRiskDate, setSelectedHighRiskDate] = useState<string>('')
 
+  // Manual collect state
+  const [collectMode, setCollectMode] = useState<'date' | 'hours'>('date')
+  const [collectDateRange, setCollectDateRange] = useState({
+    start: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  })
+  const [collectHours, setCollectHours] = useState<number>(24)
+  const [manualCollectJobId, setManualCollectJobId] = useState<string | null>(null)
+  const [manualCollectStatus, setManualCollectStatus] = useState<any>(null)
+  const [isCollecting, setIsCollecting] = useState(false)
+  const [collectError, setCollectError] = useState<string | null>(null)
+  const [showManualCollect, setShowManualCollect] = useState(false)
+
   useEffect(() => {
     fetchData()
   }, [selectedDimension, dateRange.start, dateRange.end, selectedPeriod])
@@ -295,6 +310,68 @@ export default function Home() {
     setSelectedAction(action)
   }
 
+  // Manual collect: start collection
+  const startManualCollect = async () => {
+    setCollectError(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      let body: any = {}
+
+      if (collectMode === 'hours') {
+        if (collectHours < 1 || collectHours > 2160) {
+          setCollectError(t('dashboard.collectHoursError'))
+          return
+        }
+        body = { lookbackHours: collectHours }
+      } else {
+        if (collectDateRange.start >= collectDateRange.end) {
+          setCollectError(t('dashboard.collectDateError'))
+          return
+        }
+        body = { startDate: collectDateRange.start, endDate: collectDateRange.end }
+      }
+
+      setIsCollecting(true)
+      const response = await axios.post(`${apiUrl}/api/collector/manual-collect`, body)
+
+      if (response.data?.jobId) {
+        setManualCollectJobId(response.data.jobId)
+        setManualCollectStatus({ status: 'Queued', progress: 0, message: t('dashboard.collectQueued') })
+      }
+    } catch (error: any) {
+      console.error('Error starting manual collection:', error)
+      setCollectError(error.response?.data?.detail || 'Failed to start collection')
+      setIsCollecting(false)
+    }
+  }
+
+  // Polling for manual collect status
+  useEffect(() => {
+    if (!manualCollectJobId) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const apiUrl = getApiUrlDynamic()
+        const response = await axios.get(`${apiUrl}/api/collector/manual-collect/status/${manualCollectJobId}`)
+        const status = response.data
+        setManualCollectStatus(status)
+
+        if (status.status === 'Completed' || status.status === 'Failed') {
+          clearInterval(pollInterval)
+          setIsCollecting(false)
+          // Refresh dashboard data if completed
+          if (status.status === 'Completed') {
+            setTimeout(() => fetchData(), 2000)
+          }
+        }
+      } catch (error) {
+        console.error('Error polling collect status:', error)
+      }
+    }, 2000)
+
+    return () => clearInterval(pollInterval)
+  }, [manualCollectJobId])
+
   const downloadReport = async () => {
     try {
       const token = localStorage.getItem('authToken')
@@ -408,10 +485,223 @@ export default function Home() {
         <div className="card" style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>{t('dashboard.actionAnalysis')}</h2>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
-              {dateRange.start} — {dateRange.end}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
+                {dateRange.start} — {dateRange.end}
+              </span>
+              <button
+                onClick={() => setShowManualCollect(!showManualCollect)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: showManualCollect ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
+                  color: showManualCollect ? '#3b82f6' : 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <Download size={14} /> {t('dashboard.manualCollect')}
+              </button>
+            </div>
           </div>
+
+          {/* Manual Collect Panel */}
+          {showManualCollect && (
+            <div style={{
+              marginTop: '16px',
+              padding: '16px',
+              background: 'var(--background)',
+              borderRadius: '12px',
+              border: '1px solid var(--border)',
+            }}>
+              {/* Mode selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                  <input
+                    type="radio"
+                    name="collectMode"
+                    checked={collectMode === 'date'}
+                    onChange={() => setCollectMode('date')}
+                    style={{ accentColor: '#3b82f6' }}
+                  />
+                  {t('dashboard.dateBased')}
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                  <input
+                    type="radio"
+                    name="collectMode"
+                    checked={collectMode === 'hours'}
+                    onChange={() => setCollectMode('hours')}
+                    style={{ accentColor: '#3b82f6' }}
+                  />
+                  {t('dashboard.hourBased')}
+                </label>
+              </div>
+
+              {/* Inputs based on mode */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {collectMode === 'date' ? (
+                  <>
+                    <input
+                      type="date"
+                      className="filter-input"
+                      value={collectDateRange.start}
+                      max={collectDateRange.end}
+                      onChange={(e) => setCollectDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      style={{ padding: '6px 10px', minWidth: '140px', fontSize: '13px' }}
+                      disabled={isCollecting}
+                    />
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{t('common.to')}</span>
+                    <input
+                      type="date"
+                      className="filter-input"
+                      value={collectDateRange.end}
+                      min={collectDateRange.start}
+                      max={todayStr}
+                      onChange={(e) => setCollectDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      style={{ padding: '6px 10px', minWidth: '140px', fontSize: '13px' }}
+                      disabled={isCollecting}
+                    />
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.lookbackHours')}:</span>
+                    <input
+                      type="number"
+                      className="filter-input"
+                      value={collectHours}
+                      min={1}
+                      max={2160}
+                      onChange={(e) => setCollectHours(Math.max(1, Math.min(2160, parseInt(e.target.value) || 1)))}
+                      style={{ padding: '6px 10px', width: '80px', fontSize: '13px' }}
+                      disabled={isCollecting}
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={startManualCollect}
+                  disabled={isCollecting}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isCollecting ? 'var(--surface-hover)' : '#3b82f6',
+                    color: isCollecting ? 'var(--text-muted)' : 'white',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: isCollecting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <RefreshCw size={14} className={isCollecting ? 'animate-spin' : ''} />
+                  {t('dashboard.startCollection')}
+                </button>
+              </div>
+
+              {/* Error message */}
+              {collectError && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '8px 12px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  color: '#ef4444',
+                  fontSize: '13px',
+                }}>
+                  {collectError}
+                </div>
+              )}
+
+              {/* Progress bar */}
+              {manualCollectStatus && isCollecting && (
+                <div style={{ marginTop: '12px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '6px',
+                    fontSize: '12px',
+                  }}>
+                    <span style={{
+                      color: manualCollectStatus.status === 'Failed' ? '#ef4444' : 'var(--text-muted)',
+                      fontWeight: '500',
+                    }}>
+                      {manualCollectStatus.message || t('dashboard.collectRunning')}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>
+                      {manualCollectStatus.progress}%
+                    </span>
+                  </div>
+                  <div style={{
+                    width: '100%',
+                    height: '8px',
+                    background: 'var(--surface-hover)',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${manualCollectStatus.progress}%`,
+                      height: '100%',
+                      background: manualCollectStatus.status === 'Failed' ? '#ef4444' :
+                        manualCollectStatus.status === 'Queued' ? '#f59e0b' : '#3b82f6',
+                      borderRadius: '4px',
+                      transition: 'width 0.5s ease',
+                      animation: manualCollectStatus.status === 'Queued' ? 'pulse 1.5s infinite' : 'none',
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Completed message */}
+              {manualCollectStatus && !isCollecting && manualCollectStatus.status === 'Completed' && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '8px 12px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '8px',
+                  color: '#10b981',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  ✅ {manualCollectStatus.message || t('dashboard.collectCompleted')}
+                  {manualCollectStatus.totalIncidents > 0 && (
+                    <span style={{ fontWeight: '600' }}>
+                      ({manualCollectStatus.totalIncidents} {t('dashboard.incidentsFound')})
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Failed message */}
+              {manualCollectStatus && !isCollecting && manualCollectStatus.status === 'Failed' && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '8px 12px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  color: '#ef4444',
+                  fontSize: '13px',
+                }}>
+                  ❌ {manualCollectStatus.message || t('dashboard.collectFailed')}
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '32px', alignItems: 'center' }}>
             {/* Donut Chart */}
             <div style={{ height: '300px', position: 'relative' }}>
