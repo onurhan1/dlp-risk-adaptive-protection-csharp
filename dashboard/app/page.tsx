@@ -503,7 +503,7 @@ export default function Home() {
 
   return (
     <div className="dashboard-page" style={{ position: 'relative' }}>
-      <LoadingOverlay isLoading={loading} message={t('common.loading')} />
+      <LoadingOverlay isLoading={loading} message={t('common.loading')} fullScreen />
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1>{t('dashboard.title')}</h1>

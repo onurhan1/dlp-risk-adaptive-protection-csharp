@@ -637,9 +637,13 @@ function AnalyticsPageContent() {
           })
 
           const fullData = Array.isArray(fullResponse.data) ? fullResponse.data : []
-          const fullMapped = fullData.map(mapIncidentData)
-          setIncidents(fullMapped)
-          setTotalLoaded(fullMapped.length)
+          if (fullData.length >= initialMapped.length) {
+            const fullMapped = fullData.map(mapIncidentData)
+            setIncidents(fullMapped)
+            setTotalLoaded(fullMapped.length)
+          } else {
+            console.warn('Background load returned fewer incidents than initial load. Keeping initial data.')
+          }
         } catch (error) {
           console.error('Error fetching remaining incidents:', error)
         } finally {

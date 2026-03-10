@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface LoadingOverlayProps {
     isLoading: boolean
@@ -19,6 +20,11 @@ export default function LoadingOverlay({
 }: LoadingOverlayProps) {
     const [progress, setProgress] = useState(0)
     const [statusText, setStatusText] = useState(message || 'Veriler yükleniyor')
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     useEffect(() => {
         if (!isLoading) {
@@ -50,7 +56,7 @@ export default function LoadingOverlay({
 
     if (!isLoading) return null
 
-    return (
+    const overlayContent = (
         <div
             style={{
                 position: fullScreen ? 'fixed' : 'absolute',
@@ -351,4 +357,10 @@ export default function LoadingOverlay({
             `}</style>
         </div>
     )
+
+    if (fullScreen && mounted) {
+        return createPortal(overlayContent, document.body)
+    }
+
+    return overlayContent
 }
