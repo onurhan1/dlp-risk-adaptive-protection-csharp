@@ -466,7 +466,7 @@ function AnalyticsPageContent() {
 
   useEffect(() => {
     fetchIncidents()
-  }, [])
+  }, [appliedFilters.dateRange.start, appliedFilters.dateRange.end])
 
   // Clear heatmap page when page changes
   useEffect(() => {
@@ -611,12 +611,19 @@ function AnalyticsPageContent() {
     setLoading(true)
     setAllDataLoaded(false)
     try {
+      const { start, end } = appliedFilters.dateRange
+
+      const queryParams: any = {
+        limit: 500,
+        order_by: 'timestamp_desc'
+      }
+
+      if (start) queryParams.startDate = start
+      if (end) queryParams.endDate = end
+
       // Phase 1: Fast initial load - first 500 records for immediate display
       const initialResponse = await apiClient.get('/api/incidents', {
-        params: {
-          limit: 500,
-          order_by: 'timestamp_desc'
-        }
+        params: queryParams
       })
 
       const initialData = Array.isArray(initialResponse.data) ? initialResponse.data : []
@@ -631,8 +638,8 @@ function AnalyticsPageContent() {
         try {
           const fullResponse = await apiClient.get('/api/incidents', {
             params: {
-              limit: 1000000000,
-              order_by: 'timestamp_desc'
+              ...queryParams,
+              limit: 1000000000
             }
           })
 
