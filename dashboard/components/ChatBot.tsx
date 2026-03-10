@@ -417,21 +417,36 @@ export default function ChatBot() {
         }
         // ── End Mercek detection ─────────────────────────────────
 
-        // Static knowledge-base response with simulated delay
-        const thinkTime = 700 + Math.random() * 1000
-        setTimeout(() => {
-            const response = generateResponse(messageText)
+        // Use Azure OpenAI endpoint via backend
+        try {
+            // Sadece önceki kullanıcı ve asistan mesajlarını gönderiyoruz
+            const history = messages.map(m => ({ role: m.role, content: m.content }))
+            history.push({ role: 'user', content: messageText })
+
+            const res = await apiClient.post('/api/chatbot/chat', { messages: history })
+            const responseText = res.data.reply || 'Azure OpenAI servisine ulaşılamadı.'
+
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: response,
+                content: responseText,
                 timestamp: new Date(),
             }
             setMessages((prev: Message[]) => [...prev, assistantMessage])
+        } catch (error: any) {
+            console.error('Azure OpenAI error:', error)
+            const errorMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `⚠️ **Bağlantı Hatası**\n\nAzure OpenAI servisine erişilemedi.\n_Detay: ${error.message}_`,
+                timestamp: new Date(),
+            }
+            setMessages((prev: Message[]) => [...prev, errorMsg])
+        } finally {
             setIsTyping(false)
             if (!isOpen || isMinimized) setHasNewMessage(true)
-        }, thinkTime)
-    }, [inputValue, isOpen, isMinimized])
+        }
+    }, [inputValue, isOpen, isMinimized, messages])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
