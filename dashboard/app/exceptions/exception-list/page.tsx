@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, Suspense } from 'react'
 import apiClient from '@/lib/axios'
 import { useTranslation } from '@/components/LanguageProvider'
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import { format, parseISO, differenceInDays, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns'
 import {
     ChevronDown,
@@ -345,7 +346,7 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
 
 export default function ExceptionListPage() {
     return (
-        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
+        <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}><LoadingOverlay isLoading={true} message="Exception List yükleniyor" /></div>}>
             <ExceptionListContent />
         </Suspense>
     )
@@ -703,17 +704,8 @@ function ExceptionListContent() {
 
     if (loading) {
         return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '60vh',
-                color: 'var(--text-secondary)',
-                flexDirection: 'column',
-                gap: '16px'
-            }}>
-                <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite' }} />
-                <span style={{ fontSize: '14px' }}>{t('common.loading')}</span>
+            <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
+                <LoadingOverlay isLoading={loading} message="Exception List verileri yükleniyor" />
             </div>
         )
     }

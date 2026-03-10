@@ -26,6 +26,7 @@ import {
   Sparkles,
   Shield
 } from 'lucide-react'
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
 
 interface Incident {
   id: number
@@ -1589,45 +1590,7 @@ function AnalyticsPageContent() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px', position: 'relative' }}>
       {/* Filter Loading Overlay */}
-      {filterLoading && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.35)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          backdropFilter: 'blur(2px)'
-        }}>
-          <div style={{
-            background: 'var(--surface)',
-            borderRadius: '12px',
-            padding: '32px 48px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '16px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
-          }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              border: '3px solid var(--border)',
-              borderTop: '3px solid #3b82f6',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite'
-            }} />
-            <p style={{ color: 'var(--text-primary)', fontSize: '14px', fontWeight: '600', margin: 0 }}>
-              Filtreler uygulanıyor...
-            </p>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay isLoading={filterLoading} message="Filtreler uygulanıyor" fullScreen transparent />
 
       <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -1650,31 +1613,7 @@ function AnalyticsPageContent() {
 
         {/* Full Page Loading Screen */}
         {loading && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '60vh',
-            gap: '24px'
-          }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              border: '4px solid var(--border)',
-              borderTop: '4px solid #3b82f6',
-              borderRadius: '50%',
-              animation: 'spin 0.9s linear infinite'
-            }} />
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600', margin: '0 0 6px 0' }}>
-                Veriler yükleniyor...
-              </p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                Team Based Analysis verileri hazırlanıyor
-              </p>
-            </div>
-          </div>
+          <LoadingOverlay isLoading={loading} message="Team Based Analysis verileri hazırlanıyor" />
         )}
 
         {/* Main Content - Hidden during initial loading */}

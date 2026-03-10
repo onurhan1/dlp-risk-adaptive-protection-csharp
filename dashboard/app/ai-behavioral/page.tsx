@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
 import EntityDetailModal from '@/components/EntityDetailModal'
 import { BarChart3, Bot } from 'lucide-react'
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
 
 interface AIBehavioralAnalysis {
   entity_type: string
@@ -223,8 +224,8 @@ export default function AIBehavioralPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--background)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>Loading AI Behavioral Analysis...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
+        <LoadingOverlay isLoading={loading} message="AI Behavioral Analysis yükleniyor" />
       </div>
     )
   }

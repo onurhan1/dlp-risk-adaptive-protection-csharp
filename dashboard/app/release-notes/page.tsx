@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from '@/components/LanguageProvider'
 import { Rocket, Zap, Bug, ClipboardList } from 'lucide-react'
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
 
 interface ReleaseEntry {
     title: string
@@ -74,8 +75,8 @@ export default function ReleaseNotesPage() {
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh', color: 'var(--text-muted)' }}>
-                {t('common.loading')}
+            <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
+                <LoadingOverlay isLoading={loading} message="Release Notes yükleniyor" />
             </div>
         )
     }
