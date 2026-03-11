@@ -270,39 +270,60 @@ async function analyzeDestinationOrUser(query: string): Promise<string> {
 
 // ─── Flow 4: DLP + Mercek Combined Analysis ────────────────────────────────
 // "X ifadesini dlp ve mercekle birlikte analiz et"
-// Returns: unique users for keyword in mercek + their DLP incident count + exception info
+// 1. Mercek incidentDescription'da keyword'ü ara
+// 2. Eşleşen kayıtlardan userName + tarih al
+// 3. Her kullanıcı için aynı tarihte DLP incident eşleştirmesi yap
 async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
     try {
-        // Fetch mercek, incidents, and exceptions in parallel
         const [mercekResponse, allIncidents, excData] = await Promise.all([
             apiClient.get('/api/mercek', { params: { page: 1, pageSize: 10000, searchTerm: keyword } }),
             fetchIncidentsForChatbot(),
             fetchPolicyExceptionsForChatbot()
         ])
 
-        const mercekData = mercekResponse.data
-        const mercekItems: any[] = mercekData.items || []
+        const mercekItems: any[] = mercekResponse.data?.items || []
 
         if (mercekItems.length === 0) {
             return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi bulunamadi.`
         }
 
         const kw = keyword.toLowerCase()
-        const relevantItems = mercekItems.filter((r: any) =>
-            (r.incidentDescription || '').toLowerCase().includes(kw) ||
-            (r.solutionMethod || '').toLowerCase().includes(kw) ||
-            (r.summaryDescription || '').toLowerCase().includes(kw)
+
+        // Sadece incidentDescription alanında keyword geçen kayıtları filtrele
+        const matchedRecords = mercekItems.filter((r: any) =>
+            (r.incidentDescription || '').toLowerCase().includes(kw)
         )
 
-        const uniqueUsers = Array.from(new Set(
-            relevantItems.map((r: any) => r.userName).filter(Boolean)
-        )) as string[]
+        if (matchedRecords.length === 0) {
+            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek aciklama alaninda **"${keyword}"** ifadesi bulunamadi.`
+        }
 
-        if (uniqueUsers.length === 0) {
+        // Her mercek kaydından userName + tarih çıkar
+        const toDateStr = (d: any): string => {
+            if (!d) return ''
+            try { return new Date(d).toISOString().split('T')[0] } catch { return '' }
+        }
+
+        // Kullanıcı bazlı gruplama: user → [mercek tarihleri]
+        const userDateMap = new Map<string, { dates: Set<string>; mercekCount: number; records: any[] }>()
+        matchedRecords.forEach((r: any) => {
+            const user = (r.userName || '').trim()
+            if (!user) return
+            const date = toDateStr(r.openDate) || toDateStr(r.systemDate) || toDateStr(r.startDate)
+            if (!userDateMap.has(user)) {
+                userDateMap.set(user, { dates: new Set(), mercekCount: 0, records: [] })
+            }
+            const entry = userDateMap.get(user)!
+            if (date) entry.dates.add(date)
+            entry.mercekCount++
+            entry.records.push(r)
+        })
+
+        if (userDateMap.size === 0) {
             return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\n"${keyword}" ifadesiyle eslesen kullanici bulunamadi.`
         }
 
-        // Collect all exception names for keyword matching
+        // Exception isimlerini topla
         const allExceptionNames: string[] = []
         excData.policies.forEach(policy => {
             policy.rules.forEach(rule => {
@@ -310,19 +331,21 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             })
         })
 
-        const today = new Date()
-        const todayStr = today.toISOString().split('T')[0]
-        const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        // Her kullanıcı için: mercek tarihleriyle DLP incident tarih eşleştirmesi
+        type UserRow = {
+            user: string
+            mercekCount: number
+            mercekDates: string[]
+            dlpDateMatchCount: number
+            dlpDateMatchDetails: { date: string; action: string; destination: string }[]
+            exceptionHits: string[]
+        }
+        const rows: UserRow[] = []
 
-        const tableRows: { user: string; mercekCount: number; dlpTodayCount: number; dlp30dCount: number; exceptionHits: number }[] = []
-
-        uniqueUsers.forEach(userName => {
+        userDateMap.forEach((data, userName) => {
             const userLower = userName.toLowerCase()
 
-            const userMercekCount = relevantItems.filter((r: any) =>
-                (r.userName || '').toLowerCase() === userLower
-            ).length
-
+            // Bu kullanıcının tüm DLP incident'ları
             const userIncidents = allIncidents.filter(inc => {
                 const email = (inc.userEmail || '').toLowerCase()
                 const login = (inc.loginName || '').toLowerCase()
@@ -330,60 +353,97 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
                 return email.includes(userLower) || login.includes(userLower) || fullName.includes(userLower)
             })
 
-            const userDlpToday = userIncidents.filter(inc => {
-                const incDate = inc.timestamp ? new Date(inc.timestamp).toISOString().split('T')[0] : ''
-                return incDate === todayStr
-            }).length
-
-            const userDlp30d = userIncidents.filter(inc => {
-                return inc.timestamp && new Date(inc.timestamp) >= thirtyDaysAgo
-            }).length
-
-            // Count how many of this user's incidents have exception matches in violationTriggers
-            const exceptionHits = userIncidents.filter(inc => {
-                const triggers = (inc.violationTriggers || '').toLowerCase()
-                if (!triggers) return false
-                return allExceptionNames.some(excName => triggers.includes(excName.toLowerCase()))
-            }).length
-
-            tableRows.push({ user: userName, mercekCount: userMercekCount, dlpTodayCount: userDlpToday, dlp30dCount: userDlp30d, exceptionHits })
-        })
-
-        tableRows.sort((a, b) => b.mercekCount - a.mercekCount)
-
-        let result = `📊 **DLP + Mercek Birlesik Analiz: "${keyword}"**\n\n`
-        result += `👤 **Benzersiz Kullanici Sayisi: ${uniqueUsers.length}**\n\n`
-        result += `| Kullanici | Mercek | DLP Bugun | DLP 30g | Exception |\n`
-        result += `|-----------|:------:|:---------:|:-------:|:---------:|\n`
-        tableRows.slice(0, 20).forEach(row => {
-            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpTodayCount} | ${row.dlp30dCount} | ${row.exceptionHits} |\n`
-        })
-        if (tableRows.length > 20) {
-            result += `\n_... ve ${tableRows.length - 20} kullanici daha_\n`
-        }
-
-        // Summary: keyword matching exceptions
-        const kwExceptions = allExceptionNames.filter(exc => exc.toLowerCase().includes(kw))
-        if (kwExceptions.length > 0) {
-            result += `\n## Iliskili Exception'lar\n`
-            result += `• **"${keyword}"** ifadesiyle eslesen **${kwExceptions.length}** exception:\n`
-            kwExceptions.slice(0, 8).forEach(exc => { result += `  - ${exc}\n` })
-            if (kwExceptions.length > 8) result += `  _... ve ${kwExceptions.length - 8} tane daha_\n`
-        }
-
-        // Recommendation based on aggregated risk
-        if (allIncidents.length > 0) {
-            const relatedIncidents = allIncidents.filter(inc => {
-                const userLower = (inc.userEmail || inc.loginName || inc.fullName || '').toLowerCase()
-                return uniqueUsers.some(u => userLower.includes(u.toLowerCase()))
+            // Mercek tarihiyle eşleşen DLP incident'ları bul
+            const dateMatchedIncidents = userIncidents.filter(inc => {
+                const incDate = toDateStr(inc.timestamp)
+                return incDate && data.dates.has(incDate)
             })
-            if (relatedIncidents.length > 0) {
-                const avgRisk = Math.round(relatedIncidents.reduce((sum: number, inc: any) => sum + (inc.riskScore || 0), 0) / relatedIncidents.length)
-                const channelCounts: Record<string, number> = {}
-                relatedIncidents.forEach((inc: any) => { const ch = inc.channel || 'Email'; channelCounts[ch] = (channelCounts[ch] || 0) + 1 })
-                const topChannel = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Email'
 
-                const rec = await fetchRecommendation(avgRisk, topChannel)
+            const dlpDetails = dateMatchedIncidents.slice(0, 5).map(inc => ({
+                date: toDateStr(inc.timestamp),
+                action: inc.action || '-',
+                destination: inc.destination || '-'
+            }))
+
+            // Mercek açıklamalarında geçen exception isimleri
+            const matchedExc = new Set<string>()
+            data.records.forEach((record: any) => {
+                const desc = (record.incidentDescription || '').toLowerCase()
+                allExceptionNames.forEach(excName => {
+                    if (desc.includes(excName.toLowerCase())) {
+                        matchedExc.add(excName)
+                    }
+                })
+            })
+
+            rows.push({
+                user: userName,
+                mercekCount: data.mercekCount,
+                mercekDates: Array.from(data.dates).sort(),
+                dlpDateMatchCount: dateMatchedIncidents.length,
+                dlpDateMatchDetails: dlpDetails,
+                exceptionHits: Array.from(matchedExc)
+            })
+        })
+
+        rows.sort((a, b) => b.dlpDateMatchCount - a.dlpDateMatchCount || b.mercekCount - a.mercekCount)
+
+        // ── Çıktı oluştur ──
+        let result = `📊 **DLP + Mercek Birlesik Analiz: "${keyword}"**\n\n`
+        result += `• Mercek aciklamasinda eslesen kayit: **${matchedRecords.length}**\n`
+        result += `• Benzersiz kullanici: **${rows.length}**\n`
+        const totalDateMatch = rows.reduce((s, r) => s + r.dlpDateMatchCount, 0)
+        result += `• Tarih eslesen DLP incident: **${totalDateMatch}**\n\n`
+
+        // Özet tablo
+        result += `| Kullanici | Mercek | Tarih Eslesen DLP | Exception |\n`
+        result += `|-----------|:------:|:-----------------:|:---------:|\n`
+        rows.slice(0, 20).forEach(row => {
+            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpDateMatchCount} | ${row.exceptionHits.length} |\n`
+        })
+        if (rows.length > 20) {
+            result += `\n_... ve ${rows.length - 20} kullanici daha_\n`
+        }
+
+        // Tarih eşleşmesi detayları (en çok eşleşen ilk 5 kullanıcı)
+        const usersWithMatch = rows.filter(r => r.dlpDateMatchCount > 0)
+        if (usersWithMatch.length > 0) {
+            result += `\n## Tarih Eslesmesi Detaylari\n`
+            usersWithMatch.slice(0, 5).forEach(row => {
+                result += `\n**${row.user}** — Mercek tarihleri: ${row.mercekDates.join(', ')}\n`
+                if (row.dlpDateMatchDetails.length > 0) {
+                    row.dlpDateMatchDetails.forEach(d => {
+                        result += `  • ${d.date} — Aksiyon: ${d.action} | Hedef: ${d.destination}\n`
+                    })
+                }
+            })
+        }
+
+        // Exception bilgisi
+        const usersWithExc = rows.filter(r => r.exceptionHits.length > 0)
+        if (usersWithExc.length > 0) {
+            result += `\n## Mercek Aciklamalarindaki Exception'lar\n`
+            usersWithExc.slice(0, 10).forEach(row => {
+                result += `• **${row.user}**: ${row.exceptionHits.join(', ')}\n`
+            })
+        }
+
+        // Recommendation
+        if (usersWithMatch.length > 0) {
+            const matchedIncs = allIncidents.filter(inc => {
+                const incDate = toDateStr(inc.timestamp)
+                const incUser = (inc.userEmail || inc.loginName || inc.fullName || '').toLowerCase()
+                return rows.some(r => {
+                    const userLower = r.user.toLowerCase()
+                    return (incUser.includes(userLower)) && r.mercekDates.includes(incDate)
+                })
+            })
+            if (matchedIncs.length > 0) {
+                const avgRisk = Math.round(matchedIncs.reduce((s: number, i: any) => s + (i.riskScore || 0), 0) / matchedIncs.length)
+                const chCounts: Record<string, number> = {}
+                matchedIncs.forEach((i: any) => { const c = i.channel || 'Email'; chCounts[c] = (chCounts[c] || 0) + 1 })
+                const topCh = Object.entries(chCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Email'
+                const rec = await fetchRecommendation(avgRisk, topCh)
                 if (rec) {
                     result += `\n## Politika Onerisi\n`
                     result += `• Ort. Risk: **${avgRisk}** | Seviye: **${rec.risk_level || '-'}**\n`
@@ -392,7 +452,9 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             }
         }
 
-        result += `\n📅 DLP verileri bugunun tarihine (**${todayStr}**) ve son 30 gune gore hesaplanmistir.`
+        if (usersWithMatch.length === 0) {
+            result += `\n💡 Mercek'te eslesen kullanicilar icin ayni tarihte DLP incident bulunamadi.`
+        }
         return result
     } catch (error: any) {
         if (error?.response?.status === 401) {
