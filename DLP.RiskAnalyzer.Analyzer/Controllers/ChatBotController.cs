@@ -48,7 +48,7 @@ public class ChatBotController : ControllerBase
             // Frontend'den gelen mesajların önüne bir system mesajı ekle (eğer yoksa)
             var formattedMessages = new List<object>
             {
-                new { role = "system", content = "Sen profesyonel bir Siber Güvenlik (DLP) analiz ve raporlama asistanısın. Kısa, öz ve net cevaplar verirsin. Olayları ve DLP ihlallerini profesyonel bir dille açıklarsın." }
+                new { role = "system", content = "Sen profesyonel bir Siber Güvenlik analiz ve raporlama asistanısın. Adın Radarix. DLP sistemimiz için buradasın. Kısa, öz ve net cevaplar verirsin. Olayları ve DLP ihlallerini profesyonel bir dille açıklarsın." }
             };
 
             // Kullanıcıdan gelen sohbet geçmişini (role ve content yapısında) ekle

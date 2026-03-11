@@ -10,23 +10,8 @@ interface Message {
     timestamp: Date
 }
 
-interface QuickSuggestion {
-    label: string
-    query: string
-}
-
-const QUICK_SUGGESTIONS: QuickSuggestion[] = [
-    { label: '🔴 Yüksek Riskli Kullanicilar', query: 'Yuksek riskli kullanicilari nasil analiz edebilirim?' },
-    { label: '📊 DLP Politikalari', query: 'DLP politika ihlalleri hakkinda bilgi ver' },
-    { label: '🔍 Olay Sorusturma', query: 'Bir guvenlik olayini nasil sorusturuyorum?' },
-    { label: '⚡ Otomatik Duzeltme', query: 'Otomatik duzeltme onerileri neler?' },
-    { label: '📈 Risk Skoru', query: 'Risk skoru nasil hesaplanir?' },
-    { label: '🛡️ Veri Koruma', query: 'Veri sizintisini nasil onleyebilirim?' },
-    { label: '🔎 Mercek Kelime Analizi', query: 'leasing kelimesiyle analiz yap' },
-    { label: '⚖️ Threshold Hesapla', query: 'jdoe icin threshold hesapla' },
-]
-
-// ─── Mercek Keyword Analysis via real API ──────────────────────────────────────
+// ─── Flow 2: Mercek Keyword Analysis ────────────────────────────────────────
+// "X ifadesiyle analiz yap" → searches incidentDescription in mercek, returns count
 async function searchMercekKeyword(keyword: string): Promise<string> {
     try {
         const response = await apiClient.get('/api/mercek', {
@@ -37,20 +22,19 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
         const items: any[] = data.items || []
 
         if (totalCount === 0) {
-            return `🔍 **Mercek Kelime Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** kelimesi hicbir kayitta bulunamadi.\n\n💡 Farkli bir kelime veya yazim deneyin.`
+            return `🔍 **Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi hicbir kayitta bulunamadi.\n\n💡 Farkli bir ifade deneyin.`
         }
 
-        // Breakdown by field
         const kw = keyword.toLowerCase()
-        const descMatches = items.filter(r =>
+        const descMatches = items.filter((r: any) =>
             (r.incidentDescription || '').toLowerCase().includes(kw)
         ).length
-        const solutionMatches = items.filter(r =>
+        const solutionMatches = items.filter((r: any) =>
             (r.solutionMethod || '').toLowerCase().includes(kw)
         ).length
         const uniqueUsers = Array.from(new Set(
             items
-                .filter(r =>
+                .filter((r: any) =>
                     (r.incidentDescription || '').toLowerCase().includes(kw) ||
                     (r.solutionMethod || '').toLowerCase().includes(kw)
                 )
@@ -58,7 +42,7 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
                 .filter(Boolean)
         )) as string[]
 
-        let result = `🔍 **Mercek Kelime Analizi: "${keyword}"**\n\n`
+        let result = `🔍 **Mercek Analizi: "${keyword}"**\n\n`
         result += `📊 **Toplam Eslesen Kayit: ${totalCount}**\n\n`
         if (descMatches > 0) result += `• **Olay Aciklamasinda:** ${descMatches} kayit\n`
         if (solutionMatches > 0) result += `• **Cozum Yonteminde:** ${solutionMatches} kayit\n`
@@ -66,247 +50,245 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
             result += `• Diger alanlarda: ${totalCount} kayit\n`
         }
         if (uniqueUsers.length > 0) {
-            result += `\n👤 **Ilgili Kullanicilar (${uniqueUsers.length}):**\n`
-            uniqueUsers.slice(0, 5).forEach((u: string) => { result += `• ${u}\n` })
-            if (uniqueUsers.length > 5) result += `• ... ve ${uniqueUsers.length - 5} kisi daha\n`
+            result += `\n👤 **Benzersiz Kullanici Sayisi: ${uniqueUsers.length}**\n`
+            uniqueUsers.slice(0, 8).forEach((u: string) => { result += `• ${u}\n` })
+            if (uniqueUsers.length > 8) result += `• ... ve ${uniqueUsers.length - 8} kisi daha\n`
         }
-        result += `\n💡 Detayli inceleme icin **Mercek Analysis** sayfasina gidin ve "${keyword}" ile arama yapin.`
         return result
     } catch (error: any) {
         if (error?.response?.status === 401) {
             return `⚠️ **Yetki Hatasi**\n\nMercek verilerine erismek icin oturum acmaniz gerekiyor.`
         }
-        const msg = error?.message || 'Bilinmeyen hata'
-        return `❌ **Mercek API Hatasi**\n\n"${keyword}" aramasi sirasinda bir hata olustu. Sunucu baglantisini kontrol edin.\n\n_Hata: ${msg}_`
+        return `❌ **Mercek API Hatasi**\n\n"${keyword}" aramasi sirasinda bir hata olustu.\n_Hata: ${error?.message || 'Bilinmeyen hata'}_`
     }
 }
 
-// ─── Threshold Analysis via /api/incidents ─────────────────────────────────
-function calcPercentile(arr: number[], p: number): number {
-    if (arr.length === 0) return 0
-    const sorted = [...arr].sort((a, b) => a - b)
-    const idx = Math.ceil((p / 100) * sorted.length) - 1
-    return sorted[Math.max(0, idx)]
-}
-
-async function searchThreshold(query: string, queryType: 'user' | 'domain'): Promise<string> {
+// ─── Flow 3: Destination / User Based DLP Analysis ─────────────────────────
+async function analyzeDestinationOrUser(query: string): Promise<string> {
     try {
         const response = await apiClient.get('/api/incidents', {
             params: { limit: 1000000, order_by: 'timestamp_desc' }
         })
         const allIncidents: any[] = Array.isArray(response.data) ? response.data : []
         if (allIncidents.length === 0) {
-            return `⚠️ **Incident verisi bulunamadi.**\n\nAPI'den veri alinamadi. Sistem baglantisini kontrol edin.`
+            return `⚠️ **Veri bulunamadi.**\n\nAPI'den incident verisi alinamadi.`
         }
 
-        // Filter incidents by user or domain
         const q = query.toLowerCase().trim()
-        const filtered = allIncidents.filter((inc: any) => {
-            if (queryType === 'user') {
-                return (
-                    (inc.user_email || inc.userEmail || '').toLowerCase().includes(q) ||
-                    (inc.login_name || inc.loginName || '').toLowerCase().includes(q) ||
-                    (inc.full_name || inc.fullName || '').toLowerCase().includes(q)
-                )
-            } else {
-                return (inc.domain || '').toLowerCase().includes(q)
-            }
-        })
+        const now = new Date()
+        const oneMonthAgo = new Date(now); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+        const threeMonthsAgo = new Date(now); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+
+        // Match by destination, user_email, login_name, or full_name
+        const matchIncident = (inc: any) => {
+            const dest = (inc.destination || inc.Destination || '').toLowerCase()
+            const email = (inc.user_email || inc.userEmail || '').toLowerCase()
+            const login = (inc.login_name || inc.loginName || '').toLowerCase()
+            const fullName = (inc.full_name || inc.fullName || '').toLowerCase()
+            return dest.includes(q) || email.includes(q) || login.includes(q) || fullName.includes(q)
+        }
+
+        const filtered = allIncidents.filter(matchIncident)
 
         if (filtered.length === 0) {
-            const typeLabel = queryType === 'user' ? 'kullaniciya' : 'domain\'e'
-            return `🔍 **Threshold Analizi: "${query}"**\n\nBu ${typeLabel} ait hicbir incident bulunamadi.\n\n💡 Farkli bir ${queryType === 'user' ? 'kullanici adi/e-posta' : 'domain'} deneyin.`
+            return `🔍 **Analiz: "${query}"**\n\nBu ifadeyle eslesen hicbir incident bulunamadi.\n\n💡 Farkli bir destination veya kullanici adi deneyin.`
         }
 
-        // Collect maxMatches values
-        const matches: number[] = filtered
-            .map((inc: any) => inc.maxMatches || inc.max_matches || 0)
-            .filter((v: number) => v > 0)
+        // Parse timestamps
+        const getDate = (inc: any) => new Date(inc.timestamp || inc.Timestamp)
 
-        const allMatches = matches.length > 0 ? matches : filtered.map((_: any) => 1)
+        const last1Month = filtered.filter(inc => getDate(inc) >= oneMonthAgo)
+        const last3Months = filtered.filter(inc => getDate(inc) >= threeMonthsAgo)
 
-        // Same logic as exceptions page:
-        // Medium (Audit): P50 - 1  (min 1)
-        // High (Block):   P90 + 1
-        const p50 = calcPercentile(allMatches, 50)
-        const p70 = calcPercentile(allMatches, 70)
-        const p90 = calcPercentile(allMatches, 90)
-        const mediumThreshold = Math.max(p50 - 1, 1)
-        const highThreshold = p90 + 1
-        const avgMatches = allMatches.reduce((a: number, b: number) => a + b, 0) / allMatches.length
-
-        // Breakdown by policy
-        const policyCount: Record<string, number> = {}
-        filtered.forEach((inc: any) => {
-            const policy = inc.policy || inc.Policy || 'Bilinmeyen Politika'
-            policyCount[policy] = (policyCount[policy] || 0) + 1
-        })
-        const topPolicies = Object.entries(policyCount)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-
-        const typeLabel = queryType === 'user' ? '👤 Kullanici' : '🌐 Domain'
-        let result = `⚖️ **Threshold Analizi: "${query}"**\n\n`
-        result += `${typeLabel}: **${query}**\n`
-        result += `📋 Toplam Incident: **${filtered.length}**\n\n`
-        result += `## Istatistikler\n`
-        result += `• Ortalama Eslesme: **${avgMatches.toFixed(1)}**\n`
-        result += `• P50 (Medyan): **${p50}**\n`
-        result += `• P70: **${p70}**\n`
-        result += `• P90: **${p90}**\n\n`
-        result += `## Onerilen Esikler\n`
-        result += `• 🟡 **Medium (Audit) Esigi:** ${mediumThreshold} _(P50 - 1)_\n`
-        result += `• 🔴 **High (Block) Esigi:** ${highThreshold} _(P90 + 1)_\n\n`
-        if (topPolicies.length > 0) {
-            result += `## En Cok Ihlal Edilen Politikalar\n`
-            topPolicies.forEach(([policy, count]) => {
-                result += `• **${policy}**: ${count} incident\n`
+        // Action distribution helper
+        const actionDist = (list: any[]) => {
+            const counts: Record<string, number> = {}
+            list.forEach(inc => {
+                const action = inc.action || inc.Action || 'Bilinmiyor'
+                counts[action] = (counts[action] || 0) + 1
             })
-            result += '\n'
+            return Object.entries(counts).sort((a, b) => b[1] - a[1])
         }
-        result += `💡 Bu esikler **Exception Recommendation** raporuyla ayni metodoloji kullanilarak hesaplanmistir.\n`
-        result += `Detayli inceleme icin **Team Based Analysis** sayfasini ziyaret edin.`
+
+        const dist1 = actionDist(last1Month)
+        const dist3 = actionDist(last3Months)
+
+        let result = `📊 **Analiz: "${query}"**\n\n`
+        result += `## Son 1 Ay\n`
+        result += `• Toplam Incident: **${last1Month.length}**\n`
+        if (dist1.length > 0) {
+            result += `• Aksiyon Dagilimi:\n`
+            dist1.forEach(([action, count]) => {
+                result += `  - **${action}**: ${count}\n`
+            })
+        }
+        result += `\n## Son 3 Ay\n`
+        result += `• Toplam Incident: **${last3Months.length}**\n`
+        if (dist3.length > 0) {
+            result += `• Aksiyon Dagilimi:\n`
+            dist3.forEach(([action, count]) => {
+                result += `  - **${action}**: ${count}\n`
+            })
+        }
+        result += `\n📋 Tum zamanlar toplam: **${filtered.length}** incident`
         return result
     } catch (error: any) {
-        if (error?.response?.status === 401) {
-            return `⚠️ **Yetki Hatasi**\n\nIncident verilerine erismek icin oturum acmaniz gerekiyor.`
-        }
-        const msg = error?.message || 'Bilinmeyen hata'
-        return `❌ **Threshold Hesaplama Hatasi**\n\n"${query}" icin threshold hesaplanamadi.\n\n_Hata: ${msg}_`
+        return `❌ **Analiz Hatasi**\n\n"${query}" icin analiz yapilamadi.\n_Hata: ${error?.message || 'Bilinmeyen hata'}_`
     }
 }
 
-// ─── Threshold Query Detection ──────────────────────────────────────────────
-function detectThresholdQuery(msg: string): { query: string, type: 'user' | 'domain' } | null {
-    // Pattern: "jdoe icin threshold" / "jdoe icin esik hesapla"
-    const m1 = msg.match(/([\w.@-]{2,50})\s+(?:icin|için)\s+(?:threshold|esik|esigi|threshold.*hesapla|esik.*hesapla)/i)
-    if (m1) {
-        const q = m1[1].trim()
-        const isDomain = /\./.test(q) && !/@/.test(q)
-        return { query: q, type: isDomain ? 'domain' : 'user' }
+// ─── Flow 4: DLP + Mercek Combined Analysis ────────────────────────────────
+// "X ifadesini dlp ve mercekle birlikte analiz et"
+// Returns: unique users for keyword in mercek + their DLP incident count for that day
+async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
+    try {
+        // Step 1: Get mercek records matching keyword
+        const mercekResponse = await apiClient.get('/api/mercek', {
+            params: { page: 1, pageSize: 10000, searchTerm: keyword }
+        })
+        const mercekData = mercekResponse.data
+        const mercekItems: any[] = mercekData.items || []
+
+        if (mercekItems.length === 0) {
+            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi bulunamadi.`
+        }
+
+        // Step 2: Get unique users from mercek that match the keyword
+        const kw = keyword.toLowerCase()
+        const relevantItems = mercekItems.filter((r: any) =>
+            (r.incidentDescription || '').toLowerCase().includes(kw) ||
+            (r.solutionMethod || '').toLowerCase().includes(kw) ||
+            (r.summaryDescription || '').toLowerCase().includes(kw)
+        )
+
+        const uniqueUsers = Array.from(new Set(
+            relevantItems.map((r: any) => r.userName).filter(Boolean)
+        )) as string[]
+
+        if (uniqueUsers.length === 0) {
+            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\n"${keyword}" ifadesiyle eslesen kullanici bulunamadi.`
+        }
+
+        // Step 3: Get DLP incidents
+        const dlpResponse = await apiClient.get('/api/incidents', {
+            params: { limit: 1000000, order_by: 'timestamp_desc' }
+        })
+        const allIncidents: any[] = Array.isArray(dlpResponse.data) ? dlpResponse.data : []
+
+        // Step 4: For each unique mercek user, count their DLP incidents for today
+        const today = new Date()
+        const todayStr = today.toISOString().split('T')[0]
+
+        const tableRows: { user: string; mercekCount: number; dlpTodayCount: number }[] = []
+
+        uniqueUsers.forEach(userName => {
+            const userLower = userName.toLowerCase()
+
+            // Count mercek incidents for this user with this keyword
+            const userMercekCount = relevantItems.filter((r: any) =>
+                (r.userName || '').toLowerCase() === userLower
+            ).length
+
+            // Count DLP incidents for this user today
+            const userDlpToday = allIncidents.filter(inc => {
+                const email = (inc.user_email || inc.userEmail || '').toLowerCase()
+                const login = (inc.login_name || inc.loginName || '').toLowerCase()
+                const fullName = (inc.full_name || inc.fullName || '').toLowerCase()
+                const matchesUser = email.includes(userLower) || login.includes(userLower) || fullName.includes(userLower)
+
+                const ts = inc.timestamp || inc.Timestamp
+                const incDate = ts ? new Date(ts).toISOString().split('T')[0] : ''
+                return matchesUser && incDate === todayStr
+            }).length
+
+            tableRows.push({ user: userName, mercekCount: userMercekCount, dlpTodayCount: userDlpToday })
+        })
+
+        // Sort by mercek count descending
+        tableRows.sort((a, b) => b.mercekCount - a.mercekCount)
+
+        let result = `📊 **DLP + Mercek Birlesik Analiz: "${keyword}"**\n\n`
+        result += `👤 **Benzersiz Kullanici Sayisi: ${uniqueUsers.length}**\n\n`
+        result += `| Kullanici | Mercek Kayit | DLP Bugun |\n`
+        result += `|-----------|:------------:|:---------:|\n`
+        tableRows.slice(0, 20).forEach(row => {
+            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpTodayCount} |\n`
+        })
+        if (tableRows.length > 20) {
+            result += `\n_... ve ${tableRows.length - 20} kullanici daha_\n`
+        }
+        result += `\n📅 DLP incident sayilari bugunun tarihine (**${todayStr}**) gore hesaplanmistir.`
+        return result
+    } catch (error: any) {
+        return `❌ **Birlesik Analiz Hatasi**\n\n"${keyword}" icin DLP + Mercek analizi yapilamadi.\n_Hata: ${error?.message || 'Bilinmeyen hata'}_`
     }
+}
 
-    // Pattern: "threshold ... kullanici/domain X"
-    const m2 = msg.match(/(?:threshold|esik)\s+(?:hesapla|ver|goster)?\s*(?:kullanici|user)?\s+([\w.@-]{2,50})/i)
-    if (m2) {
-        const q = m2[1].trim()
-        const isDomain = /\./.test(q) && !/@/.test(q)
-        return { query: q, type: isDomain ? 'domain' : 'user' }
-    }
+// ─── Keyword Detection Helpers ──────────────────────────────────────────────
 
-    // Pattern: "domain gmail.com icin esik" / "domain icin threshold"
-    const m3 = msg.match(/domain\s+([\w.-]{2,50})\s+(?:icin|için)?\s*(?:threshold|esik)/i)
-    if (m3) return { query: m3[1].trim(), type: 'domain' }
+// Detects: "X ifadesiyle analiz yap" / "X kelimesiyle analiz yap" (single or multi-word before the trigger)
+function detectMercekKeyword(msg: string): string | null {
+    // Pattern: "ANYTHING ifadesiyle analiz yap" or "ANYTHING kelimesiyle analiz yap"
+    const m1 = msg.match(/^(.+?)\s+(?:ifadesiyle|kelimesiyle|ifadesini|kelimesini)\s+analiz/i)
+    if (m1) return m1[1].trim()
 
-    // Pattern: "X kullanicisinin threshold" / "X kullanicisi icin"
-    const m4 = msg.match(/([\w.@-]{2,50})\s+kullanicis?(?:i|inin|na|nin)?\s+(?:threshold|esik)/i)
-    if (m4) return { query: m4[1].trim(), type: 'user' }
+    // Pattern: quoted keyword
+    const m2 = msg.match(/["'`](.+?)["'`]\s*(?:ifadesiyle|kelimesiyle|ile|analiz)/i)
+    if (m2) return m2[1].trim()
 
     return null
 }
 
-// ─── DLP Knowledge Base ─────────────────────────────────────────────────────
-const DLP_KNOWLEDGE: Record<string, string[]> = {
-    risk: [
-        '📊 **Risk Skoru Analizi**\n\nRADAR sistemi risk skorlarini su faktorlere gore hesaplar:\n\n• **Politika Ihlal Sayisi** — Son 30 gundeki ihlal miktari\n• **Ihlal Siddeti** — Kritik, Yuksek, Orta, Dusuk kategorileri\n• **Hedef Hassasiyeti** — Disariya gonderilen verinin turu\n• **Kullanici Davranis Gecmisi** — Anomali tespiti\n\n💡 **Ipucu:** Risk skoru >80 olan kullanicilar icin acil inceleme baslatin.',
-        '🎯 **Risk Seviyesi Detaylari**\n\n| Seviye | Puan | Aksiyon |\n|--------|------|---------|\n| Kritik | 90-100 | Aninda Engelle |\n| Yuksek | 70-89 | Acil Incele |\n| Orta | 40-69 | Gozlemle |\n| Dusuk | 1-39 | Raporla |\n\nKullanici risk puanlari her 15 dakikada bir guncellenir.',
-    ],
-    dlp: [
-        '🛡️ **DLP Politika Ihlalleri**\n\nSik karsilasilan ihlal turleri:\n\n• **Veri Sizdirma** — E-posta veya USB ile hassas veri transferi\n• **Yetkisiz Erisim** — Izinsiz dosya veya sistemlere erisim\n• **Politika Bypass** — Guvenlik kontrollerini atlatma girisimleri\n• **Supeheli Indirme** — Toplu veri indirme aktivitesi\n\n⚠️ Tum ihlaller otomatik olarak DLP motoru tarafindan loglanir.',
-        '📋 **Politika Yonetimi**\n\nRADAR uzerinden politikalar su sekilde yonetilir:\n\n1. **Kural Olusturma** — Settings > DLP Rules bolumunden\n2. **Esik Ayarlama** — Her kural icin tetikleme esigi\n3. **Aksiyon Tanimlama** — Bildirim, engelleme veya kayit\n4. **Inceleme Periyodu** — Otomatik gozden gecirme zamanlari\n\n💡 Politikalari duzenli araliklar ile guncellemeniz onerilir.',
-    ],
-    investigation: [
-        '🔍 **Olay Sorusturma Adimlari**\n\n1. **Ilk Degerlendirme** — Olayin siddetini belirle\n2. **Log Analizi** — Ilgili loglari topla ve incele\n3. **Timeline Olusturma** — Olay zaman cizelgesini hazirla\n4. **Etki Analizi** — Etkilenen sistemleri ve verileri tespit et\n5. **Duzeltici Aksiyon** — Gerekli onlemleri al\n6. **Raporlama** — Yonetim raporunu olustur\n\n⏱️ Kritik olaylar icin yanis suresi <1 saat olmalidir.',
-        '📁 **Investigation Modulu**\n\nSolda "Investigation" menuunden erisebileceginiz modul sunlari sunar:\n\n• **Alert Details** — Detayli uyari incelemesi\n• **Timeline View** — Kronolojik olay gorunumu\n• **User Activity** — Kullanici aktivite gecmisi\n• **Network Map** — Ag baglanti haritasi\n\n🎯 Her olayi kapatmadan once tam belgeleme yapin.',
-    ],
-    remediation: [
-        '⚡ **Otomatik Duzeltme Secenekleri**\n\nRADAR\'in otomatik duzeltme motoru su aksiyonlari alabilir:\n\n• **Hesap Kilitleme** — Supeheli aktivitede otomatik kilit\n• **Oturum Sonlandirma** — Aktif oturumlari kapatma\n• **Erisim Iptali** — Belirli kaynaklara erisimi engelleme\n• **E-posta Karantina** — Supeheli e-postalari tutma\n• **Dosya Geri Alma** — Yetkisiz transferleri geri alma\n\n⚠️ Otomatik duzeltmeyi etkinlestirmeden once politikalarinizi test edin.',
-    ],
-    user: [
-        '👤 **Kullanici Risk Analizi**\n\nYuksek riskli kullanicilari belirlemek icin:\n\n1. Ana dashboard\'daki **High Risk Users** panelini inceleyin\n2. Kullaniciya tiklayarak **Entity Detail Modal**\'i acin\n3. **Behavioral Analytics** sekmesinde anomalileri gozden gecirin\n4. **Risk Timeline** uzerinde trend analizi yapin\n\n🔴 Risk skoru >85 olan kullanicilar icin HR ile koordinasyon oneririz.',
-        '📊 **Kullanici Davranis Analizi**\n\nDAVRANIS PUANLAMA SISTEMI:\n\n• Mesai disi erisim: +15 puan\n• Buyuk dosya transferi: +20 puan\n• Yeni cihazdan erisim: +10 puan\n• Coklu basarisiz giris: +25 puan\n• Normal disi saat aktivitesi: +15 puan\n\n📈 Bu puanlar gercek zamanli olarak hesaplanir ve dashboardda gosterilir.',
-    ],
-    data: [
-        '🔒 **Veri Koruma Stratejileri**\n\nEtkili veri koruma icin oneriler:\n\n1. **Veri Siniflandirma** — Hassasiyet seviyelerine gore etiketleme\n2. **Erisim Kontrolu** — En az ayricalik ilkesi\n3. **Sifreleme** — Hem dinlenme hem de transfer sirasinda\n4. **DLP Politikalari** — Icerik tabanli filtreleme kurallari\n5. **Kullanici Egitimi** — Guvenlik farkindalik programlari\n\n💡 RADAR, veri sizintisini gercek zamanli olarak tespit eder ve engeller.',
-    ],
-    report: [
-        '📈 **Raporlama ve Analytics**\n\nRADAR raporlama ozellikleri:\n\n• **Anlik Raporlar** — Gercek zamanli dashboard gorunumu\n• **Scheduled Reports** — Otomatik periyodik raporlar\n• **Ozel Raporlar** — Ihtiyaca gore ozellestirilebilir\n• **Export Secenekleri** — PDF, Excel, CSV formatlari\n\nRapor almak icin ust menudeki **Reports** bolumune gidin.\n\n📊 Aylik trend raporlari icin "Analytics" menusunu kullanin.',
-    ],
+// Detects: "X ifadesini dlp ve mercekle birlikte analiz et"
+function detectCombinedQuery(msg: string): string | null {
+    const m1 = msg.match(/^(.+?)\s+(?:ifadesini|kelimesini)\s+(?:dlp\s+ve\s+mercek|mercek\s+ve\s+dlp|dlp.*mercek|mercek.*dlp).*analiz/i)
+    if (m1) return m1[1].trim()
+
+    const m2 = msg.match(/["'`](.+?)["'`]\s*(?:ifadesini|kelimesini)?\s*(?:dlp.*mercek|mercek.*dlp).*analiz/i)
+    if (m2) return m2[1].trim()
+
+    return null
 }
 
+// Detects: "X analiz et" / "X icin analiz yap" (destination or user based)
+function detectDestinationQuery(msg: string): string | null {
+    // Pattern: "X icin analiz et/yap"
+    const m1 = msg.match(/^(.+?)\s+(?:icin|için)\s+analiz/i)
+    if (m1) {
+        const q = m1[1].trim()
+        if (q.length >= 2) return q
+    }
+
+    // Pattern: "X analiz et" / "X'i analiz et"
+    const m2 = msg.match(/^(.+?)(?:'[iıİI])?\s+analiz\s+et/i)
+    if (m2) {
+        const q = m2[1].trim()
+        if (q.length >= 2) return q
+    }
+
+    return null
+}
+
+// ─── Flow 1: Fallback ──────────────────────────────────────────────────────
+function generateFallbackResponse(): string {
+    return `🤔 **Uzgunum, anlayamadim.**\n\nAsagidaki komutlari deneyebilirsiniz:\n\n• **Mercek Analizi:** _"leasing ifadesiyle analiz yap"_\n• **Destination/Kullanici Analizi:** _"gmail.com icin analiz et"_\n• **DLP + Mercek Birlesik Analiz:** _"leasing ifadesini dlp ve mercekle birlikte analiz et"_`
+}
+
+// ─── Static Knowledge Base (Azure fallback) ─────────────────────────────────
 function generateResponse(userMessage: string): string {
     const msg = userMessage.toLowerCase()
 
     if (/^(merhaba|selam|hi|hello|hey|gunaydin|iyi gunler)/.test(msg)) {
-        return '👋 **Merhaba! RADAR Guvenlik Asistani\'na hos geldiniz.**\n\nSize su konularda yardimci olabilirim:\n\n• 🔴 Risk analizi ve yuksek riskli kullanicilar\n• 🛡️ DLP politikalari ve ihlal yonetimi\n• 🔍 Guvenlik olayi sorusturma\n• ⚡ Otomatik duzeltme aksiyonlari\n• 📊 Raporlama ve analytics\n• 🔎 Mercek kelime analizi (ornek: "leasing kelimesiyle analiz yap")\n• ⚖️ Threshold analizi (ornek: "jdoe icin threshold hesapla")\n\nNasil yardimci olabilirim?'
+        return '👋 **Merhaba! Ben Radarix.**\n\nDLP sistemimiz icin buradayim. Nasil yardimci olabilirim?'
     }
-
     if (/^(gule gule|hosca kal|bye|tamam tesekkur|tesekkurler|sagol|gorusuruz)/.test(msg)) {
-        return '👋 **Gorusmek uzere!**\n\nHerhangi bir guvenlik sorunuz oldugunda buradayim. RADAR sistemini guvende tutun! 🛡️'
+        return '👋 **Gorusmek uzere!** 🛡️'
     }
-
     if (/ne yapabilir|neler yapabilir|yardim|help|nasil kullan/.test(msg)) {
-        return '🤖 **RADAR Guvenlik Asistani Yetenekleri**\n\nSize su konularda rehberlik edebilirim:\n\n1. **Risk Yonetimi** — Kullanici ve sistem risk skorlari\n2. **DLP Politikalari** — Ihlal analizi ve politika yonetimi\n3. **Olay Sorusturma** — Adim adim sorusturma rehberi\n4. **Otomatik Duzeltme** — Guvenlik aksiyonlari\n5. **Raporlama** — Dashboard ve raporlar\n6. **Veri Koruma** — En iyi uygulamalar\n7. **Mercek Analizi** — "X kelimesiyle analiz yap" yazarak gercek veritabani aramasi\n\n💡 Asagidaki hizli onerileri veya kendi sorunuzu kullanabilirsiniz.'
+        return '🤖 **Radarix Yetenekleri**\n\n1. **Mercek Analizi** — _"leasing ifadesiyle analiz yap"_\n2. **Destination/Kullanici Analizi** — _"gmail.com icin analiz et"_\n3. **DLP + Mercek Birlesik** — _"leasing ifadesini dlp ve mercekle birlikte analiz et"_'
     }
 
-    if (/risk|puan|skor|score/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.risk
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/dlp|politika|ihlal|kural|rule|policy/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.dlp
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/sorustur|incele|analiz|investigate|olay|alert|uyari/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.investigation
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/duzeltme|remediat|engel|kapat|kilit|otomatik/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.remediation
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/kullanici|user|kisi|calisan|employee|davranis|behavior/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.user
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/veri|data|sizinti|koruma|leak|protect|sifrele|encrypt/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.data
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    if (/rapor|report|analitik|analytic|istatistik|statistic/.test(msg)) {
-        const responses = DLP_KNOWLEDGE.report
-        return responses[Math.floor(Math.random() * responses.length)]
-    }
-
-    return `🤔 Sorunuzu anlamaya calisiyorum...\n\n"**${userMessage}**" hakkinda dogrudan bilgim olmayabilir. Deneyebileceginiz sorgular:\n\n• Mercek analizi: **"leasing kelimesiyle analiz yap"**\n• Threshold: **"jdoe icin threshold hesapla"**\n• Risk skoru icin **"risk"** yazin\n• DLP ihlalleri icin **"dlp politika"** yazin\n• Olay sorusturmasi icin **"sorusturma"** yazin\n\n💡 Veya asagidaki hizli onerilerden birini secebilirsiniz.`
-}
-
-// ─── Mercek Keyword Detection ──────────────────────────────────────────────
-function detectMercekKeyword(msg: string): string | null {
-    // Pattern 1: "X kelimesiyle" / "X kelimesini" / "X kelimesinde"
-    const m1 = msg.match(/(\w[\w\s-]{0,30}?)\s+kelimesi(?:yle|ni|nde|nden)?/i)
-    if (m1) {
-        const kw = m1[1].trim().split(/\s+/).pop() || m1[1].trim()
-        return kw
-    }
-
-    // Pattern 2: quoted keyword + analiz/mercek
-    const m2 = msg.match(/["'`](\w[\w\s-]{0,30}?)["'`]\s*(?:kelime|analiz|ara|bul)/i)
-    if (m2 && /mercek|analiz|kelime|bul|ara|kac/i.test(msg)) {
-        return m2[1].trim()
-    }
-
-    // Pattern 3: "mercek ... X analiz" / "X ... mercek"
-    const m3 = msg.match(/(?:mercek\w*\s+(?:\w+\s+){0,5}?)(\w{3,})\s*(?:kelime|analiz|arama|bul|kac)/i)
-    if (m3) return m3[1].trim()
-
-    return null
+    return generateFallbackResponse()
 }
 
 export default function ChatBot() {
@@ -316,7 +298,7 @@ export default function ChatBot() {
         {
             id: '1',
             role: 'assistant',
-            content: '👋 **RADAR Guvenlik Asistani**\n\nMerhaba! DLP guvenlik sisteminiz hakkinda sorularinizi yanitlamak icin buradayim.\n\nRisk analizi, politika ihlalleri, olay sorusturma, veri koruma veya **Mercek kelime analizi** konularinda yardimci olabilirim.\n\n💡 Ornek: _"leasing kelimesiyle analiz yap"_',
+            content: '👋 **Merhaba! Ben Radarix.**\n\nDLP sistemimiz icin buradayim.',
             timestamp: new Date(),
         },
     ])
@@ -356,75 +338,47 @@ export default function ChatBot() {
         setInputValue('')
         setIsTyping(true)
 
-        // ── Threshold analysis detection ─────────────────────────
-        const isThresholdQuery = /threshold|esik|esigi|esik.*hesapla|threshold.*hesapla|hesapla.*threshold|icin.*esik|icin.*threshold/i.test(messageText)
-        if (isThresholdQuery) {
-            const thresholdResult = detectThresholdQuery(messageText)
-            if (thresholdResult) {
-                const apiResult = await searchThreshold(thresholdResult.query, thresholdResult.type)
-                const assistantMessage: Message = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: apiResult,
-                    timestamp: new Date(),
-                }
-                setMessages((prev: Message[]) => [...prev, assistantMessage])
-                setIsTyping(false)
-                if (!isOpen || isMinimized) setHasNewMessage(true)
-                return
-            }
-            // pattern detected but couldn't parse — ask for clarification
-            const clarifyMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: `⚖️ **Threshold Analizi**\n\nKullanici adi veya domain girin:\n\n_"jdoe icin threshold hesapla"_\n_"john.doe@sirket.com icin esik ver"_\n_"domain gmail.com icin threshold"_`,
-                timestamp: new Date(),
-            }
-            setMessages((prev: Message[]) => [...prev, clarifyMsg])
-            setIsTyping(false)
-            return
-        }
-        // ── End Threshold detection ──────────────────────────────
-
-        // ── Mercek keyword analysis detection ──────────────────────
-        const isMercekQuery = /mercek|kelimesiyle|kelimesini|kelimesinde|kelimesinden|kelime.*analiz|analiz.*kelime/i.test(messageText)
-        if (isMercekQuery) {
-            const keyword = detectMercekKeyword(messageText)
-            if (keyword && keyword.length >= 2) {
-                // Real API call — no setTimeout, await the result
-                const apiResult = await searchMercekKeyword(keyword)
-                const assistantMessage: Message = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: apiResult,
-                    timestamp: new Date(),
-                }
-                setMessages((prev: Message[]) => [...prev, assistantMessage])
-                setIsTyping(false)
-                if (!isOpen || isMinimized) setHasNewMessage(true)
-                return
-            }
-            // keyword detected but too short — ask user to clarify
-            const clarifyMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: `🔎 **Mercek Analizi**\n\nHangi kelimeyi aramami istiyorsunuz? Lutfen soyle yazin:\n\n_"leasing kelimesiyle analiz yap"_\n_"nda kelimesiyle analiz yap"_`,
-                timestamp: new Date(),
-            }
-            setMessages((prev: Message[]) => [...prev, clarifyMsg])
-            setIsTyping(false)
-            return
-        }
-        // ── End Mercek detection ─────────────────────────────────
-
-        // Use Azure OpenAI endpoint via backend
         try {
-            // Sadece önceki kullanıcı ve asistan mesajlarını gönderiyoruz
-            const history = messages.map(m => ({ role: m.role, content: m.content }))
-            history.push({ role: 'user', content: messageText })
+            let responseText: string | null = null
 
-            const res = await apiClient.post('/api/chatbot/chat', { messages: history })
-            const responseText = res.data.reply || 'Azure OpenAI servisine ulaşılamadı.'
+            // ── Flow 4: DLP + Mercek Combined (most specific — check FIRST) ──
+            const combinedKeyword = detectCombinedQuery(messageText)
+            if (combinedKeyword) {
+                responseText = await analyzeCombinedDlpMercek(combinedKeyword)
+            }
+
+            // ── Flow 2: Mercek Keyword Analysis ─────────────────────────
+            if (!responseText && /ifadesiyle\s+analiz|kelimesiyle\s+analiz/i.test(messageText)) {
+                const keyword = detectMercekKeyword(messageText)
+                if (keyword && keyword.length >= 2) {
+                    responseText = await searchMercekKeyword(keyword)
+                }
+            }
+
+            // ── Flow 3: Destination / User Based Analysis ───────────────
+            if (!responseText && /analiz\s+et|icin\s+analiz|için\s+analiz/i.test(messageText)) {
+                const destQuery = detectDestinationQuery(messageText)
+                if (destQuery) {
+                    responseText = await analyzeDestinationOrUser(destQuery)
+                }
+            }
+
+            // ── Azure OpenAI Fallback (if configured) ───────────────────
+            if (!responseText) {
+                try {
+                    const history = messages.map(m => ({ role: m.role, content: m.content }))
+                    history.push({ role: 'user', content: messageText })
+                    const res = await apiClient.post('/api/chatbot/chat', { messages: history })
+                    responseText = res.data.reply || null
+                } catch {
+                    // Azure not available — use static fallback
+                }
+            }
+
+            // ── Flow 1: Fallback — nothing matched ──────────────────────
+            if (!responseText) {
+                responseText = generateResponse(messageText)
+            }
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
@@ -434,11 +388,11 @@ export default function ChatBot() {
             }
             setMessages((prev: Message[]) => [...prev, assistantMessage])
         } catch (error: any) {
-            console.error('Azure OpenAI error:', error)
+            console.error('ChatBot error:', error)
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `⚠️ **Bağlantı Hatası**\n\nAzure OpenAI servisine erişilemedi.\n_Detay: ${error.message}_`,
+                content: generateFallbackResponse(),
                 timestamp: new Date(),
             }
             setMessages((prev: Message[]) => [...prev, errorMsg])
@@ -460,7 +414,7 @@ export default function ChatBot() {
             {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: '🔄 **Sohbet temizlendi.**\n\nYeni bir konusma baslatin. Ornek: _"leasing kelimesiyle analiz yap"_',
+                content: '🔄 **Sohbet temizlendi.**\n\nMerhaba! Ben Radarix. DLP sistemimiz icin buradayim.',
                 timestamp: new Date(),
             },
         ])
@@ -535,7 +489,7 @@ export default function ChatBot() {
 
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', letterSpacing: '0.3px' }}>
-                                RADAR Guvenlik Asistani
+                                Radarix
                             </div>
                             <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                                 <span style={{
@@ -635,18 +589,6 @@ export default function ChatBot() {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Quick Suggestions */}
-                            <div style={{ padding: '8px 12px 4px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexWrap: 'wrap', gap: '5px', flexShrink: 0 }}>
-                                {QUICK_SUGGESTIONS.map((s, i) => (
-                                    <button key={i} onClick={() => sendMessage(s.query)}
-                                        style={{ background: 'var(--background-secondary)', border: '1px solid var(--border)', borderRadius: '20px', color: 'var(--primary)', fontSize: '10.5px', padding: '4px 10px', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
-                                        onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = 'var(--surface-hover)'; el.style.borderColor = 'var(--primary)' }}
-                                        onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { const el = e.currentTarget; el.style.background = 'var(--background-secondary)'; el.style.borderColor = 'var(--border)' }}>
-                                        {s.label}
-                                    </button>
-                                ))}
-                            </div>
-
                             {/* Input Area */}
                             <div style={{ padding: '10px 12px 14px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                                 <input
@@ -655,7 +597,7 @@ export default function ChatBot() {
                                     value={inputValue}
                                     onChange={e => setInputValue(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Ornek: leasing kelimesiyle analiz yap..."
+                                    placeholder="Ornek: leasing ifadesiyle analiz yap..."
                                     style={{ flex: 1, background: 'var(--background-secondary)', border: '1px solid var(--border)', borderRadius: '10px', padding: '9px 13px', color: 'var(--text-primary)', fontSize: '12.5px', outline: 'none', transition: 'all 0.2s' }}
                                     onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.12)' }}
                                     onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none' }}
