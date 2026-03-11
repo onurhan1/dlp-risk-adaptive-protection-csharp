@@ -75,10 +75,12 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
 
 // ─── Shared Helpers: Fetch incidents & exceptions (reusable across flows) ────
 
-async function fetchIncidentsForChatbot(): Promise<any[]> {
+async function fetchIncidentsForChatbot(startDate?: string): Promise<any[]> {
     try {
+        const params: any = { limit: 10000, orderBy: 'timestamp_desc' }
+        if (startDate) params.startDate = startDate
         const response = await apiClient.get('/api/incidents', {
-            params: { limit: 10000, orderBy: 'timestamp_desc' },
+            params,
             timeout: 60000
         })
         const arr = Array.isArray(response.data) ? response.data : []
@@ -308,13 +310,11 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             })
         }
 
-        // DLP incidents ve exceptions'ı paralel çek
-        const [allIncidents, excData] = await Promise.all([
-            fetchIncidentsForChatbot(),
-            fetchPolicyExceptionsForChatbot()
-        ])
-
         const kw = keyword.toLowerCase()
+        const toDateStr = (d: any): string => {
+            if (!d) return ''
+            try { return new Date(d).toISOString().split('T')[0] } catch { return '' }
+        }
 
         // Client-side: sadece incidentDescription'da keyword geçen kayıtları filtrele
         // API snake_case döndürüyor (Program.cs: SnakeCaseLower policy)
@@ -326,11 +326,20 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nOlay Aciklamasi alaninda **"${keyword}"** ifadesi bulunamadi.\n\n💡 Farkli bir ifade deneyin.`
         }
 
-        // Her mercek kaydından userName + tarih çıkar
-        const toDateStr = (d: any): string => {
-            if (!d) return ''
-            try { return new Date(d).toISOString().split('T')[0] } catch { return '' }
-        }
+        // Mercek eşleşmelerindeki en eski tarihi bul → DLP'yi bu tarihten itibaren çek
+        const allMercekDates: string[] = matchedRecords
+            .map((r: any) => toDateStr(r.open_date ?? r.openDate) || toDateStr(r.system_date ?? r.systemDate) || toDateStr(r.start_date ?? r.startDate))
+            .filter(Boolean)
+        const earliestDate = allMercekDates.length > 0
+            ? allMercekDates.sort()[0]
+            : undefined
+
+        // DLP incidents ve exceptions'ı paralel çek
+        // startDate ile Mercek tarih aralığını kapsayacak şekilde iste
+        const [allIncidents, excData] = await Promise.all([
+            fetchIncidentsForChatbot(earliestDate),
+            fetchPolicyExceptionsForChatbot()
+        ])
 
         // Kullanıcı bazlı gruplama: user → [mercek tarihleri]
         const userDateMap = new Map<string, { dates: Set<string>; mercekCount: number; records: any[] }>()
@@ -416,47 +425,12 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
 
         rows.sort((a, b) => b.dlpDateMatchCount - a.dlpDateMatchCount || b.mercekCount - a.mercekCount)
 
-        // ── Çıktı oluştur ──
-        let result = `📊 **DLP + Mercek Birlesik Analiz: "${keyword}"**\n\n`
-        result += `• Mercek aciklamasinda eslesen kayit: **${matchedRecords.length}**\n`
-        result += `• Benzersiz kullanici: **${rows.length}**\n`
         const totalDateMatch = rows.reduce((s, r) => s + r.dlpDateMatchCount, 0)
-        result += `• Tarih eslesen DLP incident: **${totalDateMatch}**\n\n`
-
-        // Özet tablo
-        result += `| Kullanici | Mercek | Tarih Eslesen DLP | Exception |\n`
-        result += `|-----------|:------:|:-----------------:|:---------:|\n`
-        rows.slice(0, 20).forEach(row => {
-            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpDateMatchCount} | ${row.exceptionHits.length} |\n`
-        })
-        if (rows.length > 20) {
-            result += `\n_... ve ${rows.length - 20} kullanici daha_\n`
-        }
-
-        // Tarih eşleşmesi detayları (en çok eşleşen ilk 5 kullanıcı)
         const usersWithMatch = rows.filter(r => r.dlpDateMatchCount > 0)
-        if (usersWithMatch.length > 0) {
-            result += `\n## Tarih Eslesmesi Detaylari\n`
-            usersWithMatch.slice(0, 5).forEach(row => {
-                result += `\n**${row.user}** — Mercek tarihleri: ${row.mercekDates.join(', ')}\n`
-                if (row.dlpDateMatchDetails.length > 0) {
-                    row.dlpDateMatchDetails.forEach(d => {
-                        result += `  • ${d.date} — Aksiyon: ${d.action} | Hedef: ${d.destination}\n`
-                    })
-                }
-            })
-        }
-
-        // Exception bilgisi
         const usersWithExc = rows.filter(r => r.exceptionHits.length > 0)
-        if (usersWithExc.length > 0) {
-            result += `\n## Mercek Aciklamalarindaki Exception'lar\n`
-            usersWithExc.slice(0, 10).forEach(row => {
-                result += `• **${row.user}**: ${row.exceptionHits.join(', ')}\n`
-            })
-        }
 
-        // Recommendation
+        // Recommendation hesapla
+        let recData: any = null
         if (usersWithMatch.length > 0) {
             const matchedIncs = allIncidents.filter(inc => {
                 const incDate = toDateStr(inc.timestamp)
@@ -472,18 +446,112 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
                 matchedIncs.forEach((i: any) => { const c = i.channel || 'Email'; chCounts[c] = (chCounts[c] || 0) + 1 })
                 const topCh = Object.entries(chCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Email'
                 const rec = await fetchRecommendation(avgRisk, topCh)
-                if (rec) {
-                    result += `\n## Politika Onerisi\n`
-                    result += `• Ort. Risk: **${avgRisk}** | Seviye: **${rec.risk_level || '-'}**\n`
-                    result += `• Onerilen Aksiyon: **${rec.recommended_action || '-'}**\n`
-                }
+                if (rec) recData = { avgRisk, ...rec }
             }
         }
 
-        if (usersWithMatch.length === 0) {
-            result += `\n💡 Mercek'te eslesen kullanicilar icin ayni tarihte DLP incident bulunamadi.`
+        // ── Premium HTML çıktı oluştur ──
+        let h = ''
+
+        // Başlık kartı
+        h += `<div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;padding:16px 18px;margin-bottom:12px;border:1px solid rgba(99,102,241,0.3)">`
+        h += `<div style="font-size:14px;font-weight:700;color:#a5b4fc;margin-bottom:8px">📊 DLP + Mercek Birlesik Analiz</div>`
+        h += `<div style="font-size:11px;color:#94a3b8;margin-bottom:10px">"${keyword}" ifadesi icin capraz analiz sonuclari</div>`
+        h += `<div style="display:flex;gap:8px;flex-wrap:wrap">`
+        h += `<span style="background:rgba(99,102,241,0.15);color:#818cf8;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(99,102,241,0.25)">${matchedRecords.length} Mercek Kayit</span>`
+        h += `<span style="background:rgba(16,185,129,0.15);color:#6ee7b7;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(16,185,129,0.25)">${rows.length} Kullanici</span>`
+        h += `<span style="background:rgba(245,158,11,0.15);color:#fbbf24;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(245,158,11,0.25)">${totalDateMatch} DLP Eslesmesi</span>`
+        if (usersWithExc.length > 0) {
+            h += `<span style="background:rgba(239,68,68,0.15);color:#fca5a5;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(239,68,68,0.25)">${usersWithExc.length} Exception</span>`
         }
-        return result
+        h += `</div></div>`
+
+        // Ana tablo
+        h += `<div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);margin-bottom:12px">`
+        h += `<table style="width:100%;border-collapse:collapse;font-size:11px">`
+        h += `<thead><tr style="background:linear-gradient(135deg,#1e293b,#334155)">`
+        h += `<th style="padding:8px 10px;text-align:left;color:#94a3b8;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid rgba(99,102,241,0.3)">Kullanici</th>`
+        h += `<th style="padding:8px 6px;text-align:center;color:#94a3b8;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid rgba(99,102,241,0.3)">Mercek</th>`
+        h += `<th style="padding:8px 6px;text-align:center;color:#94a3b8;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid rgba(99,102,241,0.3)">DLP</th>`
+        h += `<th style="padding:8px 6px;text-align:center;color:#94a3b8;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid rgba(99,102,241,0.3)">Exc.</th>`
+        h += `<th style="padding:8px 10px;text-align:left;color:#94a3b8;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid rgba(99,102,241,0.3)">Tarihler</th>`
+        h += `</tr></thead><tbody>`
+
+        rows.slice(0, 15).forEach((row, idx) => {
+            const bg = idx % 2 === 0 ? 'rgba(15,23,42,0.6)' : 'rgba(30,41,59,0.4)'
+            const dlpColor = row.dlpDateMatchCount > 0 ? '#fbbf24' : '#475569'
+            const excColor = row.exceptionHits.length > 0 ? '#f87171' : '#475569'
+            const dlpBg = row.dlpDateMatchCount > 0 ? 'rgba(245,158,11,0.12)' : 'transparent'
+            const excBg = row.exceptionHits.length > 0 ? 'rgba(239,68,68,0.12)' : 'transparent'
+            h += `<tr style="background:${bg};border-bottom:1px solid rgba(255,255,255,0.04)">`
+            h += `<td style="padding:7px 10px;color:#e2e8f0;font-weight:500">${row.user}</td>`
+            h += `<td style="padding:7px 6px;text-align:center;color:#818cf8;font-weight:700">${row.mercekCount}</td>`
+            h += `<td style="padding:7px 6px;text-align:center"><span style="background:${dlpBg};color:${dlpColor};font-weight:700;padding:2px 8px;border-radius:10px">${row.dlpDateMatchCount}</span></td>`
+            h += `<td style="padding:7px 6px;text-align:center"><span style="background:${excBg};color:${excColor};font-weight:700;padding:2px 8px;border-radius:10px">${row.exceptionHits.length}</span></td>`
+            h += `<td style="padding:7px 10px;color:#64748b;font-size:10px">${row.mercekDates.slice(0, 2).join(', ')}${row.mercekDates.length > 2 ? ' +' + (row.mercekDates.length - 2) : ''}</td>`
+            h += `</tr>`
+        })
+        h += `</tbody></table></div>`
+        if (rows.length > 15) {
+            h += `<div style="text-align:center;color:#64748b;font-size:10px;margin-bottom:10px;font-style:italic">... ve ${rows.length - 15} kullanici daha</div>`
+        }
+
+        // Tarih eşleşme detayları
+        if (usersWithMatch.length > 0) {
+            h += `<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:12px 14px;margin-bottom:12px">`
+            h += `<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:8px">⚡ Tarih Eslesmesi Detaylari</div>`
+            usersWithMatch.slice(0, 5).forEach(row => {
+                h += `<div style="margin-bottom:8px">`
+                h += `<div style="font-size:11px;font-weight:600;color:#e2e8f0;margin-bottom:4px">👤 ${row.user}</div>`
+                if (row.dlpDateMatchDetails.length > 0) {
+                    row.dlpDateMatchDetails.forEach(d => {
+                        const actionColor = d.action === 'Block' ? '#f87171' : d.action === 'Permit' ? '#6ee7b7' : '#fbbf24'
+                        h += `<div style="display:flex;gap:6px;align-items:center;padding:3px 0 3px 12px;font-size:10px">`
+                        h += `<span style="color:#64748b">📅 ${d.date}</span>`
+                        h += `<span style="color:${actionColor};font-weight:600;background:${actionColor}18;padding:1px 6px;border-radius:8px">${d.action}</span>`
+                        h += `<span style="color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px" title="${d.destination}">→ ${d.destination}</span>`
+                        h += `</div>`
+                    })
+                }
+                h += `</div>`
+            })
+            if (usersWithMatch.length > 5) {
+                h += `<div style="color:#92400e;font-size:10px;font-style:italic">... ve ${usersWithMatch.length - 5} kullanici daha</div>`
+            }
+            h += `</div>`
+        }
+
+        // Exception bilgisi
+        if (usersWithExc.length > 0) {
+            h += `<div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:12px 14px;margin-bottom:12px">`
+            h += `<div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:8px">🛡️ Mercek Aciklamalarindaki Exception'lar</div>`
+            usersWithExc.slice(0, 8).forEach(row => {
+                h += `<div style="display:flex;gap:6px;align-items:baseline;padding:3px 0;font-size:11px">`
+                h += `<span style="color:#e2e8f0;font-weight:500;flex-shrink:0">${row.user}:</span>`
+                h += `<span style="color:#fca5a5">${row.exceptionHits.join(', ')}</span>`
+                h += `</div>`
+            })
+            h += `</div>`
+        }
+
+        // Politika önerisi
+        if (recData) {
+            const riskColor = recData.avgRisk >= 70 ? '#f87171' : recData.avgRisk >= 40 ? '#fbbf24' : '#6ee7b7'
+            h += `<div style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:10px;padding:12px 14px;margin-bottom:4px">`
+            h += `<div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:8px">💡 Politika Onerisi</div>`
+            h += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px">`
+            h += `<div><span style="color:#64748b">Risk:</span> <strong style="color:${riskColor}">${recData.avgRisk}</strong></div>`
+            h += `<div><span style="color:#64748b">Seviye:</span> <strong style="color:#c4b5fd">${recData.risk_level || '-'}</strong></div>`
+            h += `<div><span style="color:#64748b">Aksiyon:</span> <strong style="color:#818cf8">${recData.recommended_action || '-'}</strong></div>`
+            if (recData.priority) h += `<div><span style="color:#64748b">Oncelik:</span> <strong style="color:#fbbf24">${recData.priority}</strong></div>`
+            h += `</div></div>`
+        }
+
+        if (usersWithMatch.length === 0) {
+            h += `<div style="background:rgba(30,41,59,0.5);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;color:#94a3b8;font-size:11px;text-align:center">💡 Mercek'te eslesen kullanicilar icin ayni tarihte DLP incident bulunamadi.</div>`
+        }
+
+        return h
     } catch (error: any) {
         if (error?.response?.status === 401) {
             return `⚠️ **Yetki Hatasi**\n\nVerilere erismek icin oturum acmaniz gerekiyor.`
@@ -637,7 +705,9 @@ export default function ChatBot() {
                 try {
                     const history = messages.map(m => ({ role: m.role, content: m.content }))
                     history.push({ role: 'user', content: messageText })
-                    const res = await apiClient.post('/api/chatbot/chat', { messages: history })
+                    const res = await apiClient.post('/api/chatbot/chat', { messages: history }, {
+                        _skipAuthRedirect: true
+                    } as any)
                     responseText = res.data.reply || null
                 } catch {
                     // Azure not available — use static fallback
@@ -690,6 +760,10 @@ export default function ChatBot() {
     }
 
     const formatContent = (content: string) => {
+        // Flow 4 gibi saf HTML çıktılarını olduğu gibi döndür
+        if (content.trimStart().startsWith('<div') || content.trimStart().startsWith('<table')) {
+            return content
+        }
         return content
             .split('\n')
             .map((line) => {
