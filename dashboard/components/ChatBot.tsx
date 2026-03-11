@@ -67,11 +67,12 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
 async function analyzeDestinationOrUser(query: string): Promise<string> {
     try {
         const response = await apiClient.get('/api/incidents', {
-            params: { limit: 1000000, order_by: 'timestamp_desc' }
+            params: { limit: 1000000, order_by: 'timestamp_desc' },
+            timeout: 60000
         })
         const allIncidents: any[] = Array.isArray(response.data) ? response.data : []
         if (allIncidents.length === 0) {
-            return `⚠️ **Veri bulunamadi.**\n\nAPI'den incident verisi alinamadi.`
+            return `⚠️ **Veri bulunamadi.**\n\nIncident tablosunda kayit bulunamadi. Veritabanini kontrol edin.`
         }
 
         const q = query.toLowerCase().trim()
@@ -133,7 +134,11 @@ async function analyzeDestinationOrUser(query: string): Promise<string> {
         result += `\n📋 Tum zamanlar toplam: **${filtered.length}** incident`
         return result
     } catch (error: any) {
-        return `❌ **Analiz Hatasi**\n\n"${query}" icin analiz yapilamadi.\n_Hata: ${error?.message || 'Bilinmeyen hata'}_`
+        if (error?.response?.status === 401) {
+            return `⚠️ **Yetki Hatasi**\n\nIncident verilerine erismek icin oturum acmaniz gerekiyor.`
+        }
+        const detail = error?.response?.status ? `Status: ${error.response.status}` : (error?.message || 'Bilinmeyen hata')
+        return `❌ **Analiz Hatasi**\n\n"${query}" icin analiz yapilamadi.\n_Hata: ${detail}_`
     }
 }
 
@@ -171,7 +176,8 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
 
         // Step 3: Get DLP incidents
         const dlpResponse = await apiClient.get('/api/incidents', {
-            params: { limit: 1000000, order_by: 'timestamp_desc' }
+            params: { limit: 1000000, order_by: 'timestamp_desc' },
+            timeout: 60000
         })
         const allIncidents: any[] = Array.isArray(dlpResponse.data) ? dlpResponse.data : []
 
@@ -220,7 +226,11 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
         result += `\n📅 DLP incident sayilari bugunun tarihine (**${todayStr}**) gore hesaplanmistir.`
         return result
     } catch (error: any) {
-        return `❌ **Birlesik Analiz Hatasi**\n\n"${keyword}" icin DLP + Mercek analizi yapilamadi.\n_Hata: ${error?.message || 'Bilinmeyen hata'}_`
+        if (error?.response?.status === 401) {
+            return `⚠️ **Yetki Hatasi**\n\nVerilere erismek icin oturum acmaniz gerekiyor.`
+        }
+        const detail = error?.response?.status ? `Status: ${error.response.status}` : (error?.message || 'Bilinmeyen hata')
+        return `❌ **Birlesik Analiz Hatasi**\n\n"${keyword}" icin DLP + Mercek analizi yapilamadi.\n_Hata: ${detail}_`
     }
 }
 
