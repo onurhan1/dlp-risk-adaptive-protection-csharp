@@ -50,7 +50,7 @@ public class MercekController : ControllerBase
             // Validate pagination parameters
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 10;
-            if (pageSize > 1000) pageSize = 1000;
+            if (pageSize > 10000) pageSize = 10000;
 
             // Build query
             var query = _dbContext.MercekIncidents.AsQueryable();
