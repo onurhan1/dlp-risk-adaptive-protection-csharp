@@ -11,57 +11,52 @@ interface Message {
 }
 
 // ─── Flow 2: Mercek Keyword Analysis ────────────────────────────────────────
-// "X ifadesiyle analiz yap" → searches incidentDescription in mercek, returns count
+// "X ifadesiyle analiz yap" → Mercek sayfasıyla aynı mantık:
+// Tüm veriyi çek, client-side incidentDescription'da case-insensitive filtrele
 async function searchMercekKeyword(keyword: string): Promise<string> {
     try {
-        // Backend pageSize max 1000, tüm sayfaları çekerek tam sonuç elde et
+        // Mercek sayfasıyla aynı davranış: searchTerm KULLANMADAN tüm veriyi çek
+        // Böylece case-sensitivity sorunu olmaz, sayfa ile birebir aynı sonuç gelir
         const firstResponse = await apiClient.get('/api/mercek', {
-            params: { page: 1, pageSize: 1000, searchTerm: keyword }
+            params: { page: 1, pageSize: 10000 }
         })
         const firstData = firstResponse.data
-        const serverTotalCount: number = firstData.totalCount ?? firstData.total_count ?? 0
         const totalPages: number = firstData.totalPages ?? firstData.total_pages ?? 1
-
-        if (serverTotalCount === 0) {
-            return `🔍 **Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi hicbir kayitta bulunamadi.\n\n💡 Farkli bir ifade deneyin.`
-        }
-
-        // Tüm sayfaları çek (max 10 sayfa = 10000 kayıt güvenlik sınırı)
         let allItems: any[] = firstData.items || []
+
+        // Kalan sayfaları çek (max 10 sayfa)
         const maxPages = Math.min(totalPages, 10)
         for (let page = 2; page <= maxPages; page++) {
             const pageResponse = await apiClient.get('/api/mercek', {
-                params: { page, pageSize: 1000, searchTerm: keyword }
+                params: { page, pageSize: 10000 }
             })
-            const pageItems = pageResponse.data?.items || []
-            allItems = allItems.concat(pageItems)
+            allItems = allItems.concat(pageResponse.data?.items || [])
+        }
+
+        if (allItems.length === 0) {
+            return `🔍 **Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda hicbir kayit bulunamadi.`
         }
 
         const kw = keyword.toLowerCase()
 
-        // Sadece incidentDescription (Olay Açıklaması) alanında eşleşenleri say
-        const descMatches = allItems.filter((r: any) =>
-            (r.incidentDescription || '').toLowerCase().includes(kw)
-        ).length
-        const solutionMatches = allItems.filter((r: any) =>
-            (r.solutionMethod || '').toLowerCase().includes(kw)
-        ).length
-
+        // Mercek sayfasındaki "Olay Açıklaması" sütun filtresiyle birebir aynı mantık
         const descItems = allItems.filter((r: any) =>
             (r.incidentDescription || '').toLowerCase().includes(kw)
         )
+        const descMatches = descItems.length
+
+        if (descMatches === 0) {
+            return `🔍 **Mercek Analizi: "${keyword}"**\n\nOlay Aciklamasi alaninda **"${keyword}"** ifadesi bulunamadi.\n\n💡 Farkli bir ifade deneyin.`
+        }
+
         const uniqueUsers = Array.from(new Set(
             descItems.map((r: any) => r.userName).filter(Boolean)
         )) as string[]
 
         let result = `🔍 **Mercek Analizi: "${keyword}"**\n\n`
         result += `📊 **Olay Aciklamasinda Eslesen: ${descMatches} kayit**\n`
-        if (solutionMatches > 0) result += `• Cozum Yonteminde: ${solutionMatches} kayit\n`
-        if (serverTotalCount > descMatches) {
-            result += `• API Toplam (tum alanlar): ${serverTotalCount} kayit\n`
-        }
         if (totalPages > maxPages) {
-            result += `\n⚠️ _Toplam ${serverTotalCount} kayittan ilk ${allItems.length} tanesi analiz edildi._\n`
+            result += `\n⚠️ _Toplam veriden ilk ${allItems.length} tanesi analiz edildi._\n`
         }
         if (uniqueUsers.length > 0) {
             result += `\n👤 **Benzersiz Kullanici Sayisi: ${uniqueUsers.length}**\n`
@@ -289,27 +284,26 @@ async function analyzeDestinationOrUser(query: string): Promise<string> {
 // 3. Her kullanıcı için aynı tarihte DLP incident eşleştirmesi yap
 async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
     try {
-        // Mercek verilerini sayfalayarak çek (backend pageSize max sınırı var)
+        // Mercek sayfasıyla aynı mantık: searchTerm KULLANMADAN tüm veriyi çek
+        // Böylece case-sensitivity sorunu olmaz
         const firstMercekRes = await apiClient.get('/api/mercek', {
-            params: { page: 1, pageSize: 1000, searchTerm: keyword }
+            params: { page: 1, pageSize: 10000 }
         })
         const firstData = firstMercekRes.data
         const mercekTotalPages: number = firstData.totalPages ?? firstData.total_pages ?? 1
         let allMercekItems: any[] = firstData.items || []
 
-        // Kalan sayfaları paralel çek (max 10 sayfa = 10000 kayıt)
         const maxPages = Math.min(mercekTotalPages, 10)
         if (maxPages > 1) {
             const pagePromises = []
             for (let p = 2; p <= maxPages; p++) {
                 pagePromises.push(
-                    apiClient.get('/api/mercek', { params: { page: p, pageSize: 1000, searchTerm: keyword } })
+                    apiClient.get('/api/mercek', { params: { page: p, pageSize: 10000 } })
                 )
             }
             const pageResults = await Promise.all(pagePromises)
             pageResults.forEach(res => {
-                const items = res.data?.items || []
-                allMercekItems = allMercekItems.concat(items)
+                allMercekItems = allMercekItems.concat(res.data?.items || [])
             })
         }
 
@@ -319,21 +313,15 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             fetchPolicyExceptionsForChatbot()
         ])
 
-        if (allMercekItems.length === 0) {
-            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi bulunamadi.`
-        }
-
         const kw = keyword.toLowerCase()
 
-        // Sadece incidentDescription alanında keyword geçen kayıtları filtrele
+        // Client-side: sadece incidentDescription'da keyword geçen kayıtları filtrele
         const matchedRecords = allMercekItems.filter((r: any) =>
             (r.incidentDescription || '').toLowerCase().includes(kw)
         )
 
         if (matchedRecords.length === 0) {
-            // incidentDescription'da bulunamadıysa, diğer alanlarda kaç tane bulunduğunu bildir
-            const otherFieldCount = allMercekItems.length
-            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek **olay aciklamasi** alaninda **"${keyword}"** ifadesi bulunamadi.\n\n💡 API toplam ${otherFieldCount} kayit dondurdu ancak bunlar baska alanlarda eslesmis (cozum yontemi, kullanici adi vb.).\nFarkli bir ifade deneyin veya Mercek sayfasindan kontrol edin.`
+            return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nOlay Aciklamasi alaninda **"${keyword}"** ifadesi bulunamadi.\n\n💡 Farkli bir ifade deneyin.`
         }
 
         // Her mercek kaydından userName + tarih çıkar
