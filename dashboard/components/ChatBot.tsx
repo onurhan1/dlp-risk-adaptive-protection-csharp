@@ -63,79 +63,205 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
     }
 }
 
+// ─── Shared Helpers: Fetch incidents & exceptions (reusable across flows) ────
+
+async function fetchIncidentsForChatbot(): Promise<any[]> {
+    try {
+        const response = await apiClient.get('/api/incidents', {
+            params: { limit: 10000, orderBy: 'timestamp_desc' },
+            timeout: 60000
+        })
+        const arr = Array.isArray(response.data) ? response.data : []
+        return arr.map((item: any) => ({
+            id: item.id,
+            timestamp: item.timestamp,
+            policy: item.policy,
+            violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
+            userEmail: item.userEmail || item.user_email || '',
+            loginName: item.loginName || item.login_name || '',
+            fullName: item.fullName || item.full_name || '',
+            action: item.action || item.Action || 'Permit',
+            channel: item.channel || item.Channel || '',
+            destination: item.destination || item.Destination || '',
+            severity: item.severity,
+            riskScore: item.riskScore || item.risk_score || 0,
+            riskLevel: item.riskLevel || item.risk_level || '',
+            recommendedAction: item.recommendedAction || item.recommended_action || '',
+            ruleName: item.ruleName || item.rule_name || '',
+        }))
+    } catch {
+        return []
+    }
+}
+
+async function fetchPolicyExceptionsForChatbot(): Promise<{
+    policies: { policyName: string; rules: { ruleName: string; exceptions: string[] }[] }[];
+    totalExceptions: number;
+}> {
+    try {
+        const response = await apiClient.get('/api/policy-exceptions', { timeout: 30000 })
+        let rawData: any[] = []
+        let totalExceptions = 0
+
+        if (response.data?.success) {
+            rawData = response.data.data || []
+            totalExceptions = response.data.totalExceptions || response.data.total_exceptions || 0
+        } else if (Array.isArray(response.data)) {
+            rawData = response.data
+            totalExceptions = rawData.length
+        }
+
+        const policies = rawData.map((p: any) => ({
+            policyName: p.policyName || p.policy_name || '',
+            rules: (p.rules || []).map((r: any) => ({
+                ruleName: r.ruleName || r.rule_name || '',
+                exceptions: r.exceptions || []
+            }))
+        }))
+
+        return { policies, totalExceptions }
+    } catch {
+        return { policies: [], totalExceptions: 0 }
+    }
+}
+
+async function fetchRecommendation(riskScore: number, channel: string): Promise<any> {
+    try {
+        const response = await apiClient.post('/api/policies/recommendations', {
+            risk_score: riskScore,
+            channel: channel,
+        })
+        return response.data
+    } catch {
+        return null
+    }
+}
+
 // ─── Flow 3: Destination / User Based DLP Analysis ─────────────────────────
 async function analyzeDestinationOrUser(query: string): Promise<string> {
     try {
-        const response = await apiClient.get('/api/incidents', {
-            params: { limit: 1000000, order_by: 'timestamp_desc' },
-            timeout: 60000
-        })
-        const allIncidents: any[] = Array.isArray(response.data) ? response.data : []
-        if (allIncidents.length === 0) {
-            return `⚠️ **Veri bulunamadi.**\n\nIncident tablosunda kayit bulunamadi. Veritabanini kontrol edin.`
-        }
+        const [allIncidents, excData] = await Promise.all([
+            fetchIncidentsForChatbot(),
+            fetchPolicyExceptionsForChatbot()
+        ])
 
         const q = query.toLowerCase().trim()
         const now = new Date()
         const oneMonthAgo = new Date(now); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
         const threeMonthsAgo = new Date(now); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
-        // Match by destination, user_email, login_name, or full_name
         const matchIncident = (inc: any) => {
-            const dest = (inc.destination || inc.Destination || '').toLowerCase()
-            const email = (inc.user_email || inc.userEmail || '').toLowerCase()
-            const login = (inc.login_name || inc.loginName || '').toLowerCase()
-            const fullName = (inc.full_name || inc.fullName || '').toLowerCase()
-            return dest.includes(q) || email.includes(q) || login.includes(q) || fullName.includes(q)
+            const dest = (inc.destination || '').toLowerCase()
+            const email = (inc.userEmail || '').toLowerCase()
+            const login = (inc.loginName || '').toLowerCase()
+            const fullName = (inc.fullName || '').toLowerCase()
+            const triggers = (inc.violationTriggers || '').toLowerCase()
+            return dest.includes(q) || email.includes(q) || login.includes(q) || fullName.includes(q) || triggers.includes(q)
         }
 
         const filtered = allIncidents.filter(matchIncident)
 
-        if (filtered.length === 0) {
-            return `🔍 **Analiz: "${query}"**\n\nBu ifadeyle eslesen hicbir incident bulunamadi.\n\n💡 Farkli bir destination veya kullanici adi deneyin.`
-        }
-
-        // Parse timestamps
-        const getDate = (inc: any) => new Date(inc.timestamp || inc.Timestamp)
-
-        const last1Month = filtered.filter(inc => getDate(inc) >= oneMonthAgo)
-        const last3Months = filtered.filter(inc => getDate(inc) >= threeMonthsAgo)
-
-        // Action distribution helper
-        const actionDist = (list: any[]) => {
-            const counts: Record<string, number> = {}
-            list.forEach(inc => {
-                const action = inc.action || inc.Action || 'Bilinmiyor'
-                counts[action] = (counts[action] || 0) + 1
+        // Cross-reference: find exceptions matching the query or related to filtered incidents
+        const matchingExceptions: { policyName: string; ruleName: string; exceptionName: string; incidentCount: number }[] = []
+        excData.policies.forEach(policy => {
+            policy.rules.forEach(rule => {
+                rule.exceptions.forEach(excName => {
+                    const excLower = excName.toLowerCase()
+                    const relatedIncidents = filtered.filter(inc => {
+                        const triggers = (inc.violationTriggers || '').toLowerCase()
+                        return triggers.includes(excLower)
+                    }).length
+                    if (excLower.includes(q) || relatedIncidents > 0) {
+                        matchingExceptions.push({
+                            policyName: policy.policyName,
+                            ruleName: rule.ruleName,
+                            exceptionName: excName,
+                            incidentCount: relatedIncidents
+                        })
+                    }
+                })
             })
-            return Object.entries(counts).sort((a, b) => b[1] - a[1])
-        }
+        })
 
-        const dist1 = actionDist(last1Month)
-        const dist3 = actionDist(last3Months)
+        if (filtered.length === 0 && matchingExceptions.length === 0) {
+            return `🔍 **Analiz: "${query}"**\n\nBu ifadeyle eslesen hicbir incident veya exception bulunamadi.\n\n💡 Farkli bir destination, kullanici adi veya exception ismi deneyin.`
+        }
 
         let result = `📊 **Analiz: "${query}"**\n\n`
-        result += `## Son 1 Ay\n`
-        result += `• Toplam Incident: **${last1Month.length}**\n`
-        if (dist1.length > 0) {
-            result += `• Aksiyon Dagilimi:\n`
-            dist1.forEach(([action, count]) => {
-                result += `  - **${action}**: ${count}\n`
+
+        // ── Incident Analysis ──
+        if (filtered.length > 0) {
+            const getDate = (inc: any) => new Date(inc.timestamp)
+            const last1Month = filtered.filter(inc => getDate(inc) >= oneMonthAgo)
+            const last3Months = filtered.filter(inc => getDate(inc) >= threeMonthsAgo)
+
+            const actionDist = (list: any[]) => {
+                const counts: Record<string, number> = {}
+                list.forEach(inc => {
+                    const action = inc.action || 'Bilinmiyor'
+                    counts[action] = (counts[action] || 0) + 1
+                })
+                return Object.entries(counts).sort((a, b) => b[1] - a[1])
+            }
+
+            result += `## Incident Analizi\n`
+            result += `• Son 1 Ay: **${last1Month.length}** incident\n`
+            const dist1 = actionDist(last1Month)
+            if (dist1.length > 0) {
+                dist1.forEach(([action, count]) => { result += `  - ${action}: ${count}\n` })
+            }
+            result += `• Son 3 Ay: **${last3Months.length}** incident\n`
+            const dist3 = actionDist(last3Months)
+            if (dist3.length > 0) {
+                dist3.forEach(([action, count]) => { result += `  - ${action}: ${count}\n` })
+            }
+            result += `• Tum Zamanlar: **${filtered.length}** incident\n\n`
+
+            // Recommendation
+            const avgRisk = Math.round(filtered.reduce((sum: number, inc: any) => sum + (inc.riskScore || 0), 0) / filtered.length)
+            const channelCounts: Record<string, number> = {}
+            filtered.forEach((inc: any) => { const ch = inc.channel || 'Email'; channelCounts[ch] = (channelCounts[ch] || 0) + 1 })
+            const topChannel = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Email'
+
+            const rec = await fetchRecommendation(avgRisk, topChannel)
+            if (rec) {
+                result += `## Politika Onerisi\n`
+                result += `• Ort. Risk Skoru: **${avgRisk}** | Seviye: **${rec.risk_level || '-'}**\n`
+                result += `• Onerilen Aksiyon: **${rec.recommended_action || '-'}**\n`
+                result += `• Oncelik: **${rec.priority || '-'}**\n\n`
+            }
+        }
+
+        // ── Exception Analysis ──
+        if (matchingExceptions.length > 0) {
+            result += `## Exception Analizi\n`
+            result += `• Eslesen Exception: **${matchingExceptions.length}**\n\n`
+
+            const byPolicy: Record<string, typeof matchingExceptions> = {}
+            matchingExceptions.forEach(exc => {
+                if (!byPolicy[exc.policyName]) byPolicy[exc.policyName] = []
+                byPolicy[exc.policyName].push(exc)
+            })
+
+            Object.entries(byPolicy).forEach(([policyName, exceptions]) => {
+                result += `**${policyName}**\n`
+                exceptions.slice(0, 10).forEach(exc => {
+                    result += `  • ${exc.ruleName} → ${exc.exceptionName} (${exc.incidentCount} incident)\n`
+                })
+                if (exceptions.length > 10) {
+                    result += `  _... ve ${exceptions.length - 10} exception daha_\n`
+                }
             })
         }
-        result += `\n## Son 3 Ay\n`
-        result += `• Toplam Incident: **${last3Months.length}**\n`
-        if (dist3.length > 0) {
-            result += `• Aksiyon Dagilimi:\n`
-            dist3.forEach(([action, count]) => {
-                result += `  - **${action}**: ${count}\n`
-            })
+
+        if (filtered.length === 0 && matchingExceptions.length > 0) {
+            result += `\n💡 Incident bulunamadi, ancak eslesen exception kayitlari mevcut.`
         }
-        result += `\n📋 Tum zamanlar toplam: **${filtered.length}** incident`
+
         return result
     } catch (error: any) {
         if (error?.response?.status === 401) {
-            return `⚠️ **Yetki Hatasi**\n\nIncident verilerine erismek icin oturum acmaniz gerekiyor.`
+            return `⚠️ **Yetki Hatasi**\n\nVerilere erismek icin oturum acmaniz gerekiyor.`
         }
         const detail = error?.response?.status ? `Status: ${error.response.status}` : (error?.message || 'Bilinmeyen hata')
         return `❌ **Analiz Hatasi**\n\n"${query}" icin analiz yapilamadi.\n_Hata: ${detail}_`
@@ -144,13 +270,16 @@ async function analyzeDestinationOrUser(query: string): Promise<string> {
 
 // ─── Flow 4: DLP + Mercek Combined Analysis ────────────────────────────────
 // "X ifadesini dlp ve mercekle birlikte analiz et"
-// Returns: unique users for keyword in mercek + their DLP incident count for that day
+// Returns: unique users for keyword in mercek + their DLP incident count + exception info
 async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
     try {
-        // Step 1: Get mercek records matching keyword
-        const mercekResponse = await apiClient.get('/api/mercek', {
-            params: { page: 1, pageSize: 10000, searchTerm: keyword }
-        })
+        // Fetch mercek, incidents, and exceptions in parallel
+        const [mercekResponse, allIncidents, excData] = await Promise.all([
+            apiClient.get('/api/mercek', { params: { page: 1, pageSize: 10000, searchTerm: keyword } }),
+            fetchIncidentsForChatbot(),
+            fetchPolicyExceptionsForChatbot()
+        ])
+
         const mercekData = mercekResponse.data
         const mercekItems: any[] = mercekData.items || []
 
@@ -158,7 +287,6 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\nMercek veritabaninda **"${keyword}"** ifadesi bulunamadi.`
         }
 
-        // Step 2: Get unique users from mercek that match the keyword
         const kw = keyword.toLowerCase()
         const relevantItems = mercekItems.filter((r: any) =>
             (r.incidentDescription || '').toLowerCase().includes(kw) ||
@@ -174,56 +302,97 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             return `🔍 **DLP + Mercek Analizi: "${keyword}"**\n\n"${keyword}" ifadesiyle eslesen kullanici bulunamadi.`
         }
 
-        // Step 3: Get DLP incidents
-        const dlpResponse = await apiClient.get('/api/incidents', {
-            params: { limit: 1000000, order_by: 'timestamp_desc' },
-            timeout: 60000
+        // Collect all exception names for keyword matching
+        const allExceptionNames: string[] = []
+        excData.policies.forEach(policy => {
+            policy.rules.forEach(rule => {
+                rule.exceptions.forEach(exc => allExceptionNames.push(exc))
+            })
         })
-        const allIncidents: any[] = Array.isArray(dlpResponse.data) ? dlpResponse.data : []
 
-        // Step 4: For each unique mercek user, count their DLP incidents for today
         const today = new Date()
         const todayStr = today.toISOString().split('T')[0]
+        const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-        const tableRows: { user: string; mercekCount: number; dlpTodayCount: number }[] = []
+        const tableRows: { user: string; mercekCount: number; dlpTodayCount: number; dlp30dCount: number; exceptionHits: number }[] = []
 
         uniqueUsers.forEach(userName => {
             const userLower = userName.toLowerCase()
 
-            // Count mercek incidents for this user with this keyword
             const userMercekCount = relevantItems.filter((r: any) =>
                 (r.userName || '').toLowerCase() === userLower
             ).length
 
-            // Count DLP incidents for this user today
-            const userDlpToday = allIncidents.filter(inc => {
-                const email = (inc.user_email || inc.userEmail || '').toLowerCase()
-                const login = (inc.login_name || inc.loginName || '').toLowerCase()
-                const fullName = (inc.full_name || inc.fullName || '').toLowerCase()
-                const matchesUser = email.includes(userLower) || login.includes(userLower) || fullName.includes(userLower)
+            const userIncidents = allIncidents.filter(inc => {
+                const email = (inc.userEmail || '').toLowerCase()
+                const login = (inc.loginName || '').toLowerCase()
+                const fullName = (inc.fullName || '').toLowerCase()
+                return email.includes(userLower) || login.includes(userLower) || fullName.includes(userLower)
+            })
 
-                const ts = inc.timestamp || inc.Timestamp
-                const incDate = ts ? new Date(ts).toISOString().split('T')[0] : ''
-                return matchesUser && incDate === todayStr
+            const userDlpToday = userIncidents.filter(inc => {
+                const incDate = inc.timestamp ? new Date(inc.timestamp).toISOString().split('T')[0] : ''
+                return incDate === todayStr
             }).length
 
-            tableRows.push({ user: userName, mercekCount: userMercekCount, dlpTodayCount: userDlpToday })
+            const userDlp30d = userIncidents.filter(inc => {
+                return inc.timestamp && new Date(inc.timestamp) >= thirtyDaysAgo
+            }).length
+
+            // Count how many of this user's incidents have exception matches in violationTriggers
+            const exceptionHits = userIncidents.filter(inc => {
+                const triggers = (inc.violationTriggers || '').toLowerCase()
+                if (!triggers) return false
+                return allExceptionNames.some(excName => triggers.includes(excName.toLowerCase()))
+            }).length
+
+            tableRows.push({ user: userName, mercekCount: userMercekCount, dlpTodayCount: userDlpToday, dlp30dCount: userDlp30d, exceptionHits })
         })
 
-        // Sort by mercek count descending
         tableRows.sort((a, b) => b.mercekCount - a.mercekCount)
 
         let result = `📊 **DLP + Mercek Birlesik Analiz: "${keyword}"**\n\n`
         result += `👤 **Benzersiz Kullanici Sayisi: ${uniqueUsers.length}**\n\n`
-        result += `| Kullanici | Mercek Kayit | DLP Bugun |\n`
-        result += `|-----------|:------------:|:---------:|\n`
+        result += `| Kullanici | Mercek | DLP Bugun | DLP 30g | Exception |\n`
+        result += `|-----------|:------:|:---------:|:-------:|:---------:|\n`
         tableRows.slice(0, 20).forEach(row => {
-            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpTodayCount} |\n`
+            result += `| ${row.user} | ${row.mercekCount} | ${row.dlpTodayCount} | ${row.dlp30dCount} | ${row.exceptionHits} |\n`
         })
         if (tableRows.length > 20) {
             result += `\n_... ve ${tableRows.length - 20} kullanici daha_\n`
         }
-        result += `\n📅 DLP incident sayilari bugunun tarihine (**${todayStr}**) gore hesaplanmistir.`
+
+        // Summary: keyword matching exceptions
+        const kwExceptions = allExceptionNames.filter(exc => exc.toLowerCase().includes(kw))
+        if (kwExceptions.length > 0) {
+            result += `\n## Iliskili Exception'lar\n`
+            result += `• **"${keyword}"** ifadesiyle eslesen **${kwExceptions.length}** exception:\n`
+            kwExceptions.slice(0, 8).forEach(exc => { result += `  - ${exc}\n` })
+            if (kwExceptions.length > 8) result += `  _... ve ${kwExceptions.length - 8} tane daha_\n`
+        }
+
+        // Recommendation based on aggregated risk
+        if (allIncidents.length > 0) {
+            const relatedIncidents = allIncidents.filter(inc => {
+                const userLower = (inc.userEmail || inc.loginName || inc.fullName || '').toLowerCase()
+                return uniqueUsers.some(u => userLower.includes(u.toLowerCase()))
+            })
+            if (relatedIncidents.length > 0) {
+                const avgRisk = Math.round(relatedIncidents.reduce((sum: number, inc: any) => sum + (inc.riskScore || 0), 0) / relatedIncidents.length)
+                const channelCounts: Record<string, number> = {}
+                relatedIncidents.forEach((inc: any) => { const ch = inc.channel || 'Email'; channelCounts[ch] = (channelCounts[ch] || 0) + 1 })
+                const topChannel = Object.entries(channelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Email'
+
+                const rec = await fetchRecommendation(avgRisk, topChannel)
+                if (rec) {
+                    result += `\n## Politika Onerisi\n`
+                    result += `• Ort. Risk: **${avgRisk}** | Seviye: **${rec.risk_level || '-'}**\n`
+                    result += `• Onerilen Aksiyon: **${rec.recommended_action || '-'}**\n`
+                }
+            }
+        }
+
+        result += `\n📅 DLP verileri bugunun tarihine (**${todayStr}**) ve son 30 gune gore hesaplanmistir.`
         return result
     } catch (error: any) {
         if (error?.response?.status === 401) {
@@ -281,7 +450,7 @@ function detectDestinationQuery(msg: string): string | null {
 
 // ─── Flow 1: Fallback ──────────────────────────────────────────────────────
 function generateFallbackResponse(): string {
-    return `🤔 **Uzgunum, anlayamadim.**\n\nAsagidaki komutlari deneyebilirsiniz:\n\n• **Mercek Analizi:** _"leasing ifadesiyle analiz yap"_\n• **Destination/Kullanici Analizi:** _"gmail.com icin analiz et"_\n• **DLP + Mercek Birlesik Analiz:** _"leasing ifadesini dlp ve mercekle birlikte analiz et"_`
+    return `🤔 **Uzgunum, anlayamadim.**\n\nAsagidaki komutlari deneyebilirsiniz:\n\n• **Mercek Analizi:** _"leasing ifadesiyle analiz yap"_\n• **Destination/Kullanici Analizi:** _"gmail.com icin analiz et"_\n  _(Incident + Exception + Politika Onerisi)_\n• **DLP + Mercek Birlesik Analiz:** _"leasing ifadesini dlp ve mercekle birlikte analiz et"_\n  _(Mercek + DLP + Exception + Politika Onerisi)_`
 }
 
 // ─── Static Knowledge Base (Azure fallback) ─────────────────────────────────
@@ -295,7 +464,7 @@ function generateResponse(userMessage: string): string {
         return '👋 **Gorusmek uzere!** 🛡️'
     }
     if (/ne yapabilir|neler yapabilir|yardim|help|nasil kullan/.test(msg)) {
-        return '🤖 **Radarix Yetenekleri**\n\n1. **Mercek Analizi** — _"leasing ifadesiyle analiz yap"_\n2. **Destination/Kullanici Analizi** — _"gmail.com icin analiz et"_\n3. **DLP + Mercek Birlesik** — _"leasing ifadesini dlp ve mercekle birlikte analiz et"_'
+        return '🤖 **Radarix Yetenekleri**\n\n1. **Mercek Analizi** — _"leasing ifadesiyle analiz yap"_\n2. **Destination/Kullanici Analizi** — _"gmail.com icin analiz et"_\n   _(Incident + Exception + Politika Onerisi)_\n3. **DLP + Mercek Birlesik** — _"leasing ifadesini dlp ve mercekle birlikte analiz et"_\n   _(Mercek + DLP + Exception + Politika Onerisi)_'
     }
 
     return generateFallbackResponse()
