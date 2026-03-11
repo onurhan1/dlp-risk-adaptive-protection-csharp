@@ -39,9 +39,10 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
 
         const kw = keyword.toLowerCase()
 
+        // API snake_case döndürüyor (Program.cs: SnakeCaseLower policy)
         // Mercek sayfasındaki "Olay Açıklaması" sütun filtresiyle birebir aynı mantık
         const descItems = allItems.filter((r: any) =>
-            (r.incidentDescription || '').toLowerCase().includes(kw)
+            ((r.incident_description ?? r.incidentDescription) || '').toLowerCase().includes(kw)
         )
         const descMatches = descItems.length
 
@@ -50,7 +51,7 @@ async function searchMercekKeyword(keyword: string): Promise<string> {
         }
 
         const uniqueUsers = Array.from(new Set(
-            descItems.map((r: any) => r.userName).filter(Boolean)
+            descItems.map((r: any) => r.user_name ?? r.userName).filter(Boolean)
         )) as string[]
 
         let result = `🔍 **Mercek Analizi: "${keyword}"**\n\n`
@@ -316,8 +317,9 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
         const kw = keyword.toLowerCase()
 
         // Client-side: sadece incidentDescription'da keyword geçen kayıtları filtrele
+        // API snake_case döndürüyor (Program.cs: SnakeCaseLower policy)
         const matchedRecords = allMercekItems.filter((r: any) =>
-            (r.incidentDescription || '').toLowerCase().includes(kw)
+            ((r.incident_description ?? r.incidentDescription) || '').toLowerCase().includes(kw)
         )
 
         if (matchedRecords.length === 0) {
@@ -333,9 +335,9 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
         // Kullanıcı bazlı gruplama: user → [mercek tarihleri]
         const userDateMap = new Map<string, { dates: Set<string>; mercekCount: number; records: any[] }>()
         matchedRecords.forEach((r: any) => {
-            const user = (r.userName || '').trim()
+            const user = ((r.user_name ?? r.userName) || '').trim()
             if (!user) return
-            const date = toDateStr(r.openDate) || toDateStr(r.systemDate) || toDateStr(r.startDate)
+            const date = toDateStr(r.open_date ?? r.openDate) || toDateStr(r.system_date ?? r.systemDate) || toDateStr(r.start_date ?? r.startDate)
             if (!userDateMap.has(user)) {
                 userDateMap.set(user, { dates: new Set(), mercekCount: 0, records: [] })
             }
@@ -394,7 +396,7 @@ async function analyzeCombinedDlpMercek(keyword: string): Promise<string> {
             // Mercek açıklamalarında geçen exception isimleri
             const matchedExc = new Set<string>()
             data.records.forEach((record: any) => {
-                const desc = (record.incidentDescription || '').toLowerCase()
+                const desc = ((record.incident_description ?? record.incidentDescription) || '').toLowerCase()
                 allExceptionNames.forEach(excName => {
                     if (desc.includes(excName.toLowerCase())) {
                         matchedExc.add(excName)
