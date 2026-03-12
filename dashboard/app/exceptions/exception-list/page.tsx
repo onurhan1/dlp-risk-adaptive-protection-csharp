@@ -382,7 +382,7 @@ function ExceptionListContent() {
 
     useEffect(() => {
         fetchData()
-    }, [])
+    }, [dateRange])
 
     const [apiError, setApiError] = useState<string | null>(null)
 
@@ -439,7 +439,12 @@ function ExceptionListContent() {
                 })
 
             const incidentsPromise = apiClient.get('/api/incidents', {
-                params: { limit: 10000, order_by: 'timestamp_desc' },
+                params: { 
+                    limit: 500000, 
+                    order_by: 'timestamp_desc',
+                    startDate: dateRange.start || undefined,
+                    endDate: dateRange.end || undefined
+                },
                 timeout: 60000
             })
                 .then(res => {
