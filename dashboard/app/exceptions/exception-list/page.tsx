@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, Suspense } from 'react'
 import apiClient from '@/lib/axios'
 import { useTranslation } from '@/components/LanguageProvider'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
-import { format, parseISO, differenceInDays, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns'
+import { format, parseISO, differenceInDays, subDays } from 'date-fns'
 import {
     ChevronDown,
     ChevronRight,
@@ -33,25 +33,18 @@ interface ExceptionData {
     }[]
 }
 
-interface Incident {
-    id: number
-    timestamp: string
-    policy?: string
-    violationTriggers?: string
-    userEmail?: string
-    loginName?: string
-    fullName?: string
-    action?: string
-    channel?: string
-    destination?: string
-    severity: string
-}
-
 interface ExceptionStats {
     incidentCount: number
     lastIncidentDate: string | null
     daysIdle: number | null
     isStale: boolean
+}
+
+interface BackendExceptionStat {
+    policy_name: string
+    rule_name: string
+    incident_count: number
+    last_incident_date: string | null
 }
 
 // ─── SearchableMultiSelect (reused pattern from analytics page) ────────────────
@@ -359,7 +352,7 @@ function ExceptionListContent() {
 
     // Data states
     const [exceptionData, setExceptionData] = useState<ExceptionData[]>([])
-    const [incidents, setIncidents] = useState<Incident[]>([])
+    const [backendStats, setBackendStats] = useState<BackendExceptionStat[]>([])
     const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
     const [totalExceptionsCount, setTotalExceptionsCount] = useState(0)
     const [loading, setLoading] = useState(true)
@@ -438,32 +431,23 @@ function ExceptionListContent() {
                     setApiError(err.response?.data?.error || err.message || 'Unknown network error')
                 })
 
-            const incidentsPromise = apiClient.get('/api/incidents', {
+            const incidentsPromise = apiClient.get('/api/incidents/exception-stats', {
                 params: {
-                    limit: 50000,
-                    orderBy: 'timestamp_desc',
                     startDate: dateRange.start || undefined,
                     endDate: dateRange.end || undefined
                 },
                 timeout: 120000
             })
                 .then(res => {
-                    const incidentArr = Array.isArray(res.data) ? res.data : []
-                    setIncidents(incidentArr.map((item: any) => ({
-                        id: item.id,
-                        timestamp: item.timestamp,
-                        policy: item.policy,
-                        violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
-                        userEmail: item.user_email || item.userEmail,
-                        loginName: item.login_name || item.loginName,
-                        fullName: item.full_name || item.fullName,
-                        action: item.action || 'Permit',
-                        channel: item.channel,
-                        destination: item.destination,
-                        severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
+                    const statsArr = Array.isArray(res.data) ? res.data : []
+                    setBackendStats(statsArr.map((item: any) => ({
+                        policy_name: item.policy_name || item.policyName || '',
+                        rule_name: item.rule_name || item.ruleName || '',
+                        incident_count: item.incident_count || item.incidentCount || 0,
+                        last_incident_date: item.last_incident_date || item.lastIncidentDate || null,
                     })))
                 })
-                .catch(err => console.error('Error fetching incidents:', err))
+                .catch(err => console.error('Error fetching exception stats:', err))
 
             await Promise.all([exceptionsPromise, incidentsPromise])
         } catch (error) {
@@ -491,75 +475,30 @@ function ExceptionListContent() {
         const map = new Map<string, ExceptionStats>()
         const now = new Date()
 
-        // Filter incidents by date range (supports partial range)
-        const filteredIncidents = incidents.filter(inc => {
-            if (!dateRange.start && !dateRange.end) return true; // No filter applied
-
-            try {
-                const incDate = parseISO(inc.timestamp);
-
-                let isAfterStart = true;
-                if (dateRange.start) {
-                    const start = startOfDay(parseISO(dateRange.start));
-                    isAfterStart = incDate.getTime() >= start.getTime();
-                }
-
-                let isBeforeEnd = true;
-                if (dateRange.end) {
-                    const end = endOfDay(parseISO(dateRange.end));
-                    isBeforeEnd = incDate.getTime() <= end.getTime();
-                }
-
-                return isAfterStart && isBeforeEnd;
-            } catch {
-                return true; // If parsing fails, don't filter it out
-            }
-        });
-
-        // Build an index: "policyName|ruleName" (lowercased) → list of incident timestamps
-        // Parse each incident's violationTriggers only once for performance
-        const triggerIndex = new Map<string, string[]>()  // key → timestamps
-
-        for (const inc of filteredIncidents) {
-            if (!inc.violationTriggers) continue
-            try {
-                const triggers = JSON.parse(inc.violationTriggers)
-                if (!Array.isArray(triggers)) continue
-                for (const t of triggers) {
-                    const rName = (t.rule_name || t.ruleName || t.RuleName || '').toLowerCase()
-                    const pName = (t.policy_name || t.policyName || t.PolicyName || '').toLowerCase()
-                    if (!rName || !pName) continue
-                    const compositeKey = `${pName}|${rName}`
-                    const existing = triggerIndex.get(compositeKey)
-                    if (existing) {
-                        existing.push(inc.timestamp)
-                    } else {
-                        triggerIndex.set(compositeKey, [inc.timestamp])
-                    }
-                }
-            } catch {
-                // skip unparseable
-            }
+        // Build a lookup index from backend stats: "policyName|ruleName" (lowercased) → stats
+        const statsIndex = new Map<string, { count: number; lastDate: string | null }>()
+        for (const stat of backendStats) {
+            const key = `${(stat.policy_name || '').toLowerCase()}|${(stat.rule_name || '').toLowerCase()}`
+            statsIndex.set(key, {
+                count: stat.incident_count,
+                lastDate: stat.last_incident_date
+            })
         }
 
-        // For each exception, look up in the pre-built index
+        // For each exception, look up in the backend stats index
         exceptionData.forEach(policy => {
             policy.rules.forEach(rule => {
                 rule.exceptions.forEach(excName => {
                     const key = `${policy.policyName}|${rule.ruleName}|${excName}`
                     const lookupKey = `${policy.policyName.toLowerCase()}|${excName.toLowerCase()}`
-                    const timestamps = triggerIndex.get(lookupKey) || []
+                    const stat = statsIndex.get(lookupKey)
 
-                    const incidentCount = timestamps.length
-                    let lastIncidentDate: string | null = null
+                    const incidentCount = stat?.count || 0
+                    let lastIncidentDate: string | null = stat?.lastDate || null
                     let daysIdle: number | null = null
 
-                    if (incidentCount > 0) {
-                        const sorted = [...timestamps].sort((a, b) =>
-                            new Date(b).getTime() - new Date(a).getTime()
-                        )
-                        lastIncidentDate = sorted[0]
-                        daysIdle = differenceInDays(now, parseISO(sorted[0]))
+                    if (incidentCount > 0 && lastIncidentDate) {
+                        daysIdle = differenceInDays(now, parseISO(lastIncidentDate))
                     } else {
                         daysIdle = 999 // no incidents at all
                     }
@@ -575,7 +514,7 @@ function ExceptionListContent() {
         })
 
         return map
-    }, [exceptionData, incidents, dateRange])
+    }, [exceptionData, backendStats])
 
     // ─── Filtered & computed data ──────────────────────────────────────────────
 
@@ -845,7 +784,7 @@ function ExceptionListContent() {
                             </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            {incidents.length.toLocaleString()} olay içinden
+                            SQL aggregation ile
                         </div>
                     </div>
                 </div>

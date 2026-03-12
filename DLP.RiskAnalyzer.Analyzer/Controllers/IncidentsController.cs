@@ -157,6 +157,29 @@ public class IncidentsController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/incidents/exception-stats
+    // Returns aggregated incident counts per policy_name + rule_name
+    // by parsing ViolationTriggers JSON directly in PostgreSQL
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("exception-stats")]
+    public async Task<ActionResult<List<ExceptionIncidentStats>>> GetExceptionIncidentStats(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
+    {
+        try
+        {
+            var stats = await _dbService.GetExceptionIncidentStatsAsync(startDate, endDate);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching exception incident stats");
+            return StatusCode(500, new { detail = "An error occurred while fetching exception incident stats" });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 

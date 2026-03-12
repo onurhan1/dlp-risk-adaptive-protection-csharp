@@ -87,3 +87,14 @@ public class IncidentResponse
     public string? FullName { get; set; }
     public string? Team { get; set; }
 }
+
+/// <summary>
+/// Aggregated incident stats per policy_name + rule_name (from ViolationTriggers JSON)
+/// </summary>
+public class ExceptionIncidentStats
+{
+    public string PolicyName { get; set; } = string.Empty;
+    public string RuleName { get; set; } = string.Empty;
+    public long IncidentCount { get; set; }
+    public DateTime? LastIncidentDate { get; set; }
+}

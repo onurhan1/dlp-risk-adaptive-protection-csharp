@@ -76,6 +76,76 @@ public class DatabaseService
         return await query.Take(limit).ToListAsync();
     }
 
+    /// <summary>
+    /// Returns per policy_name + rule_name aggregated incident counts and last incident date.
+    /// Uses PostgreSQL jsonb_array_elements to parse ViolationTriggers JSON directly in SQL.
+    /// </summary>
+    public async Task<List<ExceptionIncidentStats>> GetExceptionIncidentStatsAsync(
+        DateTime? startDate, DateTime? endDate)
+    {
+        var results = new List<ExceptionIncidentStats>();
+
+        var conn = _context.Database.GetDbConnection();
+        await conn.OpenAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+
+            var sql = @"
+                SELECT
+                    trigger_elem->>'policy_name' AS policy_name,
+                    trigger_elem->>'rule_name' AS rule_name,
+                    COUNT(*) AS incident_count,
+                    MAX(i.""timestamp"") AS last_incident_date
+                FROM incidents i,
+                    jsonb_array_elements(i.violation_triggers::jsonb) AS trigger_elem
+                WHERE i.violation_triggers IS NOT NULL
+                    AND i.violation_triggers != '[]'
+                    AND i.violation_triggers != ''";
+
+            if (startDate.HasValue)
+            {
+                var utcStart = startDate.Value.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc)
+                    : startDate.Value.ToUniversalTime();
+                sql += $" AND i.\"timestamp\" >= '{utcStart:yyyy-MM-dd HH:mm:ss}'::timestamptz";
+            }
+            if (endDate.HasValue)
+            {
+                var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                var utcEnd = endOfDay.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc)
+                    : endOfDay.ToUniversalTime();
+                sql += $" AND i.\"timestamp\" <= '{utcEnd:yyyy-MM-dd HH:mm:ss}'::timestamptz";
+            }
+
+            sql += @"
+                GROUP BY trigger_elem->>'policy_name', trigger_elem->>'rule_name'
+                ORDER BY incident_count DESC";
+
+            cmd.CommandText = sql;
+            cmd.CommandTimeout = 120;
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                results.Add(new ExceptionIncidentStats
+                {
+                    PolicyName = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                    RuleName = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                    IncidentCount = reader.GetInt64(2),
+                    LastIncidentDate = reader.IsDBNull(3) ? null : reader.GetDateTime(3)
+                });
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        return results;
+    }
+
     public async Task<Incident?> GetIncidentByIdAsync(int id)
     {
         return await _context.Incidents
