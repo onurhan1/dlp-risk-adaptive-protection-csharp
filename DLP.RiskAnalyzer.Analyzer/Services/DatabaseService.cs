@@ -45,9 +45,11 @@ public class DatabaseService
 
         if (endDate.HasValue)
         {
-            var utcEndDate = endDate.Value.Kind == DateTimeKind.Unspecified 
-                ? DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc) 
-                : endDate.Value.ToUniversalTime();
+            // Ensure end-of-day so the entire end date is included (23:59:59.9999999)
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            var utcEndDate = endOfDay.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc)
+                : endOfDay.ToUniversalTime();
             query = query.Where(i => i.Timestamp <= utcEndDate);
         }
 
