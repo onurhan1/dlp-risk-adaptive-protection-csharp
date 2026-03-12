@@ -496,17 +496,22 @@ function ExceptionListContent() {
             if (!dateRange.start && !dateRange.end) return true; // No filter applied
 
             try {
-                const incDate = parseISO(inc.timestamp);
+                // Remove parseISO as it might fail on C# DateTime strings
+                const incDate = new Date(inc.timestamp);
+                
+                if (isNaN(incDate.getTime())) return true; // fallback if invalid
 
                 let isAfterStart = true;
                 if (dateRange.start) {
-                    const start = startOfDay(parseISO(dateRange.start));
+                    const start = new Date(dateRange.start);
+                    start.setHours(0, 0, 0, 0);
                     isAfterStart = incDate.getTime() >= start.getTime();
                 }
 
                 let isBeforeEnd = true;
                 if (dateRange.end) {
-                    const end = endOfDay(parseISO(dateRange.end));
+                    const end = new Date(dateRange.end);
+                    end.setHours(23, 59, 59, 999);
                     isBeforeEnd = incDate.getTime() <= end.getTime();
                 }
 
