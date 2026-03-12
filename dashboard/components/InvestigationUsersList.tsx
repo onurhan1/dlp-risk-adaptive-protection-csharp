@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
+import { resolveUser } from '@/lib/userUtils'
 
 interface UserRisk {
   user_email: string
@@ -175,7 +176,7 @@ export default function InvestigationUsersList({
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.user_email}</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resolveUser(user.user_email)}</span>
                 {user.team && (
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.team}</span>
                 )}

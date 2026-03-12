@@ -14,22 +14,7 @@ import Pagination from '../components/ui/Pagination'
 import LoadingOverlay from '../components/ui/LoadingOverlay'
 import GridExport, { ExportColumn } from '../components/ui/GridExport'
 import { useTranslation } from '../components/LanguageProvider'
-import { useTheme } from '../components/ThemeProvider'
-import {
-  BarChart3,
-  TrendingUp,
-  Target,
-  Zap,
-  Search,
-  ShieldAlert,
-  FileText,
-  FileBarChart,
-  ChevronRight,
-  Activity,
-  AlertCircle,
-  RefreshCw,
-  Download
-} from 'lucide-react'
+import { resolveUser } from '@/lib/userUtils'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
 
@@ -133,17 +118,25 @@ interface ActionSummary {
 export default function Home() {
   const router = useRouter()
   const { t } = useTranslation()
-  const { theme } = useTheme()
-
-  // Plotly.js renders to SVG and cannot resolve CSS custom properties.
-  // We must pass actual hex color values based on the current theme.
-  const plotTextPrimary = theme === 'dark' ? '#e8eaed' : '#1e293b'
-  const plotTextMuted = theme === 'dark' ? '#8a9199' : '#94a3b8'
   const [dailySummary, setDailySummary] = useState<DailySummary[]>([])
   const [deptSummary, setDeptSummary] = useState<DepartmentSummary[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
   const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
   const [topUsersPeriod, setTopUsersPeriod] = useState<TopUser[]>([])
+
+  // Placeholder data for preview when no API data
+  const placeholderUsers: TopUser[] = [
+    { user_email: 'ahmet.yilmaz@company.com', risk_score: 92, days_with_activity: 28, total_incidents: 89, total_blocks: 12 },
+    { user_email: 'mehmet.kaya@company.com', risk_score: 85, days_with_activity: 22, total_incidents: 67, total_blocks: 8 },
+    { user_email: 'elif.demir@company.com', risk_score: 78, days_with_activity: 18, total_incidents: 54, total_blocks: 6 },
+    { user_email: 'fatma.celik@company.com', risk_score: 71, days_with_activity: 15, total_incidents: 42, total_blocks: 4 },
+    { user_email: 'ali.ozturk@company.com', risk_score: 65, days_with_activity: 12, total_incidents: 38, total_blocks: 3 },
+    { user_email: 'ayse.sahin@company.com', risk_score: 58, days_with_activity: 10, total_incidents: 31, total_blocks: 2 },
+    { user_email: 'emre.acar@company.com', risk_score: 52, days_with_activity: 9, total_incidents: 28, total_blocks: 2 },
+    { user_email: 'zeynep.erdogan@company.com', risk_score: 45, days_with_activity: 8, total_incidents: 22, total_blocks: 1 },
+    { user_email: 'can.arslan@company.com', risk_score: 38, days_with_activity: 7, total_incidents: 18, total_blocks: 1 },
+    { user_email: 'selin.tas@company.com', risk_score: 32, days_with_activity: 5, total_incidents: 15, total_blocks: 0 },
+  ]
   const [highImpactAlerts, setHighImpactAlerts] = useState<HighImpactAlert[]>([])
   const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
@@ -156,7 +149,6 @@ export default function Home() {
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
   const usersPerPage = 10
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
-  const [actionDataDateRange, setActionDataDateRange] = useState<{ min: string; max: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
   const [selectedDimension, setSelectedDimension] = useState('department')
@@ -183,48 +175,6 @@ export default function Home() {
   // Modal state for Report
   const [showReportModal, setShowReportModal] = useState(false)
   const [selectedHighRiskDate, setSelectedHighRiskDate] = useState<string>('')
-
-  // Manual collect state
-  const [collectMode, setCollectMode] = useState<'date' | 'hours'>('date')
-  const [collectDateRange, setCollectDateRange] = useState({
-    start: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-    end: format(new Date(), 'yyyy-MM-dd')
-  })
-  const [collectHours, setCollectHours] = useState<number>(24)
-  const [manualCollectJobId, setManualCollectJobId] = useState<string | null>(null)
-  const [manualCollectStatus, setManualCollectStatus] = useState<any>(null)
-  const [isCollecting, setIsCollecting] = useState(false)
-  const [collectError, setCollectError] = useState<string | null>(null)
-  const [showManualCollect, setShowManualCollect] = useState(false)
-
-  // Restore active manual collect job from localStorage on mount
-  useEffect(() => {
-    const savedJobId = localStorage.getItem('manualCollectJobId')
-    if (savedJobId) {
-      // Verify the job still exists before restoring
-      const apiUrl = getApiUrlDynamic()
-      axios.get(`${apiUrl}/api/collector/manual-collect/status/${savedJobId}`)
-        .then((response) => {
-          const status = response.data
-          if (status.status === 'Completed' || status.status === 'Failed') {
-            // Job already finished, show result but don't poll
-            localStorage.removeItem('manualCollectJobId')
-            setManualCollectStatus(status)
-            setShowManualCollect(true)
-          } else {
-            // Job still active, resume polling
-            setManualCollectJobId(savedJobId)
-            setIsCollecting(true)
-            setShowManualCollect(true)
-            setManualCollectStatus(status)
-          }
-        })
-        .catch(() => {
-          // Job not found or API unreachable — clear stale data
-          localStorage.removeItem('manualCollectJobId')
-        })
-    }
-  }, [])
 
   useEffect(() => {
     fetchData()
@@ -278,7 +228,7 @@ export default function Home() {
       const apiUrl = getApiUrlDynamic()
 
       // Fetch data from new user_daily_risk_scores based endpoints
-      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes] = await Promise.all([
+      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, incidentsRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -293,28 +243,24 @@ export default function Home() {
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
           params: { period: selectedPeriod, limit: 50 }
         }).catch(() => ({ data: [] })),
-        // High impact alert - potential data exfiltration
+        // High impact alerts - potential data exfiltration (minMaxMatches=100, minDailyRiskScore=80)
         axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
           params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: 1, pageSize: 20 }
         }).catch(() => ({ data: { data: [], pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 } } })),
         axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
-        // Optimized: Fetch aggregated top rules directly from backend
-        axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
+        // Still need incidents for rules calculation
+        axios.get(`${apiUrl}/api/incidents`, {
           params: {
             startDate: currentStart,
             endDate: currentEnd,
-            limit: 10
+            limit: 5000,
+            orderBy: 'risk_score_desc'
           }
         }).catch(() => ({ data: [] }))
       ])
 
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
-
-      // Set actual data date range from action-summary response
-      if (actionRes.data?.min_date && actionRes.data?.max_date) {
-        setActionDataDateRange({ min: actionRes.data.min_date, max: actionRes.data.max_date })
-      }
 
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
       setTopUsers24h(topUsers24hRes.data || [])
@@ -330,8 +276,17 @@ export default function Home() {
         setHighImpactPagination(highImpactData.pagination)
       }
 
-      // Set top rules directly from API response
-      setTopRules(topRulesRes.data || [])
+      // Calculate top rules from dateRange incidents
+      const rulesMap = new Map<string, number>()
+      incidentsRes.data.forEach((incident: any) => {
+        const ruleName = incident.policy || 'Unknown Rule'
+        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
+      })
+      const topRulesData = Array.from(rulesMap.entries())
+        .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
+        .sort((a, b) => b.total_alerts - a.total_alerts)
+        .slice(0, 10)
+      setTopRules(topRulesData)
 
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -344,84 +299,6 @@ export default function Home() {
     setShowModal(true)
     setSelectedAction(action)
   }
-
-  // Manual collect: start collection
-  const startManualCollect = async () => {
-    setCollectError(null)
-    try {
-      const apiUrl = getApiUrlDynamic()
-      let body: any = {}
-
-      if (collectMode === 'hours') {
-        if (collectHours < 1 || collectHours > 2160) {
-          setCollectError(t('dashboard.collectHoursError'))
-          return
-        }
-        body = { lookback_hours: collectHours }
-      } else {
-        if (collectDateRange.start >= collectDateRange.end) {
-          setCollectError(t('dashboard.collectDateError'))
-          return
-        }
-        body = { start_date: collectDateRange.start, end_date: collectDateRange.end }
-      }
-
-      setIsCollecting(true)
-      const response = await axios.post(`${apiUrl}/api/collector/manual-collect`, body)
-
-      if (response.data?.job_id) {
-        const jobId = response.data.job_id
-        setManualCollectJobId(jobId)
-        setManualCollectStatus({ status: 'Queued', progress: 0, message: t('dashboard.collectQueued') })
-        // Persist to localStorage so we can resume after navigation
-        localStorage.setItem('manualCollectJobId', jobId)
-      }
-    } catch (error: any) {
-      console.error('Error starting manual collection:', error)
-      setCollectError(error.response?.data?.detail || 'Failed to start collection')
-      setIsCollecting(false)
-    }
-  }
-
-  // Polling for manual collect status
-  useEffect(() => {
-    if (!manualCollectJobId) return
-
-    let failCount = 0
-    const pollInterval = setInterval(async () => {
-      try {
-        const apiUrl = getApiUrlDynamic()
-        const response = await axios.get(`${apiUrl}/api/collector/manual-collect/status/${manualCollectJobId}`)
-        const status = response.data
-        setManualCollectStatus(status)
-        failCount = 0 // Reset on success
-
-        if (status.status === 'Completed' || status.status === 'Failed') {
-          clearInterval(pollInterval)
-          setIsCollecting(false)
-          // Clear localStorage - job is done
-          localStorage.removeItem('manualCollectJobId')
-          // Refresh dashboard data if completed
-          if (status.status === 'Completed') {
-            setTimeout(() => fetchData(), 2000)
-          }
-        }
-      } catch (error: any) {
-        failCount++
-        console.error(`Error polling collect status (attempt ${failCount}):`, error)
-        // After 5 consecutive failures, stop polling and clean up
-        if (failCount >= 5) {
-          clearInterval(pollInterval)
-          setIsCollecting(false)
-          setManualCollectJobId(null)
-          localStorage.removeItem('manualCollectJobId')
-          setManualCollectStatus({ status: 'Failed', progress: 0, message: 'Bağlantı hatası — durum takip edilemiyor. Çekim arka planda devam ediyor olabilir.' })
-        }
-      }
-    }, 2000)
-
-    return () => clearInterval(pollInterval)
-  }, [manualCollectJobId])
 
   const downloadReport = async () => {
     try {
@@ -495,7 +372,7 @@ export default function Home() {
     type: 'scatter',
     mode: 'lines+markers',
     name: 'Incidents',
-    line: { color: '#5c6bc0', width: 2 },
+    line: { color: '#283593', width: 2 },
     marker: { size: 4 }
   }
 
@@ -503,8 +380,8 @@ export default function Home() {
 
   return (
     <div className="dashboard-page" style={{ position: 'relative' }}>
-      <LoadingOverlay isLoading={loading} message={t('common.loading')} fullScreen />
-      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <LoadingOverlay isLoading={loading} message={t('common.loading')} />
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>{t('dashboard.title')}</h1>
           <p className="dashboard-subtitle">{t('dashboard.subtitle')}</p>
@@ -513,8 +390,8 @@ export default function Home() {
           onClick={() => setShowReportModal(true)}
           style={{
             padding: '8px 16px',
-            background: 'var(--surface)',
-            color: 'var(--text-primary)',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -523,11 +400,10 @@ export default function Home() {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            transition: 'all 0.2s',
-            fontFamily: 'Inter, sans-serif',
+            transition: 'all 0.2s'
           }}
         >
-          <FileBarChart size={16} /> {t('dashboard.dailyReport')}
+          📊 {t('dashboard.dailyReport')}
         </button>
       </div>
 
@@ -536,270 +412,48 @@ export default function Home() {
         <div className="card" style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>{t('dashboard.actionAnalysis')}</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
-                {actionDataDateRange ? `${actionDataDateRange.min} — ${actionDataDateRange.max}` : `${dateRange.start} — ${dateRange.end}`}
-              </span>
-              <button
-                onClick={() => setShowManualCollect(!showManualCollect)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border)',
-                  background: showManualCollect ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)',
-                  color: showManualCollect ? '#3b82f6' : 'var(--text-primary)',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <Download size={14} /> {t('dashboard.manualCollect')}
-              </button>
-            </div>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
+              {dateRange.start} — {dateRange.end}
+            </span>
           </div>
-
-          {/* Manual Collect Panel */}
-          {showManualCollect && (
-            <div style={{
-              marginTop: '16px',
-              padding: '16px',
-              background: 'var(--background)',
-              borderRadius: '12px',
-              border: '1px solid var(--border)',
-            }}>
-              {/* Mode selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
-                  <input
-                    type="radio"
-                    name="collectMode"
-                    checked={collectMode === 'date'}
-                    onChange={() => setCollectMode('date')}
-                    style={{ accentColor: '#3b82f6' }}
-                  />
-                  {t('dashboard.dateBased')}
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
-                  <input
-                    type="radio"
-                    name="collectMode"
-                    checked={collectMode === 'hours'}
-                    onChange={() => setCollectMode('hours')}
-                    style={{ accentColor: '#3b82f6' }}
-                  />
-                  {t('dashboard.hourBased')}
-                </label>
-              </div>
-
-              {/* Inputs based on mode */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                {collectMode === 'date' ? (
-                  <>
-                    <input
-                      type="date"
-                      className="filter-input"
-                      value={collectDateRange.start}
-                      max={collectDateRange.end}
-                      onChange={(e) => setCollectDateRange(prev => ({ ...prev, start: e.target.value }))}
-                      style={{ padding: '6px 10px', minWidth: '140px', fontSize: '13px' }}
-                      disabled={isCollecting}
-                    />
-                    <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{t('common.to')}</span>
-                    <input
-                      type="date"
-                      className="filter-input"
-                      value={collectDateRange.end}
-                      min={collectDateRange.start}
-                      max={todayStr}
-                      onChange={(e) => setCollectDateRange(prev => ({ ...prev, end: e.target.value }))}
-                      style={{ padding: '6px 10px', minWidth: '140px', fontSize: '13px' }}
-                      disabled={isCollecting}
-                    />
-                  </>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('dashboard.lookbackHours')}:</span>
-                    <input
-                      type="number"
-                      className="filter-input"
-                      value={collectHours}
-                      min={1}
-                      max={2160}
-                      onChange={(e) => setCollectHours(Math.max(1, Math.min(2160, parseInt(e.target.value) || 1)))}
-                      style={{ padding: '6px 10px', width: '80px', fontSize: '13px' }}
-                      disabled={isCollecting}
-                    />
-                  </div>
-                )}
-
-                <button
-                  onClick={startManualCollect}
-                  disabled={isCollecting}
-                  style={{
-                    padding: '7px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: isCollecting ? 'var(--surface-hover)' : '#3b82f6',
-                    color: isCollecting ? 'var(--text-muted)' : 'white',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: isCollecting ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <RefreshCw size={14} className={isCollecting ? 'animate-spin' : ''} />
-                  {t('dashboard.startCollection')}
-                </button>
-              </div>
-
-              {/* Error message */}
-              {collectError && (
-                <div style={{
-                  marginTop: '10px',
-                  padding: '8px 12px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '8px',
-                  color: '#ef4444',
-                  fontSize: '13px',
-                }}>
-                  {collectError}
-                </div>
-              )}
-
-              {/* Progress bar */}
-              {manualCollectStatus && isCollecting && (
-                <div style={{ marginTop: '12px' }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '6px',
-                    fontSize: '12px',
-                  }}>
-                    <span style={{
-                      color: manualCollectStatus.status === 'Failed' ? '#ef4444' : 'var(--text-muted)',
-                      fontWeight: '500',
-                    }}>
-                      {manualCollectStatus.message || t('dashboard.collectRunning')}
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: '600' }}>
-                      {manualCollectStatus.progress}%
-                    </span>
-                  </div>
-                  <div style={{
-                    width: '100%',
-                    height: '8px',
-                    background: 'var(--surface-hover)',
-                    borderRadius: '4px',
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      width: `${manualCollectStatus.progress}%`,
-                      height: '100%',
-                      background: manualCollectStatus.status === 'Failed' ? '#ef4444' :
-                        manualCollectStatus.status === 'Queued' ? '#f59e0b' : '#3b82f6',
-                      borderRadius: '4px',
-                      transition: 'width 0.5s ease',
-                      animation: manualCollectStatus.status === 'Queued' ? 'pulse 1.5s infinite' : 'none',
-                    }} />
-                  </div>
-                </div>
-              )}
-
-              {/* Completed message */}
-              {manualCollectStatus && !isCollecting && manualCollectStatus.status === 'Completed' && (
-                <div style={{
-                  marginTop: '10px',
-                  padding: '8px 12px',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  borderRadius: '8px',
-                  color: '#10b981',
-                  fontSize: '13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}>
-                  ✅ {manualCollectStatus.message || t('dashboard.collectCompleted')}
-                  {manualCollectStatus.total_incidents > 0 && (
-                    <span style={{ fontWeight: '600' }}>
-                      ({manualCollectStatus.total_incidents} {t('dashboard.incidentsFound')})
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Failed message */}
-              {manualCollectStatus && !isCollecting && manualCollectStatus.status === 'Failed' && (
-                <div style={{
-                  marginTop: '10px',
-                  padding: '8px 12px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '8px',
-                  color: '#ef4444',
-                  fontSize: '13px',
-                }}>
-                  ❌ {manualCollectStatus.message || t('dashboard.collectFailed')}
-                </div>
-              )}
-            </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '32px', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '24px', alignItems: 'center' }}>
             {/* Donut Chart */}
             <div style={{ height: '300px', position: 'relative' }}>
-              {(() => {
-                const totalVal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0))
-                return (
-                  <Plot
-                    data={[{
-                      values: [
-                        actionSummary.authorized,
-                        actionSummary.block,
-                        actionSummary.quarantine,
-                        actionSummary.released || 0,
-                      ],
-                      labels: ['Authorized', 'Block', 'Quarantine', 'Released'],
-                      type: 'pie',
-                      hole: 0.6,
-                      marker: {
-                        colors: ['#10b981', '#ef4444', '#8b5cf6', '#f59e0b'],
-                        line: { color: 'white', width: 3 }
-                      },
-                      textinfo: 'percent',
-                      textposition: 'inside',
-                      textfont: { size: 13, color: '#ffffff', family: 'Inter, sans-serif' },
-                      hoverinfo: 'label+value+percent',
-                      sort: false,
-                      direction: 'clockwise',
-                      rotation: 90,
-                    }]}
-                    layout={{
-                      margin: { t: 10, b: 10, l: 10, r: 10 },
-                      showlegend: false,
-                      paper_bgcolor: 'transparent',
-                      plot_bgcolor: 'transparent',
-                      annotations: [{
-                        text: `<b style="font-size:28px">${totalVal}</b><br><span style="font-size:12px;color:${plotTextMuted}">Toplam</span>`,
-                        showarrow: false,
-                        font: { size: 28, color: plotTextPrimary, family: 'Inter, sans-serif' },
-                        x: 0.5, y: 0.5,
-                      }],
-                      height: 300,
-                    }}
-                    config={{ displayModeBar: false, responsive: true }}
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                )
-              })()}
+              <Plot
+                data={[{
+                  values: [
+                    actionSummary.authorized,
+                    actionSummary.block,
+                    actionSummary.quarantine,
+                    actionSummary.released || 0,
+                  ],
+                  labels: ['AUTHORIZED', 'BLOCK', 'QUARANTINE', 'RELEASED'],
+                  type: 'pie',
+                  hole: 0.55,
+                  marker: {
+                    colors: ['#10b981', '#ef4444', '#a855f7', '#f59e0b'],
+                    line: { color: 'rgba(0,0,0,0.1)', width: 1 }
+                  },
+                  textinfo: 'none',
+                  hoverinfo: 'label+value+percent',
+                  sort: false,
+                }]}
+                layout={{
+                  margin: { t: 10, b: 10, l: 10, r: 10 },
+                  showlegend: false,
+                  paper_bgcolor: 'transparent',
+                  plot_bgcolor: 'transparent',
+                  annotations: [{
+                    text: `<b>${actionSummary.total}</b><br><span style="font-size:13px">${t('common.total')}</span>`,
+                    showarrow: false,
+                    font: { size: 24, color: 'var(--text-primary)' },
+                    x: 0.5, y: 0.5,
+                  }],
+                  height: 300,
+                }}
+                config={{ displayModeBar: false, responsive: true }}
+                style={{ width: '100%', height: '100%' }}
+              />
               {/* Clickable Total center overlay */}
               <div
                 onClick={() => fetchActionIncidents('TOTAL')}
@@ -818,37 +472,45 @@ export default function Home() {
               />
             </div>
 
-            {/* Action Cards Grid — Figma colored left-bar pattern */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+            {/* Action Cards Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
               {[
                 { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981' },
                 { action: 'BLOCK', value: actionSummary.block, color: '#ef4444' },
-                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7' },
+                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#8B5CF6' },
                 { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b' },
               ].map(({ action, value, color }) => (
                 <div
                   key={action}
                   onClick={() => fetchActionIncidents(action)}
                   style={{
-                    background: 'var(--background)',
-                    padding: '16px 16px 16px 20px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    padding: '16px 16px 16px 24px',
                     borderRadius: '12px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    borderLeft: `4px solid ${color}`,
-                    border: '1px solid var(--border)',
-                    borderLeftWidth: '4px',
-                    borderLeftColor: color,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'
+                    e.currentTarget.style.borderColor = 'var(--border-hover)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = 'none'
+                    e.currentTarget.style.borderColor = 'var(--border)'
                   }}
                 >
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: '500' }}>{action}</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>{value}</div>
+                  {/* Left color bar */}
+                  <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: color,
+                  }} />
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{action}</div>
+                  <div style={{ fontSize: '28px', fontWeight: '600', color: 'var(--text-primary)' }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -861,10 +523,8 @@ export default function Home() {
       <div className="card">
         <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <TrendingUp size={20} style={{ color: '#3b82f6' }} /> {t('dashboard.dailyTrends')}
-            </h2>
-            <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
+            <h2 style={{ margin: 0, fontSize: '24px' }}>📈 {t('dashboard.dailyTrends')}</h2>
+            <p className="chart-subtitle" style={{ margin: '4px 0 0 0', fontSize: '15px' }}>
               {t('dashboard.showing')} {dailySummary.length} {t('dashboard.days')} • {trendsDateRange.start} {t('common.to')} {trendsDateRange.end}
             </p>
           </div>
@@ -901,11 +561,11 @@ export default function Home() {
           </div>
         </div>
         {dailySummaryLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
             {t('common.loading')}
           </div>
         ) : dailySummary.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px', color: '#999' }}>
             {t('common.noData')}
           </div>
         ) : (() => {
@@ -965,18 +625,18 @@ export default function Home() {
                 plot_bgcolor: 'transparent',
                 xaxis: {
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 12, color: plotTextMuted },
+                  tickfont: { size: 12, color: 'var(--text-muted)' },
                   tickangle: -45,
                   showgrid: true,
                 },
                 yaxis: {
-                  title: { text: t('dashboard.incidents'), font: { size: 13, color: plotTextMuted } },
+                  title: { text: t('dashboard.incidents'), font: { size: 13, color: 'var(--text-muted)' } },
                   gridcolor: 'rgba(128,128,128,0.08)',
-                  tickfont: { size: 12, color: plotTextMuted },
+                  tickfont: { size: 12, color: 'var(--text-muted)' },
                   zeroline: false,
                 },
                 yaxis2: {
-                  title: { text: t('dashboard.avgRiskScore'), font: { size: 13, color: plotTextMuted } },
+                  title: { text: t('dashboard.avgRiskScore'), font: { size: 13, color: 'var(--text-muted)' } },
                   overlaying: 'y',
                   side: 'right',
                   gridcolor: 'rgba(128,128,128,0.05)',
@@ -989,7 +649,7 @@ export default function Home() {
                   x: 0.5,
                   y: -0.25,
                   xanchor: 'center',
-                  font: { size: 13, color: plotTextMuted },
+                  font: { size: 13, color: 'var(--text-muted)' },
                   bgcolor: 'transparent',
                 },
                 height: 400,
@@ -1002,56 +662,41 @@ export default function Home() {
         })()}
       </div>
 
-      {/* Two Column Layout - Period Top Users & 24h Top Users — STACKED */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
+      {/* Two Column Layout - Period Top Users & 24h Top Users */}
+      <div className="dashboard-grid">
         {/* Top Risky Users with Period Selector */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
-            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-              <Target size={18} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  height: '36px'
-                }}
-              >
-                <option value="weekly">Last Week</option>
-                <option value="monthly">Last 1 Month</option>
-                <option value="quarterly">Last 3 Months</option>
-                <option value="6month">Last 6 Months</option>
-                <option value="yearly">Last 1 Year</option>
-              </select>
-              <GridExport
-                data={topUsersPeriod}
-                fileName={`top-risky-users-${selectedPeriod}`}
-                columns={[
-                  { key: 'user_email', header: 'User Email', width: 30 },
-                  { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
-                  { key: 'days_with_activity', header: 'Days Active', width: 12 },
-                  { key: 'total_incidents', header: 'Incidents', width: 12 },
-                ]}
-              />
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>🎯 {t('dashboard.topRiskyUsers')}</h2>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="weekly">Last Week</option>
+              <option value="monthly">Last 1 Month</option>
+              <option value="quarterly">Last 3 Months</option>
+              <option value="6month">Last 6 Months</option>
+              <option value="yearly">Last 1 Year</option>
+            </select>
           </div>
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '35%', minWidth: '120px' }}>{t('common.user')}</th>
-                <th className="text-center" style={{ width: '12%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.riskScore')}</th>
-                <th className="text-center" style={{ width: '14%', minWidth: '80px', textAlign: 'center' }}>{t('dashboard.daysActive')}</th>
-                <th className="text-center" style={{ width: '14%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.incidents')}</th>
-                <th className="text-right" style={{ width: '25%', minWidth: '110px', textAlign: 'right' }}>{t('common.actions')}</th>
+                <th>{t('common.user')}</th>
+                <th className="text-center">{t('dashboard.riskScore')}</th>
+                <th className="text-center">{t('dashboard.daysActive')}</th>
+                <th className="text-center">{t('dashboard.incidents')}</th>
+                <th className="text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1059,28 +704,24 @@ export default function Home() {
                 <tr>
                   <td colSpan={5} className="loading-cell">{t('common.loading')}</td>
                 </tr>
-              ) : topUsersPeriod.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="empty-cell">{t('common.noData')}</td>
-                </tr>
               ) : (
-                topUsersPeriod.slice((topUsersPeriodPage - 1) * usersPerPage, topUsersPeriodPage * usersPerPage).map((user, idx) => (
+                (topUsersPeriod.length > 0 ? topUsersPeriod : placeholderUsers).slice((topUsersPeriodPage - 1) * usersPerPage, topUsersPeriodPage * usersPerPage).map((user, idx) => (
                   <tr key={idx}>
-                    <td>
-                      <div className="user-cell">
-                        <div style={{ fontWeight: '500' }}>{user.user_email}</div>
-                      </div>
+                    <td className="user-email-cell">
+                      <span style={{ fontWeight: '500' }} title={user.user_email}>{resolveUser(user.user_email, user.full_name)}</span>
                     </td>
                     <td className="text-center">
                       <span style={{
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
                         fontWeight: '600',
-                        color: 'white',
-                        backgroundColor: user.risk_score >= 75 ? '#ef4444' :
-                          user.risk_score >= 50 ? '#f59e0b' :
-                            user.risk_score >= 25 ? '#eab308' : '#10b981'
+                        backgroundColor: user.risk_score >= 75 ? 'var(--risk-critical-bg)' :
+                          user.risk_score >= 50 ? 'var(--risk-high-bg)' :
+                            user.risk_score >= 25 ? 'var(--risk-medium-bg)' : 'var(--risk-low-bg)',
+                        color: user.risk_score >= 75 ? 'var(--risk-critical-text)' :
+                          user.risk_score >= 50 ? 'var(--risk-high-text)' :
+                            user.risk_score >= 25 ? 'var(--risk-medium-text)' : 'var(--risk-low-text)'
                       }}>
                         {Math.round(user.risk_score)}
                       </span>
@@ -1090,25 +731,9 @@ export default function Home() {
                     <td className="text-right">
                       <button
                         onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(59, 130, 246, 0.3)',
-                          background: 'rgba(59, 130, 246, 0.1)',
-                          color: '#3b82f6',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s',
-                          whiteSpace: 'nowrap'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                        className="investigate-btn"
                       >
-                        <Search size={14} /> Investigate
+                        Investigate →
                       </button>
                     </td>
                   </tr>
@@ -1119,42 +744,39 @@ export default function Home() {
           {/* Pagination for Top Risky Users */}
           <Pagination
             currentPage={topUsersPeriodPage}
-            totalPages={Math.ceil(topUsersPeriod.length / usersPerPage)}
-            totalItems={topUsersPeriod.length}
+            totalPages={Math.ceil((topUsersPeriod.length > 0 ? topUsersPeriod : placeholderUsers).length / usersPerPage)}
+            totalItems={(topUsersPeriod.length > 0 ? topUsersPeriod : placeholderUsers).length}
             onPageChange={setTopUsersPeriodPage}
             compact
             labels={{ totalItems: t('pagination.totalItems') }}
+          />
+          {/* Export for Top Risky Users */}
+          <GridExport
+            data={topUsersPeriod}
+            fileName={`top-risky-users-${selectedPeriod}`}
+            columns={[
+              { key: 'user_email', header: 'User Email', width: 30 },
+              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+              { key: 'days_with_activity', header: 'Days Active', width: 12 },
+              { key: 'total_incidents', header: 'Incidents', width: 12 },
+            ]}
           />
         </div>
 
         {/* 24-Hour Top Users - Today's Activity */}
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
-            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-              <Zap size={18} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>Last 24 Hours</span>
-              <GridExport
-                data={topUsers24h}
-                fileName="todays-active-users"
-                columns={[
-                  { key: 'user_email', header: 'User Email', width: 30 },
-                  { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
-                  { key: 'total_blocks', header: 'Blocks', width: 12 },
-                  { key: 'total_incidents', header: 'Incidents', width: 12 },
-                ]}
-              />
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>⚡ {t('dashboard.todayActiveUsers')}</h2>
+            <span style={{ fontSize: '12px', backgroundColor: 'var(--risk-high-bg)', padding: '4px 12px', borderRadius: '6px', color: 'var(--risk-high-text)', fontWeight: '600' }}>Last 24 Hours</span>
           </div>
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '35%', minWidth: '120px' }}>{t('common.user')}</th>
-                <th className="text-center" style={{ width: '12%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.riskScore')}</th>
-                <th className="text-center" style={{ width: '14%', minWidth: '80px', textAlign: 'center' }}>{t('dashboard.blocks')}</th>
-                <th className="text-center" style={{ width: '14%', minWidth: '70px', textAlign: 'center' }}>{t('dashboard.incidents')}</th>
-                <th className="text-right" style={{ width: '25%', minWidth: '110px', textAlign: 'right' }}>{t('common.actions')}</th>
+                <th>{t('common.user')}</th>
+                <th className="text-center">{t('dashboard.riskScore')}</th>
+                <th className="text-center">{t('dashboard.blocks')}</th>
+                <th className="text-center">{t('dashboard.incidents')}</th>
+                <th className="text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1162,28 +784,24 @@ export default function Home() {
                 <tr>
                   <td colSpan={5} className="loading-cell">{t('common.loading')}</td>
                 </tr>
-              ) : topUsers24h.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="empty-cell">{t('common.noData')}</td>
-                </tr>
               ) : (
-                topUsers24h.slice((topUsers24hPage - 1) * usersPerPage, topUsers24hPage * usersPerPage).map((user, idx) => (
+                (topUsers24h.length > 0 ? topUsers24h : placeholderUsers.slice(0, 5)).slice((topUsers24hPage - 1) * usersPerPage, topUsers24hPage * usersPerPage).map((user, idx) => (
                   <tr key={idx}>
-                    <td>
-                      <div className="user-cell">
-                        <div style={{ fontWeight: '500' }}>{user.user_email}</div>
-                      </div>
+                    <td className="user-email-cell">
+                      <span style={{ fontWeight: '500' }} title={user.user_email}>{resolveUser(user.user_email, user.full_name)}</span>
                     </td>
                     <td className="text-center">
                       <span style={{
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
                         fontWeight: '600',
-                        color: 'white',
-                        backgroundColor: user.risk_score >= 75 ? '#ef4444' :
-                          user.risk_score >= 50 ? '#f59e0b' :
-                            user.risk_score >= 25 ? '#eab308' : '#10b981'
+                        backgroundColor: user.risk_score >= 75 ? 'var(--risk-critical-bg)' :
+                          user.risk_score >= 50 ? 'var(--risk-high-bg)' :
+                            user.risk_score >= 25 ? 'var(--risk-medium-bg)' : 'var(--risk-low-bg)',
+                        color: user.risk_score >= 75 ? 'var(--risk-critical-text)' :
+                          user.risk_score >= 50 ? 'var(--risk-high-text)' :
+                            user.risk_score >= 25 ? 'var(--risk-medium-text)' : 'var(--risk-low-text)'
                       }}>
                         {Math.round(user.risk_score)}
                       </span>
@@ -1193,25 +811,9 @@ export default function Home() {
                     <td className="text-right">
                       <button
                         onClick={() => router.push(`/investigation?user=${encodeURIComponent(user.user_email)}`)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(59, 130, 246, 0.3)',
-                          background: 'rgba(59, 130, 246, 0.1)',
-                          color: '#3b82f6',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s',
-                          whiteSpace: 'nowrap'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                        className="investigate-btn"
                       >
-                        <Search size={14} /> Investigate
+                        Investigate →
                       </button>
                     </td>
                   </tr>
@@ -1222,11 +824,22 @@ export default function Home() {
           {/* Pagination for Today's Active Users */}
           <Pagination
             currentPage={topUsers24hPage}
-            totalPages={Math.ceil(topUsers24h.length / usersPerPage)}
-            totalItems={topUsers24h.length}
+            totalPages={Math.ceil((topUsers24h.length > 0 ? topUsers24h : placeholderUsers.slice(0, 5)).length / usersPerPage)}
+            totalItems={(topUsers24h.length > 0 ? topUsers24h : placeholderUsers.slice(0, 5)).length}
             onPageChange={setTopUsers24hPage}
             compact
             labels={{ totalItems: t('pagination.totalItems') }}
+          />
+          {/* Export for Today's Active Users */}
+          <GridExport
+            data={topUsers24h}
+            fileName="todays-active-users"
+            columns={[
+              { key: 'user_email', header: 'User Email', width: 30 },
+              { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
+              { key: 'total_blocks', header: 'Blocks', width: 12 },
+              { key: 'total_incidents', header: 'Incidents', width: 12 },
+            ]}
           />
         </div>
       </div>
@@ -1287,10 +900,10 @@ export default function Home() {
                         }
                       })
                       const rulesMap = new Map<string, number>()
-                        ; (incidentsRes.data || []).forEach((incident: any) => {
-                          const ruleName = incident.policy || 'Unknown Rule'
-                          rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
-                        })
+                      ;(incidentsRes.data || []).forEach((incident: any) => {
+                        const ruleName = incident.policy || 'Unknown Rule'
+                        rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
+                      })
                       const topRulesData = Array.from(rulesMap.entries())
                         .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
                         .sort((a, b) => b.total_alerts - a.total_alerts)
@@ -1333,27 +946,44 @@ export default function Home() {
               {t('common.noData')}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-              {topRules.map((rule, idx) => {
-                const maxCount = Math.max(...topRules.map(r => r.total_alerts), 1)
-                const percentage = maxCount > 0 ? (rule.total_alerts / maxCount) * 100 : 0
-                return (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '220px', flexShrink: 0, fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.rule_name}>
-                      {rule.rule_name}
-                    </div>
-                    <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                      <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
-                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{rule.total_alerts}</span>
-                      </div>
-                    </div>
-                    <div style={{ minWidth: '50px', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', textAlign: 'right' }}>
-                      {percentage.toFixed(1)}%
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <Plot
+              data={[{
+                type: 'bar',
+                orientation: 'h',
+                y: topRules.slice().reverse().map(r => r.rule_name.length > 35 ? r.rule_name.substring(0, 35) + '...' : r.rule_name),
+                x: topRules.slice().reverse().map(r => r.total_alerts),
+                text: topRules.slice().reverse().map(r => r.total_alerts.toString()),
+                textposition: 'outside',
+                textfont: { size: 11, color: 'var(--text-primary)' },
+                hovertext: topRules.slice().reverse().map(r => `${r.rule_name}: ${r.total_alerts} alerts`),
+                hoverinfo: 'text',
+                marker: {
+                  color: topRules.slice().reverse().map((_, i) => {
+                    const colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16', '#eab308']
+                    return colors[i % colors.length]
+                  }),
+                  line: { width: 0 },
+                },
+              }]}
+              layout={{
+                margin: { t: 5, b: 30, l: 200, r: 60 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                xaxis: {
+                  gridcolor: 'rgba(128,128,128,0.1)',
+                  zeroline: false,
+                  tickfont: { size: 11, color: 'var(--text-muted)' },
+                },
+                yaxis: {
+                  tickfont: { size: 10, color: 'var(--text-primary)' },
+                  automargin: true,
+                },
+                height: Math.max(200, topRules.length * 32 + 40),
+                bargap: 0.3,
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              style={{ width: '100%' }}
+            />
           )}
         </div>
       </div>
@@ -1367,10 +997,10 @@ export default function Home() {
                 width: '40px', height: '40px', borderRadius: '10px',
                 background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white'
-              }}><ShieldAlert size={24} /></div>
+                fontSize: '20px'
+              }}>🔍</div>
               <div>
-                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600' }}>{t('dashboard.potentialExfiltration')}</h2>
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '22px', fontWeight: '700' }}>{t('dashboard.potentialExfiltration')}</h2>
                 <p style={{ margin: '2px 0 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
                   {t('dashboard.highVolumeTransfer')}
                 </p>
@@ -1409,8 +1039,8 @@ export default function Home() {
               const severityConfig = alert.severity_level === 'Critical'
                 ? { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.2)' }
                 : alert.severity_level === 'High'
-                  ? { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' }
-                  : { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.2)' }
+                ? { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' }
+                : { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.2)' }
 
               return (
                 <div
@@ -1439,11 +1069,12 @@ export default function Home() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-                      <ChevronRight size={18} style={{
+                      <span style={{
+                        fontSize: '16px',
                         transition: 'transform 0.2s',
                         transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                         color: 'var(--text-muted)'
-                      }} />
+                      }}>▶</span>
 
                       <span style={{
                         padding: '4px 12px',
@@ -1461,7 +1092,7 @@ export default function Home() {
                       </span>
 
                       <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '15px', minWidth: '200px' }}>
-                        {alert.user_email}
+                        {resolveUser(alert.user_email, alert.full_name)}
                       </div>
 
                       <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -1469,9 +1100,7 @@ export default function Home() {
                         <span>{t('dashboard.score')}: <strong style={{ color: 'var(--text-primary)' }}>{Math.round(alert.daily_risk_score)}</strong></span>
                         <span style={{ color: 'var(--text-secondary)' }}>{alert.highest_risk_date}</span>
                         {alert.is_single_day_event && (
-                          <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Zap size={14} /> {t('dashboard.singleDay')}
-                          </span>
+                          <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '12px' }}>⚡ {t('dashboard.singleDay')}</span>
                         )}
                       </div>
                     </div>
@@ -1481,22 +1110,9 @@ export default function Home() {
                         e.stopPropagation()
                         router.push(`/investigation?user=${encodeURIComponent(alert.user_email)}`)
                       }}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
-                        background: 'rgba(99, 102, 241, 0.1)',
-                        color: '#6366f1',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)' }}
+                      className="investigate-btn"
                     >
-                      <Search size={14} /> {t('dashboard.investigate')}
+                      {t('dashboard.investigate')} →
                     </button>
                   </div>
 
@@ -1531,8 +1147,8 @@ export default function Home() {
                       {/* Incident Details Table */}
                       {alert.incident_details && alert.incident_details.length > 0 && (
                         <div>
-                          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <FileText size={18} style={{ color: '#6366f1' }} /> {t('dashboard.incidentDetails')} — {alert.highest_risk_date}
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--text-primary)', fontWeight: '600' }}>
+                            📄 {t('dashboard.incidentDetails')} — {alert.highest_risk_date}
                           </h4>
                           <div style={{
                             border: '1px solid var(--border)',
@@ -1658,22 +1274,21 @@ export default function Home() {
         }
 
         .dashboard-header h1 {
-          font-size: 20px;
+          font-size: 24px;
           font-weight: 600;
           color: var(--text-primary);
           margin: 0 0 4px 0;
-          letter-spacing: -0.01em;
         }
 
         .dashboard-subtitle {
-          font-size: 13px;
-          color: var(--text-muted);
+          font-size: 14px;
+          color: var(--text-secondary);
           margin: 0;
         }
 
         .dashboard-filters {
           display: flex;
-          gap: 12px;
+          gap: 16px;
           margin-bottom: 24px;
           flex-wrap: wrap;
           align-items: flex-end;
@@ -1687,8 +1302,10 @@ export default function Home() {
 
         .filter-group label {
           font-size: 12px;
-          color: var(--text-muted);
-          font-weight: 500;
+          color: var(--text-secondary);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .filter-input,
@@ -1699,16 +1316,32 @@ export default function Home() {
           font-size: 14px;
           background: var(--surface);
           color: var(--text-primary);
-          min-width: 140px;
-          transition: all 0.2s;
-          font-family: 'Inter', sans-serif;
+          min-width: 180px;
+          transition: colors 0.2s;
         }
 
         .filter-input:focus,
         .filter-select:focus {
           outline: none;
-          border-color: var(--text-muted);
-          box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+          border-color: var(--text-primary);
+          box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+        }
+
+        .download-btn {
+          background-color: var(--primary);
+          color: white;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-left: auto;
+        }
+
+        .download-btn:hover {
+          background-color: var(--primary-dark);
         }
 
         .card {
@@ -1718,11 +1351,7 @@ export default function Home() {
           box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
           border: none;
           margin-bottom: 24px;
-          transition: box-shadow 0.2s;
-        }
-
-        .card:hover {
-          box-shadow: 0 4px 12px -1px rgba(15, 23, 42, 0.08);
+          transition: colors 0.2s;
         }
 
         .card h2 {
@@ -1730,7 +1359,6 @@ export default function Home() {
           color: var(--text-primary);
           font-size: 16px;
           font-weight: 600;
-          letter-spacing: -0.01em;
         }
 
         .dashboard-grid {
@@ -1754,37 +1382,47 @@ export default function Home() {
         }
 
         .total-label {
-          font-size: 13px;
-          color: var(--text-muted);
+          font-size: 14px;
+          color: var(--text-secondary);
         }
 
         .data-table {
           width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-        }
-
-        .card {
-          overflow-x: auto;
+          border-collapse: collapse;
+          table-layout: fixed;
         }
 
         .data-table th {
-          background: var(--surface-hover);
-          padding: 10px 16px;
+          background: transparent;
+          padding: 10px 8px;
           text-align: left;
           font-size: 12px;
           font-weight: 600;
-          color: var(--text-muted);
-          text-transform: none;
-          letter-spacing: 0;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
           border-bottom: 1px solid var(--border);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .data-table th:first-child {
+          width: 38%;
+        }
+
+        .data-table th:last-child {
+          width: 110px;
         }
 
         .data-table td {
-          padding: 10px 16px;
+          padding: 12px 8px;
           border-bottom: 1px solid var(--border);
           font-size: 14px;
           color: var(--text-primary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .data-table tr:hover {
@@ -1793,6 +1431,13 @@ export default function Home() {
 
         .data-table tr:last-child td {
           border-bottom: none;
+        }
+
+        .user-email-cell {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 0;
         }
 
         .user-cell {
@@ -1812,7 +1457,7 @@ export default function Home() {
         .loading-cell,
         .empty-cell {
           text-align: center;
-          color: var(--text-muted);
+          color: var(--text-secondary);
           padding: 40px !important;
         }
 
@@ -1821,8 +1466,8 @@ export default function Home() {
         }
 
         .chart-subtitle {
-          font-size: 13px;
-          color: var(--text-muted);
+          font-size: 14px;
+          color: var(--text-secondary);
           margin: 4px 0 0 0;
         }
 
@@ -1832,17 +1477,44 @@ export default function Home() {
           }
         }
 
+        .investigate-btn {
+          padding: 6px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--text-secondary);
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .investigate-btn:hover {
+          color: var(--text-primary);
+          background: var(--surface-hover);
+          border-color: var(--border-hover);
+        }
+
         @media (max-width: 768px) {
           .dashboard-page {
             padding: 16px;
           }
 
           .dashboard-header h1 {
-            font-size: 18px;
+            font-size: 20px;
           }
 
           .dashboard-filters {
             flex-direction: column;
+          }
+
+          .download-btn {
+            margin-left: 0;
+            width: 100%;
           }
         }
       `}</style>

@@ -463,7 +463,7 @@ public class RiskAnalyzerService
 
         return topUsers.Select(u => new TopUserItem
         {
-            UserEmail    = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, null),
+            UserEmail    = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
             LoginName    = u.LoginName ?? "",
             EmailAddress = !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail,
             TotalAlerts  = u.TotalAlerts,

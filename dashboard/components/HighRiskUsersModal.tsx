@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
+import { resolveUser } from '@/lib/userUtils'
 
 interface HighRiskUser {
     user_email: string
@@ -235,10 +236,10 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                         </td>
                                         <td style={{ padding: '12px' }}>
                                             <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                                {user.login_name}
+                                                {resolveUser(user.login_name, user.user_email)}
                                             </div>
                                             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                                {user.user_email}
+                                                {resolveUser(user.user_email, user.login_name)}
                                             </div>
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>

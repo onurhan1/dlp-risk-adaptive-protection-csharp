@@ -282,7 +282,8 @@ public class IncidentRepository : IIncidentRepository
                 g.Max(i => i.RiskScore ?? 0),
                 g.FirstOrDefault(i => !string.IsNullOrEmpty(i.Department))?.Department,
                 g.FirstOrDefault(i => !string.IsNullOrEmpty(i.LoginName))?.LoginName,
-                g.FirstOrDefault(i => !string.IsNullOrEmpty(i.EmailAddress))?.EmailAddress))
+                g.FirstOrDefault(i => !string.IsNullOrEmpty(i.EmailAddress))?.EmailAddress,
+                g.FirstOrDefault(i => !string.IsNullOrEmpty(i.FullName))?.FullName))
             .Where(u => u.MaxRiskScore >= minRiskScore)
             .OrderByDescending(u => u.MaxRiskScore)
             .ThenByDescending(u => u.TotalAlerts)

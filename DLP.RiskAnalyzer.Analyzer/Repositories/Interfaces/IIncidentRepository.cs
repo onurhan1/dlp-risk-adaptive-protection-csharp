@@ -6,7 +6,7 @@ public record UserRiskTrendDto(string UserEmail, DateOnly Date, int TotalInciden
 public record ChannelBreakdownDto(string Channel, int TotalIncidents, int CriticalCount, int HighCount, int MediumCount, int LowCount);
 public record HeatmapItemDto(string Label, int Count);
 public record DailySummaryDto(DateOnly Date, int TotalIncidents, double AvgRiskScore, int UniqueUsers, int HighRiskUserCount, int DepartmentsAffected);
-public record TopUserDto(string UserEmail, int TotalAlerts, int MaxRiskScore, string? Department, string? LoginName, string? EmailAddress);
+public record TopUserDto(string UserEmail, int TotalAlerts, int MaxRiskScore, string? Department, string? LoginName, string? EmailAddress, string? FullName);
 
 /// <summary>
 /// Repository interface for Incident data access operations
