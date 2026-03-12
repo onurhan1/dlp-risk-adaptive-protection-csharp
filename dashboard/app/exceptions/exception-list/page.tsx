@@ -516,11 +516,26 @@ function ExceptionListContent() {
             policy.rules.forEach(rule => {
                 rule.exceptions.forEach(excName => {
                     const key = `${policy.policyName}|${rule.ruleName}|${excName}`
+                    const excLower = excName.toLowerCase()
+                    const policyLower = policy.policyName.toLowerCase()
                     const matchingIncidents = filteredIncidents.filter(inc => {
-                        // Match exception name against violationTriggers (which contains rule/exception names)
-                        const triggers = inc.violationTriggers?.toLowerCase() || ''
-                        const excLower = excName.toLowerCase()
-                        return triggers.includes(excLower)
+                        if (!inc.violationTriggers) return false
+                        try {
+                            const triggers = JSON.parse(inc.violationTriggers)
+                            if (!Array.isArray(triggers)) return false
+                            return triggers.some((t: any) => {
+                                const rName = (t.rule_name || t.ruleName || t.RuleName || '').toLowerCase()
+                                const pName = (t.policy_name || t.policyName || t.PolicyName || '').toLowerCase()
+                                const isExc = t.is_exception === true || t.isException === true
+                                // 3-criteria exact match:
+                                // 1. rule_name == exception name
+                                // 2. policy_name == parent policy name
+                                // 3. is_exception flag is true
+                                return rName === excLower && pName === policyLower && isExc
+                            })
+                        } catch {
+                            return false
+                        }
                     })
 
                     const incidentCount = matchingIncidents.length
