@@ -382,7 +382,7 @@ function ExceptionListContent() {
 
     useEffect(() => {
         fetchData()
-    }, [dateRange])
+    }, [dateRange.start, dateRange.end])
 
     const [apiError, setApiError] = useState<string | null>(null)
 
@@ -439,34 +439,16 @@ function ExceptionListContent() {
                 })
 
             const incidentsPromise = apiClient.get('/api/incidents', {
-                params: { 
-                    limit: 500000, 
-                    order_by: 'timestamp_desc',
+                params: {
+                    limit: 500000,
+                    orderBy: 'timestamp_desc',
                     startDate: dateRange.start || undefined,
                     endDate: dateRange.end || undefined
                 },
-                timeout: 60000
+                timeout: 120000
             })
                 .then(res => {
                     const incidentArr = Array.isArray(res.data) ? res.data : []
-
-                    // DEBUG: Log raw API response sample
-                    if (incidentArr.length > 0) {
-                        const sample = incidentArr[0]
-                        console.log('[DEBUG] Raw API incident keys:', Object.keys(sample))
-                        console.log('[DEBUG] Raw API sample incident:', JSON.stringify(sample).substring(0, 500))
-                        // Check multiple key variants for violationTriggers
-                        console.log('[DEBUG] violationTriggers variants:', {
-                            violationTriggers: typeof sample.violationTriggers,
-                            violation_triggers: typeof sample.violation_triggers,
-                            ViolationTriggers: typeof sample.ViolationTriggers,
-                            value: (sample.violationTriggers || sample.violation_triggers || sample.ViolationTriggers || 'NONE').toString().substring(0, 200)
-                        })
-                        // Count how many raw incidents have violationTriggers
-                        const rawWithVT = incidentArr.filter((i: any) => i.violationTriggers || i.violation_triggers || i.ViolationTriggers).length
-                        console.log(`[DEBUG] Raw incidents with VT: ${rawWithVT} / ${incidentArr.length}`)
-                    }
-
                     setIncidents(incidentArr.map((item: any) => ({
                         id: item.id,
                         timestamp: item.timestamp,
@@ -514,22 +496,17 @@ function ExceptionListContent() {
             if (!dateRange.start && !dateRange.end) return true; // No filter applied
 
             try {
-                // Remove parseISO as it might fail on C# DateTime strings
-                const incDate = new Date(inc.timestamp);
-                
-                if (isNaN(incDate.getTime())) return true; // fallback if invalid
+                const incDate = parseISO(inc.timestamp);
 
                 let isAfterStart = true;
                 if (dateRange.start) {
-                    const start = new Date(dateRange.start);
-                    start.setHours(0, 0, 0, 0);
+                    const start = startOfDay(parseISO(dateRange.start));
                     isAfterStart = incDate.getTime() >= start.getTime();
                 }
 
                 let isBeforeEnd = true;
                 if (dateRange.end) {
-                    const end = new Date(dateRange.end);
-                    end.setHours(23, 59, 59, 999);
+                    const end = endOfDay(parseISO(dateRange.end));
                     isBeforeEnd = incDate.getTime() <= end.getTime();
                 }
 
@@ -539,67 +516,50 @@ function ExceptionListContent() {
             }
         });
 
-        // Debug: count how many incidents have violationTriggers
-        const withTriggers = filteredIncidents.filter(inc => !!inc.violationTriggers).length
-        const withIsException = filteredIncidents.filter(inc => {
-            if (!inc.violationTriggers) return false
+        // Build an index: "policyName|ruleName" (lowercased) → list of incident timestamps
+        // Parse each incident's violationTriggers only once for performance
+        const triggerIndex = new Map<string, string[]>()  // key → timestamps
+
+        for (const inc of filteredIncidents) {
+            if (!inc.violationTriggers) continue
             try {
                 const triggers = JSON.parse(inc.violationTriggers)
-                if (!Array.isArray(triggers)) return false
-                return triggers.some((t: any) => t.is_exception === true || t.isException === true)
-            } catch { return false }
-        }).length
-        console.log(`[ExceptionStats] Total filtered incidents: ${filteredIncidents.length}, with violationTriggers: ${withTriggers}, with is_exception=true: ${withIsException}`)
-
-        // Debug: Show a sample violationTriggers content and first exception info
-        if (withTriggers > 0) {
-            const sampleWithVT = filteredIncidents.find(inc => !!inc.violationTriggers)
-            console.log('[DEBUG] Sample violationTriggers raw value:', sampleWithVT?.violationTriggers?.substring(0, 300))
-            try {
-                const parsed = JSON.parse(sampleWithVT?.violationTriggers || '[]')
-                console.log('[DEBUG] Sample violationTriggers parsed:', JSON.stringify(parsed).substring(0, 300))
-            } catch(e) { console.log('[DEBUG] Sample VT parse error:', e) }
-        }
-        if (exceptionData.length > 0 && exceptionData[0].rules?.length > 0) {
-            const firstPolicy = exceptionData[0]
-            const firstRule = firstPolicy.rules[0]
-            const firstExc = firstRule.exceptions?.[0]
-            console.log('[DEBUG] First exception data:', { policyName: firstPolicy.policyName, ruleName: firstRule.ruleName, excName: firstExc })
+                if (!Array.isArray(triggers)) continue
+                for (const t of triggers) {
+                    const rName = (t.rule_name || t.ruleName || t.RuleName || '').toLowerCase()
+                    const pName = (t.policy_name || t.policyName || t.PolicyName || '').toLowerCase()
+                    if (!rName || !pName) continue
+                    const compositeKey = `${pName}|${rName}`
+                    const existing = triggerIndex.get(compositeKey)
+                    if (existing) {
+                        existing.push(inc.timestamp)
+                    } else {
+                        triggerIndex.set(compositeKey, [inc.timestamp])
+                    }
+                }
+            } catch {
+                // skip unparseable
+            }
         }
 
-        // For each exception name, count incidents where that name appears in violationTriggers or policy
+        // For each exception, look up in the pre-built index
         exceptionData.forEach(policy => {
             policy.rules.forEach(rule => {
                 rule.exceptions.forEach(excName => {
                     const key = `${policy.policyName}|${rule.ruleName}|${excName}`
-                    const excLower = excName.toLowerCase()
-                    const policyLower = policy.policyName.toLowerCase()
-                    const matchingIncidents = filteredIncidents.filter(inc => {
-                        if (!inc.violationTriggers) return false
-                        try {
-                            const triggers = JSON.parse(inc.violationTriggers)
-                            if (!Array.isArray(triggers)) return false
-                            return triggers.some((t: any) => {
-                                const rName = (t.rule_name || t.ruleName || t.RuleName || '').toLowerCase()
-                                const pName = (t.policy_name || t.policyName || t.PolicyName || '').toLowerCase()
-                                // Match: rule_name matches exception name AND policy_name matches parent policy
-                                return rName === excLower && pName === policyLower
-                            })
-                        } catch {
-                            return false
-                        }
-                    })
+                    const lookupKey = `${policy.policyName.toLowerCase()}|${excName.toLowerCase()}`
+                    const timestamps = triggerIndex.get(lookupKey) || []
 
-                    const incidentCount = matchingIncidents.length
+                    const incidentCount = timestamps.length
                     let lastIncidentDate: string | null = null
                     let daysIdle: number | null = null
 
                     if (incidentCount > 0) {
-                        const sorted = matchingIncidents.sort((a, b) =>
-                            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                        const sorted = [...timestamps].sort((a, b) =>
+                            new Date(b).getTime() - new Date(a).getTime()
                         )
-                        lastIncidentDate = sorted[0].timestamp
-                        daysIdle = differenceInDays(now, parseISO(sorted[0].timestamp))
+                        lastIncidentDate = sorted[0]
+                        daysIdle = differenceInDays(now, parseISO(sorted[0]))
                     } else {
                         daysIdle = 999 // no incidents at all
                     }
