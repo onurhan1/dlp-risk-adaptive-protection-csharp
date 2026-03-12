@@ -27,7 +27,7 @@ public static class IncidentResponseMapper
         {
             // ── Core fields ─────────────────────────────────────────────────
             Id                = incident.Id,
-            UserEmail         = incident.UserEmail,
+            UserEmail         = GetValidUserIdentifier(incident.UserEmail, incident.EmailAddress, incident.FullName),
             Department        = incident.Department,
             Severity          = incident.Severity,
             DataType          = incident.DataType,
@@ -44,7 +44,7 @@ public static class IncidentResponseMapper
             Action            = incident.Action,
             Destination       = incident.Destination,
             FileName          = incident.FileName,
-            LoginName         = incident.LoginName,
+            LoginName         = GetValidUserIdentifier(incident.LoginName, incident.EmailAddress, incident.FullName),
             HostName          = incident.HostName,
             EmailAddress      = incident.EmailAddress,
             ViolationTriggers = incident.ViolationTriggers,
@@ -63,5 +63,22 @@ public static class IncidentResponseMapper
             RemediationAction = incident.RemediationAction,
             RemediationNotes  = incident.RemediationNotes,
         };
+    }
+
+    /// <summary>
+    /// Returns the best available user identifier. If the primary value is null, empty, 
+    /// or "unknown", it falls back to emailAddress, then fullName.
+    /// </summary>
+    private static string? GetValidUserIdentifier(string? primary, string? emailAddress, string? fullName)
+    {
+        bool isInvalid = string.IsNullOrWhiteSpace(primary) || 
+                         primary.Equals("unknown", StringComparison.OrdinalIgnoreCase);
+        
+        if (!isInvalid) return primary;
+
+        if (!string.IsNullOrWhiteSpace(emailAddress)) return emailAddress;
+        if (!string.IsNullOrWhiteSpace(fullName)) return fullName;
+        
+        return primary; // fallback to the original value (e.g. "unknown" or null)
     }
 }
