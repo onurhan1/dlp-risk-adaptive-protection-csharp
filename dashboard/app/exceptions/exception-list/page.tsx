@@ -521,12 +521,24 @@ function ExceptionListContent() {
             }
         });
 
+        // Debug: count how many incidents have violationTriggers
+        const withTriggers = filteredIncidents.filter(inc => !!inc.violationTriggers).length
+        const withIsException = filteredIncidents.filter(inc => {
+            if (!inc.violationTriggers) return false
+            try {
+                const triggers = JSON.parse(inc.violationTriggers)
+                if (!Array.isArray(triggers)) return false
+                return triggers.some((t: any) => t.is_exception === true || t.isException === true)
+            } catch { return false }
+        }).length
+        console.log(`[ExceptionStats] Total filtered incidents: ${filteredIncidents.length}, with violationTriggers: ${withTriggers}, with is_exception=true: ${withIsException}`)
+
         // For each exception name, count incidents where that name appears in violationTriggers or policy
         exceptionData.forEach(policy => {
             policy.rules.forEach(rule => {
                 rule.exceptions.forEach(excName => {
                     const key = `${policy.policyName}|${rule.ruleName}|${excName}`
-                    const ruleLower = rule.ruleName.toLowerCase()
+                    const excLower = excName.toLowerCase()
                     const policyLower = policy.policyName.toLowerCase()
                     const matchingIncidents = filteredIncidents.filter(inc => {
                         if (!inc.violationTriggers) return false
@@ -536,10 +548,8 @@ function ExceptionListContent() {
                             return triggers.some((t: any) => {
                                 const rName = (t.rule_name || t.ruleName || t.RuleName || '').toLowerCase()
                                 const pName = (t.policy_name || t.policyName || t.PolicyName || '').toLowerCase()
-                                // 2-criteria match:
-                                // 1. rule_name == parent rule name (not exception name)
-                                // 2. policy_name == parent policy name
-                                return rName === ruleLower && pName === policyLower
+                                // Match: rule_name matches exception name AND policy_name matches parent policy
+                                return rName === excLower && pName === policyLower
                             })
                         } catch {
                             return false
