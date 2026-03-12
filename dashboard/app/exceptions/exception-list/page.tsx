@@ -440,7 +440,7 @@ function ExceptionListContent() {
 
             const incidentsPromise = apiClient.get('/api/incidents', {
                 params: {
-                    limit: 500000,
+                    limit: 50000,
                     orderBy: 'timestamp_desc',
                     startDate: dateRange.start || undefined,
                     endDate: dateRange.end || undefined
@@ -845,7 +845,7 @@ function ExceptionListContent() {
                             </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            Filtrelenen Olay İçinden
+                            {incidents.length.toLocaleString()} olay içinden
                         </div>
                     </div>
                 </div>

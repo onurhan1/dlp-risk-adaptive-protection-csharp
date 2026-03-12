@@ -116,8 +116,11 @@ public class IncidentsController : ControllerBase
     {
         try
         {
+            // Cap limit to prevent OOM on large datasets
+            var safeLimitValue = Math.Min(limit, 100000);
+
             var incidents = await _dbService.GetIncidentsAsync(
-                startDate, endDate, user, department, limit, orderBy);
+                startDate, endDate, user, department, safeLimitValue, orderBy);
 
             // M-01: enrichment + mapping delegated to the single factory method
             var enrichedIncidents = incidents.Select(incident => EnrichAndMap(incident)).ToList();
