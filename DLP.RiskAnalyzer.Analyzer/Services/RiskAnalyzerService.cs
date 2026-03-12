@@ -339,7 +339,7 @@ public class RiskAnalyzerService
         {
             Users = pagedUsers.Select(u => new UserListItem
             {
-                UserEmail        = u.UserEmail,
+                UserEmail        = GetValidUserIdentifier(u.UserEmail, null, u.FullName),
                 RiskScore        = Math.Round(u.AvgScore, 1),
                 TotalIncidents   = u.TotalIncidents,
                 LastIncidentDate = u.LastDate.ToString("yyyy-MM-dd"),
@@ -463,7 +463,7 @@ public class RiskAnalyzerService
 
         return topUsers.Select(u => new TopUserItem
         {
-            UserEmail    = u.UserEmail,
+            UserEmail    = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, null),
             LoginName    = u.LoginName ?? "",
             EmailAddress = !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail,
             TotalAlerts  = u.TotalAlerts,
@@ -539,10 +539,12 @@ public class RiskAnalyzerService
         var total = incidents.Count;
 
         var topUsers = incidents
-            .GroupBy(i => i.UserEmail)
+            .GroupBy(i => new { i.UserEmail, i.EmailAddress, i.FullName })
             .Select(g => new
             {
-                UserEmail = g.Key,
+                UserEmail = g.Key.UserEmail,
+                EmailAddress = g.Key.EmailAddress,
+                FullName = g.Key.FullName,
                 LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
                             .Select(i => i.LoginName)
                             .FirstOrDefault() ?? "",
@@ -556,7 +558,7 @@ public class RiskAnalyzerService
             .Take(10)
             .Select(u => new DailyReportTopUser
             {
-                UserEmail   = u.UserEmail,
+                UserEmail   = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
                 LoginName   = u.LoginName,
                 Department  = u.Department,
                 TotalAlerts = u.TotalAlerts,
@@ -857,4 +859,21 @@ public class RiskAnalyzerService
 
     private static double CalculateStdDev(IEnumerable<double> source) =>
         UserInsightsService.CalculateStdDev(source);
+
+    /// <summary>
+    /// Returns the best available user identifier. If the primary value is null, empty, 
+    /// or "unknown", it falls back to emailAddress, then fullName.
+    /// </summary>
+    private static string GetValidUserIdentifier(string? primary, string? emailAddress, string? fullName)
+    {
+        bool isInvalid = string.IsNullOrWhiteSpace(primary) || 
+                         primary.Equals("unknown", StringComparison.OrdinalIgnoreCase);
+        
+        if (!isInvalid) return primary!;
+
+        if (!string.IsNullOrWhiteSpace(emailAddress)) return emailAddress;
+        if (!string.IsNullOrWhiteSpace(fullName)) return fullName;
+        
+        return primary ?? "unknown";
+    }
 }

@@ -158,9 +158,10 @@ public class UserInsightsService
 
         var query = _context.UserDailyRiskScores
             .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .GroupBy(r => r.UserEmail)
+            .GroupBy(r => new { r.UserEmail, r.EmailAddress })
             .Select(g => new {
-                UserEmail = g.Key,
+                UserEmail = g.Key.UserEmail,
+                EmailAddress = g.Key.EmailAddress,
                 FullName = g.Max(s => s.FullName),
                 Team = g.Max(s => s.Team),
                 RiskScore = g.Average(s => s.DailyRiskScore),
@@ -184,7 +185,7 @@ public class UserInsightsService
 
         return pagedUsers.Select(u => new TopRiskyUserItem
         {
-            UserEmail        = u.UserEmail,
+            UserEmail        = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
             FullName         = u.FullName ?? "",
             Team             = u.Team ?? "",
             RiskScore        = u.RiskScore,
@@ -259,9 +260,11 @@ public class UserInsightsService
 
         var userGroups = await _context.Incidents
             .Where(i => i.Timestamp >= startTime)
-            .GroupBy(i => i.UserEmail)
+            .GroupBy(i => new { i.UserEmail, i.EmailAddress, i.FullName })
             .Select(g => new {
-                UserEmail = g.Key,
+                UserEmail = g.Key.UserEmail,
+                EmailAddress = g.Key.EmailAddress,
+                FullName = g.Key.FullName,
                 TotalIncidents = g.Count(),
                 AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
                 MaxRiskScore = g.Max(i => (double)(i.RiskScore ?? 0)),
@@ -280,7 +283,7 @@ public class UserInsightsService
 
             return new TopRiskyUserItem
             {
-                UserEmail        = u.UserEmail,
+                UserEmail        = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
                 RiskScore        = Math.Round(riskScore, 1),
                 MaxDailyScore    = Math.Round(u.MaxRiskScore, 1),
                 TotalIncidents   = u.TotalIncidents,
@@ -381,5 +384,22 @@ public class UserInsightsService
         double avg = values.Average();
         double sumSquares = values.Sum(d => (d - avg) * (d - avg));
         return Math.Sqrt(sumSquares / (values.Count - 1));
+    }
+
+    /// <summary>
+    /// Returns the best available user identifier. If the primary value is null, empty, 
+    /// or "unknown", it falls back to emailAddress, then fullName.
+    /// </summary>
+    private static string GetValidUserIdentifier(string? primary, string? emailAddress, string? fullName)
+    {
+        bool isInvalid = string.IsNullOrWhiteSpace(primary) || 
+                         primary.Equals("unknown", StringComparison.OrdinalIgnoreCase);
+        
+        if (!isInvalid) return primary!;
+
+        if (!string.IsNullOrWhiteSpace(emailAddress)) return emailAddress;
+        if (!string.IsNullOrWhiteSpace(fullName)) return fullName;
+        
+        return primary ?? "unknown";
     }
 }
