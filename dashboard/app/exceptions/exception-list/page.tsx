@@ -449,6 +449,24 @@ function ExceptionListContent() {
             })
                 .then(res => {
                     const incidentArr = Array.isArray(res.data) ? res.data : []
+
+                    // DEBUG: Log raw API response sample
+                    if (incidentArr.length > 0) {
+                        const sample = incidentArr[0]
+                        console.log('[DEBUG] Raw API incident keys:', Object.keys(sample))
+                        console.log('[DEBUG] Raw API sample incident:', JSON.stringify(sample).substring(0, 500))
+                        // Check multiple key variants for violationTriggers
+                        console.log('[DEBUG] violationTriggers variants:', {
+                            violationTriggers: typeof sample.violationTriggers,
+                            violation_triggers: typeof sample.violation_triggers,
+                            ViolationTriggers: typeof sample.ViolationTriggers,
+                            value: (sample.violationTriggers || sample.violation_triggers || sample.ViolationTriggers || 'NONE').toString().substring(0, 200)
+                        })
+                        // Count how many raw incidents have violationTriggers
+                        const rawWithVT = incidentArr.filter((i: any) => i.violationTriggers || i.violation_triggers || i.ViolationTriggers).length
+                        console.log(`[DEBUG] Raw incidents with VT: ${rawWithVT} / ${incidentArr.length}`)
+                    }
+
                     setIncidents(incidentArr.map((item: any) => ({
                         id: item.id,
                         timestamp: item.timestamp,
@@ -532,6 +550,22 @@ function ExceptionListContent() {
             } catch { return false }
         }).length
         console.log(`[ExceptionStats] Total filtered incidents: ${filteredIncidents.length}, with violationTriggers: ${withTriggers}, with is_exception=true: ${withIsException}`)
+
+        // Debug: Show a sample violationTriggers content and first exception info
+        if (withTriggers > 0) {
+            const sampleWithVT = filteredIncidents.find(inc => !!inc.violationTriggers)
+            console.log('[DEBUG] Sample violationTriggers raw value:', sampleWithVT?.violationTriggers?.substring(0, 300))
+            try {
+                const parsed = JSON.parse(sampleWithVT?.violationTriggers || '[]')
+                console.log('[DEBUG] Sample violationTriggers parsed:', JSON.stringify(parsed).substring(0, 300))
+            } catch(e) { console.log('[DEBUG] Sample VT parse error:', e) }
+        }
+        if (exceptionData.length > 0 && exceptionData[0].rules?.length > 0) {
+            const firstPolicy = exceptionData[0]
+            const firstRule = firstPolicy.rules[0]
+            const firstExc = firstRule.exceptions?.[0]
+            console.log('[DEBUG] First exception data:', { policyName: firstPolicy.policyName, ruleName: firstRule.ruleName, excName: firstExc })
+        }
 
         // For each exception name, count incidents where that name appears in violationTriggers or policy
         exceptionData.forEach(policy => {
