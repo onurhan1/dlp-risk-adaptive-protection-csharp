@@ -51,6 +51,11 @@ public class UserDailyRiskScore
     public string? FullName { get; set; }
 
     /// <summary>
+    /// Kullanıcı email adresi (alternatif)
+    /// </summary>
+    public string? EmailAddress { get; set; }
+
+    /// <summary>
     /// O günkü BLOCK action sayısı
     /// </summary>
     [Column("block_count")]
