@@ -141,7 +141,18 @@ public class RiskAnalyzerService
         var processedCount = await dbService.ProcessRedisStreamAsync();
         if (processedCount > 0)
         {
-            await CalculateRiskScoresAsync();
+            try
+            {
+                await CalculateRiskScoresAsync();
+            }
+            catch (Exception ex)
+            {
+                // CRITICAL: Log exception but don't fail the entire process
+                // This prevents incidents from being created without risk scores
+                _logger.LogError(ex, "CRITICAL: Failed to calculate risk scores after processing {Count} incidents. Incidents may have NULL risk_score!", processedCount);
+                // Re-throw so AnalyzerBackgroundService can handle it
+                throw;
+            }
         }
         return processedCount;
     }
@@ -157,8 +168,23 @@ public class RiskAnalyzerService
             return 0;
 
         // Load NDA domains for fast lookup
-        var ndaDomains = await _context.NdaDomains
-            .ToDictionaryAsync(d => d.Domain.ToLower(), d => d);
+        Dictionary<string, NdaDomain> ndaDomains;
+        try
+        {
+            ndaDomains = await _context.NdaDomains
+                .AsNoTracking()
+                .ToDictionaryAsync(d => d.Domain.ToLower(), d => d);
+            
+            if (ndaDomains.Count == 0)
+            {
+                _logger.LogWarning("WARNING: NdaDomains table is empty! Risk calculation may be incomplete.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ERROR: Failed to load NdaDomains table. This is likely the cause of NULL risk_scores!");
+            throw new InvalidOperationException("NdaDomains table load failed - risk score calculation aborted", ex);
+        }
 
         var updatedCount = 0;
         foreach (var incident in incidentsWithoutScores)

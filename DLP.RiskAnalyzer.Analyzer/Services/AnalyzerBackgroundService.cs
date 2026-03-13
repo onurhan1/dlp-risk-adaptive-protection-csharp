@@ -101,29 +101,42 @@ public class AnalyzerBackgroundService : BackgroundService
                     }
 
                     // Process Redis stream and calculate risk scores
-                    var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);
-                    
-                    if (processedCount > 0)
+                    try
                     {
-                        _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated risk scores", 
-                            processedCount);
+                        var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);
                         
-                        // Calculate daily scores for today to keep Dashboard data up-to-date
-                        // This populates user_daily_risk_scores table for "Potential Data Exfiltration" and other dashboards
-                        try
+                        if (processedCount > 0)
                         {
-                            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                            var updatedUsers = await riskAnalyzerService.CalculateDailyScoresAsync(today);
-                            if (updatedUsers > 0)
+                            _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated risk scores", 
+                                processedCount);
+                            
+                            // Calculate daily scores for today to keep Dashboard data up-to-date
+                            // This populates user_daily_risk_scores table for "Potential Data Exfiltration" and other dashboards
+                            try
                             {
-                                _logger.LogInformation("Updated daily risk scores for {Count} users on {Date}", 
-                                    updatedUsers, today);
+                                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                                var updatedUsers = await riskAnalyzerService.CalculateDailyScoresAsync(today);
+                                if (updatedUsers > 0)
+                                {
+                                    _logger.LogInformation("Updated daily risk scores for {Count} users on {Date}", 
+                                        updatedUsers, today);
+                                }
+                            }
+                            catch (Exception dailyEx)
+                            {
+                                _logger.LogWarning(dailyEx, "Failed to calculate daily scores, will retry next cycle");
                             }
                         }
-                        catch (Exception dailyEx)
-                        {
-                            _logger.LogWarning(dailyEx, "Failed to calculate daily scores, will retry next cycle");
-                        }
+                    }
+                    catch (InvalidOperationException riskEx)
+                    {
+                        _logger.LogError(riskEx, "CRITICAL: Risk score calculation failed - check NdaDomains table or database connectivity");
+                        // Wait longer on critical errors
+                        await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+                    }
+                    catch (Exception riskEx)
+                    {
+                        _logger.LogError(riskEx, "Error processing Redis stream or calculating risk scores, will retry in next cycle");
                     }
                 }
             }
