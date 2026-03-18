@@ -281,24 +281,17 @@ public class DatabaseService
                     continue;
                 }
 
-                // userEmail opsiyonel - bazı kullanıcıların user adı olmayabiliyor
-                var userEmail = userEmailValue.Value.HasValue ? userEmailValue.Value.ToString() : "unknown";
+                // userEmail: önce user alanını dene, yoksa email_address'e, sonra login_name'e fallback yap
+                var rawUserEmail = userEmailValue.Value.HasValue ? userEmailValue.Value.ToString() : null;
                 
                 // Domain prefix'i kaldır (örn: "KUVEYTTURK\enesa" -> "enesa")
                 // Network email ve Endpoint kullanıcılarını birleştirmek için
-                if (!string.IsNullOrEmpty(userEmail) && userEmail.Contains("\\"))
+                if (!string.IsNullOrEmpty(rawUserEmail) && rawUserEmail.Contains("\\"))
                 {
-                    userEmail = userEmail.Split('\\').Last();
+                    rawUserEmail = rawUserEmail.Split('\\').Last();
                 }
-                
-                var department = departmentValue.Value.HasValue ? departmentValue.Value.ToString() : null;
-                var severity = severityValue.Value.HasValue && int.TryParse(severityValue.Value.ToString(), out var sev) ? sev : 1;
-                var dataType = dataTypeValue.Value.HasValue ? dataTypeValue.Value.ToString() : null;
-                var timestamp = DateTime.Parse(timestampValue.Value.ToString());
-                var policy = policyValue.Value.HasValue ? policyValue.Value.ToString() : null;
-                var channel = channelValue.Value.HasValue ? channelValue.Value.ToString() : null;
-                
-                // Parse new fields
+
+                // Parse new fields early for fallback
                 var action = actionValue.Value.HasValue ? actionValue.Value.ToString() : null;
                 var destination = destinationValue.Value.HasValue ? destinationValue.Value.ToString() : null;
                 var fileName = fileNameValue.Value.HasValue ? fileNameValue.Value.ToString() : null;
@@ -309,11 +302,31 @@ public class DatabaseService
                 {
                     loginName = loginName.Split('\\').Last();
                 }
+
+                var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
+
+                // Fallback hiyerarşisi: user → email_address → login_name → "unknown"
+                string userEmail;
+                if (!string.IsNullOrWhiteSpace(rawUserEmail))
+                    userEmail = rawUserEmail;
+                else if (!string.IsNullOrWhiteSpace(emailAddress))
+                    userEmail = emailAddress;
+                else if (!string.IsNullOrWhiteSpace(loginName))
+                    userEmail = loginName;
+                else
+                    userEmail = "unknown";
                 
+                var department = departmentValue.Value.HasValue ? departmentValue.Value.ToString() : null;
+                var severity = severityValue.Value.HasValue && int.TryParse(severityValue.Value.ToString(), out var sev) ? sev : 1;
+                var dataType = dataTypeValue.Value.HasValue ? dataTypeValue.Value.ToString() : null;
+                var timestamp = DateTime.Parse(timestampValue.Value.ToString());
+                var policy = policyValue.Value.HasValue ? policyValue.Value.ToString() : null;
+                var channel = channelValue.Value.HasValue ? channelValue.Value.ToString() : null;
+                
+                // hostName wasn't parsed earlier
                 var hostNameValue = message.Values.FirstOrDefault(v => v.Name == "host_name");
                 var hostName = hostNameValue.Value.HasValue ? hostNameValue.Value.ToString() : null;
 
-                var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
                 
                 // Parse new fields (FullName, Team, RuleName)

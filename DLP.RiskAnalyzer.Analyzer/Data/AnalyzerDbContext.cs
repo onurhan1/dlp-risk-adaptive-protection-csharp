@@ -286,6 +286,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.AvgRiskScore).HasColumnName("avg_risk_score").HasDefaultValue(0);
             entity.Property(e => e.Team).HasColumnName("team");
             entity.Property(e => e.FullName).HasColumnName("full_name");
+            entity.Property(e => e.EmailAddress).HasColumnName("email_address").HasMaxLength(255);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.UserEmail);

@@ -141,18 +141,7 @@ public class RiskAnalyzerService
         var processedCount = await dbService.ProcessRedisStreamAsync();
         if (processedCount > 0)
         {
-            try
-            {
-                await CalculateRiskScoresAsync();
-            }
-            catch (Exception ex)
-            {
-                // CRITICAL: Log exception but don't fail the entire process
-                // This prevents incidents from being created without risk scores
-                _logger.LogError(ex, "CRITICAL: Failed to calculate risk scores after processing {Count} incidents. Incidents may have NULL risk_score!", processedCount);
-                // Re-throw so AnalyzerBackgroundService can handle it
-                throw;
-            }
+            await CalculateRiskScoresAsync();
         }
         return processedCount;
     }
@@ -168,23 +157,8 @@ public class RiskAnalyzerService
             return 0;
 
         // Load NDA domains for fast lookup
-        Dictionary<string, NdaDomain> ndaDomains;
-        try
-        {
-            ndaDomains = await _context.NdaDomains
-                .AsNoTracking()
-                .ToDictionaryAsync(d => d.Domain.ToLower(), d => d);
-            
-            if (ndaDomains.Count == 0)
-            {
-                _logger.LogWarning("WARNING: NdaDomains table is empty! Risk calculation may be incomplete.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "ERROR: Failed to load NdaDomains table. This is likely the cause of NULL risk_scores!");
-            throw new InvalidOperationException("NdaDomains table load failed - risk score calculation aborted", ex);
-        }
+        var ndaDomains = await _context.NdaDomains
+            .ToDictionaryAsync(d => d.Domain.ToLower(), d => d);
 
         var updatedCount = 0;
         foreach (var incident in incidentsWithoutScores)
@@ -336,6 +310,10 @@ public class RiskAnalyzerService
                             .OrderByDescending(r => r.Date)
                             .Select(r => r.FullName)
                             .FirstOrDefault(),
+                EmailAddress = g.Where(r => r.EmailAddress != null && r.EmailAddress != string.Empty)
+                            .OrderByDescending(r => r.Date)
+                            .Select(r => r.EmailAddress)
+                            .FirstOrDefault(),
                 Team = g.Where(r => r.Team != null && r.Team != string.Empty)
                         .OrderByDescending(r => r.Date)
                         .Select(r => r.Team)
@@ -348,6 +326,7 @@ public class RiskAnalyzerService
             grouped = grouped.Where(u =>
                 u.UserEmail.ToLower().Contains(s) ||
                 (u.FullName != null && u.FullName.ToLower().Contains(s)) ||
+                (u.EmailAddress != null && u.EmailAddress.ToLower().Contains(s)) ||
                 (u.Team     != null && u.Team.ToLower().Contains(s)));
         }
 
@@ -365,7 +344,7 @@ public class RiskAnalyzerService
         {
             Users = pagedUsers.Select(u => new UserListItem
             {
-                UserEmail        = GetValidUserIdentifier(u.UserEmail, null, u.FullName),
+                UserEmail        = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
                 RiskScore        = Math.Round(u.AvgScore, 1),
                 TotalIncidents   = u.TotalIncidents,
                 LastIncidentDate = u.LastDate.ToString("yyyy-MM-dd"),
@@ -489,7 +468,7 @@ public class RiskAnalyzerService
 
         return topUsers.Select(u => new TopUserItem
         {
-            UserEmail    = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
+            UserEmail    = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, null),
             LoginName    = u.LoginName ?? "",
             EmailAddress = !string.IsNullOrEmpty(u.EmailAddress) ? u.EmailAddress : u.UserEmail,
             TotalAlerts  = u.TotalAlerts,
@@ -784,11 +763,13 @@ public class RiskAnalyzerService
             var maxMaxMatches = dailyIncidents.Max(i => i.MaxMatches);
             var avgMaxMatches = incidentCount > 0 ? dailyIncidents.Average(i => (double)i.MaxMatches) : 0;
             
-            // Get team and full_name from first incident that has them
+            // Get team, full_name and email_address from first incident that has them
             var firstWithTeam = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.Team) || !string.IsNullOrEmpty(i.Department));
             var firstWithName = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.FullName));
+            var firstWithEmail = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.EmailAddress));
             var team = firstWithTeam?.Team ?? firstWithTeam?.Department;
             var fullName = firstWithName?.FullName;
+            var incidentEmailAddress = firstWithEmail?.EmailAddress;
             
             // Normalized daily score (0-100 scale)
             // Now incident scores are directly 0-100, so we use direct multipliers
@@ -818,6 +799,7 @@ public class RiskAnalyzerService
                 existingRecord.AvgMaxMatches = avgMaxMatches;
                 if (!string.IsNullOrEmpty(team)) existingRecord.Team = team;
                 if (!string.IsNullOrEmpty(fullName)) existingRecord.FullName = fullName;
+                if (!string.IsNullOrEmpty(incidentEmailAddress)) existingRecord.EmailAddress = incidentEmailAddress;
                 // CreatedAt remains original
             }
             else
@@ -838,6 +820,7 @@ public class RiskAnalyzerService
                     AvgMaxMatches = avgMaxMatches,
                     Team = team,
                     FullName = fullName,
+                    EmailAddress = incidentEmailAddress,
                     CreatedAt = DateTime.UtcNow
                 };
                 

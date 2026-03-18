@@ -51,7 +51,7 @@ public class UserDailyRiskScore
     public string? FullName { get; set; }
 
     /// <summary>
-    /// Kullanıcı email adresi (alternatif)
+    /// Kullanıcı email adresi (incidents tablosundaki email_address alanından)
     /// </summary>
     public string? EmailAddress { get; set; }
 
