@@ -138,12 +138,6 @@ public class RiskController : ControllerBase
                     LoginName = g.Where(i => !string.IsNullOrEmpty(i.LoginName))
                                  .Select(i => i.LoginName)
                                  .FirstOrDefault() ?? g.Key,
-                    EmailAddress = g.Where(i => !string.IsNullOrEmpty(i.EmailAddress))
-                                    .Select(i => i.EmailAddress)
-                                    .FirstOrDefault(),
-                    FullName = g.Where(i => !string.IsNullOrEmpty(i.FullName))
-                                .Select(i => i.FullName)
-                                .FirstOrDefault(),
                     Department = g.Where(i => !string.IsNullOrEmpty(i.Department))
                                   .Select(i => i.Department)
                                   .FirstOrDefault() ?? "",
@@ -155,18 +149,13 @@ public class RiskController : ControllerBase
                 .ThenByDescending(u => u.IncidentCount)
                 .ToList();
 
-            var result = highRiskUsers.Select(u => {
-                // Resolve "unknown" user identifiers using fallback chain
-                var resolvedEmail = ResolveUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName);
-                var resolvedLogin = ResolveUserIdentifier(u.LoginName, u.EmailAddress, u.FullName);
-                return new Dictionary<string, object>
-                {
-                    { "user_email", resolvedEmail },
-                    { "login_name", resolvedLogin },
-                    { "department", u.Department },
-                    { "max_risk_score", u.MaxRiskScore },
-                    { "incident_count", u.IncidentCount }
-                };
+            var result = highRiskUsers.Select(u => new Dictionary<string, object>
+            {
+                { "user_email", u.UserEmail },
+                { "login_name", u.LoginName },
+                { "department", u.Department },
+                { "max_risk_score", u.MaxRiskScore },
+                { "incident_count", u.IncidentCount }
             }).ToList();
 
             return Ok(result);
@@ -619,7 +608,7 @@ public class RiskController : ControllerBase
 
                 return new Dictionary<string, object>
                 {
-                    { "login_name",         ResolveUserIdentifier(i.LoginName, i.EmailAddress, i.FullName) ?? i.UserEmail ?? "N/A" },
+                    { "login_name",         i.LoginName ?? i.UserEmail ?? "N/A" },
                     { "destination",        i.Destination ?? "N/A" },
                     { "channel",            i.Channel ?? "N/A" },
                     { "policy",             i.Policy ?? "N/A" },
@@ -646,21 +635,5 @@ public class RiskController : ControllerBase
         {
             return StatusCode(500, new { detail = ex.Message });
         }
-    }
-
-    /// <summary>
-    /// Resolves "unknown" or empty user identifiers using a fallback chain.
-    /// </summary>
-    private static string ResolveUserIdentifier(string? primary, string? emailAddress, string? fullName)
-    {
-        bool isInvalid = string.IsNullOrWhiteSpace(primary) ||
-                         primary.Equals("unknown", StringComparison.OrdinalIgnoreCase);
-
-        if (!isInvalid) return primary!;
-
-        if (!string.IsNullOrWhiteSpace(emailAddress)) return emailAddress;
-        if (!string.IsNullOrWhiteSpace(fullName)) return fullName;
-
-        return primary ?? "unknown";
     }
 }

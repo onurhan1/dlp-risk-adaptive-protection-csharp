@@ -348,7 +348,7 @@ public class UserInsightsService
             var impactScore = Math.Min(100.0, (alert.MaxMaxMatches / 10.0) + (alert.DailyRiskScore * 0.5));
 
             alertsWithDetails.Add(new {
-                user_email = GetValidUserIdentifier(alert.UserEmail, null, alert.FullName),
+                user_email = alert.UserEmail,
                 full_name = alert.FullName ?? "",
                 team = alert.Team ?? "",
                 impact_score = Math.Round(impactScore, 1),

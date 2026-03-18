@@ -6,7 +6,6 @@ import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
 import { Loader2, Inbox, Calendar } from 'lucide-react'
-import { resolveUser } from '@/lib/userUtils'
 
 interface ActionIncident {
     login_name: string
@@ -603,7 +602,7 @@ export default function ActionIncidentsModal({
                                             {(page - 1) * pageSize + idx + 1}
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                            {resolveUser(incident.login_name)}
+                                            {incident.login_name}
                                         </td>
                                         <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-primary)' }}>
                                             <div style={{

@@ -306,7 +306,6 @@ public class DatabaseService
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
                 
                 // Parse fullName early as well for the final fallback
-                var fullNameValue = message.Values.FirstOrDefault(v => v.Name == "full_name");
                 var fullName = fullNameValue.Value.HasValue ? fullNameValue.Value.ToString() : null;
 
                 // Fallback hiyerarşisi: user → email_address → login_name → full_name → "unknown"
@@ -703,8 +702,6 @@ public class DatabaseService
                             foreach (var classifier in classifiers.EnumerateArray())
                             {
                                 int matches = 0;
-                                // Check all casing variants for NumberMatches
-                                System.Text.Json.JsonElement m;
                                 // Check all casing variants for NumberMatches (do not rely on || short-circuit as serialized JSON might have all keys)
                                 if (classifier.TryGetProperty("number_matches", out var m1) && m1.ValueKind == System.Text.Json.JsonValueKind.Number)
                                 {

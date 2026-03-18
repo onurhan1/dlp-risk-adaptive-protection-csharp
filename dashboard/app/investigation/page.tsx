@@ -9,7 +9,6 @@ import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
 import { Zap, Brain } from 'lucide-react'
-import { resolveUser } from '@/lib/userUtils'
 
 interface TimelineEvent {
   id: number
@@ -496,7 +495,7 @@ function InvestigationPageContent() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
                           <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {resolveUser(alert.userEmail)}
+                            {alert.userEmail || 'Unknown'}
                           </span>
                           <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {alert.description}
