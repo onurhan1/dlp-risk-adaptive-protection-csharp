@@ -66,12 +66,19 @@ WHERE user_email = 'unknown'
   AND login_name != '';
 
 -- ─── ADIM 5: user_daily_risk_scores tablosundaki unknown kayıtları düzelt ─────
--- Önce email_address doluysa onu user_email olarak kullan
+-- 5a: Önce email_address doluysa onu user_email olarak kullan
 UPDATE user_daily_risk_scores
 SET user_email = email_address
 WHERE user_email = 'unknown'
   AND email_address IS NOT NULL 
   AND email_address != '';
+
+-- 5b: Hâlâ unknown olanlar için full_name kullan
+UPDATE user_daily_risk_scores
+SET user_email = full_name
+WHERE user_email = 'unknown'
+  AND full_name IS NOT NULL 
+  AND full_name != '';
 
 -- ─── ADIM 6: Kontrol sorguları ────────────────────────────────────────────────
 -- Aşağıdaki sorgularla sonuçları kontrol edebilirsiniz:

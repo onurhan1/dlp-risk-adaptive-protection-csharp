@@ -304,8 +304,12 @@ public class DatabaseService
                 }
 
                 var emailAddress = emailAddressValue.Value.HasValue ? emailAddressValue.Value.ToString() : null;
+                
+                // Parse fullName early as well for the final fallback
+                var fullNameValue = message.Values.FirstOrDefault(v => v.Name == "full_name");
+                var fullName = fullNameValue.Value.HasValue ? fullNameValue.Value.ToString() : null;
 
-                // Fallback hiyerarşisi: user → email_address → login_name → "unknown"
+                // Fallback hiyerarşisi: user → email_address → login_name → full_name → "unknown"
                 string userEmail;
                 if (!string.IsNullOrWhiteSpace(rawUserEmail))
                     userEmail = rawUserEmail;
@@ -313,6 +317,8 @@ public class DatabaseService
                     userEmail = emailAddress;
                 else if (!string.IsNullOrWhiteSpace(loginName))
                     userEmail = loginName;
+                else if (!string.IsNullOrWhiteSpace(fullName))
+                    userEmail = fullName;
                 else
                     userEmail = "unknown";
                 
@@ -329,8 +335,7 @@ public class DatabaseService
 
                 var violationTriggers = violationTriggersValue.Value.HasValue ? violationTriggersValue.Value.ToString() : null;
                 
-                // Parse new fields (FullName, Team, RuleName)
-                var fullName = fullNameValue.Value.HasValue ? fullNameValue.Value.ToString() : null;
+                // Parse new fields (Team, RuleName)
                 var team = teamValue.Value.HasValue ? teamValue.Value.ToString() : null;
                 var ruleName = ruleNameValue.Value.HasValue ? ruleNameValue.Value.ToString() : null;
 
