@@ -439,6 +439,43 @@ public class DatabaseService
                         _logger.LogDebug("SKIPPED incident {Id} (both existing and new have empty violation_triggers)", incidentId);
                     }
                 }
+                else if (string.IsNullOrEmpty(existingIncident.EmailAddress) && !string.IsNullOrEmpty(emailAddress))
+                {
+                    // EmailAddress backfill: mevcut kayıtta email_address boş ama yeni veride dolu
+                    _logger.LogInformation(
+                        "Incident {Id} missing email_address, backfilling: {EmailAddress}",
+                        incidentId, emailAddress);
+
+                    existingIncident.EmailAddress = emailAddress;
+
+                    // UserEmail "unknown" ise veya hostname ise email ile güncelle
+                    if (existingIncident.UserEmail == "unknown" || 
+                        existingIncident.UserEmail == existingIncident.HostName)
+                    {
+                        existingIncident.UserEmail = emailAddress;
+                        _logger.LogInformation(
+                            "Incident {Id} UserEmail updated from '{OldValue}' to '{NewValue}'",
+                            incidentId, existingIncident.UserEmail, emailAddress);
+                    }
+
+                    // Diğer boş alanları da doldur
+                    if (string.IsNullOrEmpty(existingIncident.FullName)  && !string.IsNullOrEmpty(fullName))  existingIncident.FullName  = fullName;
+                    if (string.IsNullOrEmpty(existingIncident.Team)      && !string.IsNullOrEmpty(team))      existingIncident.Team      = team;
+                    if (string.IsNullOrEmpty(existingIncident.LoginName) && !string.IsNullOrEmpty(loginName)) existingIncident.LoginName = loginName;
+                    if (string.IsNullOrEmpty(existingIncident.HostName)  && !string.IsNullOrEmpty(hostName))  existingIncident.HostName  = hostName;
+                    if (string.IsNullOrEmpty(existingIncident.RuleName)  && !string.IsNullOrEmpty(ruleName))  existingIncident.RuleName  = ruleName;
+
+                    try
+                    {
+                        await _context.SaveChangesAsync();
+                        processedCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error backfilling email_address for incident {Id}", incidentId);
+                        skippedCount++;
+                    }
+                }
                 else
                 {
                     skippedCount++;
