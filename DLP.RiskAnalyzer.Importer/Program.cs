@@ -396,7 +396,7 @@ public class Program
                 return new Incident
                 {
                     Id = apiModel.Id,
-                    UserEmail = Truncate(apiModel.User?.Split('\\').Last() ?? apiModel.Source?.HostName, 255) ?? "unknown",
+                    UserEmail = Truncate(apiModel.User?.Split('\\').Last() ?? apiModel.Source?.EmailAddress ?? apiModel.Source?.HostName, 255) ?? "unknown",
                     Department = Truncate(apiModel.Department, 255),
                     Severity = apiModel.Severity,
                     DataType = Truncate(apiModel.DataType, 255),

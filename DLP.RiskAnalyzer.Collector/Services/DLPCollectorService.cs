@@ -569,7 +569,7 @@ public class DLPIncident
     public string? HostName => Source?.HostName;
     
     [JsonIgnore]
-    public string? EmailAddress => Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null;
+    public string? EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
 }
 
 /// <summary>
