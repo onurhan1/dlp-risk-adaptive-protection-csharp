@@ -563,7 +563,9 @@ public class DLPIncident
     
     // Computed properties from Source
     [JsonIgnore]
-    public string? LoginName => Source?.LoginName;
+    public string? LoginName => EmailAddress?.Equals("hesaparastirmaservisi@kuveytturk.com.tr", StringComparison.OrdinalIgnoreCase) == true 
+        ? "hesaparastirma" 
+        : Source?.LoginName;
     
     [JsonIgnore]
     public string? HostName => Source?.HostName;

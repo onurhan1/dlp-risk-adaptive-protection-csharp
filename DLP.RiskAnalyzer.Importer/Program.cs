@@ -491,7 +491,9 @@ public class DLPIncident
     [JsonProperty("destination")] public string Destination { get; set; }
     [JsonProperty("file_name")] public string FileName { get; set; }
     [JsonProperty("violation_triggers")] public List<DLPViolationTrigger> ViolationTriggers { get; set; }
-    public string LoginName => Source?.LoginName;
+    public string LoginName => EmailAddress?.Equals("hesaparastirmaservisi@kuveytturk.com.tr", StringComparison.OrdinalIgnoreCase) == true 
+        ? "hesaparastirma" 
+        : Source?.LoginName;
     public string EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
 }
 public class DLPIncidentSource
