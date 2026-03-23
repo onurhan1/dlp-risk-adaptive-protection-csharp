@@ -390,7 +390,7 @@ function AnalyticsPageContent() {
   // Exception Recommendation Department Filter
   const [exceptionDeptFilter, setExceptionDeptFilter] = useState<string[]>([])
 
-  // Applied filter snapshot - filteredIncidents uses this
+  // Applied filter snapshot (heatmap + incident table + export share heatmapFilteredIncidents)
   const [appliedFilters, setAppliedFilters] = useState({
     dateRange: { start: defaultStart, end: defaultEnd },
     selectedDepartments: [] as string[],
@@ -677,11 +677,49 @@ function AnalyticsPageContent() {
 
 
 
-  // Filter Logic with column filters and sorting - INDEPENDENT from heatmap filters
-  const filteredIncidents = useMemo(() => {
-    let filtered = incidents.filter(incident => {
-      // Only apply table column filters, NOT heatmap appliedFilters
+  // Heatmap and table share this base set (top bar "Filtrele"); column filters only narrow the table further
+  const heatmapFilteredIncidents = useMemo(() => {
+    return incidents.filter(incident => {
+      // Date Filter
+      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
+        try {
+          const incidentDate = parseISO(incident.timestamp)
+          const start = startOfDay(parseISO(appliedFilters.dateRange.start))
+          const end = endOfDay(parseISO(appliedFilters.dateRange.end))
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) return true
+          if (!isWithinInterval(incidentDate, { start, end })) return false
+        } catch { return true }
+      }
+      // Department Filter
+      if (appliedFilters.selectedDepartments.length > 0 && !appliedFilters.selectedDepartments.includes(incident.department || '')) return false
+      // Team Filter
+      if (appliedFilters.selectedTeams.length > 0) {
+        const normalizedIncidentTeam = normalizeTeamName(incident.team)
+        if (!appliedFilters.selectedTeams.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) return false
+      }
+      // User Filter
+      if (appliedFilters.selectedUser) {
+        const search = appliedFilters.selectedUser.toLowerCase()
+        const match = incident.userEmail?.toLowerCase().includes(search) ||
+          incident.loginName?.toLowerCase().includes(search) ||
+          incident.emailAddress?.toLowerCase().includes(search)
+        if (!match) return false
+      }
+      // Full Name Filter
+      if (appliedFilters.selectedFullName && !incident.fullName?.toLowerCase().includes(appliedFilters.selectedFullName.toLowerCase())) return false
+      // Policy Filter
+      if (appliedFilters.selectedPolicy && !incident.policy?.toLowerCase().includes(appliedFilters.selectedPolicy.toLowerCase())) return false
+      // Domain Filter
+      if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
+      // Action Filter
+      if (appliedFilters.selectedActions.length > 0 && !appliedFilters.selectedActions.includes(incident.action || '')) return false
+      return true
+    })
+  }, [incidents, appliedFilters])
 
+  // Table: heatmapFilteredIncidents + column filters + sorting
+  const filteredIncidents = useMemo(() => {
+    let filtered = heatmapFilteredIncidents.filter(incident => {
       // Time column filter (date range)
       if (columnFilters.time && (columnFilters.time[0] || columnFilters.time[1])) {
         try {
@@ -783,47 +821,7 @@ function AnalyticsPageContent() {
     }
 
     return filtered
-  }, [incidents, columnFilters, sortColumn, sortDirection])
-
-  // Heatmap uses only top-level applied filters, NOT table column filters
-  const heatmapFilteredIncidents = useMemo(() => {
-    return incidents.filter(incident => {
-      // Date Filter
-      if (appliedFilters.dateRange.start && appliedFilters.dateRange.end) {
-        try {
-          const incidentDate = parseISO(incident.timestamp)
-          const start = startOfDay(parseISO(appliedFilters.dateRange.start))
-          const end = endOfDay(parseISO(appliedFilters.dateRange.end))
-          if (isNaN(start.getTime()) || isNaN(end.getTime())) return true
-          if (!isWithinInterval(incidentDate, { start, end })) return false
-        } catch { return true }
-      }
-      // Department Filter
-      if (appliedFilters.selectedDepartments.length > 0 && !appliedFilters.selectedDepartments.includes(incident.department || '')) return false
-      // Team Filter
-      if (appliedFilters.selectedTeams.length > 0) {
-        const normalizedIncidentTeam = normalizeTeamName(incident.team)
-        if (!appliedFilters.selectedTeams.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) return false
-      }
-      // User Filter
-      if (appliedFilters.selectedUser) {
-        const search = appliedFilters.selectedUser.toLowerCase()
-        const match = incident.userEmail?.toLowerCase().includes(search) ||
-          incident.loginName?.toLowerCase().includes(search) ||
-          incident.emailAddress?.toLowerCase().includes(search)
-        if (!match) return false
-      }
-      // Full Name Filter
-      if (appliedFilters.selectedFullName && !incident.fullName?.toLowerCase().includes(appliedFilters.selectedFullName.toLowerCase())) return false
-      // Policy Filter
-      if (appliedFilters.selectedPolicy && !incident.policy?.toLowerCase().includes(appliedFilters.selectedPolicy.toLowerCase())) return false
-      // Domain Filter
-      if (appliedFilters.selectedDomain && !incident.domain?.toLowerCase().includes(appliedFilters.selectedDomain.toLowerCase())) return false
-      // Action Filter
-      if (appliedFilters.selectedActions.length > 0 && !appliedFilters.selectedActions.includes(incident.action || '')) return false
-      return true
-    })
-  }, [incidents, appliedFilters])
+  }, [heatmapFilteredIncidents, columnFilters, sortColumn, sortDirection])
 
   // Reset page when filters change
   useEffect(() => {
@@ -888,7 +886,7 @@ function AnalyticsPageContent() {
     return Array.from(policySet).sort()
   }, [incidents])
 
-  // Heatmap Data Calculation (using heatmap filtered incidents - independent from table column filters)
+  // Heatmap Data Calculation (heatmapFilteredIncidents; table adds column filters on top of the same base)
   // Teams & domains always come from the FULL dataset so they never disappear when filters narrow results
   const heatmapData = useMemo(() => {
     const teams = new Set<string>()
@@ -1080,96 +1078,101 @@ function AnalyticsPageContent() {
 
   const fetchUserIncidents = () => {
     setLoadingUserIncidents(true)
+    const startedAt = Date.now()
+    const minLoadingMs = 320
+
     const query = userSearchQuery.toLowerCase().trim()
     const domainQuery = exceptionDomainFilter.toLowerCase().trim()
 
-    const filtered = incidents.filter(incident => {
-      // Date filter (independent from other sections)
-      if (exceptionDateRange.start && exceptionDateRange.end) {
-        const incidentDate = parseISO(incident.timestamp)
-        const start = startOfDay(parseISO(exceptionDateRange.start))
-        const end = endOfDay(parseISO(exceptionDateRange.end))
-        if (!isWithinInterval(incidentDate, { start, end })) return false
+    const finishLoading = () => {
+      const elapsed = Date.now() - startedAt
+      if (elapsed < minLoadingMs) {
+        setTimeout(() => setLoadingUserIncidents(false), minLoadingMs - elapsed)
+      } else {
+        setLoadingUserIncidents(false)
       }
+    }
 
-      // User match (userEmail, loginName, fullName) - only if user query is provided
-      if (query) {
-        const userMatch = (
-          (incident.userEmail && incident.userEmail.toLowerCase().includes(query)) ||
-          (incident.loginName && incident.loginName.toLowerCase().includes(query)) ||
-          (incident.fullName && incident.fullName.toLowerCase().includes(query))
-        )
-        if (!userMatch) return false
-      }
+    window.setTimeout(() => {
+      const filtered = incidents.filter(incident => {
+        if (exceptionDateRange.start && exceptionDateRange.end) {
+          const incidentDate = parseISO(incident.timestamp)
+          const start = startOfDay(parseISO(exceptionDateRange.start))
+          const end = endOfDay(parseISO(exceptionDateRange.end))
+          if (!isWithinInterval(incidentDate, { start, end })) return false
+        }
 
-      // Domain filter
-      if (domainQuery && incident.domain && !incident.domain.toLowerCase().includes(domainQuery)) {
-        return false
-      }
+        if (query) {
+          const userMatch = (
+            (incident.userEmail && incident.userEmail.toLowerCase().includes(query)) ||
+            (incident.loginName && incident.loginName.toLowerCase().includes(query)) ||
+            (incident.fullName && incident.fullName.toLowerCase().includes(query))
+          )
+          if (!userMatch) return false
+        }
 
-      // Department filter (multiple selection)
-      if (exceptionDeptFilter.length > 0) {
-        if (!exceptionDeptFilter.includes(incident.department || '')) {
+        if (domainQuery && incident.domain && !incident.domain.toLowerCase().includes(domainQuery)) {
           return false
         }
-      }
 
-      // Team filter (multiple selection)
-      if (exceptionTeamFilter.length > 0) {
-        const normalizedIncidentTeam = incident.team ? incident.team.trim() : '';
-        if (!exceptionTeamFilter.includes(normalizedIncidentTeam)) {
-          return false;
-        }
-      }
-      // Action filter (multiple selection)
-      if (exceptionActionFilter.length > 0 && incident.action && !exceptionActionFilter.includes(incident.action)) {
-        return false
-      }
-
-      // Channel filter (multiple selection)
-      if (exceptionChannelFilter.length > 0 && incident.channel && !exceptionChannelFilter.includes(incident.channel)) {
-        return false
-      }
-
-      // Policy filter (multiple selection) - use same logic as exception recommendation report
-      if (exceptionPolicyFilter.length > 0) {
-        let triggers: any[] = []
-        if (incident.violationTriggers) {
-          try {
-            triggers = typeof incident.violationTriggers === 'string'
-              ? JSON.parse(incident.violationTriggers)
-              : incident.violationTriggers
-          } catch {
-            triggers = []
+        if (exceptionDeptFilter.length > 0) {
+          if (!exceptionDeptFilter.includes(incident.department || '')) {
+            return false
           }
         }
 
-        let policyMatch = false
-        if (triggers.length > 0) {
-          // Check policies from violationTriggers
-          triggers.forEach((t: any) => {
-            const policyName = t.PolicyName || t.policy_name || incident.policy
-            if (policyName && exceptionPolicyFilter.includes(policyName)) {
+        if (exceptionTeamFilter.length > 0) {
+          const normalizedIncidentTeam = normalizeTeamName(incident.team)
+          if (!exceptionTeamFilter.some(t => normalizeTeamName(t) === normalizedIncidentTeam)) {
+            return false
+          }
+        }
+
+        if (exceptionActionFilter.length > 0 && incident.action && !exceptionActionFilter.includes(incident.action)) {
+          return false
+        }
+
+        if (exceptionChannelFilter.length > 0 && incident.channel && !exceptionChannelFilter.includes(incident.channel)) {
+          return false
+        }
+
+        if (exceptionPolicyFilter.length > 0) {
+          let triggers: any[] = []
+          if (incident.violationTriggers) {
+            try {
+              triggers = typeof incident.violationTriggers === 'string'
+                ? JSON.parse(incident.violationTriggers)
+                : incident.violationTriggers
+            } catch {
+              triggers = []
+            }
+          }
+
+          let policyMatch = false
+          if (triggers.length > 0) {
+            triggers.forEach((t: any) => {
+              const policyName = t.PolicyName || t.policy_name || incident.policy
+              if (policyName && exceptionPolicyFilter.includes(policyName)) {
+                policyMatch = true
+              }
+            })
+          } else {
+            if (incident.policy && exceptionPolicyFilter.includes(incident.policy)) {
               policyMatch = true
             }
-          })
-        } else {
-          // Fallback to incident.policy
-          if (incident.policy && exceptionPolicyFilter.includes(incident.policy)) {
-            policyMatch = true
+          }
+
+          if (!policyMatch) {
+            return false
           }
         }
 
-        if (!policyMatch) {
-          return false
-        }
-      }
+        return true
+      })
 
-      return true
-    })
-
-    setUserIncidents(filtered)
-    setLoadingUserIncidents(false)
+      setUserIncidents(filtered)
+      finishLoading()
+    }, 0)
   }
 
   // Helper function to calculate percentile
@@ -2752,43 +2755,8 @@ function AnalyticsPageContent() {
                 )
               })()}
 
-              {/* Not Approved - Incident count <= 5 */}
-              {userIncidents.length > 0 && userIncidents.length <= 5 && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  marginBottom: '24px',
-                  padding: '20px',
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(239, 68, 68, 0.3)'
-                }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <X size={24} color="#ef4444" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#ef4444', marginBottom: '4px' }}>
-                      İstisna Uygun Görülmemiştir
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Filtreleme sonucu bulunan incident sayısı ({userIncidents.length}) 5 ve altında olduğu için istisna uygun görülmemiştir.
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Summary Statistics */}
-              {userIncidents.length > 5 && userReportData.length > 0 && (
+              {userIncidents.length > 0 && userReportData.length > 0 && (
                 <div style={{
                   display: 'flex',
                   gap: '24px',
@@ -2903,17 +2871,15 @@ function AnalyticsPageContent() {
 
               {loadingUserIncidents ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  Loading incidents...
+                  Öneri hesaplanıyor…
                 </div>
               ) : userIncidents.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  No incidents found matching the selected filters
+                  Seçilen filtrelere uyan incident bulunamadı
                 </div>
-              ) : userIncidents.length <= 5 ? (
-                null
               ) : userReportData.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  No policy data available
+                  Bu kayıtlar için politika / tetikleyici verisi bulunamadı
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
