@@ -9,18 +9,12 @@ import {
   RotateCcw,
   ChevronUp,
   ChevronDown,
-  ChevronRight,
-  Filter,
   X,
   Check,
   Search,
-  Info,
-  AlertCircle,
-  FileText,
   ClipboardList,
   Plus,
   Minus,
-  LayoutGrid,
   BarChart3,
   ListChecks,
   Sparkles,
@@ -34,8 +28,6 @@ interface Incident {
   userEmail?: string
   policy?: string
   action?: string
-  severity: string
-  destination?: string
   domain?: string
   department?: string
   team?: string
@@ -335,6 +327,117 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
   )
 }
 
+// --- Pure utility functions (no state dependency, extracted for performance) ---
+
+function normalizeTeamName(team: string | undefined | null): string {
+  if (!team) return 'Takım Belirtilmemiş'
+  const trimmed = team.trim()
+  if (trimmed === 'Unknown' || trimmed === '') return 'Takım Belirtilmemiş'
+  return trimmed.endsWith('Şubesi') ? 'Şube' : trimmed
+}
+
+function extractDomain(dest: string): string {
+  if (!dest) return 'Unknown'
+  if (dest.includes(';')) {
+    const domains: string[] = []
+    dest.split(';').forEach(part => {
+      const email = part.trim()
+      if (email.includes('@')) {
+        const d = email.split('@')[1]?.trim()
+        if (d && !domains.includes(d)) domains.push(d)
+      }
+    })
+    return domains.length > 0 ? domains.join(', ') : 'Unknown'
+  }
+  if (dest.includes('@')) {
+    return dest.split('@')[1]?.trim() || dest
+  }
+  return dest || 'Unknown'
+}
+
+function mapIncidentData(item: any): Incident {
+  const dest = item.destination || ''
+  return {
+    id: item.id,
+    timestamp: item.timestamp,
+    userEmail: item.user_email || item.userEmail,
+    policy: item.policy,
+    action: item.action || 'Permit',
+    domain: extractDomain(dest) || 'Unknown',
+    department: (() => {
+      const dept = item.department || item.user_department
+      if (dept && dept.trim().endsWith('Şubesi')) return 'Şube'
+      return dept
+    })(),
+    team: item.team,
+    fullName: item.full_name || item.fullName,
+    maxMatches: item.max_matches || item.maxMatches || 0,
+    loginName: item.login_name || item.loginName,
+    emailAddress: item.email_address || item.emailAddress,
+    violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
+    channel: item.channel
+  }
+}
+
+function calculatePercentile(arr: number[], percentile: number): number {
+  if (arr.length === 0) return 0
+  const sorted = [...arr].sort((a, b) => a - b)
+  const index = Math.ceil((percentile / 100) * sorted.length) - 1
+  return sorted[Math.max(0, index)]
+}
+
+function parseViolationTriggers(violationTriggers: string | undefined): any[] {
+  if (!violationTriggers) return []
+  try {
+    return typeof violationTriggers === 'string'
+      ? JSON.parse(violationTriggers)
+      : violationTriggers
+  } catch {
+    return []
+  }
+}
+
+function getHeatmapColor(count: number): string {
+  if (count === 0) return 'rgba(148, 163, 184, 0.06)'
+  if (count > 100) return 'linear-gradient(135deg, hsl(220, 85%, 22%), hsl(220, 90%, 18%))'
+  if (count > 75) return 'linear-gradient(135deg, hsl(220, 85%, 30%), hsl(220, 90%, 25%))'
+  if (count > 50) return 'linear-gradient(135deg, hsl(220, 85%, 37%), hsl(220, 90%, 32%))'
+  if (count > 30) return 'linear-gradient(135deg, hsl(220, 85%, 44%), hsl(220, 90%, 38%))'
+  if (count > 20) return 'linear-gradient(135deg, hsl(220, 80%, 52%), hsl(220, 85%, 46%))'
+  if (count > 15) return 'linear-gradient(135deg, hsl(215, 75%, 60%), hsl(220, 80%, 54%))'
+  if (count > 10) return 'linear-gradient(135deg, hsl(215, 70%, 68%), hsl(220, 75%, 62%))'
+  if (count > 5) return 'linear-gradient(135deg, hsl(215, 65%, 76%), hsl(220, 70%, 72%))'
+  return 'linear-gradient(135deg, hsl(215, 60%, 84%), hsl(220, 65%, 80%))'
+}
+
+function getTextColor(count: number): string {
+  if (count === 0) return 'var(--text-muted)'
+  return count > 20 ? '#ffffff' : '#1e293b'
+}
+
+function toggleSetItem<T>(prev: Set<T>, item: T): Set<T> {
+  const next = new Set(prev)
+  if (next.has(item)) next.delete(item)
+  else next.add(item)
+  return next
+}
+
+function extractPoliciesFromIncidents(incidents: Incident[]): string[] {
+  const policySet = new Set<string>()
+  incidents.forEach(incident => {
+    const triggers = parseViolationTriggers(incident.violationTriggers)
+    if (triggers.length > 0) {
+      triggers.forEach((t: any) => {
+        const name = t.PolicyName || t.policy_name || incident.policy
+        if (name) policySet.add(name)
+      })
+    } else if (incident.policy) {
+      policySet.add(incident.policy)
+    }
+  })
+  return Array.from(policySet).sort()
+}
+
 export default function AnalyticsPage() {
   return (
     <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
@@ -346,9 +449,6 @@ export default function AnalyticsPage() {
 function AnalyticsPageContent() {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [totalLoaded, setTotalLoaded] = useState(0)
-  const [allDataLoaded, setAllDataLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
@@ -390,7 +490,7 @@ function AnalyticsPageContent() {
   // Exception Recommendation Department Filter
   const [exceptionDeptFilter, setExceptionDeptFilter] = useState<string[]>([])
 
-  // Applied filter snapshot (heatmap + incident table + export share heatmapFilteredIncidents)
+  // Applied filter snapshot (heatmap only)
   const [appliedFilters, setAppliedFilters] = useState({
     dateRange: { start: defaultStart, end: defaultEnd },
     selectedDepartments: [] as string[],
@@ -466,50 +566,33 @@ function AnalyticsPageContent() {
 
   useEffect(() => {
     fetchIncidents()
-  }, [appliedFilters.dateRange.start, appliedFilters.dateRange.end])
+  }, [])
 
-  // Clear heatmap page when page changes
-  useEffect(() => {
-  }, [heatmapTeamPage])
-
-  // Clear page when page changes
-  useEffect(() => {
-  }, [currentPage])
-
-  // Get unique values for each column for filtering
-  const getUniqueColumnValues = (column: string): string[] => {
-    const values = new Set<string>()
+  // Pre-compute unique column values once when incidents change (not on every render)
+  const columnUniqueValues = useMemo(() => {
+    const result: Record<string, string[]> = {}
+    const sets: Record<string, Set<string>> = {
+      user: new Set(), fullName: new Set(), department: new Set(),
+      team: new Set(), policy: new Set(), domain: new Set(), action: new Set()
+    }
     incidents.forEach(incident => {
-      let value: string | undefined
-      switch (column) {
-        case 'user':
-          value = incident.userEmail || incident.loginName || incident.emailAddress
-          break
-        case 'fullName':
-          value = incident.fullName
-          break
-        case 'department':
-          value = incident.department
-          break
-        case 'team':
-          value = normalizeTeamName(incident.team)
-          break
-        case 'policy':
-          value = incident.policy
-          break
-        case 'domain':
-          value = incident.domain
-          break
-        case 'action':
-          value = incident.action
-          break
-        default:
-          return
-      }
-      if (value) values.add(value)
+      const user = incident.userEmail || incident.loginName || incident.emailAddress
+      if (user) sets.user.add(user)
+      if (incident.fullName) sets.fullName.add(incident.fullName)
+      if (incident.department) sets.department.add(incident.department)
+      const team = normalizeTeamName(incident.team)
+      if (team) sets.team.add(team)
+      if (incident.policy) sets.policy.add(incident.policy)
+      if (incident.domain) sets.domain.add(incident.domain)
+      if (incident.action) sets.action.add(incident.action)
     })
-    return Array.from(values).sort()
-  }
+    for (const key of Object.keys(sets)) {
+      result[key] = Array.from(sets[key]).sort()
+    }
+    return result
+  }, [incidents])
+
+  const getUniqueColumnValues = (column: string): string[] => columnUniqueValues[column] || []
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -556,109 +639,31 @@ function AnalyticsPageContent() {
     }
   }, [])
 
-  const mapIncidentData = (item: any): Incident => {
-    const dest = item.destination || ''
-
-    // Birden fazla email adresi varsa (noktalı virgülle ayrılmış), her birinden domain çıkar
-    let domain = 'Unknown'
-    if (dest.includes(';')) {
-      const emails = dest.split(';').map((e: string) => e.trim()).filter((e: string) => e)
-      const domains: string[] = []
-      emails.forEach((email: string) => {
-        if (email.includes('@')) {
-          const parts = email.split('@')
-          if (parts.length > 1) {
-            const extractedDomain = parts[1].trim()
-            if (extractedDomain && !domains.includes(extractedDomain)) {
-              domains.push(extractedDomain)
-            }
-          }
-        }
-      })
-      domain = domains.length > 0 ? domains.join(', ') : 'Unknown'
-    } else if (dest.includes('@')) {
-      const parts = dest.split('@')
-      domain = parts.length > 1 ? parts[1].trim() : dest
-    } else {
-      domain = dest
-    }
-
-    return {
-      id: item.id,
-      timestamp: item.timestamp,
-      userEmail: item.user_email || item.userEmail,
-      policy: item.policy,
-      action: item.action || 'Permit',
-      severity: item.severity >= 4 ? 'High' : item.severity >= 3 ? 'Medium' : 'Low',
-      destination: dest,
-      domain: domain || 'Unknown',
-      department: (() => {
-        const dept = item.department || item.user_department
-        if (dept && dept.trim().endsWith('Şubesi')) return 'Şube'
-        return dept
-      })(),
-      team: item.team,
-      fullName: item.full_name || item.fullName,
-      maxMatches: item.max_matches || item.maxMatches || 0,
-      loginName: item.login_name || item.loginName,
-      emailAddress: item.email_address || item.emailAddress,
-      violationTriggers: item.violationTriggers || item.violation_triggers || item.ViolationTriggers || undefined,
-      channel: item.channel
-    }
-  }
-
   const fetchIncidents = async () => {
     setLoading(true)
-    setAllDataLoaded(false)
     try {
-      const { start, end } = appliedFilters.dateRange
+      const queryParams: any = { limit: 500, order_by: 'timestamp_desc' }
 
-      const queryParams: any = {
-        limit: 500,
-        order_by: 'timestamp_desc'
-      }
-
-      if (start) queryParams.startDate = start
-      if (end) queryParams.endDate = end
-
-      // Phase 1: Fast initial load - first 500 records for immediate display
-      const initialResponse = await apiClient.get('/api/incidents', {
-        params: queryParams
-      })
-
+      // Phase 1: Fast initial load
+      const initialResponse = await apiClient.get('/api/incidents', { params: queryParams })
       const initialData = Array.isArray(initialResponse.data) ? initialResponse.data : []
       const initialMapped = initialData.map(mapIncidentData)
       setIncidents(initialMapped)
-      setTotalLoaded(initialMapped.length)
-      setLoading(false) // UI is now interactive
+      setLoading(false)
 
       // Phase 2: Load remaining data in background
       if (initialMapped.length >= 500) {
-        setLoadingMore(true)
         try {
           const fullResponse = await apiClient.get('/api/incidents', {
-            params: {
-              ...queryParams,
-              limit: 1000000000
-            }
+            params: { ...queryParams, limit: 1000000000 }
           })
-
           const fullData = Array.isArray(fullResponse.data) ? fullResponse.data : []
           if (fullData.length >= initialMapped.length) {
-            const fullMapped = fullData.map(mapIncidentData)
-            setIncidents(fullMapped)
-            setTotalLoaded(fullMapped.length)
-          } else {
-            console.warn('Background load returned fewer incidents than initial load. Keeping initial data.')
+            setIncidents(fullData.map(mapIncidentData))
           }
         } catch (error) {
           console.error('Error fetching remaining incidents:', error)
-        } finally {
-          setLoadingMore(false)
-          setAllDataLoaded(true)
         }
-      } else {
-        setAllDataLoaded(true)
       }
     } catch (error) {
       console.error('Error fetching incidents:', error)
@@ -666,18 +671,7 @@ function AnalyticsPageContent() {
     }
   }
 
-  // Helper function to normalize team names - if ends with "Şubesi", normalize to "Şube"
-  // If team is "Unknown", return "Hesap Araştırmaları"
-  const normalizeTeamName = (team: string | undefined | null): string => {
-    if (!team) return 'Hesap Araştırmaları'
-    const trimmed = team.trim()
-    if (trimmed === 'Unknown' || trimmed === '') return 'Hesap Araştırmaları'
-    return trimmed.endsWith('Şubesi') ? 'Şube' : trimmed
-  }
-
-
-
-  // Heatmap and table share this base set (top bar "Filtrele"); column filters only narrow the table further
+  // Heatmap filtered data (only used by heatmap component)
   const heatmapFilteredIncidents = useMemo(() => {
     return incidents.filter(incident => {
       // Date Filter
@@ -717,9 +711,9 @@ function AnalyticsPageContent() {
     })
   }, [incidents, appliedFilters])
 
-  // Table: heatmapFilteredIncidents + column filters + sorting
+  // Table: filters from raw incidents independently (not from heatmapFilteredIncidents)
   const filteredIncidents = useMemo(() => {
-    let filtered = heatmapFilteredIncidents.filter(incident => {
+    let filtered = incidents.filter(incident => {
       // Time column filter (date range)
       if (columnFilters.time && (columnFilters.time[0] || columnFilters.time[1])) {
         try {
@@ -821,7 +815,7 @@ function AnalyticsPageContent() {
     }
 
     return filtered
-  }, [heatmapFilteredIncidents, columnFilters, sortColumn, sortDirection])
+  }, [incidents, columnFilters, sortColumn, sortDirection])
 
   // Reset page when filters change
   useEffect(() => {
@@ -850,44 +844,11 @@ function AnalyticsPageContent() {
   const uniqueActions = useMemo(() => Array.from(new Set(incidents.map(i => i.action || 'Permit'))).sort() as string[], [incidents])
   const uniqueChannels = useMemo(() => Array.from(new Set(incidents.map(i => i.channel).filter((c): c is string => Boolean(c)))).sort(), [incidents])
 
-  // Get unique policies using the same logic as exception recommendation report
-  // Extract policies from violationTriggers first, then fallback to incident.policy
-  const uniquePolicies = useMemo(() => {
-    const policySet = new Set<string>()
+  const uniquePolicies = useMemo(() => extractPoliciesFromIncidents(incidents), [incidents])
 
-    incidents.forEach(incident => {
-      let triggers: any[] = []
-      if (incident.violationTriggers) {
-        try {
-          triggers = typeof incident.violationTriggers === 'string'
-            ? JSON.parse(incident.violationTriggers)
-            : incident.violationTriggers
-        } catch {
-          triggers = []
-        }
-      }
-
-      // If triggers exist, extract policy names from them
-      if (triggers.length > 0) {
-        triggers.forEach((t: any) => {
-          const policyName = t.PolicyName || t.policy_name || incident.policy
-          if (policyName) {
-            policySet.add(policyName)
-          }
-        })
-      } else {
-        // If no triggers, use incident.policy as fallback
-        if (incident.policy) {
-          policySet.add(incident.policy)
-        }
-      }
-    })
-
-    return Array.from(policySet).sort()
-  }, [incidents])
-
-  // Heatmap Data Calculation (heatmapFilteredIncidents; table adds column filters on top of the same base)
-  // Teams & domains always come from the FULL dataset so they never disappear when filters narrow results
+  // Heatmap Data Calculation
+  // Teams & domains come from FILTERED data only — no 0-count rows/columns clutter the grid
+  // Filter dropdown options (uniqueTeams etc.) always show all values from full dataset
   const heatmapData = useMemo(() => {
     const teams = new Set<string>()
     const domains = new Set<string>()
@@ -896,21 +857,15 @@ function AnalyticsPageContent() {
     const domainTotalCounts: Record<string, number> = {}
     const teamTotalCounts: Record<string, number> = {}
 
-    // Populate ALL teams & domains from the full dataset
-    incidents.forEach(incident => {
-      const rawTeam = incident.team || incident.department || 'Unknown'
-      const team = normalizeTeamName(rawTeam) || 'Hesap Araştırmaları'
-      const domain = incident.domain || 'Unknown'
-      teams.add(team)
-      domains.add(domain)
-    })
-
-    // Count only from filtered incidents
+    // Populate teams, domains and counts from filtered incidents only
     heatmapFilteredIncidents.forEach(incident => {
       const rawTeam = incident.team || incident.department || 'Unknown'
       const team = normalizeTeamName(rawTeam) || 'Hesap Araştırmaları'
       const domain = incident.domain || 'Unknown'
       const action = incident.action?.toLowerCase() || 'permit'
+
+      teams.add(team)
+      domains.add(domain)
 
       if (!counts[team]) counts[team] = {}
       counts[team][domain] = (counts[team][domain] || 0) + 1
@@ -930,9 +885,9 @@ function AnalyticsPageContent() {
       teamTotalCounts[team] = (teamTotalCounts[team] || 0) + 1
     })
 
-    // Sort teams by total count descending
+    // Sort teams by filtered count descending
     const sortedTeams = Array.from(teams).sort((a, b) => (teamTotalCounts[b] || 0) - (teamTotalCounts[a] || 0))
-    // Sort domains by total count descending - top N + "Diğer" (top N dışındaki tüm domainler)
+    // Sort domains by filtered count descending - top N + "Diğer"
     const allSortedDomains = Array.from(domains).sort((a, b) => (domainTotalCounts[b] || 0) - (domainTotalCounts[a] || 0))
     const topDomains = allSortedDomains.slice(0, heatmapDomainCount)
     const otherDomains = allSortedDomains.slice(heatmapDomainCount)
@@ -959,34 +914,9 @@ function AnalyticsPageContent() {
         breakdown[t]['Diğer'] = otherBd
       })
     }
-    let maxCount = 0
-    sortedTeams.forEach(t => {
-      sortedDomains.forEach(d => {
-        if (counts[t]?.[d] > maxCount) maxCount = counts[t][d]
-      })
-    })
+    return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, hasMoreDomains: otherDomains.length > 0 }
+  }, [heatmapFilteredIncidents, heatmapDomainCount])
 
-    return { teams: sortedTeams, domains: sortedDomains, counts, breakdown, maxCount, hasMoreDomains: otherDomains.length > 0 }
-  }, [incidents, heatmapFilteredIncidents, heatmapDomainCount])
-
-
-  const getHeatmapColor = (count: number, max: number) => {
-    if (count === 0) return 'rgba(148, 163, 184, 0.06)'
-    if (count > 100) return 'linear-gradient(135deg, hsl(220, 85%, 22%), hsl(220, 90%, 18%))'
-    if (count > 75) return 'linear-gradient(135deg, hsl(220, 85%, 30%), hsl(220, 90%, 25%))'
-    if (count > 50) return 'linear-gradient(135deg, hsl(220, 85%, 37%), hsl(220, 90%, 32%))'
-    if (count > 30) return 'linear-gradient(135deg, hsl(220, 85%, 44%), hsl(220, 90%, 38%))'
-    if (count > 20) return 'linear-gradient(135deg, hsl(220, 80%, 52%), hsl(220, 85%, 46%))'
-    if (count > 15) return 'linear-gradient(135deg, hsl(215, 75%, 60%), hsl(220, 80%, 54%))'
-    if (count > 10) return 'linear-gradient(135deg, hsl(215, 70%, 68%), hsl(220, 75%, 62%))'
-    if (count > 5) return 'linear-gradient(135deg, hsl(215, 65%, 76%), hsl(220, 70%, 72%))'
-    return 'linear-gradient(135deg, hsl(215, 60%, 84%), hsl(220, 65%, 80%))'
-  }
-
-  const getTextColor = (count: number, max: number) => {
-    if (count === 0) return 'var(--text-muted)'
-    return count > 20 ? '#ffffff' : '#1e293b'
-  }
 
 
   // Manual fetch function - called when Recommend button is clicked
@@ -1024,57 +954,11 @@ function AnalyticsPageContent() {
     setExpandedExceptions(new Set())
   }
 
-  // Accordion toggle functions
-  const togglePolicy = (pIdx: number) => {
-    setExpandedPolicies(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(pIdx)) {
-        newSet.delete(pIdx)
-      } else {
-        newSet.add(pIdx)
-      }
-      return newSet
-    })
-  }
-
-  const toggleRule = (pIdx: number, rIdx: number) => {
-    const key = `${pIdx}-${rIdx}`
-    setExpandedRules(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(key)) {
-        newSet.delete(key)
-      } else {
-        newSet.add(key)
-      }
-      return newSet
-    })
-  }
-
-  const toggleClassifier = (pIdx: number, rIdx: number, cIdx: number) => {
-    const key = `${pIdx}-${rIdx}-${cIdx}`
-    setExpandedClassifiers(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(key)) {
-        newSet.delete(key)
-      } else {
-        newSet.add(key)
-      }
-      return newSet
-    })
-  }
-
-  const toggleException = (pIdx: number, rIdx: number, eIdx: number) => {
-    const key = `${pIdx}-${rIdx}-${eIdx}`
-    setExpandedExceptions(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(key)) {
-        newSet.delete(key)
-      } else {
-        newSet.add(key)
-      }
-      return newSet
-    })
-  }
+  // Accordion toggles using generic helper
+  const togglePolicy = (pIdx: number) => setExpandedPolicies((prev: Set<number>) => toggleSetItem(prev, pIdx))
+  const toggleRule = (pIdx: number, rIdx: number) => setExpandedRules((prev: Set<string>) => toggleSetItem(prev, `${pIdx}-${rIdx}`))
+  const toggleClassifier = (pIdx: number, rIdx: number, cIdx: number) => setExpandedClassifiers((prev: Set<string>) => toggleSetItem(prev, `${pIdx}-${rIdx}-${cIdx}`))
+  const toggleException = (pIdx: number, rIdx: number, eIdx: number) => setExpandedExceptions((prev: Set<string>) => toggleSetItem(prev, `${pIdx}-${rIdx}-${eIdx}`))
 
   const fetchUserIncidents = () => {
     setLoadingUserIncidents(true)
@@ -1137,16 +1021,7 @@ function AnalyticsPageContent() {
         }
 
         if (exceptionPolicyFilter.length > 0) {
-          let triggers: any[] = []
-          if (incident.violationTriggers) {
-            try {
-              triggers = typeof incident.violationTriggers === 'string'
-                ? JSON.parse(incident.violationTriggers)
-                : incident.violationTriggers
-            } catch {
-              triggers = []
-            }
-          }
+          const triggers = parseViolationTriggers(incident.violationTriggers)
 
           let policyMatch = false
           if (triggers.length > 0) {
@@ -1175,14 +1050,6 @@ function AnalyticsPageContent() {
     }, 0)
   }
 
-  // Helper function to calculate percentile
-  const calculatePercentile = (arr: number[], percentile: number): number => {
-    if (arr.length === 0) return 0
-    const sorted = [...arr].sort((a, b) => a - b)
-    const index = Math.ceil((percentile / 100) * sorted.length) - 1
-    return sorted[Math.max(0, index)]
-  }
-
   // Calculate report data: Policy > Rule > Classifier/Exception with incident counts, average matches, and percentiles
   const userReportData = useMemo(() => {
     if (!userIncidents.length) return []
@@ -1195,31 +1062,17 @@ function AnalyticsPageContent() {
     }>>()
 
     userIncidents.forEach(incident => {
-      let triggers: any[] = []
-      let exceptionTriggers: any[] = []
+      const triggers: any[] = []
+      const exceptionTriggers: any[] = []
 
-      if (incident.violationTriggers) {
-        try {
-          const allTriggers = typeof incident.violationTriggers === 'string'
-            ? JSON.parse(incident.violationTriggers)
-            : incident.violationTriggers
-
-          // Separate regular triggers from exception triggers
-          allTriggers.forEach((t: any) => {
-            const parentRuleName = t.parent_rule_name || t.ParentRuleName
-            if (parentRuleName) {
-              // This is an exception trigger
-              exceptionTriggers.push(t)
-            } else {
-              // This is a regular rule trigger
-              triggers.push(t)
-            }
-          })
-        } catch {
-          triggers = []
-          exceptionTriggers = []
+      const allTriggers = parseViolationTriggers(incident.violationTriggers)
+      allTriggers.forEach((t: any) => {
+        if (t.parent_rule_name || t.ParentRuleName) {
+          exceptionTriggers.push(t)
+        } else {
+          triggers.push(t)
         }
-      }
+      })
 
       // If no triggers, use policy as fallback
       if (triggers.length === 0 && exceptionTriggers.length === 0 && incident.policy) {
@@ -1400,7 +1253,6 @@ function AnalyticsPageContent() {
       const rules = Array.from(ruleMap.entries()).map(([ruleName, ruleData]) => {
         // Process classifiers
         const classifiers = Array.from(ruleData.classifiers.entries()).map(([classifierName, data]) => {
-          const sortedMatches = [...data.matches].sort((a, b) => a - b)
           const avgMatches = data.matches.length > 0 ? data.matches.reduce((a, b) => a + b, 0) / data.matches.length : 0
           const p25 = calculatePercentile(data.matches, 25)
           const p50 = calculatePercentile(data.matches, 50)
@@ -1441,7 +1293,6 @@ function AnalyticsPageContent() {
         // Process exceptions
         const exceptions = Array.from(ruleData.exceptions.entries()).map(([exceptionName, exceptionClassifierMap]) => {
           const exceptionClassifiers = Array.from(exceptionClassifierMap.entries()).map(([classifierName, data]) => {
-            const sortedMatches = [...data.matches].sort((a, b) => a - b)
             const avgMatches = data.matches.length > 0 ? data.matches.reduce((a, b) => a + b, 0) / data.matches.length : 0
             const p25 = calculatePercentile(data.matches, 25)
             const p50 = calculatePercentile(data.matches, 50)
@@ -1565,41 +1416,7 @@ function AnalyticsPageContent() {
     return Array.from(new Set(userIncidents.map(i => i.channel).filter(Boolean))).sort()
   }, [userIncidents])
 
-  // Get unique policies using the same logic as exception recommendation report
-  // Extract policies from violationTriggers first, then fallback to incident.policy
-  const uniqueUserPolicies = useMemo(() => {
-    const policySet = new Set<string>()
-
-    userIncidents.forEach(incident => {
-      let triggers: any[] = []
-      if (incident.violationTriggers) {
-        try {
-          triggers = typeof incident.violationTriggers === 'string'
-            ? JSON.parse(incident.violationTriggers)
-            : incident.violationTriggers
-        } catch {
-          triggers = []
-        }
-      }
-
-      // If triggers exist, extract policy names from them
-      if (triggers.length > 0) {
-        triggers.forEach((t: any) => {
-          const policyName = t.PolicyName || t.policy_name || incident.policy
-          if (policyName) {
-            policySet.add(policyName)
-          }
-        })
-      } else {
-        // If no triggers, use incident.policy as fallback
-        if (incident.policy) {
-          policySet.add(incident.policy)
-        }
-      }
-    })
-
-    return Array.from(policySet).sort()
-  }, [userIncidents])
+  const uniqueUserPolicies = useMemo(() => extractPoliciesFromIncidents(userIncidents), [userIncidents])
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px', position: 'relative' }}>
@@ -1875,7 +1692,7 @@ function AnalyticsPageContent() {
               </div>
             )}
 
-            {/* Heatmap Grid - only show when data available */}
+            {/* Heatmap Grid - only show when filtered data available */}
             {!loading && heatmapFilteredIncidents.length > 0 && (() => {
               const totalTeamPages = Math.ceil(heatmapData.teams.filter(t => !hiddenTeams.has(t)).length / teamsPerPage)
               const visibleTeams = heatmapData.teams.filter(t => !hiddenTeams.has(t))
@@ -2010,7 +1827,7 @@ function AnalyticsPageContent() {
                         {paginatedTeams.map(team => {
                           const count = heatmapData.counts[team]?.[domain] || 0
                           const bd = heatmapData.breakdown[team]?.[domain] || { block: 0, permit: 0, authorized: 0, quarantine: 0 }
-                          const heatColor = getHeatmapColor(count, heatmapData.maxCount)
+                          const heatColor = getHeatmapColor(count)
                           const showTooltipBelow = rowIdx < 2
                           return (
                             <div key={`${team}-${domain}`} style={{
@@ -2018,7 +1835,7 @@ function AnalyticsPageContent() {
                               width: '110px',
                               textAlign: 'center',
                               background: heatColor,
-                              color: getTextColor(count, heatmapData.maxCount),
+                              color: getTextColor(count),
                               borderRadius: '4px',
                               fontSize: '11px',
                               fontWeight: count > 0 ? '700' : '400',
