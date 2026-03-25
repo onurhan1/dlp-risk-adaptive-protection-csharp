@@ -308,6 +308,20 @@ public class DatabaseService
                 // Parse fullName early as well for the final fallback
                 var fullName = fullNameValue.Value.HasValue ? fullNameValue.Value.ToString() : null;
 
+                // Global Email-to-Login Fallback
+                if (!string.IsNullOrEmpty(emailAddress) && emailAddress.Contains('@'))
+                {
+                    var emailPrefix = emailAddress.Split('@')[0];
+                    if (string.IsNullOrEmpty(loginName)) loginName = emailPrefix;
+                    if (string.IsNullOrEmpty(fullName)) fullName = emailPrefix;
+                    
+                    // If user is empty or identical to the full email address, use the prefix instead
+                    if (string.IsNullOrEmpty(rawUserEmail) || rawUserEmail.Equals(emailAddress, StringComparison.OrdinalIgnoreCase))
+                    {
+                        rawUserEmail = emailPrefix;
+                    }
+                }
+
                 // Fallback hiyerarşisi: user → email_address → login_name → full_name → "unknown"
                 string userEmail;
                 if (!string.IsNullOrWhiteSpace(rawUserEmail))
