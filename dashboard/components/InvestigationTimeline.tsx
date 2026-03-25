@@ -126,10 +126,10 @@ export default function InvestigationTimeline({
       const response = await axios.get(`${apiUrl}/api/incidents`, {
         params: {
           user: userEmail,
-          limit: 1000, // Load all incidents for the user
+          limit: 200,
           order_by: 'timestamp_desc'
         },
-        timeout: 15000 // 15 second timeout for larger data loads
+        timeout: 45000 // 45 second timeout for larger data loads
       })
 
       // Check if response.data is valid and not empty
