@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
   output: 'standalone',
   // Proxy /api requests to the .NET backend so the browser never talks to port 5001 directly.
   // This eliminates CORS, mixed-content, and firewall issues.

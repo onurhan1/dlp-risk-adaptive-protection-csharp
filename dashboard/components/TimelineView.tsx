@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { format } from 'date-fns'
 import { BarChart3 } from 'lucide-react'
@@ -24,6 +25,7 @@ interface TimelineViewProps {
 }
 
 export default function TimelineView({ userEmail, onEventSelect }: TimelineViewProps) {
+  const router = useRouter()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [filterActive, setFilterActive] = useState(false)
@@ -239,7 +241,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
             className="insights-btn"
             onClick={() => {
               if (userEmail) {
-                window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(userEmail)}`
+                router.push(`/ai-behavioral?entityType=user&entityId=${encodeURIComponent(userEmail)}`)
               }
             }}
           >

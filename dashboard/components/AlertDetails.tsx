@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import RemediateButton from './RemediateButton'
 import { Zap, Lock } from 'lucide-react'
 
@@ -26,6 +27,7 @@ interface AlertDetailsProps {
 }
 
 export default function AlertDetails({ event }: AlertDetailsProps) {
+  const router = useRouter()
   if (!event) {
     return (
       <div className="alert-details-empty">
@@ -52,7 +54,7 @@ export default function AlertDetails({ event }: AlertDetailsProps) {
             incidentId={event.id}
             onRemediated={() => {
               // Refresh or update UI
-              window.location.reload()
+              router.refresh()
             }}
           />
           <button className="play-btn">▶</button>

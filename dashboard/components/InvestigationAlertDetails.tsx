@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import RemediateButton from './RemediateButton'
 import { ClipboardList, CheckCircle } from 'lucide-react'
 
@@ -42,6 +43,7 @@ interface InvestigationAlertDetailsProps {
 }
 
 export default function InvestigationAlertDetails({ event }: InvestigationAlertDetailsProps) {
+  const router = useRouter()
   if (!event) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '32px' }}>
@@ -498,7 +500,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                 currentAction={event.remediationAction}
                 currentNotes={event.remediationNotes}
                 onRemediated={() => {
-                  window.location.reload()
+                  router.refresh()
                 }}
               />
             </div>
@@ -525,7 +527,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
           <RemediateButton
             incidentId={event.id}
             onRemediated={() => {
-              window.location.reload()
+              router.refresh()
             }}
           />
         )}

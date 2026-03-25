@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import apiClient from '@/lib/axios'
 import EntityDetailModal from '@/components/EntityDetailModal'
 import { BarChart3, Bot } from 'lucide-react'
@@ -41,6 +42,7 @@ interface AIBehavioralOverview {
 type EntityTab = 'users' | 'channels' | 'departments' | 'destinations' | 'rules'
 
 export default function AIBehavioralPage() {
+  const router = useRouter()
   const [overview, setOverview] = useState<AIBehavioralOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedEntity, setSelectedEntity] = useState<AIBehavioralAnalysis | null>(null)
@@ -509,7 +511,7 @@ export default function AIBehavioralPage() {
                         <div
                           style={{ flex: 1, cursor: 'pointer' }}
                           onClick={() => {
-                            window.location.href = `/ai-behavioral?entityType=${encodeURIComponent(anomaly.entity_type)}&entityId=${encodeURIComponent(anomaly.entity_id)}`
+                            router.push(`/ai-behavioral?entityType=${encodeURIComponent(anomaly.entity_type)}&entityId=${encodeURIComponent(anomaly.entity_id)}`)
                           }}
                         >
                           <div style={{ fontSize: '14px', fontWeight: '600', color: selectedEntity?.entity_id === anomaly.entity_id ? 'white' : 'var(--text-primary)' }}>
