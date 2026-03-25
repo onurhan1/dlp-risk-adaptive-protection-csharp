@@ -8,6 +8,7 @@ import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
+import EntityDetailModal from '@/components/EntityDetailModal'
 import { Zap, Brain } from 'lucide-react'
 
 interface TimelineEvent {
@@ -59,6 +60,7 @@ function InvestigationPageContent() {
   const [aiAnalysis, setAiAnalysis] = useState<any>(null)
   const [loadingAI, setLoadingAI] = useState(false)
   const [userInsightsOpen, setUserInsightsOpen] = useState(false)
+  const [aiDetailModalOpen, setAiDetailModalOpen] = useState(false)
 
   // Alerts tab state
   const [alerts, setAlerts] = useState<TimelineEvent[]>([])
@@ -664,7 +666,7 @@ function InvestigationPageContent() {
                 <button
                   onClick={() => {
                     if (selectedUser) {
-                      window.location.href = `/ai-behavioral?entityType=user&entityId=${encodeURIComponent(selectedUser)}`
+                      setAiDetailModalOpen(true)
                     }
                   }}
                   style={{
@@ -918,6 +920,16 @@ function InvestigationPageContent() {
         userEmail={selectedUser || ''}
         userName={aiAnalysis?.full_name || aiAnalysis?.fullName}
       />
+
+      {/* AI Entity Detail Modal */}
+      {selectedUser && (
+        <EntityDetailModal
+          isOpen={aiDetailModalOpen}
+          onClose={() => setAiDetailModalOpen(false)}
+          entityType="user"
+          entityId={selectedUser}
+        />
+      )}
     </div>
   )
 }

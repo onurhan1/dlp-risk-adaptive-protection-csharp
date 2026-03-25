@@ -152,7 +152,14 @@ public class UserInsightsSummary
     public int TotalIncidents { get; set; }
     public double AvgDailyScore { get; set; }
     public double MaxDailyScore { get; set; }
+    public double MinDailyScore { get; set; }
     public int DaysActive { get; set; }
+    public int MaxMaxMatches { get; set; }
+    public double AvgMaxMatches { get; set; }
+    public int TotalBlockCount { get; set; }
+    public int TotalPermitCount { get; set; }
+    public int TotalQuarantineCount { get; set; }
+    public int TotalReleasedCount { get; set; }
 }
 
 public class PeriodAverage

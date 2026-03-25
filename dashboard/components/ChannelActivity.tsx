@@ -39,9 +39,9 @@ const FALLBACK_DESTINATIONS: DestinationActivity[] = [
 
 export default function ChannelActivity({ days = 30 }: { days?: number }) {
   const [activeTab, setActiveTab] = useState<'channel' | 'destination'>('channel')
-  const [channels, setChannels] = useState<ChannelActivity[]>(FALLBACK_CHANNELS)
-  const [destinations, setDestinations] = useState<DestinationActivity[]>(FALLBACK_DESTINATIONS)
-  const [loading, setLoading] = useState(false)
+  const [channels, setChannels] = useState<ChannelActivity[]>([])
+  const [destinations, setDestinations] = useState<DestinationActivity[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -117,7 +117,9 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
         }
       } catch (error) {
         console.error('Error fetching channel activity:', error)
-        // Keep fallback data on error
+        // Use fallback data only when API fails
+        setChannels(FALLBACK_CHANNELS)
+        setDestinations(FALLBACK_DESTINATIONS)
       } finally {
         setLoading(false)
       }

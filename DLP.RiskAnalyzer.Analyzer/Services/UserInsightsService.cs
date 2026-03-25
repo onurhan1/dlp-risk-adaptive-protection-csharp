@@ -49,7 +49,14 @@ public class UserInsightsService
                 TotalIncidents = dailyScores.Sum(s => s.IncidentCount),
                 AvgDailyScore  = dailyScores.Any() ? Math.Round(dailyScores.Average(s => s.DailyRiskScore), 2) : 0,
                 MaxDailyScore  = dailyScores.Any() ? Math.Round(dailyScores.Max(s => s.DailyRiskScore), 2) : 0,
-                DaysActive     = dailyScores.Count
+                MinDailyScore  = dailyScores.Any() ? Math.Round(dailyScores.Min(s => s.DailyRiskScore), 2) : 0,
+                DaysActive     = dailyScores.Count,
+                MaxMaxMatches  = dailyScores.Any() ? dailyScores.Max(s => s.MaxMaxMatches) : 0,
+                AvgMaxMatches  = dailyScores.Any() ? Math.Round(dailyScores.Average(s => (double)s.MaxMaxMatches), 1) : 0,
+                TotalBlockCount      = dailyScores.Sum(s => s.BlockCount),
+                TotalPermitCount     = dailyScores.Sum(s => s.PermitCount),
+                TotalQuarantineCount = dailyScores.Sum(s => s.QuarantineCount),
+                TotalReleasedCount   = dailyScores.Sum(s => s.ReleasedCount)
             },
             PeriodAverages = new Dictionary<string, PeriodAverage>
             {

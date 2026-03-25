@@ -138,36 +138,9 @@ export default function InvestigationTimeline({
       // If no incidents found, use fallback sample data
       if (incidents.length === 0) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log('No incidents found in API response, using fallback sample data')
+          console.log('No incidents found in API response')
         }
-        const now = new Date()
-        const fallbackEvents = [
-          {
-            id: 1,
-            timestamp: new Date(now.getTime() - 3600000).toISOString(),
-            alert_type: 'Email',
-            severity: 'High',
-            description: 'Email sent to personal email domain',
-            tags: ['Data exfiltration'],
-            channel: 'Email',
-            action: 'Permit'
-          },
-          {
-            id: 2,
-            timestamp: new Date(now.getTime() - 7200000).toISOString(),
-            alert_type: 'Storage',
-            severity: 'High',
-            description: 'Suspicious number of files copied to removable storage',
-            tags: ['Data exfiltration'],
-            channel: 'Removable Storage',
-            action: 'Permit'
-          }
-        ]
-        setEvents(fallbackEvents)
-        // Notify parent component that events are loaded (fallback data)
-        if (onEventsLoaded && fallbackEvents.length > 0) {
-          onEventsLoaded(fallbackEvents)
-        }
+        setEvents([])
         return
       }
 
@@ -209,35 +182,7 @@ export default function InvestigationTimeline({
       if (process.env.NODE_ENV !== 'production') {
         console.error('Error fetching timeline:', error)
       }
-      // Fallback sample data on error
-      const now = new Date()
-      const fallbackEvents = [
-        {
-          id: 1,
-          timestamp: new Date(now.getTime() - 3600000).toISOString(),
-          alert_type: 'Email',
-          severity: 'High',
-          description: 'Email sent to personal email domain',
-          tags: ['Data exfiltration'],
-          channel: 'Email',
-          action: 'Permit'
-        },
-        {
-          id: 2,
-          timestamp: new Date(now.getTime() - 7200000).toISOString(),
-          alert_type: 'Storage',
-          severity: 'High',
-          description: 'Suspicious number of files copied to removable storage',
-          tags: ['Data exfiltration'],
-          channel: 'Removable Storage',
-          action: 'Permit'
-        }
-      ]
-      setEvents(fallbackEvents)
-      // Notify parent component that events are loaded (fallback data)
-      if (onEventsLoaded && fallbackEvents.length > 0) {
-        onEventsLoaded(fallbackEvents)
-      }
+      setEvents([])
     } finally {
       setLoading(false)
     }

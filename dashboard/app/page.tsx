@@ -1117,14 +1117,16 @@ export default function Home() {
             </tbody>
           </table>
           {/* Pagination for Top Risky Users */}
-          <Pagination
-            currentPage={topUsersPeriodPage}
-            totalPages={Math.ceil(topUsersPeriod.length / usersPerPage)}
-            totalItems={topUsersPeriod.length}
-            onPageChange={setTopUsersPeriodPage}
-            compact
-            labels={{ totalItems: t('pagination.totalItems') }}
-          />
+          {topUsersPeriod.length > 0 && (
+            <Pagination
+              currentPage={topUsersPeriodPage}
+              totalPages={Math.ceil(topUsersPeriod.length / usersPerPage)}
+              totalItems={topUsersPeriod.length}
+              onPageChange={setTopUsersPeriodPage}
+              compact
+              labels={{ totalItems: t('pagination.totalItems') }}
+            />
+          )}
         </div>
 
         {/* 24-Hour Top Users - Today's Activity */}
@@ -1220,14 +1222,16 @@ export default function Home() {
             </tbody>
           </table>
           {/* Pagination for Today's Active Users */}
-          <Pagination
-            currentPage={topUsers24hPage}
-            totalPages={Math.ceil(topUsers24h.length / usersPerPage)}
-            totalItems={topUsers24h.length}
-            onPageChange={setTopUsers24hPage}
-            compact
-            labels={{ totalItems: t('pagination.totalItems') }}
-          />
+          {topUsers24h.length > 0 && (
+            <Pagination
+              currentPage={topUsers24hPage}
+              totalPages={Math.ceil(topUsers24h.length / usersPerPage)}
+              totalItems={topUsers24h.length}
+              onPageChange={setTopUsers24hPage}
+              compact
+              labels={{ totalItems: t('pagination.totalItems') }}
+            />
+          )}
         </div>
       </div>
 
@@ -1319,9 +1323,6 @@ export default function Home() {
                 <option value={90}>Last 3 Months</option>
                 <option value={180}>Last 6 Months</option>
               </select>
-            </div>
-            <div className="total-alerts">
-              <span className="total-label">Total alerts: {totalAlerts}</span>
             </div>
           </div>
           {loading ? (
@@ -1491,6 +1492,9 @@ export default function Home() {
                         fontWeight: '600',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)' }}

@@ -252,8 +252,8 @@ export default function UserInsightsModal({
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Max Matches</div>
-                                    <div style={{ fontSize: '36px', fontWeight: '800', color: data.summary.max_max_matches > 100 ? '#ef4444' : 'var(--text-primary)' }}>{data.summary.max_max_matches.toLocaleString()}</div>
-                                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {data.summary.avg_max_matches.toFixed(1)}</div>
+                                    <div style={{ fontSize: '36px', fontWeight: '800', color: (data.summary.max_max_matches ?? 0) > 100 ? '#ef4444' : 'var(--text-primary)' }}>{(data.summary.max_max_matches ?? 0).toLocaleString()}</div>
+                                    <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {(data.summary.avg_max_matches ?? 0).toFixed(1)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Trend</div>
@@ -267,19 +267,19 @@ export default function UserInsightsModal({
                                 <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><Target size={18} /> Action Breakdown</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.total_block_count}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.total_block_count ?? 0}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>BLOCKED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.summary.total_quarantine_count}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.summary.total_quarantine_count ?? 0}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>QUARANTINED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{data.summary.total_permit_count}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{data.summary.total_permit_count ?? 0}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>PERMITTED</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{data.summary.total_released_count}</div>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{data.summary.total_released_count ?? 0}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>RELEASED</div>
                                     </div>
                                 </div>
