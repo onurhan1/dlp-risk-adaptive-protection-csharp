@@ -91,6 +91,7 @@ public class DatabaseService
         {
             await using var cmd = conn.CreateCommand();
 
+            // Parametreli SQL — string interpolasyon ile SQL injection riski önlendi
             var sql = @"
                 SELECT
                     trigger_elem->>'policy_name' AS policy_name,
@@ -108,7 +109,11 @@ public class DatabaseService
                 var utcStart = startDate.Value.Kind == DateTimeKind.Unspecified
                     ? DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc)
                     : startDate.Value.ToUniversalTime();
-                sql += $" AND i.\"timestamp\" >= '{utcStart:yyyy-MM-dd HH:mm:ss}'::timestamptz";
+                sql += " AND i.\"timestamp\" >= @startDate";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@startDate";
+                p.Value = utcStart;
+                cmd.Parameters.Add(p);
             }
             if (endDate.HasValue)
             {
@@ -116,7 +121,11 @@ public class DatabaseService
                 var utcEnd = endOfDay.Kind == DateTimeKind.Unspecified
                     ? DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc)
                     : endOfDay.ToUniversalTime();
-                sql += $" AND i.\"timestamp\" <= '{utcEnd:yyyy-MM-dd HH:mm:ss}'::timestamptz";
+                sql += " AND i.\"timestamp\" <= @endDate";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@endDate";
+                p.Value = utcEnd;
+                cmd.Parameters.Add(p);
             }
 
             sql += @"

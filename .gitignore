@@ -5,6 +5,11 @@
 *.userosscache
 *.sln.docstates
 
+# Secret / Environment-specific config — never commit these
+appsettings.Development.json
+appsettings.Production.json
+secrets.json
+
 # Visual Studio Code
 .vscode/
 

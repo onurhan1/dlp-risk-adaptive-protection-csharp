@@ -144,7 +144,10 @@ builder.Services.AddHttpClient<RemediationService>(client =>
 });
 
 // JWT Authentication
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!ChangeThisInProduction!";
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
+    ?? throw new InvalidOperationException(
+        "Jwt:SecretKey configuration is required. " +
+        "Set it in appsettings.json or as an environment variable: Jwt__SecretKey");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
 
