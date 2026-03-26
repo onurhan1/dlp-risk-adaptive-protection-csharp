@@ -33,20 +33,20 @@ public class CollectorBackgroundService : BackgroundService
     private DateTime _lastRegularRun = DateTime.MinValue;
     private bool _isAutoCollecting = false;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
+    private readonly IDLPCollectorService _collectorService;
+    private readonly ICollectorLogService _logService;
+    private readonly ManualCollectQueue _manualCollectQueue;
+    
     public CollectorBackgroundService(
-        DLPCollectorService collectorService,
+        IDLPCollectorService collectorService,
+        ICollectorLogService logService,
         ManualCollectQueue manualCollectQueue,
         IConnectionMultiplexer redis,
         ILogger<CollectorBackgroundService> logger,
         IConfiguration configuration)
     {
         _collectorService = collectorService;
+        _logService = logService;
         _manualCollectQueue = manualCollectQueue;
         _redis = redis;
         _logger = logger;

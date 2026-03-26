@@ -11,7 +11,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// AI Behavioral Analysis Engine - Z-score based anomaly detection (Baseline PoC)
 /// </summary>
-public class BehaviorEngineService
+public class BehaviorEngineService : IBehaviorEngineService
 {
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<BehaviorEngineService> _logger;

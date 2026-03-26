@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class DatabaseService
+public class DatabaseService : IDatabaseService
 {
     private readonly AnalyzerDbContext _context;
     private readonly StackExchange.Redis.IConnectionMultiplexer _redis;

@@ -100,17 +100,17 @@ builder.Services.AddScoped<DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces.IIn
 
 // Services
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<DatabaseService>();
-builder.Services.AddScoped<UserInsightsService>();
-builder.Services.AddScoped<RiskAnalyzerService>();
-builder.Services.AddScoped<ReportGeneratorService>();
-builder.Services.AddScoped<AnomalyDetector>();
+builder.Services.AddScoped<IDatabaseService, DatabaseService>();
+builder.Services.AddScoped<IUserInsightsService, UserInsightsService>();
+builder.Services.AddScoped<IRiskAnalyzerService, RiskAnalyzerService>();
+builder.Services.AddScoped<IReportGeneratorService, ReportGeneratorService>();
+builder.Services.AddScoped<IAnomalyDetector, AnomalyDetector>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DlpConfigurationService>();
 builder.Services.AddScoped<EmailConfigurationService>();
-builder.Services.AddScoped<BehaviorEngineService>();
+builder.Services.AddScoped<IBehaviorEngineService, BehaviorEngineService>();
 builder.Services.AddScoped<PolicyExceptionSyncService>();
 builder.Services.AddScoped<ReleasedIncidentSyncService>();
 builder.Services.AddScoped<AuditLogService>();

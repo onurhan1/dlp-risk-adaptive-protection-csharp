@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class UserInsightsService
+public class UserInsightsService : IUserInsightsService
 {
     private readonly AnalyzerDbContext _context;
 

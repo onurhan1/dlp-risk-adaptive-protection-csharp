@@ -7,7 +7,7 @@ namespace DLP.RiskAnalyzer.Collector.Services;
 /// <summary>
 /// Service to send Collector service logs to Analyzer service
 /// </summary>
-public class CollectorLogService
+public class CollectorLogService : ICollectorLogService
 {
     private readonly HttpClient _httpClient;
     private readonly AnalyzerBridgeOptions _options;

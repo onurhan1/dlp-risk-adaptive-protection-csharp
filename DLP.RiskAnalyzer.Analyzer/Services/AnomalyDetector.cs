@@ -7,7 +7,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Anomaly Detection Service - User baseline calculation and anomaly detection
 /// </summary>
-public class AnomalyDetector
+public class AnomalyDetector : IAnomalyDetector
 {
     private readonly AnalyzerDbContext _context;
     private readonly int _baselineDays = 20; // 20-day rolling baseline

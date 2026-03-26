@@ -11,7 +11,7 @@ namespace DLP.RiskAnalyzer.Collector.Services;
 /// <summary>
 /// Forcepoint DLP API Collector Service
 /// </summary>
-public class DLPCollectorService : IDisposable
+public class DLPCollectorService : IDLPCollectorService, IDisposable
 {
     private readonly DlpRuntimeConfigProvider _configProvider;
     private readonly IConnectionMultiplexer _redis;

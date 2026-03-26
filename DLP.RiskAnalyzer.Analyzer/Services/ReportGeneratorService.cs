@@ -4,7 +4,7 @@ using QuestPDF.Infrastructure;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class ReportGeneratorService
+public class ReportGeneratorService : IReportGeneratorService
 {
     private readonly RiskAnalyzerService _riskAnalyzerService;
 

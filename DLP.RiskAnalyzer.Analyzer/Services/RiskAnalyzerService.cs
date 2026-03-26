@@ -12,7 +12,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Extended Risk Analyzer Service with database operations
 /// </summary>
-public class RiskAnalyzerService
+public class RiskAnalyzerService : IRiskAnalyzerService
 {
     private readonly IIncidentRepository _incidentRepository;
     private readonly AnalyzerDbContext _context;
