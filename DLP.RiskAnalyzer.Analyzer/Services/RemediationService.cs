@@ -154,8 +154,9 @@ public class RemediationService
                     apiSuccess = response.IsSuccessStatusCode;
                     apiMessage = apiSuccess ? "DLP API updated" : $"DLP API returned {response.StatusCode}";
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogDebug(ex, "DLP API call failed for incident {IncidentId}", incidentId);
                     apiMessage = "DLP API unavailable";
                 }
             }
@@ -164,8 +165,9 @@ public class RemediationService
                 apiMessage = "DLP API unavailable";
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "DLP API error during remediation of incident {IncidentId}", incidentId);
             apiMessage = "DLP API error";
         }
         

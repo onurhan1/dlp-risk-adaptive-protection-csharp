@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using System.Text.Json;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
@@ -13,59 +14,24 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// </summary>
 public class BehaviorEngineService : IBehaviorEngineService
 {
-    private readonly AnalyzerDbContext _context;
+    private readonly IIncidentRepository _incidentRepository;
+    private readonly IAIAnalysisRepository _aiAnalysisRepository;
     private readonly ILogger<BehaviorEngineService> _logger;
-    private readonly IDataProtector _protector;
-    private readonly OpenAIService? _openAIService;
-    private readonly AzureOpenAIService? _azureOpenAIService;
-    private readonly CopilotService? _copilotService;
-
-    private const string OpenAIKeyKey = "ai_openai_api_key_protected";
-    private const string CopilotKeyKey = "ai_copilot_api_key_protected";
-    private const string AzureKeyKey = "ai_azure_openai_key_protected";
-    private const string AzureEndpointKey = "ai_azure_openai_endpoint";
-    private const string ModelProviderKey = "ai_model_provider";
-    private const string ModelNameKey = "ai_model_name";
-    private const string TemperatureKey = "ai_temperature";
-    private const string MaxTokensKey = "ai_max_tokens";
+    private readonly IBehaviorMetricsCalculator _metricsCalculator;
+    private readonly IBehaviorAIExplanationService _aiExplanationService;
 
     public BehaviorEngineService(
-        AnalyzerDbContext context,
+        IIncidentRepository incidentRepository,
+        IAIAnalysisRepository aiAnalysisRepository,
         ILogger<BehaviorEngineService> logger,
-        IDataProtectionProvider dataProtectionProvider,
-        IServiceProvider serviceProvider)
+        IBehaviorMetricsCalculator metricsCalculator,
+        IBehaviorAIExplanationService aiExplanationService)
     {
-        _context = context;
+        _incidentRepository = incidentRepository;
+        _aiAnalysisRepository = aiAnalysisRepository;
         _logger = logger;
-        _protector = dataProtectionProvider.CreateProtector("AI.SettingsProtector");
-        
-        // Get AI services if available (optional dependencies)
-        try
-        {
-            _openAIService = serviceProvider.GetService<OpenAIService>();
-        }
-        catch
-        {
-            _openAIService = null;
-        }
-
-        try
-        {
-            _azureOpenAIService = serviceProvider.GetService<AzureOpenAIService>();
-        }
-        catch
-        {
-            _azureOpenAIService = null;
-        }
-
-        try
-        {
-            _copilotService = serviceProvider.GetService<CopilotService>();
-        }
-        catch
-        {
-            _copilotService = null;
-        }
+        _metricsCalculator = metricsCalculator;
+        _aiExplanationService = aiExplanationService;
     }
 
     /// <summary>
@@ -87,7 +53,7 @@ public class BehaviorEngineService : IBehaviorEngineService
             // Get current period incidents
             _logger.LogDebug("Fetching current period incidents for {EntityType}: {EntityId} from {StartDate} to {EndDate}", 
                 entityType, entityId, startDate, endDate);
-            var currentIncidents = await GetIncidentsForEntityAsync(entityType, entityId, startDate, endDate);
+            var currentIncidents = await _incidentRepository.GetIncidentsForEntityAsync(entityType, entityId, startDate, endDate);
             _logger.LogInformation("Found {Count} current period incidents for {EntityType}: {EntityId}", 
                 currentIncidents.Count, entityType, entityId);
             
@@ -107,7 +73,7 @@ public class BehaviorEngineService : IBehaviorEngineService
                 _logger.LogDebug("Trying baseline period: {BaselineStartDate} to {BaselineEndDate} ({Days} days)", 
                     baselineStartDate, baselineEndDate, actualBaselineDays);
                 
-                baselineIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, baselineEndDate);
+                baselineIncidents = await _incidentRepository.GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, baselineEndDate);
                 
                 // If we have at least 30% of current incidents or at least 5 incidents, use this baseline
                 var minRequired = Math.Max(1, (int)(currentIncidents.Count * 0.3));
@@ -163,27 +129,27 @@ public class BehaviorEngineService : IBehaviorEngineService
 
             // Calculate enhanced metrics (consistent with all analysis methods)
             _logger.LogDebug("Calculating metrics for {EntityType}: {EntityId}", entityType, entityId);
-            var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
-            var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
+            var currentMetrics = _metricsCalculator.CalculateEnhancedMetrics(currentIncidents);
+            var baselineMetrics = _metricsCalculator.CalculateEnhancedMetrics(baselineIncidents);
 
             // Calculate ALL Z-scores (consistent with detailed analysis)
-            var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
+            var zScores = _metricsCalculator.CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
             // Calculate enhanced risk score with threat profile multiplier
-            var baseRiskScore = CalculateEnhancedRiskScore(zScores);
-            var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
+            var baseRiskScore = _metricsCalculator.CalculateEnhancedRiskScore(zScores);
+            var threatMultiplier = _metricsCalculator.CalculateThreatProfileMultiplier(currentIncidents);
             var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
             riskScore = Math.Clamp(riskScore, 0, 100);
 
             // Determine anomaly level
-            var anomalyLevel = DetermineAnomalyLevel(riskScore);
+            var anomalyLevel = _metricsCalculator.DetermineAnomalyLevel(riskScore);
 
             // Get reference incident IDs
             var referenceIncidentIds = currentIncidents
-                .Where(i => i.RiskScore >= 50 || i.Severity >= 7)
+                .Where(i => i.RiskScore >= BehaviorThresholds.HighRiskIncidentMinScore || i.Severity >= BehaviorThresholds.HighSeverityMin)
                 .Select(i => i.Id)
                 .Distinct()
-                .Take(10)
+                .Take(BehaviorThresholds.ReferenceIncidentLimit)
                 .ToList();
 
             // Build metadata with all info
@@ -227,7 +193,7 @@ public class BehaviorEngineService : IBehaviorEngineService
             
             try
             {
-                var (aiExplanation, aiRecommendation) = await GenerateAIAnalysisAsync(
+                var (aiExplanation, aiRecommendation) = await _aiExplanationService.GenerateAIAnalysisAsync(
                     entityType, 
                     entityId, 
                     metadata, 
@@ -240,8 +206,8 @@ public class BehaviorEngineService : IBehaviorEngineService
             {
                 _logger.LogWarning(ex, "Failed to generate AI analysis, falling back to static explanation");
                 // Fallback to static explanation
-                explanation = GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
-                recommendation = GenerateRecommendation(anomalyResults, entityType);
+                explanation = _aiExplanationService.GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
+                recommendation = _aiExplanationService.GenerateRecommendation(anomalyResults, entityType);
             }
 
             _logger.LogInformation("Analysis completed for {EntityType}: {EntityId}. RiskScore: {RiskScore}, AnomalyLevel: {AnomalyLevel}", 
@@ -282,10 +248,7 @@ public class BehaviorEngineService : IBehaviorEngineService
 
         // BATCH QUERY: Get ALL incidents in one query
         _logger.LogDebug("Fetching all incidents from {StartDate} to {EndDate}", baselineStartDate, endDate);
-        var allIncidents = await _context.Incidents
-            .Where(i => i.Timestamp >= baselineStartDate && i.Timestamp < endDate)
-            .AsNoTracking()
-            .ToListAsync();
+        var allIncidents = await _incidentRepository.GetIncidentsByDateRangeAsync(baselineStartDate, endDate);
         
         _logger.LogInformation("Loaded {Count} incidents in {ElapsedMs}ms", allIncidents.Count, stopwatch.ElapsedMilliseconds);
 
@@ -346,7 +309,7 @@ public class BehaviorEngineService : IBehaviorEngineService
         var highMediumEntities = userAnalyses.Concat(channelAnalyses).Concat(departmentAnalyses)
             .Concat(destinationAnalyses).Concat(ruleAnalyses)
             .Where(a => a.AnomalyLevel == "high" || a.AnomalyLevel == "medium")
-            .Take(20) // Limit AI calls to top 20
+            .Take(BehaviorThresholds.MaxAICallEntities) // Limit AI calls
             .ToList();
 
         if (highMediumEntities.Count > 0)
@@ -366,7 +329,7 @@ public class BehaviorEngineService : IBehaviorEngineService
                         ChannelEndpointZScore = metadata.TryGetValue("z_score_channel_endpoint", out var zEnd) ? Convert.ToDouble(zEnd) : 0
                     };
                     
-                    var (explanation, recommendation) = await GenerateAIAnalysisAsync(
+                    var (explanation, recommendation) = await _aiExplanationService.GenerateAIAnalysisAsync(
                         entity.EntityType, entity.EntityId, metadata, anomalyResults);
                     entity.AIExplanation = explanation;
                     entity.AIRecommendation = recommendation;
@@ -392,7 +355,7 @@ public class BehaviorEngineService : IBehaviorEngineService
 
         var topAnomalies = allAnalyses
             .OrderByDescending(a => a.RiskScore)
-            .Take(20)
+            .Take(BehaviorThresholds.MaxAICallEntities)
             .ToList();
 
         var anomalyByChannel = channelAnalyses
@@ -471,25 +434,25 @@ public class BehaviorEngineService : IBehaviorEngineService
                 }
 
                 // Use enhanced metrics calculation (same as detailed analysis)
-                var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
-                var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
+                var currentMetrics = _metricsCalculator.CalculateEnhancedMetrics(currentIncidents);
+                var baselineMetrics = _metricsCalculator.CalculateEnhancedMetrics(baselineIncidents);
 
                 // Calculate ALL Z-scores (same as detailed analysis)
-                var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
+                var zScores = _metricsCalculator.CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
                 // Calculate enhanced risk score (same as detailed analysis)
-                var baseRiskScore = CalculateEnhancedRiskScore(zScores);
-                var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
+                var baseRiskScore = _metricsCalculator.CalculateEnhancedRiskScore(zScores);
+                var threatMultiplier = _metricsCalculator.CalculateThreatProfileMultiplier(currentIncidents);
                 var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
                 riskScore = Math.Clamp(riskScore, 0, 100);
-                var anomalyLevel = DetermineAnomalyLevel(riskScore);
+                var anomalyLevel = _metricsCalculator.DetermineAnomalyLevel(riskScore);
 
                 // Get reference incident IDs
                 var referenceIncidentIds = currentIncidents
-                    .Where(i => i.RiskScore >= 50 || i.Severity >= 7)
+                    .Where(i => i.RiskScore >= BehaviorThresholds.HighRiskIncidentMinScore || i.Severity >= BehaviorThresholds.HighSeverityMin)
                     .Select(i => i.Id)
                     .Distinct()
-                    .Take(10)
+                    .Take(BehaviorThresholds.ReferenceIncidentLimit)
                     .ToList();
 
                 // Build metadata with all Z-scores
@@ -519,8 +482,8 @@ public class BehaviorEngineService : IBehaviorEngineService
                     MaxMatchesZScore = zScores.GetValueOrDefault("max_matches", 0)
                 };
                 
-                var explanation = GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
-                var recommendation = GenerateRecommendation(anomalyResults, entityType);
+                var explanation = _aiExplanationService.GenerateExplanation(entityType, entityId, currentMetrics, baselineMetrics, anomalyResults);
+                var recommendation = _aiExplanationService.GenerateRecommendation(anomalyResults, entityType);
 
                 return new AIBehavioralAnalysisResponse
                 {
@@ -574,124 +537,22 @@ public class BehaviorEngineService : IBehaviorEngineService
     /// </summary>
     public async Task SaveAnalysisAsync(AIBehavioralAnalysisResponse response)
     {
-        var existing = await _context.AIBehavioralAnalyses
-            .FirstOrDefaultAsync(a => 
-                a.EntityType == response.EntityType &&
-                a.EntityId == response.EntityId &&
-                a.AnalysisDate.Date == response.AnalysisDate.Date);
-
-        if (existing != null)
+        var analysis = new AIBehavioralAnalysis
         {
-            existing.RiskScore = response.RiskScore;
-            existing.AnomalyLevel = response.AnomalyLevel;
-            existing.AIExplanation = response.AIExplanation;
-            existing.AIRecommendation = response.AIRecommendation;
-            existing.ReferenceIncidentIds = JsonSerializer.Serialize(response.ReferenceIncidentIds);
-            existing.AnalysisMetadata = JsonSerializer.Serialize(response.AnalysisMetadata);
-            existing.CreatedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            var analysis = new AIBehavioralAnalysis
-            {
-                EntityType = response.EntityType,
-                EntityId = response.EntityId,
-                AnalysisDate = response.AnalysisDate,
-                RiskScore = response.RiskScore,
-                AnomalyLevel = response.AnomalyLevel,
-                AIExplanation = response.AIExplanation,
-                AIRecommendation = response.AIRecommendation,
-                ReferenceIncidentIds = JsonSerializer.Serialize(response.ReferenceIncidentIds),
-                AnalysisMetadata = JsonSerializer.Serialize(response.AnalysisMetadata),
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.AIBehavioralAnalyses.Add(analysis);
-        }
-
-        await _context.SaveChangesAsync();
+            EntityType = response.EntityType,
+            EntityId = response.EntityId,
+            AnalysisDate = response.AnalysisDate,
+            RiskScore = response.RiskScore,
+            AnomalyLevel = response.AnomalyLevel,
+            AIExplanation = response.AIExplanation,
+            AIRecommendation = response.AIRecommendation,
+            ReferenceIncidentIds = JsonSerializer.Serialize(response.ReferenceIncidentIds),
+            AnalysisMetadata = JsonSerializer.Serialize(response.AnalysisMetadata)
+        };
+        
+        await _aiAnalysisRepository.SaveAnalysisAsync(analysis);
     }
 
-    #region Private Helper Methods
-
-    private async Task<List<Incident>> GetIncidentsForEntityAsync(
-        string entityType,
-        string entityId,
-        DateTime startDate,
-        DateTime endDate)
-    {
-        try
-        {
-            var query = _context.Incidents
-                .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate);
-
-            List<Incident> result;
-            
-            switch (entityType.ToLower())
-            {
-                case "user":
-                    result = await query.Where(i => i.UserEmail == entityId).ToListAsync();
-                    break;
-                    
-                case "channel":
-                    result = await query.Where(i => i.Channel == entityId).ToListAsync();
-                    break;
-                    
-                case "department":
-                    result = await query.Where(i => i.Department == entityId).ToListAsync();
-                    break;
-                    
-                case "destination":
-                    result = await query.Where(i => i.Destination == entityId).ToListAsync();
-                    break;
-                    
-                case "policy":
-                    result = await query.Where(i => i.Policy == entityId).ToListAsync();
-                    break;
-                    
-                case "datatype":
-                    result = await query.Where(i => i.DataType == entityId).ToListAsync();
-                    break;
-                    
-                case "rule":
-                    // Rule is stored in ViolationTriggers JSON field
-                    // Search for rule_name in the JSON string
-                    var allIncidents = await query
-                        .Where(i => !string.IsNullOrEmpty(i.ViolationTriggers) && i.ViolationTriggers.Contains(entityId))
-                        .ToListAsync();
-                    
-                    // Filter more precisely by parsing JSON
-                    result = allIncidents.Where(i => 
-                    {
-                        try
-                        {
-                            if (string.IsNullOrEmpty(i.ViolationTriggers)) return false;
-                            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(i.ViolationTriggers, JsonOptions);
-                            return triggers?.Any(t => t.RuleName == entityId) == true;
-                        }
-                        catch
-                        {
-                            return false;
-                        }
-                    }).ToList();
-                    break;
-                    
-                default:
-                    result = new List<Incident>();
-                    break;
-            }
-            
-            _logger.LogDebug("Query executed for {EntityType}: {EntityId}. Found {Count} incidents between {StartDate} and {EndDate}", 
-                entityType, entityId, result.Count, startDate, endDate);
-            
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in GetIncidentsForEntityAsync for {EntityType}: {EntityId}. Error: {Error}", 
-                entityType, entityId, ex.Message);
-            throw;
-        }
-    }
     
     // DTO for parsing ViolationTriggers JSON (supports PascalCase from DB)
     private class ViolationTriggerDto
@@ -756,244 +617,15 @@ public class BehaviorEngineService : IBehaviorEngineService
         return (currentCount - baselineCount) / baselineStd;
     }
 
-    private string DetermineAnomalyLevel(int riskScore)
-    {
-        return riskScore switch
-        {
-            >= 85 => "critical",
-            >= 65 => "high",
-            >= 40 => "medium",
-            _ => "low"
-        };
-    }
 
     /// <summary>
     /// Generate AI explanation and recommendation using the selected model provider
     /// </summary>
-    private async Task<(string Explanation, string Recommendation)> GenerateAIAnalysisAsync(
-        string entityType,
-        string entityId,
-        Dictionary<string, object> analysisData,
-        AnomalyResults anomalyResults)
-    {
-        try
-        {
-            // Get AI settings from database
-            _logger.LogDebug("Fetching AI settings from database");
-            var settings = await _context.SystemSettings
-                .Where(s => s.Key.StartsWith("ai_"))
-                .ToDictionaryAsync(s => s.Key, s => s.Value);
-            
-            _logger.LogDebug("Found {Count} AI settings in database", settings.Count);
 
-        var provider = settings.GetValueOrDefault(ModelProviderKey, "local")?.ToLower() ?? "local";
-        var modelName = settings.GetValueOrDefault(ModelNameKey, "");
-        var temperatureStr = settings.GetValueOrDefault(TemperatureKey, "0.7");
-        double? temperature = double.TryParse(temperatureStr, out var temp) ? temp : 0.7;
-        var maxTokensStr = settings.GetValueOrDefault(MaxTokensKey, "1000");
-        int? maxTokens = int.TryParse(maxTokensStr, out var tokens) ? tokens : 1000;
 
-        // If provider is "local", use static explanation
-        if (provider == "local")
-        {
-            throw new InvalidOperationException("Local provider - use static explanation");
-        }
 
-        // Try OpenAI
-        if (provider == "openai" && _openAIService != null)
-        {
-            var apiKeySetting = settings.GetValueOrDefault(OpenAIKeyKey, "");
-            if (string.IsNullOrEmpty(apiKeySetting))
-            {
-                throw new InvalidOperationException("OpenAI API key not configured");
-            }
 
-            try
-            {
-                var apiKey = _protector.Unprotect(apiKeySetting);
-                var (explanation, recommendation) = await _openAIService.GenerateAnalysisAsync(
-                    apiKey,
-                    modelName ?? "gpt-4o-mini",
-                    entityType,
-                    entityId,
-                    analysisData,
-                    temperature,
-                    maxTokens);
 
-                _logger.LogInformation("Successfully generated AI analysis using OpenAI model: {Model}", modelName);
-                return (explanation, recommendation);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to generate AI analysis using OpenAI");
-                throw;
-            }
-        }
-
-        // Try Azure OpenAI
-        if (provider == "azure" && _azureOpenAIService != null)
-        {
-            var apiKeySetting = settings.GetValueOrDefault(AzureKeyKey, "");
-            var endpoint = settings.GetValueOrDefault(AzureEndpointKey, "");
-            
-            if (string.IsNullOrEmpty(apiKeySetting) || string.IsNullOrEmpty(endpoint))
-            {
-                throw new InvalidOperationException("Azure OpenAI API key or endpoint not configured");
-            }
-
-            try
-            {
-                var apiKey = _protector.Unprotect(apiKeySetting);
-                var (explanation, recommendation) = await _azureOpenAIService.GenerateAnalysisAsync(
-                    endpoint,
-                    apiKey,
-                    modelName ?? "gpt-4",
-                    entityType,
-                    entityId,
-                    analysisData,
-                    temperature,
-                    maxTokens);
-
-                _logger.LogInformation("Successfully generated AI analysis using Azure OpenAI model: {Model}", modelName);
-                return (explanation, recommendation);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to generate AI analysis using Azure OpenAI");
-                throw;
-            }
-        }
-
-        // Copilot is not supported for analysis generation (only for testing)
-        if (provider == "copilot")
-        {
-            throw new InvalidOperationException("GitHub Copilot is not supported for behavioral analysis generation");
-        }
-
-            // Unknown provider or service not available
-            throw new InvalidOperationException($"AI provider '{provider}' is not available or not configured");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in GenerateAIAnalysisAsync: {Error}", ex.Message);
-            throw;
-        }
-    }
-
-    private string GenerateExplanation(
-        string entityType,
-        string entityId,
-        BehaviorMetrics current,
-        BehaviorMetrics baseline,
-        AnomalyResults results)
-    {
-        var parts = new List<string>();
-
-        if (Math.Abs(results.IncidentCountZScore) > 2)
-        {
-            var change = current.MeanIncidentsPerDay > baseline.MeanIncidentsPerDay ? "increased" : "decreased";
-            parts.Add($"Incident frequency {change} significantly (Z-score: {results.IncidentCountZScore:F2})");
-        }
-
-        if (Math.Abs(results.SeverityZScore) > 2)
-        {
-            var change = current.AvgSeverity > baseline.AvgSeverity ? "increased" : "decreased";
-            parts.Add($"Average severity {change} (Z-score: {results.SeverityZScore:F2})");
-        }
-
-        if (Math.Abs(results.ChannelEmailZScore) > 2)
-        {
-            parts.Add($"Email channel activity anomaly detected (Z-score: {results.ChannelEmailZScore:F2})");
-        }
-
-        if (Math.Abs(results.ChannelWebZScore) > 2)
-        {
-            parts.Add($"Web channel activity anomaly detected (Z-score: {results.ChannelWebZScore:F2})");
-        }
-
-        if (Math.Abs(results.ChannelEndpointZScore) > 2)
-        {
-            parts.Add($"Endpoint channel activity anomaly detected (Z-score: {results.ChannelEndpointZScore:F2})");
-        }
-
-        if (parts.Count == 0)
-        {
-            return $"No significant behavioral anomalies detected for {entityType} '{entityId}' in the analyzed period.";
-        }
-
-        return string.Join(" ", parts);
-    }
-
-    private string GenerateRecommendation(AnomalyResults results, string entityType)
-    {
-        var maxZ = Math.Max(
-            Math.Abs(results.IncidentCountZScore),
-            Math.Max(
-                Math.Abs(results.SeverityZScore),
-                Math.Max(
-                    Math.Abs(results.ChannelEmailZScore),
-                    Math.Max(
-                        Math.Abs(results.ChannelWebZScore),
-                        Math.Abs(results.ChannelEndpointZScore)
-                    )
-                )
-            )
-        );
-
-        if (maxZ >= 3)
-        {
-            return $"CRITICAL: High anomaly detected (Z-score: {maxZ:F2}). Immediate investigation recommended for {entityType}.";
-        }
-        if (maxZ >= 2)
-        {
-            return $"HIGH RISK: Significant anomaly detected (Z-score: {maxZ:F2}). Review {entityType} activity and consider enhanced monitoring.";
-        }
-        if (maxZ >= 1)
-        {
-            return $"MEDIUM RISK: Moderate anomaly detected (Z-score: {maxZ:F2}). Monitor {entityType} for continued unusual activity.";
-        }
-
-        return "Low risk: Behavior within normal parameters. Continue standard monitoring.";
-    }
-
-    #endregion
-
-    #region Helper Classes
-
-    private class BehaviorMetrics
-    {
-        public int TotalIncidents { get; set; }
-        public double MeanIncidentsPerDay { get; set; }
-        public double StdDevIncidentsPerDay { get; set; }
-        public double AvgSeverity { get; set; }
-        public double StdDevSeverity { get; set; }
-        public Dictionary<string, int> ChannelCounts { get; set; } = new();
-        // New metrics
-        public Dictionary<string, int> ActionCounts { get; set; } = new();
-        public int TotalMatches { get; set; }
-        public double AvgMatchesPerIncident { get; set; }
-        public double StdDevMatches { get; set; }
-    }
-
-    private class AnomalyResults
-    {
-        public double IncidentCountZScore { get; set; }
-        public double SeverityZScore { get; set; }
-        public double ChannelEmailZScore { get; set; }
-        public double ChannelWebZScore { get; set; }
-        public double ChannelEndpointZScore { get; set; }
-        // New action-based Z-scores
-        public double ActionBlockZScore { get; set; }
-        public double ActionQuarantineZScore { get; set; }
-        public double ActionAuthorizedZScore { get; set; }
-        public double ActionReleasedZScore { get; set; }
-        public double MaxMatchesZScore { get; set; }
-        public double WeeklyTrendZScore { get; set; }
-    }
-
-    #endregion
-
-    #region Detailed Analysis
 
     /// <summary>
     /// Analyze entity with full detail including trends and action breakdown
@@ -1010,7 +642,7 @@ public class BehaviorEngineService : IBehaviorEngineService
         var baselineStartDate = startDate.AddDays(-lookbackDays * 2);
 
         // Get all incidents for this entity
-        var allIncidents = await GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, endDate);
+        var allIncidents = await _incidentRepository.GetIncidentsForEntityAsync(entityType, entityId, baselineStartDate, endDate);
         var currentIncidents = allIncidents.Where(i => i.Timestamp >= startDate).ToList();
         var baselineIncidents = allIncidents.Where(i => i.Timestamp < startDate).ToList();
 
@@ -1029,31 +661,31 @@ public class BehaviorEngineService : IBehaviorEngineService
         }
 
         // Calculate enhanced metrics
-        var currentMetrics = CalculateEnhancedMetrics(currentIncidents);
-        var baselineMetrics = CalculateEnhancedMetrics(baselineIncidents);
+        var currentMetrics = _metricsCalculator.CalculateEnhancedMetrics(currentIncidents);
+        var baselineMetrics = _metricsCalculator.CalculateEnhancedMetrics(baselineIncidents);
 
         // Calculate all Z-scores
-        var zScores = CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
+        var zScores = _metricsCalculator.CalculateAllZScores(currentMetrics, baselineMetrics, currentIncidents, baselineIncidents);
 
         // Calculate base risk score from all Z-scores
-        var baseRiskScore = CalculateEnhancedRiskScore(zScores);
+        var baseRiskScore = _metricsCalculator.CalculateEnhancedRiskScore(zScores);
         
         // Apply threat profile multiplier based on per-incident threat analysis
         // Each incident is weighted by: action_type × severity × log(1 + maxMatches)
-        var threatMultiplier = CalculateThreatProfileMultiplier(currentIncidents);
+        var threatMultiplier = _metricsCalculator.CalculateThreatProfileMultiplier(currentIncidents);
         var riskScore = (int)Math.Round(baseRiskScore * threatMultiplier);
         riskScore = Math.Clamp(riskScore, 0, 100); // Ensure within bounds
         
-        var anomalyLevel = DetermineAnomalyLevel(riskScore);
+        var anomalyLevel = _metricsCalculator.DetermineAnomalyLevel(riskScore);
 
         // Generate weekly trends
-        var weeklyTrends = GenerateWeeklyTrends(allIncidents, lookbackDays);
+        var weeklyTrends = _metricsCalculator.GenerateWeeklyTrends(allIncidents, lookbackDays);
 
         // Generate monthly trends
-        var monthlyTrends = GenerateMonthlyTrends(allIncidents);
+        var monthlyTrends = _metricsCalculator.GenerateMonthlyTrends(allIncidents);
 
         // Get destination patterns (for users)
-        var destinationPatterns = GetDestinationPatterns(currentIncidents, baselineIncidents);
+        var destinationPatterns = _metricsCalculator.GetDestinationPatterns(currentIncidents, baselineIncidents);
 
         // Calculate destination diversity
         var uniqueDestinations = currentIncidents.Where(i => !string.IsNullOrEmpty(i.Destination))
@@ -1064,7 +696,7 @@ public class BehaviorEngineService : IBehaviorEngineService
 
         // Get top incidents - Calculate MaxMatches from ViolationTriggers if database value is 0
         var topIncidents = currentIncidents
-            .OrderByDescending(i => GetEffectiveMaxMatches(i))
+            .OrderByDescending(i => _metricsCalculator.GetEffectiveMaxMatches(i))
             .ThenByDescending(i => i.Severity)
             .Take(20)
             .Select(i => new IncidentSummary
@@ -1074,7 +706,7 @@ public class BehaviorEngineService : IBehaviorEngineService
                 Destination = i.Destination ?? "N/A",
                 Channel = i.Channel ?? "N/A",
                 Action = i.Action ?? "N/A",
-                MaxMatches = GetEffectiveMaxMatches(i),
+                MaxMatches = _metricsCalculator.GetEffectiveMaxMatches(i),
                 Timestamp = i.Timestamp
             })
             .ToList();
@@ -1097,10 +729,11 @@ public class BehaviorEngineService : IBehaviorEngineService
                 ActionBlockZScore = zScores["action_block"],
                 MaxMatchesZScore = zScores["max_matches"]
             };
-            (explanation, recommendation) = await GenerateAIAnalysisAsync(entityType, entityId, metadata, anomalyResults);
+            (explanation, recommendation) = await _aiExplanationService.GenerateAIAnalysisAsync(entityType, entityId, metadata, anomalyResults);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to generate AI analysis for {EntityType}:{EntityId}, using fallback explanation", entityType, entityId);
             explanation = $"Analysis shows {anomalyLevel} risk level with {currentMetrics.TotalIncidents} incidents.";
             recommendation = anomalyLevel == "high" 
                 ? "Immediate investigation recommended." 
@@ -1115,7 +748,7 @@ public class BehaviorEngineService : IBehaviorEngineService
             AnomalyLevel = anomalyLevel,
             AIExplanation = explanation,
             AIRecommendation = recommendation,
-            ReferenceIncidentIds = currentIncidents.Take(10).Select(i => i.Id).ToList(),
+            ReferenceIncidentIds = currentIncidents.Take(BehaviorThresholds.ReferenceIncidentLimit).Select(i => i.Id).ToList(),
             AnalysisDate = endDate,
             ZScores = zScores,
             ZScoreDetails = new Dictionary<string, ZScoreDetail>
@@ -1221,478 +854,9 @@ public class BehaviorEngineService : IBehaviorEngineService
         };
     }
 
-    private BehaviorMetrics CalculateEnhancedMetrics(List<Incident> incidents)
-    {
-        if (incidents.Count == 0)
-        {
-            return new BehaviorMetrics();
-        }
 
-        var incidentsPerDay = incidents
-            .GroupBy(i => i.Timestamp.Date)
-            .Select(g => g.Count())
-            .ToList();
 
-        var mean = incidentsPerDay.Count > 0 ? incidentsPerDay.Average() : 0;
-        var stdDev = incidentsPerDay.Count > 1
-            ? Math.Sqrt(incidentsPerDay.Sum(x => Math.Pow(x - mean, 2)) / (incidentsPerDay.Count - 1))
-            : 0;
 
-        var avgSeverity = incidents.Average(i => i.Severity);
-        var severityStdDev = incidents.Count > 1
-            ? Math.Sqrt(incidents.Sum(i => Math.Pow(i.Severity - avgSeverity, 2)) / (incidents.Count - 1))
-            : 0;
 
-        var channelCounts = incidents
-            .Where(i => !string.IsNullOrEmpty(i.Channel))
-            .GroupBy(i => i.Channel)
-            .ToDictionary(g => g.Key!, g => g.Count());
-
-        // Action counts
-        var actionCounts = incidents
-            .Where(i => !string.IsNullOrEmpty(i.Action))
-            .GroupBy(i => i.Action!.ToUpper())
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        // Max matches stats
-        var totalMatches = incidents.Sum(i => i.MaxMatches);
-        var avgMatches = incidents.Average(i => (double)i.MaxMatches);
-        var stdDevMatches = incidents.Count > 1
-            ? Math.Sqrt(incidents.Sum(i => Math.Pow(i.MaxMatches - avgMatches, 2)) / (incidents.Count - 1))
-            : 0;
-
-        return new BehaviorMetrics
-        {
-            TotalIncidents = incidents.Count,
-            MeanIncidentsPerDay = mean,
-            StdDevIncidentsPerDay = stdDev,
-            AvgSeverity = avgSeverity,
-            StdDevSeverity = severityStdDev,
-            ChannelCounts = channelCounts,
-            ActionCounts = actionCounts,
-            TotalMatches = totalMatches,
-            AvgMatchesPerIncident = avgMatches,
-            StdDevMatches = stdDevMatches
-        };
-    }
-
-    private Dictionary<string, double> CalculateAllZScores(
-        BehaviorMetrics current, 
-        BehaviorMetrics baseline,
-        List<Incident> currentIncidents,
-        List<Incident> baselineIncidents)
-    {
-        var zScores = new Dictionary<string, double>();
-
-        // Incident count Z-score
-        zScores["incident_count"] = baseline.StdDevIncidentsPerDay > 0
-            ? Math.Round((current.MeanIncidentsPerDay - baseline.MeanIncidentsPerDay) / baseline.StdDevIncidentsPerDay, 2)
-            : 0;
-
-        // Severity Z-score
-        zScores["severity"] = baseline.StdDevSeverity > 0
-            ? Math.Round((current.AvgSeverity - baseline.AvgSeverity) / baseline.StdDevSeverity, 2)
-            : 0;
-
-        // Channel Z-scores
-        zScores["channel_email"] = CalculateChannelZScore("Email", current, baseline);
-        zScores["channel_web"] = CalculateChannelZScore("Web", current, baseline);
-        zScores["channel_endpoint"] = CalculateChannelZScore("Endpoint", current, baseline);
-
-        // Action Z-scores with impact weights
-        // BLOCK and QUARANTINE are high-threat actions (weight: 1.0)
-        // AUTHORIZED and RELEASED are low-threat actions (weight: 0.2)
-        const double HIGH_THREAT_WEIGHT = 1.0;
-        const double LOW_THREAT_WEIGHT = 0.2;
-        
-        zScores["action_block"] = CalculateActionZScore("BLOCK", current, baseline) * HIGH_THREAT_WEIGHT;
-        zScores["action_quarantine"] = CalculateActionZScore("QUARANTINE", current, baseline) * HIGH_THREAT_WEIGHT;
-        zScores["action_authorized"] = CalculateActionZScore("AUTHORIZED", current, baseline) * LOW_THREAT_WEIGHT;
-        zScores["action_released"] = CalculateActionZScore("RELEASED", current, baseline) * LOW_THREAT_WEIGHT;
-
-        // MaxMatches Z-score
-        zScores["max_matches"] = baseline.StdDevMatches > 0
-            ? Math.Round((current.AvgMatchesPerIncident - baseline.AvgMatchesPerIncident) / baseline.StdDevMatches, 2)
-            : 0;
-
-        // Weekly trend Z-score - needs all incidents to compare this week vs last week
-        var allIncidentsForTrend = currentIncidents.Concat(baselineIncidents).ToList();
-        zScores["weekly_trend"] = CalculateWeeklyTrendZScore(allIncidentsForTrend);
-
-        return zScores;
-    }
-
-    private double CalculateActionZScore(string action, BehaviorMetrics current, BehaviorMetrics baseline)
-    {
-        var currentCount = current.ActionCounts.GetValueOrDefault(action, 0) +
-                          current.ActionCounts.GetValueOrDefault(action + "ED", 0); // BLOCK/BLOCKED
-        var baselineCount = baseline.ActionCounts.GetValueOrDefault(action, 0) +
-                           baseline.ActionCounts.GetValueOrDefault(action + "ED", 0);
-
-        if (baselineCount == 0) return currentCount > 0 ? 2.0 : 0;
-
-        var baselineStd = Math.Max(1, baselineCount * 0.3);
-        return Math.Round((currentCount - baselineCount) / baselineStd, 2);
-    }
-
-    private double CalculateWeeklyTrendZScore(List<Incident> incidents)
-    {
-        if (incidents.Count < 7) return 0;
-
-        var lastWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-7)).Count();
-        var prevWeek = incidents.Where(i => i.Timestamp >= DateTime.UtcNow.AddDays(-14) && i.Timestamp < DateTime.UtcNow.AddDays(-7)).Count();
-
-        // No previous week data - can't calculate trend
-        if (prevWeek == 0)
-        {
-            // New activity: moderate signal based on volume
-            if (lastWeek >= 20) return 2.5;     // High new activity
-            if (lastWeek >= 10) return 1.5;     // Moderate new activity
-            if (lastWeek >= 5) return 1.0;      // Some new activity
-            return 0;
-        }
-
-        // Calculate growth rate with log-scale for large changes
-        var rawGrowthRate = (double)(lastWeek - prevWeek) / prevWeek;
-        
-        // Use logarithmic scaling to prevent extreme Z-scores
-        // log(1 + x) compresses large values: 650% -> ~2.0, 100% -> ~0.7
-        double scaledGrowth;
-        if (rawGrowthRate > 0)
-        {
-            scaledGrowth = Math.Log(1 + rawGrowthRate); // Compress positive growth
-        }
-        else
-        {
-            scaledGrowth = rawGrowthRate; // Keep negative as-is (decreasing incidents)
-        }
-
-        // Expected growth = 0 (stable), std = 0.5 (50% variation is normal)
-        var zScore = scaledGrowth / 0.5;
-
-        // Cap Z-score to reasonable range [-5, 5]
-        return Math.Round(Math.Clamp(zScore, -5.0, 5.0), 2);
-    }
-
-    /// <summary>
-    /// Enhanced risk scoring with tier-based thresholds
-    /// LOW: 0-39, MEDIUM: 40-64, HIGH: 65-84, CRITICAL: 85-100
-    /// 
-    /// To reach CRITICAL (85+):
-    /// - Must have at least 2 high Z-scores (>= 2.5) OR
-    /// - One extremely high Z-score (>= 4.0) with another >= 1.5 OR
-    /// - Multiple moderate signals adding up
-    /// 
-    /// To reach 100:
-    /// - Must have 3+ high Z-scores (>= 3.0) OR
-    /// - At least 2 Z-scores >= 4.0
-    /// </summary>
-    private int CalculateEnhancedRiskScore(Dictionary<string, double> zScores)
-    {
-        var absScores = zScores.Values.Select(Math.Abs).OrderByDescending(x => x).ToList();
-        
-        if (absScores.Count == 0) return 10;
-
-        // Count significant anomalies at different thresholds
-        var extremeCount = absScores.Count(z => z >= 4.0);    // Extreme anomaly
-        var highCount = absScores.Count(z => z >= 3.0);       // High anomaly
-        var mediumCount = absScores.Count(z => z >= 2.0);     // Medium anomaly
-        var lowCount = absScores.Count(z => z >= 1.5);        // Low anomaly
-
-        var maxZ = absScores.First();
-        var secondZ = absScores.Count > 1 ? absScores[1] : 0;
-        var thirdZ = absScores.Count > 2 ? absScores[2] : 0;
-
-        // CRITICAL TIER (85-100): Requires strong evidence
-        // Score 100: Multiple extreme anomalies
-        if (extremeCount >= 2 || (highCount >= 3 && mediumCount >= 4))
-        {
-            return 100;
-        }
-        
-        // Score 95: One extreme + one high
-        if (extremeCount >= 1 && highCount >= 2)
-        {
-            return 95;
-        }
-        
-        // Score 90: Multiple high anomalies
-        if (highCount >= 2 && mediumCount >= 3)
-        {
-            return 90;
-        }
-        
-        // Score 85: Strong pattern
-        if (maxZ >= 4.0 || (highCount >= 2))
-        {
-            return 85;
-        }
-
-        // HIGH TIER (65-84): Clear anomaly signals
-        if (maxZ >= 3.0 && secondZ >= 1.5)
-        {
-            return 80;
-        }
-        
-        if (maxZ >= 3.0 || (mediumCount >= 3))
-        {
-            return 75;
-        }
-        
-        if (maxZ >= 2.5 && mediumCount >= 2)
-        {
-            return 70;
-        }
-        
-        if (maxZ >= 2.5 || (mediumCount >= 2 && lowCount >= 3))
-        {
-            return 65;
-        }
-
-        // MEDIUM TIER (40-64): Some anomaly signals
-        if (maxZ >= 2.0 && secondZ >= 1.0)
-        {
-            return 60;
-        }
-        
-        if (maxZ >= 2.0 || lowCount >= 3)
-        {
-            return 55;
-        }
-        
-        if (mediumCount >= 1 && lowCount >= 2)
-        {
-            return 50;
-        }
-        
-        if (maxZ >= 1.5)
-        {
-            return 45;
-        }
-        
-        if (lowCount >= 2)
-        {
-            return 40;
-        }
-
-        // LOW TIER (0-39): Normal or minor variations
-        if (maxZ >= 1.0)
-        {
-            return 35;
-        }
-        
-        if (maxZ >= 0.5)
-        {
-            return 25;
-        }
-
-        return 15; // Baseline for entities with activity
-    }
-
-    /// <summary>
-    /// Calculate threat profile multiplier based on per-incident analysis.
-    /// Each incident contributes a weighted threat score based on:
-    /// - Action type: BLOCK=1.0, QUARANTINE=0.8, AUTHORIZED=0.2, RELEASED=0.2
-    /// - Severity: 1-3 scale (higher = more severe)
-    /// - MaxMatches: log(1 + matches) to prevent extreme values
-    /// 
-    /// The multiplier ranges from 0.2 (all low-threat) to 1.0 (all high-threat)
-    /// </summary>
-    private double CalculateThreatProfileMultiplier(List<Incident> incidents)
-    {
-        if (incidents == null || incidents.Count == 0)
-            return 1.0;
-
-        // Action weights
-        var actionWeights = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "BLOCK", 1.0 },
-            { "BLOCKED", 1.0 },
-            { "QUARANTINE", 0.8 },
-            { "QUARANTINED", 0.8 },
-            { "AUTHORIZED", 0.2 },
-            { "RELEASED", 0.2 }
-        };
-
-        double totalWeightedThreat = 0;
-        double maxPossibleThreat = 0;
-
-        foreach (var incident in incidents)
-        {
-            // Get action weight (default 0.5 for unknown actions)
-            var actionWeight = actionWeights.GetValueOrDefault(incident.Action ?? "", 0.5);
-            
-            // Normalize severity (1-3) to 0.33-1.0 range
-            var severityFactor = Math.Max(0.33, incident.Severity / 3.0);
-            
-            // MaxMatches factor using log scale (1 match = 0.69, 10 matches = 2.4, 100 matches = 4.6)
-            var matchesFactor = Math.Log(1 + Math.Max(1, incident.MaxMatches));
-            
-            // Calculate weighted threat for this incident
-            var incidentThreat = actionWeight * severityFactor * matchesFactor;
-            totalWeightedThreat += incidentThreat;
-            
-            // Max possible threat (if this were a BLOCK with max severity)
-            maxPossibleThreat += 1.0 * 1.0 * matchesFactor;
-        }
-
-        if (maxPossibleThreat == 0)
-            return 1.0;
-
-        // Calculate threat ratio (0 to 1)
-        var threatRatio = totalWeightedThreat / maxPossibleThreat;
-        
-        // Map to multiplier range [0.2, 1.0]
-        // threatRatio 0.0 -> multiplier 0.2
-        // threatRatio 1.0 -> multiplier 1.0
-        const double MIN_MULT = 0.2;
-        const double MAX_MULT = 1.0;
-        
-        var multiplier = MIN_MULT + (threatRatio * (MAX_MULT - MIN_MULT));
-        
-        return Math.Round(Math.Clamp(multiplier, MIN_MULT, MAX_MULT), 2);
-    }
-
-    private List<TrendDataPoint> GenerateWeeklyTrends(List<Incident> incidents, int lookbackDays)
-    {
-        var weeks = new List<TrendDataPoint>();
-        var startDate = DateTime.UtcNow.AddDays(-lookbackDays);
-
-        for (int i = 0; i < (lookbackDays / 7) + 1; i++)
-        {
-            var weekStart = startDate.AddDays(i * 7);
-            var weekEnd = weekStart.AddDays(7);
-            var weekIncidents = incidents.Where(inc => inc.Timestamp >= weekStart && inc.Timestamp < weekEnd).ToList();
-
-            var weekNumber = System.Globalization.CultureInfo.CurrentCulture.Calendar
-                .GetWeekOfYear(weekStart, System.Globalization.CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
-
-            // Generate daily breakdown for this week
-            var dailyBreakdown = new List<DailyData>();
-            for (int d = 0; d < 7; d++)
-            {
-                var dayStart = weekStart.AddDays(d);
-                var dayEnd = dayStart.AddDays(1);
-                var dayIncidents = weekIncidents.Where(inc => inc.Timestamp >= dayStart && inc.Timestamp < dayEnd).ToList();
-                
-                if (dayIncidents.Count > 0 || dayStart <= DateTime.UtcNow)
-                {
-                    dailyBreakdown.Add(new DailyData
-                    {
-                        Date = dayStart.ToString("yyyy-MM-dd"),
-                        Count = dayIncidents.Count,
-                        BlockCount = dayIncidents.Count(x => x.Action?.ToUpper() == "BLOCK" || x.Action?.ToUpper() == "BLOCKED"),
-                        QuarantineCount = dayIncidents.Count(x => x.Action?.ToUpper() == "QUARANTINE" || x.Action?.ToUpper() == "QUARANTINED"),
-                        AuthorizedCount = dayIncidents.Count(x => x.Action?.ToUpper() == "AUTHORIZED"),
-                        ReleasedCount = dayIncidents.Count(x => x.Action?.ToUpper() == "RELEASED"),
-                        TotalMatches = dayIncidents.Sum(x => x.MaxMatches)
-                    });
-                }
-            }
-
-            weeks.Add(new TrendDataPoint
-            {
-                Label = $"{weekStart.Year}-W{weekNumber:D2}",
-                StartDate = weekStart.ToString("yyyy-MM-dd"),
-                EndDate = weekEnd.AddDays(-1).ToString("yyyy-MM-dd"),
-                Count = weekIncidents.Count,
-                BlockCount = weekIncidents.Count(x => x.Action?.ToUpper() == "BLOCK" || x.Action?.ToUpper() == "BLOCKED"),
-                QuarantineCount = weekIncidents.Count(x => x.Action?.ToUpper() == "QUARANTINE" || x.Action?.ToUpper() == "QUARANTINED"),
-                AuthorizedCount = weekIncidents.Count(x => x.Action?.ToUpper() == "AUTHORIZED"),
-                ReleasedCount = weekIncidents.Count(x => x.Action?.ToUpper() == "RELEASED"),
-                TotalMatches = weekIncidents.Sum(x => x.MaxMatches),
-                DailyBreakdown = dailyBreakdown
-            });
-        }
-
-        return weeks.Where(w => w.Count > 0).ToList();
-    }
-
-    private List<TrendDataPoint> GenerateMonthlyTrends(List<Incident> incidents)
-    {
-        return incidents
-            .GroupBy(i => new { i.Timestamp.Year, i.Timestamp.Month })
-            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
-            .Select(g => new TrendDataPoint
-            {
-                Label = $"{g.Key.Year}-{g.Key.Month:D2}",
-                Count = g.Count(),
-                BlockCount = g.Count(i => i.Action?.ToUpper() == "BLOCK" || i.Action?.ToUpper() == "BLOCKED"),
-                QuarantineCount = g.Count(i => i.Action?.ToUpper() == "QUARANTINE" || i.Action?.ToUpper() == "QUARANTINED"),
-                AuthorizedCount = g.Count(i => i.Action?.ToUpper() == "AUTHORIZED"),
-                ReleasedCount = g.Count(i => i.Action?.ToUpper() == "RELEASED"),
-                TotalMatches = g.Sum(i => i.MaxMatches)
-            })
-            .ToList();
-    }
-
-    private List<DestinationPattern> GetDestinationPatterns(List<Incident> currentIncidents, List<Incident> baselineIncidents)
-    {
-        var baselineDestinations = baselineIncidents
-            .Where(i => !string.IsNullOrEmpty(i.Destination))
-            .Select(i => i.Destination)
-            .Distinct()
-            .ToHashSet();
-
-        return currentIncidents
-            .Where(i => !string.IsNullOrEmpty(i.Destination))
-            .GroupBy(i => i.Destination)
-            .OrderByDescending(g => g.Sum(i => i.MaxMatches))
-            .Take(20)
-            .Select(g => new DestinationPattern
-            {
-                Destination = g.Key!,
-                IncidentCount = g.Count(),
-                TotalMatches = g.Sum(i => i.MaxMatches),
-                IsNew = !baselineDestinations.Contains(g.Key)
-            })
-            .ToList();
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Get effective MaxMatches value - calculates from ViolationTriggers JSON if database value is 0
-    /// </summary>
-    private int GetEffectiveMaxMatches(Incident incident)
-    {
-        // If database has a value, use it
-        if (incident.MaxMatches > 0)
-            return incident.MaxMatches;
-
-        // Otherwise, calculate from ViolationTriggers JSON
-        if (string.IsNullOrEmpty(incident.ViolationTriggers))
-            return 0;
-
-        try
-        {
-            var triggers = System.Text.Json.JsonSerializer.Deserialize<List<ViolationTriggerDto>>(incident.ViolationTriggers, JsonOptions);
-            if (triggers == null || triggers.Count == 0)
-                return 0;
-
-            // Get max NumberMatches from all classifiers in all triggers
-            int maxMatches = 0;
-            foreach (var trigger in triggers)
-            {
-                if (trigger.Classifiers != null)
-                {
-                    foreach (var classifier in trigger.Classifiers)
-                    {
-                        if (classifier.EffectiveNumberMatches > maxMatches)
-                            maxMatches = classifier.EffectiveNumberMatches;
-                    }
-                }
-            }
-            return maxMatches;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    #endregion
 }
 

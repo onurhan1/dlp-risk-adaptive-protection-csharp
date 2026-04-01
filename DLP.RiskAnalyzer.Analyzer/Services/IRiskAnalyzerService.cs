@@ -12,7 +12,7 @@ public interface IRiskAnalyzerService
     Task<List<DepartmentSummary>> GetDepartmentSummariesAsync(DateOnly? startDate, DateOnly? endDate);
     Task<List<DailySummary>> GetDailySummariesAsync(int days = 7);
     Task<RiskHeatmapData> GetRiskHeatmapAsync(string dimension, DateOnly? startDate, DateOnly? endDate);
-    Task<int> ProcessRedisStreamAsync(IDatabaseService dbService);
+    Task<int> ProcessRedisStreamAsync(IRedisStreamProcessor redisProcessor);
     Task<int> CalculateRiskScoresAsync();
     Task<UserListResponse> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null);
     Task<ChannelActivityResponse> GetChannelActivityAsync(DateOnly? startDate, DateOnly? endDate, int days = 30);

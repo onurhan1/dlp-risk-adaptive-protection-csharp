@@ -89,7 +89,8 @@ public class AnalyzerBackgroundService : BackgroundService
                     // Process released incidents from Redis stream (Collector pushes to dlp:released-incidents)
                     try
                     {
-                        var releasedProcessed = await dbService.ProcessReleasedIncidentsStreamAsync();
+                        var releasedProcessor = scope.ServiceProvider.GetRequiredService<IReleasedIncidentProcessor>();
+                        var releasedProcessed = await releasedProcessor.ProcessReleasedIncidentsStreamAsync();
                         if (releasedProcessed > 0)
                         {
                             _logger.LogInformation("Processed {Count} released incidents from Redis stream", releasedProcessed);
@@ -101,7 +102,8 @@ public class AnalyzerBackgroundService : BackgroundService
                     }
 
                     // Process Redis stream and calculate risk scores
-                    var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);
+                    var redisProcessor = scope.ServiceProvider.GetRequiredService<IRedisStreamProcessor>();
+                    var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(redisProcessor);
                     
                     if (processedCount > 0)
                     {

@@ -16,6 +16,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 #if DEBUG
 [ApiController]
 [Route("api/[controller]")]
+[ApiExplorerSettings(IgnoreApi = true)]
 #endif
 public class DLPTestController : ControllerBase
 {

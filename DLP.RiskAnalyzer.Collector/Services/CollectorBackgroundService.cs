@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using DLP.RiskAnalyzer.Shared.Constants;
 using DLP.RiskAnalyzer.Shared.Models;
+using DLP.RiskAnalyzer.Collector.Mappers;
 using StackExchange.Redis;
 using System.Text.Json;
+using DLP.RiskAnalyzer.Collector.Constants;
 
 namespace DLP.RiskAnalyzer.Collector.Services;
 
@@ -14,11 +16,10 @@ namespace DLP.RiskAnalyzer.Collector.Services;
 /// </summary>
 public class CollectorBackgroundService : BackgroundService
 {
-    private readonly DLPCollectorService _collectorService;
-    private readonly ManualCollectQueue _manualCollectQueue;
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<CollectorBackgroundService> _logger;
     private readonly IConfiguration _configuration;
+    private static readonly System.Text.Json.JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     
     // Regular collection settings
     private readonly int _regularIntervalHours;
@@ -162,7 +163,7 @@ public class CollectorBackgroundService : BackgroundService
             var startTime = command.StartDate;
             var endTime = command.EndDate;
             var totalHours = (endTime - startTime).TotalHours;
-            var chunkSizeHours = 4;
+            var chunkSizeHours = CollectorConstants.DefaultChunkSizeHours;
             var totalChunks = (int)Math.Ceiling(totalHours / chunkSizeHours);
 
             // Update status to Running
@@ -195,7 +196,7 @@ public class CollectorBackgroundService : BackgroundService
                 _logger.LogInformation("[Manual:{JobId}] Fetching chunk {ChunkIndex}/{TotalChunks}: {ChunkStart} to {ChunkEnd}",
                     command.JobId, chunkIndex, totalChunks, chunkStart, chunkEnd);
 
-                int maxRetries = 3;
+                int maxRetries = CollectorConstants.MaxApiRetries;
                 List<DLPIncident> chunkIncidents = new();
                 bool chunkSuccess = false;
 
@@ -213,7 +214,7 @@ public class CollectorBackgroundService : BackgroundService
                     {
                         _logger.LogWarning(ex, "[Manual:{JobId}] Chunk {ChunkIndex} error on attempt {Attempt}. Retrying...",
                             command.JobId, chunkIndex, attempt);
-                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(CollectorConstants.RetryDelaySeconds), cancellationToken);
                     }
                 }
 
@@ -247,7 +248,7 @@ public class CollectorBackgroundService : BackgroundService
 
                 if (chunkStart < endTime)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(CollectorConstants.ChunkDelayMs), cancellationToken);
                 }
             }
 
@@ -285,77 +286,7 @@ public class CollectorBackgroundService : BackgroundService
             {
                 try
                 {
-                    var maxMatches = 0;
-                    if (dlpIncident.ViolationTriggers != null && dlpIncident.ViolationTriggers.Count > 0)
-                    {
-                        var classifiersWithMatches = dlpIncident.ViolationTriggers
-                            .Where(t => t.Classifiers != null && t.Classifiers.Count > 0)
-                            .SelectMany(t => t.Classifiers!)
-                            .Where(c => c.NumberMatches > 0)
-                            .ToList();
-
-                        if (classifiersWithMatches.Count > 0)
-                        {
-                            maxMatches = classifiersWithMatches.Max(c => c.NumberMatches);
-                        }
-                    }
-
-                    string? userIdentifier = dlpIncident.User;
-                    if (string.IsNullOrEmpty(userIdentifier))
-                        userIdentifier = dlpIncident.Source?.LoginName;
-                    if (string.IsNullOrEmpty(userIdentifier))
-                        userIdentifier = dlpIncident.Source?.EmailAddress;
-                    if (string.IsNullOrEmpty(userIdentifier))
-                        userIdentifier = dlpIncident.Source?.HostName;
-                    if (string.IsNullOrEmpty(userIdentifier))
-                        userIdentifier = "unknown";
-
-                    var incident = new DLP.RiskAnalyzer.Shared.Models.Incident
-                    {
-                        Id = dlpIncident.Id,
-                        UserEmail = userIdentifier,
-                        Department = dlpIncident.Department,
-                        Severity = dlpIncident.Severity,
-                        DataType = dlpIncident.DataType,
-                        Timestamp = dlpIncident.Timestamp,
-                        Policy = dlpIncident.Policy,
-                        Channel = dlpIncident.Channel,
-                        MaxMatches = maxMatches,
-                        Action = dlpIncident.Action,
-                        Destination = dlpIncident.Destination,
-                        FileName = dlpIncident.FileName,
-                        LoginName = dlpIncident.Source?.LoginName ?? dlpIncident.LoginName,
-                        EmailAddress = dlpIncident.Source?.EmailAddress ?? dlpIncident.EmailAddress,
-                        HostName = dlpIncident.Source?.HostName ?? dlpIncident.HostName,
-                        FullName = !string.IsNullOrEmpty(dlpIncident.Source?.Manager)
-                            ? dlpIncident.Source.Manager.Split('/')[0].Trim()
-                            : null,
-                        Team = !string.IsNullOrEmpty(dlpIncident.Source?.Manager) && dlpIncident.Source.Manager.Contains('/')
-                            ? (dlpIncident.Source.Manager.Split('/')[1].Contains('-')
-                                ? dlpIncident.Source.Manager.Split('/')[1].Split(new[] { '-' }, 2)[1].Trim()
-                                : dlpIncident.Source.Manager.Split('/')[1].Trim())
-                            : null,
-                        RuleName = dlpIncident.ViolationTriggers != null
-                            ? string.Join("; ", dlpIncident.ViolationTriggers
-                                .Select(vt => vt.RuleName)
-                                .Where(rn => !string.IsNullOrEmpty(rn))
-                                .Distinct())
-                            : null,
-                        ViolationTriggers = dlpIncident.ViolationTriggers != null
-                            ? System.Text.Json.JsonSerializer.Serialize(
-                                dlpIncident.ViolationTriggers.Select(vt => new
-                                {
-                                    policy_name = vt.PolicyName,
-                                    rule_name = vt.RuleName,
-                                    classifiers = vt.Classifiers?.Select(c => new
-                                    {
-                                        classifier_name = c.ClassifierName,
-                                        number_matches = c.NumberMatches
-                                    }).ToList()
-                                }).ToList(),
-                                new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull })
-                            : null
-                    };
+                    var incident = IncidentMapper.MapFromDLPIncident(dlpIncident);
 
                     await _collectorService.PushToRedisStreamAsync(incident);
                     pushedCount++;
@@ -423,7 +354,7 @@ public class CollectorBackgroundService : BackgroundService
         var startTime = endTime.AddHours(-lookbackHours);
         
         // Time chunk size in hours
-        var chunkSizeHours = 4;
+        var chunkSizeHours = CollectorConstants.DefaultChunkSizeHours;
         var totalChunks = (int)Math.Ceiling((double)lookbackHours / chunkSizeHours);
         
         _logger.LogInformation("[{RunType}] Fetching incidents from {StartTime} to {EndTime} in {TotalChunks} chunks", 
@@ -447,7 +378,7 @@ public class CollectorBackgroundService : BackgroundService
                 _logger.LogInformation("[{RunType}] Fetching chunk {ChunkIndex}/{TotalChunks}: {ChunkStart} to {ChunkEnd}", 
                     runType, chunkIndex, totalChunks, chunkStart, chunkEnd);
                 
-                int maxRetries = 3;
+                int maxRetries = CollectorConstants.MaxApiRetries;
                 List<DLPIncident> chunkIncidents = new();
                 bool chunkSuccess = false;
                 
@@ -465,19 +396,19 @@ public class CollectorBackgroundService : BackgroundService
                     {
                         _logger.LogWarning("[{RunType}] Chunk {ChunkIndex} timeout on attempt {Attempt}. Retrying...", 
                             runType, chunkIndex, attempt);
-                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(CollectorConstants.RetryDelaySeconds), cancellationToken);
                     }
                     catch (HttpRequestException) when (attempt < maxRetries)
                     {
                         _logger.LogWarning("[{RunType}] Chunk {ChunkIndex} connection error on attempt {Attempt}. Retrying...", 
                             runType, chunkIndex, attempt);
-                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(CollectorConstants.RetryDelaySeconds), cancellationToken);
                     }
                     catch (Exception ex) when (attempt < maxRetries)
                     {
                         _logger.LogWarning(ex, "[{RunType}] Chunk {ChunkIndex} error on attempt {Attempt}. Retrying...", 
                             runType, chunkIndex, attempt);
-                        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                        await Task.Delay(TimeSpan.FromSeconds(CollectorConstants.RetryDelaySeconds), cancellationToken);
                     }
                 }
                 
@@ -497,7 +428,7 @@ public class CollectorBackgroundService : BackgroundService
                 
                 if (chunkStart < endTime)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(CollectorConstants.ChunkDelayMs), cancellationToken);
                 }
             }
             
@@ -664,7 +595,7 @@ public class CollectorBackgroundService : BackgroundService
 
             foreach (var historyItem in incident.History)
             {
-                if (historyItem.TaskName != "Released quarantined message")
+                if (historyItem.TaskName != CollectorConstants.TaskNameReleasedMessage)
                     continue;
 
                 try

@@ -416,7 +416,6 @@ public class Program
                     FullName = Truncate(fullName, 255),
                     Team = Truncate(team, 255),
                 MaxMatches = maxMatches,
-                MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 
                     ? JsonConvert.SerializeObject(apiModel.ViolationTriggers.Select(vt => new 
                     {

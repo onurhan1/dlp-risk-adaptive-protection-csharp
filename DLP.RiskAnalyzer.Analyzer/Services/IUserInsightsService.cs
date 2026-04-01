@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Shared.Models;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;

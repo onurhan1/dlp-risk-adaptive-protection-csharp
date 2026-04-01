@@ -19,7 +19,4 @@ public interface IDatabaseService
 
     Task<int> InsertIncidentAsync(Incident incident);
 
-    Task<int> ProcessRedisStreamAsync();
-
-    Task<int> ProcessReleasedIncidentsStreamAsync();
 }

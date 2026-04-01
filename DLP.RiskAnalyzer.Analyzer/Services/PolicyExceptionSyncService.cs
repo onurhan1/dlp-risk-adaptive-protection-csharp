@@ -269,9 +269,9 @@ public class PolicyExceptionSyncService
                 Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds)
             };
         }
-        catch
+        catch (Exception ex)
         {
-            // Fallback to appsettings.json
+            _logger.LogWarning(ex, "Failed to load DLP config from database, falling back to appsettings.json");
             var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
             var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
             var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);

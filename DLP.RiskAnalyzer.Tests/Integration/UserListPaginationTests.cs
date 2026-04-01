@@ -30,7 +30,8 @@ public class UserListPaginationTests : IDisposable
         _context = new AnalyzerDbContext(options);
 
         var repoMock = new Mock<IIncidentRepository>();
-        _sut = new RiskAnalyzerService(repoMock.Object, _context);
+        var userInsightsMock = new Mock<IUserInsightsService>();
+        _sut = new RiskAnalyzerService(repoMock.Object, _context, userInsightsMock.Object);
 
         SeedUserDailyScores();
     }
@@ -131,7 +132,8 @@ public class UserListPaginationTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         using var emptyCtx = new AnalyzerDbContext(emptyOptions);
         var repoMock = new Mock<IIncidentRepository>();
-        var emptyService = new RiskAnalyzerService(repoMock.Object, emptyCtx);
+        var userInsightsMock = new Mock<IUserInsightsService>();
+        var emptyService = new RiskAnalyzerService(repoMock.Object, emptyCtx, userInsightsMock.Object);
 
         var result = await emptyService.GetUserListAsync();
 

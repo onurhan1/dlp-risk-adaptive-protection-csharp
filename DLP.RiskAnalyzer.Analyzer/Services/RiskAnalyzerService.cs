@@ -17,17 +17,17 @@ public class RiskAnalyzerService : IRiskAnalyzerService
     private readonly IIncidentRepository _incidentRepository;
     private readonly AnalyzerDbContext _context;
     private readonly Shared.Services.RiskAnalyzer _riskAnalyzer;
-    private readonly UserInsightsService _userInsights;
+    private readonly IUserInsightsService _userInsights;
 
     public RiskAnalyzerService(
         IIncidentRepository incidentRepository,
         AnalyzerDbContext context,
-        UserInsightsService? userInsights = null)
+        IUserInsightsService userInsights)
     {
         _incidentRepository = incidentRepository;
         _context = context;
         _riskAnalyzer = new Shared.Services.RiskAnalyzer();
-        _userInsights = userInsights ?? new UserInsightsService(context);
+        _userInsights = userInsights;
     }
 
     /// <summary>
@@ -136,13 +136,15 @@ public class RiskAnalyzerService : IRiskAnalyzerService
     /// <summary>
     /// Process Redis stream and calculate risk scores
     /// </summary>
-    public async Task<int> ProcessRedisStreamAsync(DatabaseService dbService)
+    public async Task<int> ProcessRedisStreamAsync(IRedisStreamProcessor redisProcessor)
     {
-        var processedCount = await dbService.ProcessRedisStreamAsync();
+        var processedCount = await redisProcessor.ProcessRedisStreamAsync();
+        
         if (processedCount > 0)
         {
             await CalculateRiskScoresAsync();
         }
+        
         return processedCount;
     }
 

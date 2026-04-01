@@ -21,7 +21,9 @@ public class RiskAnalyzerServiceTests : IDisposable
             .Options;
         _db = new AnalyzerDbContext(options);
         _repo = new IncidentRepository(_db);
-        _sut = new RiskAnalyzerService(_repo, _db);
+        var dailyScoreRepo = new DLP.RiskAnalyzer.Analyzer.Repositories.Implementations.UserDailyRiskScoreRepository(_db);
+        var userInsights = new UserInsightsService(dailyScoreRepo, _repo);
+        _sut = new RiskAnalyzerService(_repo, _db, userInsights);
     }
 
     private Incident MakeIncident(

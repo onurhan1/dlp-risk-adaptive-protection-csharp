@@ -9,6 +9,9 @@
 appsettings.Development.json
 appsettings.Production.json
 secrets.json
+*.pfx
+*.p12
+*.key
 
 # Visual Studio Code
 .vscode/

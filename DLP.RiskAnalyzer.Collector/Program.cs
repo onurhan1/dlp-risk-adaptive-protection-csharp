@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Collector.Extensions;
 using DLP.RiskAnalyzer.Collector.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,47 +22,8 @@ class Program
             {
                 var configuration = context.Configuration;
                 
-                // Redis - Docker Desktop on Windows compatibility
-                var redisHost = configuration["Redis:Host"] ?? "localhost";
-                var redisPort = configuration.GetValue<int>("Redis:Port", 6379);
-                var redisPassword = configuration["Redis:Password"]; // Optional password
-                
-                var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-                
-                if (isDocker && redisHost == "localhost")
-                {
-                    // If running inside Docker container, use host.docker.internal
-                    redisHost = "host.docker.internal";
-                }
-                else if (!isDocker && redisHost == "localhost" && 
-                         RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    // If running on Windows host, use 127.0.0.1 for better reliability with Docker Desktop
-                    redisHost = "127.0.0.1";
-                }
-                
-                var redisConnectionString = $"{redisHost}:{redisPort}";
-                
-                // Configure Redis connection with retry for Docker Desktop
-                var redisConfig = new StackExchange.Redis.ConfigurationOptions
-                {
-                    EndPoints = { redisConnectionString },
-                    ConnectTimeout = 10000, // 10 seconds
-                    SyncTimeout = 5000,     // 5 seconds
-                    AbortOnConnectFail = false, // Don't fail on first connection attempt
-                    ReconnectRetryPolicy = new StackExchange.Redis.ExponentialRetry(1000), // Retry with exponential backoff
-                    ConnectRetry = 3 // Retry connection 3 times
-                };
-                
-                // Add password if configured (check for null, empty, or whitespace)
-                // Note: Empty string ("") is treated as "no password" - only non-empty values are used
-                if (!string.IsNullOrWhiteSpace(redisPassword))
-                {
-                    redisConfig.Password = redisPassword;
-                }
-                
-                services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
-                    StackExchange.Redis.ConnectionMultiplexer.Connect(redisConfig));
+                // Use the extension method for Redis configuration
+                services.AddRedisServices(configuration);
                 
                 // Register services
                 services.Configure<DLPConfig>(configuration.GetSection("DLP"));

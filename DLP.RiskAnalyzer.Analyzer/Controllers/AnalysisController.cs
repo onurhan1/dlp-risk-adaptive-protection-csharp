@@ -7,15 +7,15 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/[controller]")]
 public class AnalysisController : ControllerBase
 {
-    private readonly RiskAnalyzerService _riskAnalyzerService;
-    private readonly DatabaseService _dbService;
+    private readonly IRiskAnalyzerService _riskAnalyzerService;
+    private readonly IRedisStreamProcessor _redisStreamProcessor;
 
     public AnalysisController(
-        RiskAnalyzerService riskAnalyzerService,
-        DatabaseService dbService)
+        IRiskAnalyzerService riskAnalyzerService,
+        IRedisStreamProcessor redisStreamProcessor)
     {
         _riskAnalyzerService = riskAnalyzerService;
-        _dbService = dbService;
+        _redisStreamProcessor = redisStreamProcessor;
     }
 
     [HttpPost("daily")]
@@ -24,7 +24,7 @@ public class AnalysisController : ControllerBase
         try
         {
             // Process Redis stream and calculate risk scores
-            var processedCount = await _riskAnalyzerService.ProcessRedisStreamAsync(_dbService);
+            var processedCount = await _riskAnalyzerService.ProcessRedisStreamAsync(_redisStreamProcessor);
 
             return Ok(new
             {
@@ -44,7 +44,7 @@ public class AnalysisController : ControllerBase
     {
         try
         {
-            await _dbService.ProcessRedisStreamAsync();
+            await _redisStreamProcessor.ProcessRedisStreamAsync();
             return Ok(new { message = "Redis stream processed successfully" });
         }
         catch (Exception ex)
@@ -53,4 +53,3 @@ public class AnalysisController : ControllerBase
         }
     }
 }
-
