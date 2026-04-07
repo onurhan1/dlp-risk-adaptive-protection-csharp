@@ -4,6 +4,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+.vs/
 
 # Visual Studio Code
 .vscode/
@@ -21,3 +22,13 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# ── Gizli yapılandırma dosyaları (şifreler burada) ───────────────────────────
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
+
+# ── Çalışma zamanı dosyaları ─────────────────────────────────────────────────
+**/reports/*.pdf
+**/api.log
+*.log
