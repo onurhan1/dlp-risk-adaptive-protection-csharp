@@ -8,12 +8,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Email Service - Send emails via SMTP
 /// </summary>
-public class EmailService
+public class EmailService : IEmailService
 {
-    private readonly EmailConfigurationService _configurationService;
+    private readonly IEmailConfigurationService _configurationService;
     private readonly ILogger<EmailService> _logger;
 
-    public EmailService(EmailConfigurationService configurationService, ILogger<EmailService> logger)
+    public EmailService(IEmailConfigurationService configurationService, ILogger<EmailService> logger)
     {
         _configurationService = configurationService;
         _logger = logger;

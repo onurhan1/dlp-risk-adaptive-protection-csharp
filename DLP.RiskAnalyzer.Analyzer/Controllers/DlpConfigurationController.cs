@@ -10,12 +10,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/settings/dlp")]
 public class DlpConfigurationController : ControllerBase
 {
-    private readonly DlpConfigurationService _configurationService;
+    private readonly IDlpConfigurationService _configurationService;
     private readonly InternalApiOptions _internalApiOptions;
     private readonly ILogger<DlpConfigurationController> _logger;
 
     public DlpConfigurationController(
-        DlpConfigurationService configurationService,
+        IDlpConfigurationService configurationService,
         IOptions<InternalApiOptions> internalApiOptions,
         ILogger<DlpConfigurationController> logger)
     {

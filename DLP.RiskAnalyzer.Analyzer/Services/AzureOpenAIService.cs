@@ -10,7 +10,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Azure OpenAI API Service for testing connections and validating API keys
 /// </summary>
-public class AzureOpenAIService
+public class AzureOpenAIService : IAzureOpenAIService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<AzureOpenAIService> _logger;

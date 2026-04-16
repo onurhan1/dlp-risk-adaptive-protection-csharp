@@ -28,9 +28,9 @@ public class BehaviorAIExplanationService : IBehaviorAIExplanationService
     private readonly IAIAnalysisRepository _aiAnalysisRepository;
     private readonly ILogger<BehaviorAIExplanationService> _logger;
     private readonly IDataProtector _protector;
-    private readonly OpenAIService? _openAIService;
-    private readonly AzureOpenAIService? _azureOpenAIService;
-    private readonly CopilotService? _copilotService;
+    private readonly IOpenAIService? _openAIService;
+    private readonly IAzureOpenAIService? _azureOpenAIService;
+    private readonly ICopilotService? _copilotService;
 
     public BehaviorAIExplanationService(
         IAIAnalysisRepository aiAnalysisRepository,
@@ -41,9 +41,12 @@ public class BehaviorAIExplanationService : IBehaviorAIExplanationService
         _aiAnalysisRepository = aiAnalysisRepository;
         _logger = logger;
         _protector = dataProtectionProvider.CreateProtector("DLP.AISettings");
-        try { _openAIService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OpenAIService>(serviceProvider); } catch {}
-        try { _azureOpenAIService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<AzureOpenAIService>(serviceProvider); } catch {}
-        try { _copilotService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<CopilotService>(serviceProvider); } catch {}
+        try { _openAIService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IOpenAIService>(serviceProvider); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Optional OpenAIService not available"); }
+        try { _azureOpenAIService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IAzureOpenAIService>(serviceProvider); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Optional AzureOpenAIService not available"); }
+        try { _copilotService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<ICopilotService>(serviceProvider); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Optional CopilotService not available"); }
     }
 
     public async Task<(string Explanation, string Recommendation)> GenerateAIAnalysisAsync(

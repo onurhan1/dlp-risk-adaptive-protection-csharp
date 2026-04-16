@@ -11,7 +11,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Policy Management Service - Forcepoint DLP Policy operations
 /// </summary>
-public class PolicyService
+public class PolicyService : IPolicyService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;

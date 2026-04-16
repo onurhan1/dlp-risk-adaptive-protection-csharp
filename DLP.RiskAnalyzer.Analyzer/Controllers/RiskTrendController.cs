@@ -8,14 +8,20 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/risk-trends")]
 public class RiskTrendController : ControllerBase
 {
-    private readonly RiskAnalyzerService _riskService;
+    private readonly IRiskAnalyzerService _riskService;
+    private readonly IRiskScoringService _scoringService;
+    private readonly IUserInsightsService _userInsights;
     private readonly ILogger<RiskTrendController> _logger;
 
     public RiskTrendController(
-        RiskAnalyzerService riskService,
+        IRiskAnalyzerService riskService,
+        IRiskScoringService scoringService,
+        IUserInsightsService userInsights,
         ILogger<RiskTrendController> logger)
     {
         _riskService = riskService;
+        _scoringService = scoringService;
+        _userInsights = userInsights;
         _logger = logger;
     }
 
@@ -31,7 +37,7 @@ public class RiskTrendController : ControllerBase
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var start = startDate ?? end.AddDays(-30);
 
-        var scores = await _riskService.GetUserDailyScoresAsync(email, start, end);
+        var scores = await _userInsights.GetUserDailyScoresAsync(email, start, end);
         return Ok(scores);
     }
 
@@ -45,7 +51,7 @@ public class RiskTrendController : ControllerBase
     {
         try
         {
-            var result = await _riskService.GetUserComprehensiveInsightsAsync(email, period);
+            var result = await _userInsights.GetUserComprehensiveInsightsAsync(email, period);
             return Ok(result);
         }
         catch (Exception ex)
@@ -61,7 +67,7 @@ public class RiskTrendController : ControllerBase
     [HttpGet("user/{email}/weekly-trend")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserWeeklyTrend(string email)
     {
-        var result = await _riskService.GetUserWeeklyTrendAsync(email);
+        var result = await _userInsights.GetUserWeeklyTrendAsync(email);
         return Ok(result);
     }
 
@@ -71,7 +77,7 @@ public class RiskTrendController : ControllerBase
     [HttpGet("user/{email}/monthly-trend")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserMonthlyTrend(string email)
     {
-        var result = await _riskService.GetUserMonthlyTrendAsync(email);
+        var result = await _userInsights.GetUserMonthlyTrendAsync(email);
         return Ok(result);
     }
 
@@ -81,7 +87,7 @@ public class RiskTrendController : ControllerBase
     [HttpGet("user/{email}/quarterly-trend")]
     public async Task<ActionResult<Dictionary<string, object>>> GetUserQuarterlyTrend(string email)
     {
-        var result = await _riskService.GetUserQuarterlyTrendAsync(email);
+        var result = await _userInsights.GetUserQuarterlyTrendAsync(email);
         return Ok(result);
     }
 
@@ -91,7 +97,7 @@ public class RiskTrendController : ControllerBase
     [HttpGet("user/{email}/anomalies")]
     public async Task<ActionResult<List<string>>> GetUserAnomalies(string email)
     {
-        var anomalies = await _riskService.DetectUserAnomaliesAsync(email);
+        var anomalies = await _userInsights.DetectUserAnomaliesAsync(email);
         return Ok(anomalies);
     }
 
@@ -104,7 +110,7 @@ public class RiskTrendController : ControllerBase
     {
         try
         {
-            var count = await _riskService.CalculateDailyScoresAsync(date);
+            var count = await _scoringService.CalculateDailyScoresAsync(date);
             return Ok(new { message = "Daily calculation completed", updated_users = count });
         }
         catch (Exception ex)
@@ -123,7 +129,7 @@ public class RiskTrendController : ControllerBase
     {
         try
         {
-            var count = await _riskService.CalculateRiskScoresAsync();
+            var count = await _scoringService.CalculateRiskScoresAsync();
             return Ok(new { message = "Risk score recalculation completed", updated_incidents = count });
         }
         catch (Exception ex)
@@ -140,7 +146,7 @@ public class RiskTrendController : ControllerBase
     [HttpGet("users/report")]
     public async Task<ActionResult<List<Dictionary<string, object>>>> GetRiskyUsersReport([FromQuery] string period = "monthly")
     {
-        var result = await _riskService.GetRiskyUsersReportAsync(period);
+        var result = await _userInsights.GetRiskyUsersReportAsync(period);
         return Ok(result);
     }
 
@@ -159,7 +165,7 @@ public class RiskTrendController : ControllerBase
     {
         try
         {
-            var result = await _riskService.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
+            var result = await _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
             return Ok(result);
         }
         catch (Exception ex)
@@ -182,7 +188,7 @@ public class RiskTrendController : ControllerBase
         {
             var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             var start = startDate ?? end.AddDays(-30);
-            var result = await _riskService.GetDailySummaryFromDailyScoresAsync(start, end);
+            var result = await _userInsights.GetDailySummaryFromDailyScoresAsync(start, end);
             return Ok(result);
         }
         catch (Exception ex)
@@ -206,7 +212,7 @@ public class RiskTrendController : ControllerBase
     {
         try
         {
-            var result = await _riskService.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
+            var result = await _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
             return Ok(result);
         }
         catch (Exception ex)

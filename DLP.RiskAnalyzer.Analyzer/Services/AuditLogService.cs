@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class AuditLogService
+public class AuditLogService : IAuditLogService
 {
     private readonly AnalyzerDbContext _context;
     private readonly IServiceProvider _serviceProvider;
@@ -62,7 +62,7 @@ public class AuditLogService
             // Send to Splunk if enabled
             try
             {
-                var splunkService = _serviceProvider.GetService<SplunkService>();
+                var splunkService = _serviceProvider.GetService<ISplunkService>();
                 if (splunkService != null)
                 {
                     var splunkEvent = new AuditLogEvent
@@ -196,7 +196,7 @@ public class AuditLogService
             // Send to Splunk if enabled
             try
             {
-                var splunkService = _serviceProvider.GetService<SplunkService>();
+                var splunkService = _serviceProvider.GetService<ISplunkService>();
                 if (splunkService != null)
                 {
                     var splunkEvent = new AuditLogEvent

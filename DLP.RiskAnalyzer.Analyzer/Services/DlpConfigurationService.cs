@@ -9,7 +9,7 @@ using StackExchange.Redis;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class DlpConfigurationService
+public class DlpConfigurationService : IDlpConfigurationService
 {
     private const string ManagerIpKey = "dlp_manager_ip";
     private const string ManagerPortKey = "dlp_manager_port";

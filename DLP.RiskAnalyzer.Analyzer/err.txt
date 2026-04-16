@@ -1,0 +1,18 @@
+  Geri yüklenecek projeler belirleniyor...
+  Geri yükleme için tüm projeler güncel.
+  DLP.RiskAnalyzer.Shared -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Shared\bin\Debug\net8.0\DLP.RiskAnalyzer.Shared.dll
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(30,72): error CS0234: 'DlpConfiguration' tür veya ad alanı adı 'DLP.RiskAnalyzer.Shared.Models' ad alanında yok (bir derleme başvurunuz mu eksik?) [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(96,30): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(97,46): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(98,66): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+
+Oluşturma BAŞARISIZ OLDU.
+
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(96,30): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(97,46): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(98,66): warning CS8625: Null sabit değer, boş değer atanamayan başvuru türüne dönüştürülemiyor. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Services\DlpTestService.cs(30,72): error CS0234: 'DlpConfiguration' tür veya ad alanı adı 'DLP.RiskAnalyzer.Shared.Models' ad alanında yok (bir derleme başvurunuz mu eksik?) [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+    3 Uyarı
+    1 Hata
+
+Geçen Süre 00:00:01.93

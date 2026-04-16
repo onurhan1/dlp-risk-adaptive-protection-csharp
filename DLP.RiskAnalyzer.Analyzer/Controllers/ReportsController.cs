@@ -9,12 +9,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly ReportGeneratorService _reportGenerator;
-    private readonly RiskAnalyzerService _riskAnalyzerService;
+    private readonly IRiskAnalyzerService _riskAnalyzerService;
     private readonly string _reportsDirectory;
 
     public ReportsController(
         ReportGeneratorService reportGenerator,
-        RiskAnalyzerService riskAnalyzerService,
+        IRiskAnalyzerService riskAnalyzerService,
         IConfiguration configuration)
     {
         _reportGenerator = reportGenerator;

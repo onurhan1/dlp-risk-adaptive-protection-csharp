@@ -41,7 +41,7 @@ public class AnalyzerBackgroundService : BackgroundService
 
             using (var scope = _serviceProvider.CreateScope())
             {
-                var seeder = scope.ServiceProvider.GetRequiredService<DevDataSeeder>();
+                var seeder = scope.ServiceProvider.GetRequiredService<IDevDataSeeder>();
                 await seeder.SeedAsync();
             }
 
@@ -68,7 +68,8 @@ public class AnalyzerBackgroundService : BackgroundService
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var dbService = scope.ServiceProvider.GetRequiredService<DatabaseService>();
-                    var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<RiskAnalyzerService>();
+                    var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<IRiskAnalyzerService>();
+                    var scoringService = scope.ServiceProvider.GetRequiredService<IRiskScoringService>();
 
                     // Policy exception sync (24 saatte bir)
                     if ((DateTime.UtcNow - _lastExceptionSync) >= _exceptionSyncInterval)
@@ -103,19 +104,24 @@ public class AnalyzerBackgroundService : BackgroundService
 
                     // Process Redis stream and calculate risk scores
                     var redisProcessor = scope.ServiceProvider.GetRequiredService<IRedisStreamProcessor>();
+                    // Note: ProcessRedisStreamAsync internally handled scoring before, but now we probably need to process the stream and THEN calculate scores? 
+                    // Actually, let me check how RiskAnalyzerService was managing it. Wait, ProcessRedisStreamAsync returns processedCount. Then it logs.
+                    // ProcessRedisStreamAsync itself handles the risks. But wait, did ProcessRedisStreamAsync call CalculateRiskScoresAsync? No, CalculateRiskScoresAsync is a separate batch job for missing scores.
+                    // Let's ensure ProcessRedisStreamAsync is still correct.
                     var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(redisProcessor);
                     
                     if (processedCount > 0)
                     {
-                        _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated risk scores", 
-                            processedCount);
+                        var scoredCount = await scoringService.CalculateRiskScoresAsync();
+                        _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated {ScoredCount} risk scores", 
+                            processedCount, scoredCount);
                         
                         // Calculate daily scores for today to keep Dashboard data up-to-date
                         // This populates user_daily_risk_scores table for "Potential Data Exfiltration" and other dashboards
                         try
                         {
                             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                            var updatedUsers = await riskAnalyzerService.CalculateDailyScoresAsync(today);
+                            var updatedUsers = await scoringService.CalculateDailyScoresAsync(today);
                             if (updatedUsers > 0)
                             {
                                 _logger.LogInformation("Updated daily risk scores for {Count} users on {Date}", 

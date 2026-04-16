@@ -47,6 +47,9 @@ builder.Services.AddJwtAuthentication(builder.Configuration);
 // CORS
 builder.Services.AddCorsPolicy(builder.Configuration, builder.Environment);
 
+// Rate Limiting (§40)
+builder.Services.AddRateLimiting();
+
 // Background Services
 builder.Services.AddHostedService<AnalyzerBackgroundService>();
 

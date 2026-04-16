@@ -13,7 +13,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Remediation Service - Incident remediation via Forcepoint DLP API + Database storage
 /// </summary>
-public class RemediationService
+public class RemediationService : IRemediationService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;

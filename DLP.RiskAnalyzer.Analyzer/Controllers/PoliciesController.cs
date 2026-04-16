@@ -7,10 +7,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/[controller]")]
 public class PoliciesController : ControllerBase
 {
-    private readonly PolicyService _policyService;
+    private readonly IPolicyService _policyService;
     private readonly DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer _riskAnalyzer;
 
-    public PoliciesController(PolicyService policyService, DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer)
+    public PoliciesController(IPolicyService policyService, DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer)
     {
         _policyService = policyService;
         _riskAnalyzer = riskAnalyzer;

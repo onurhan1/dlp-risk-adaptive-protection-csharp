@@ -10,12 +10,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/logs")]
 public class LogsController : ControllerBase
 {
-    private readonly AuditLogService _auditLogService;
+    private readonly IAuditLogService _auditLogService;
     private readonly ILogger<LogsController> _logger;
     private readonly InternalApiOptions _internalApiOptions;
 
     public LogsController(
-        AuditLogService auditLogService,
+        IAuditLogService auditLogService,
         ILogger<LogsController> logger,
         IOptions<InternalApiOptions> internalApiOptions)
     {

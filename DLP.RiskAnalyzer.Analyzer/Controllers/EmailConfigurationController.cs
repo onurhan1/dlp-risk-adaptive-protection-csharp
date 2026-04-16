@@ -8,10 +8,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/settings/email")]
 public class EmailConfigurationController : ControllerBase
 {
-    private readonly EmailConfigurationService _configurationService;
+    private readonly IEmailConfigurationService _configurationService;
     private readonly ILogger<EmailConfigurationController> _logger;
 
-    public EmailConfigurationController(EmailConfigurationService configurationService, ILogger<EmailConfigurationController> logger)
+    public EmailConfigurationController(IEmailConfigurationService configurationService, ILogger<EmailConfigurationController> logger)
     {
         _configurationService = configurationService;
         _logger = logger;

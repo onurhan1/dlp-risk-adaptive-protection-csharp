@@ -97,6 +97,7 @@ public static class WebApplicationExtensions
 
         app.UseRouting();
         app.UseCors();
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
 

@@ -10,6 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DLP.RiskAnalyzer.Analyzer.Extensions;
 
@@ -44,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBehaviorAIExplanationService, BehaviorAIExplanationService>();
         services.AddScoped<IBehaviorEngineService, BehaviorEngineService>();
         services.AddScoped<IRiskAnalyzerService, RiskAnalyzerService>();
+        services.AddScoped<IRiskScoringService, RiskScoringService>();
         services.AddScoped<IUserInsightsService, UserInsightsService>();
         services.AddScoped<IAnomalyDetector, AnomalyDetector>();
         services.AddScoped<DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer>();
@@ -56,20 +59,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDatabaseService, DatabaseService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IReportGeneratorService, ReportGeneratorService>();
-        services.AddScoped<ClassificationService>();
+        services.AddScoped<IClassificationService, ClassificationService>();
 
         // Sync services
-        services.AddScoped<PolicyExceptionSyncService>();
-        services.AddScoped<ReleasedIncidentSyncService>();
+        services.AddScoped<IPolicyExceptionSyncService, PolicyExceptionSyncService>();
+        services.AddScoped<IReleasedIncidentSyncService, ReleasedIncidentSyncService>();
 
         // Configuration services
-        services.AddScoped<DlpConfigurationService>();
-        services.AddScoped<EmailConfigurationService>();
-        services.AddScoped<EmailService>();
-        services.AddScoped<AuditLogService>();
+        services.AddScoped<IDlpConfigurationService, DlpConfigurationService>();
+        services.AddScoped<IDlpTestService, DlpTestService>();
+        services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
 
         // Dev-only seeder — harmless singleton when SeedData:Enabled = false
-        services.AddScoped<DevDataSeeder>();
+        services.AddScoped<IDevDataSeeder, DevDataSeeder>();
 
         return services;
     }
@@ -79,13 +83,12 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddExternalHttpClients(this IServiceCollection services)
     {
-        services.AddHttpClient<SplunkService>();
-        services.AddHttpClient<RemediationService>();
-        services.AddHttpClient<OpenAIService>();
-        services.AddHttpClient<CopilotService>();
-        services.AddHttpClient<AzureOpenAIService>();
-        services.AddHttpClient<PolicyService>(client => { });
-        services.AddHttpClient<RemediationService>(client => { });
+        services.AddHttpClient<ISplunkService, SplunkService>();
+        services.AddHttpClient<IRemediationService, RemediationService>();
+        services.AddHttpClient<IOpenAIService, OpenAIService>();
+        services.AddHttpClient<ICopilotService, CopilotService>();
+        services.AddHttpClient<IAzureOpenAIService, AzureOpenAIService>();
+        services.AddHttpClient<IPolicyService, PolicyService>();
 
         return services;
     }
@@ -270,6 +273,47 @@ public static class ServiceCollectionExtensions
                       .AllowCredentials()
                       .WithExposedHeaders("Content-Disposition");
             });
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configure Rate Limiting policies for login and API endpoints (§40)
+    /// </summary>
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Login endpoint: 5 requests per 5 minutes per IP
+            options.AddFixedWindowLimiter("login", opt =>
+            {
+                opt.PermitLimit = 5;
+                opt.Window = TimeSpan.FromMinutes(5);
+                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                opt.QueueLimit = 0;
+            });
+
+            // General API: 100 requests per 1 minute per IP
+            options.AddFixedWindowLimiter("api", opt =>
+            {
+                opt.PermitLimit = 100;
+                opt.Window = TimeSpan.FromMinutes(1);
+                opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                opt.QueueLimit = 2;
+            });
+
+            // Global limiter fallback per IP
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 200,
+                        Window = TimeSpan.FromMinutes(1)
+                    }));
         });
 
         return services;

@@ -10,14 +10,14 @@ public class DatabaseService : IDatabaseService
 {
     private readonly AnalyzerDbContext _context;
     private readonly StackExchange.Redis.IConnectionMultiplexer _redis;
-    private readonly PolicyExceptionSyncService _policyExceptionSyncService;
+    private readonly IPolicyExceptionSyncService _policyExceptionSyncService;
     private readonly ILogger<DatabaseService> _logger;
     private readonly IIncidentRepository _incidentRepository;
 
     public DatabaseService(
         AnalyzerDbContext context, 
         StackExchange.Redis.IConnectionMultiplexer redis,
-        PolicyExceptionSyncService policyExceptionSyncService,
+        IPolicyExceptionSyncService policyExceptionSyncService,
         ILogger<DatabaseService> logger,
         IIncidentRepository incidentRepository)
     {

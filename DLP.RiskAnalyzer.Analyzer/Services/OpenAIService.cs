@@ -10,7 +10,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// OpenAI API Service for testing connections and validating API keys
 /// </summary>
-public class OpenAIService
+public class OpenAIService : IOpenAIService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAIService> _logger;

@@ -1,0 +1,90 @@
+﻿=== DOSYA SATIR SAYILARI ===
+
+--- Analyzer Services ---
+AnalyzerBackgroundService.cs                              174
+AnomalyDetector.cs                                        191
+AuditLogService.cs                                        244
+AzureOpenAIService.cs                                     317
+BehaviorAIExplanationService.cs                           234
+BehaviorEngineService.cs                                  862
+BehaviorMetricsCalculator.cs                              523
+ClassificationService.cs                                  145
+CopilotService.cs                                         158
+DatabaseService.cs                                        175
+DevDataSeeder.cs                                          446
+DlpConfigurationService.cs                                344
+EmailConfigurationService.cs                              243
+EmailService.cs                                           125
+IAnomalyDetector.cs                                        10
+IBehaviorEngineService.cs                                  21
+IDatabaseService.cs                                        22
+IReportGeneratorService.cs                                  9
+IRiskAnalyzerService.cs                                    25
+IUserInsightsService.cs                                    21
+IUserService.cs                                            11
+OpenAIService.cs                                          260
+PolicyExceptionSyncService.cs                             296
+PolicyService.cs                                          175
+RedisStreamProcessor.cs                                   623
+ReleasedIncidentProcessor.cs                              171
+ReleasedIncidentSyncService.cs                            395
+RemediationService.cs                                     253
+ReportGeneratorService.cs                                 325
+RiskAnalyzerService.cs                                    890
+SplunkService.cs                                          201
+UserInsightsService.cs                                    320
+UserService.cs                                            105
+ViolationTriggerDto.cs                                     40
+
+--- Analyzer Controllers ---
+AIBehavioralController.cs                                 247
+AISettingsController.cs                                   523
+AnalysisController.cs                                      55
+AnomalyController.cs                                       98
+AuthController.cs                                         208
+AzureAIController.cs                                      180
+ChatBotController.cs                                      103
+ClassificationController.cs                                59
+CollectorController.cs                                    179
+DatabaseController.cs                                     124
+DlpConfigurationController.cs                              97
+DLPTestController.cs                                     1490
+DomainFeaturesController.cs                               610
+EmailConfigurationController.cs                            71
+IncidentsController.cs                                    198
+LogsController.cs                                         203
+MercekController.cs                                       330
+PoliciesController.cs                                      66
+PolicyExceptionsController.cs                             138
+ReleasedIncidentsController.cs                            307
+RemediationController.cs                                   81
+ReportsController.cs                                      233
+RiskController.cs                                         639
+RiskTrendController.cs                                    240
+SettingsController.cs                                     311
+SplunkSettingsController.cs                               292
+UsersController.cs                                        230
+
+--- Analyzer Repos ---
+AIAnalysisRepository.cs                                    61
+IncidentRepository.cs                                     403
+UserDailyRiskScoreRepository.cs                           152
+
+--- Collector Services ---
+AnalyzerConfigClient.cs                                    95
+CollectorBackgroundService.cs                             629
+CollectorLogService.cs                                     69
+DLPCollectorService.cs                                    656
+DlpConfigurationSyncService.cs                            216
+DlpRuntimeConfigProvider.cs                                59
+ICollectorLogService.cs                                    14
+IDLPCollectorService.cs                                    14
+ManualCollectQueue.cs                                      25
+
+--- Program.cs ---
+DLP.RiskAnalyzer.Analyzer\Program.cs                       87
+DLP.RiskAnalyzer.Collector\Program.cs                      74
+
+--- Extensions ---
+ServiceCollectionExtensions.cs                            277
+WebApplicationExtensions.cs                               161

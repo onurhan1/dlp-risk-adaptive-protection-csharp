@@ -17,7 +17,7 @@ public class RedisStreamProcessor : IRedisStreamProcessor
 {
     private readonly AnalyzerDbContext _context;
     private readonly IConnectionMultiplexer _redis;
-    private readonly PolicyExceptionSyncService _policyExceptionSyncService;
+    private readonly IPolicyExceptionSyncService _policyExceptionSyncService;
     private readonly ILogger<RedisStreamProcessor> _logger;
     private readonly IIncidentRepository _incidentRepository;
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -25,7 +25,7 @@ public class RedisStreamProcessor : IRedisStreamProcessor
     public RedisStreamProcessor(
         AnalyzerDbContext context,
         IConnectionMultiplexer redis,
-        PolicyExceptionSyncService policyExceptionSyncService,
+        IPolicyExceptionSyncService policyExceptionSyncService,
         ILogger<RedisStreamProcessor> logger,
         IIncidentRepository incidentRepository)
     {
@@ -92,7 +92,7 @@ public class RedisStreamProcessor : IRedisStreamProcessor
                 phaseBatchCount++;
                 batchNumber++;
                 
-                var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, phase, count: batchSize);
+                var messages = await db.StreamReadGroupAsync(streamName, consumerGroup, consumerName, (RedisValue?)phase, (int?)batchSize, CommandFlags.None);
                 
                 if (messages.Length == 0)
                 {
@@ -145,10 +145,13 @@ public class RedisStreamProcessor : IRedisStreamProcessor
                 // Validation: ID zorunlu - yoksa veya 0 ise bir sorun var demektir
                 if (incidentId <= 0)
                 {
+                    System.IO.File.AppendAllText("test_debug.txt", $"Failed at ID check\n");
                     _logger.LogWarning("Skipping message {MessageId}: missing or invalid ID", message.Id);
                     await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id);
                     continue;
                 }
+                
+                System.IO.File.AppendAllText("test_debug.txt", $"Passed ID check: {incidentId}\n");
                 
                 // Timestamp zorunlu
                 if (timestampValue.Value.IsNull)
@@ -231,6 +234,8 @@ public class RedisStreamProcessor : IRedisStreamProcessor
 
                 // Check if incident already exists by ID (ID is unique in DLP API)
                 var existingIncident = await _incidentRepository.GetByIdAsync(incidentId);
+
+                System.IO.File.AppendAllText("test_debug.txt", $"Existing incident is null: {existingIncident == null}\n");
 
                 if (existingIncident == null)
                 {
@@ -388,7 +393,9 @@ public class RedisStreamProcessor : IRedisStreamProcessor
         // ── P-04: Flush pending inserts as a single batch ───────────────────────
         if (pendingInserts.Count > 0)
         {
+            System.IO.File.AppendAllText("test_debug.txt", $"BulkInsert: {pendingInserts.Count} inserts\n");
             var (saved, skipped) = await _incidentRepository.BulkInsertIncidentsAsync(pendingInserts);
+            System.IO.File.AppendAllText("test_debug.txt", $"Saved: {saved}, Skipped: {skipped}\n");
             processedCount += saved;
             skippedCount += skipped;
             

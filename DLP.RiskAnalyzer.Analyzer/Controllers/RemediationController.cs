@@ -7,10 +7,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/incidents")]
 public class RemediationController : ControllerBase
 {
-    private readonly RemediationService _remediationService;
+    private readonly IRemediationService _remediationService;
     private readonly ILogger<RemediationController> _logger;
 
-    public RemediationController(RemediationService remediationService, ILogger<RemediationController> logger)
+    public RemediationController(IRemediationService remediationService, ILogger<RemediationController> logger)
     {
         _remediationService = remediationService;
         _logger = logger;

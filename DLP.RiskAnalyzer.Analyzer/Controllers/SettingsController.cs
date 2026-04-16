@@ -11,10 +11,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class SettingsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
-    private readonly EmailService _emailService;
+    private readonly IEmailService _emailService;
     private readonly ILogger<SettingsController> _logger;
 
-    public SettingsController(AnalyzerDbContext context, EmailService emailService, ILogger<SettingsController> logger)
+    public SettingsController(AnalyzerDbContext context, IEmailService emailService, ILogger<SettingsController> logger)
     {
         _context = context;
         _emailService = emailService;

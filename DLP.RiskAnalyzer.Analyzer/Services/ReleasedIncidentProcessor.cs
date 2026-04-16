@@ -121,13 +121,13 @@ public class ReleasedIncidentProcessor : IReleasedIncidentProcessor
                     {
                         totalSkipped++;
                         _context.ChangeTracker.Clear();
-                        try { await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id); } catch { }
+                        try { await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id); } catch (Exception ackEx) { _logger.LogDebug(ackEx, "Redis ACK failed after DbUpdateException for message {MessageId}", message.Id); }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Error processing released incident message {MessageId}", message.Id);
                         _context.ChangeTracker.Clear();
-                        try { await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id); } catch { }
+                        try { await db.StreamAcknowledgeAsync(streamName, consumerGroup, message.Id); } catch (Exception ackEx) { _logger.LogDebug(ackEx, "Redis ACK failed after processing error for message {MessageId}", message.Id); }
                     }
                 }
             }

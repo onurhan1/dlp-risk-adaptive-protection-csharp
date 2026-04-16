@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class EmailConfigurationService
+public class EmailConfigurationService : IEmailConfigurationService
 {
     private const string HostKey = "email_smtp_host";
     private const string PortKey = "email_smtp_port";

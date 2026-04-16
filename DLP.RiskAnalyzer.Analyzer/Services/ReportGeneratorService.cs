@@ -6,9 +6,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 public class ReportGeneratorService : IReportGeneratorService
 {
-    private readonly RiskAnalyzerService _riskAnalyzerService;
+    private readonly IRiskAnalyzerService _riskAnalyzerService;
 
-    public ReportGeneratorService(RiskAnalyzerService riskAnalyzerService)
+    public ReportGeneratorService(IRiskAnalyzerService riskAnalyzerService)
     {
         _riskAnalyzerService = riskAnalyzerService;
     }

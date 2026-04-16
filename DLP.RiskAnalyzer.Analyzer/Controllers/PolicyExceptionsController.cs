@@ -14,12 +14,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class PolicyExceptionsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
-    private readonly PolicyExceptionSyncService _syncService;
+    private readonly IPolicyExceptionSyncService _syncService;
     private readonly ILogger<PolicyExceptionsController> _logger;
 
     public PolicyExceptionsController(
         AnalyzerDbContext context,
-        PolicyExceptionSyncService syncService,
+        IPolicyExceptionSyncService syncService,
         ILogger<PolicyExceptionsController> logger)
     {
         _context = context;
