@@ -35,7 +35,7 @@ namespace DLP.RiskAnalyzer.Tests.Services
             _service = new DashboardAnalyticsService(
                 _incidentRepoMock.Object,
                 _context,
-                null // assuming safe if methods under test don't use it
+                null! // assuming safe if methods under test don't use it
             );
         }
 

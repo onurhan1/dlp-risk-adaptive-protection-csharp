@@ -34,7 +34,7 @@ namespace DLP.RiskAnalyzer.Tests.Services
             // Mock DB context is not actually used in ProcessRedisStreamAsync, but we provide null directly 
             // since the constructor assigns it to a readonly field safely.
             _processor = new RedisStreamProcessor(
-                null,
+                null!,
                 _redisMock.Object,
                 _policySyncMock.Object,
                 _loggerMock.Object,
@@ -86,7 +86,7 @@ namespace DLP.RiskAnalyzer.Tests.Services
              .ReturnsAsync(Array.Empty<StreamEntry>())
              .ReturnsAsync(Array.Empty<StreamEntry>());
 
-            _incidentRepoMock.Setup(r => r.GetByIdAsync(12345)).ReturnsAsync((Incident)null); // Ensure it's treated as new
+            _incidentRepoMock.Setup(r => r.GetByIdAsync(12345)).ReturnsAsync((Incident?)null); // Ensure it's treated as new
 
             _incidentRepoMock.Setup(r => r.BulkInsertIncidentsAsync(It.IsAny<IEnumerable<Incident>>()))
                 .ReturnsAsync((1, 0)); // 1 saved, 0 skipped

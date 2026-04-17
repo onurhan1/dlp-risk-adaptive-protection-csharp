@@ -86,7 +86,7 @@ public partial class MainWindow : Window
         MainTabControl.SelectedIndex = 1;
     }
 
-    private async void UsersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void UsersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         // Load timeline for selected user
         // Implementation here

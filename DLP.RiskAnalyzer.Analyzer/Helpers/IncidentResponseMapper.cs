@@ -27,7 +27,7 @@ public static class IncidentResponseMapper
         {
             // ── Core fields ─────────────────────────────────────────────────
             Id                = incident.Id,
-            UserEmail         = GetValidUserIdentifier(incident.UserEmail, incident.EmailAddress, incident.FullName),
+            UserEmail         = GetValidUserIdentifier(incident.UserEmail, incident.EmailAddress, incident.FullName) ?? "unknown",
             Department        = incident.Department,
             Severity          = incident.Severity,
             DataType          = incident.DataType,

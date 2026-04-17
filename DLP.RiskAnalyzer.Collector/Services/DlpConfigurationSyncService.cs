@@ -162,7 +162,7 @@ public class DlpConfigurationSyncService : BackgroundService
 
         _logger.LogInformation("Subscribed to manual collect commands via Redis channel {Channel}", DlpConstants.ManualCollectChannel);
         }
-        catch (StackExchange.Redis.RedisConnectionException ex)
+        catch (StackExchange.Redis.RedisConnectionException)
         {
             // Re-throw to be caught by ExecuteAsync
             throw;

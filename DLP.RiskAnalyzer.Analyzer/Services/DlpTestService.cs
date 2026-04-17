@@ -27,7 +27,7 @@ public class DlpTestService : IDlpTestService
         _dlpConfigService = dlpConfigService;
     }
 
-    private async Task<HttpClient> CreateHttpClientAsync(DLP.RiskAnalyzer.Analyzer.Models.DlpApiSensitiveSettingsResponse config)
+    private Task<HttpClient> CreateHttpClientAsync(DLP.RiskAnalyzer.Analyzer.Models.DlpApiSensitiveSettingsResponse config)
     {
         try
         {
@@ -40,11 +40,11 @@ public class DlpTestService : IDlpTestService
                 ? $"https://{config.ManagerIp}:{config.ManagerPort}/"
                 : $"http://{config.ManagerIp}:{config.ManagerPort}/";
                 
-            return new HttpClient(handler)
+            return Task.FromResult(new HttpClient(handler)
             {
                 BaseAddress = new Uri(baseUrl),
                 Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds)
-            };
+            });
         }
         catch (Exception ex)
         {
@@ -55,11 +55,11 @@ public class DlpTestService : IDlpTestService
             var timeout = _configuration.GetValue<int>("DLP:Timeout", 30);
             var handler = new HttpClientHandler { ServerCertificateCustomValidationCallback = (m, c, ch, e) => true };
             var baseUrl = useHttps ? $"https://{dlpIp}:{dlpPort}/" : $"http://{dlpIp}:{dlpPort}/";
-            return new HttpClient(handler)
+            return Task.FromResult(new HttpClient(handler)
             {
                 BaseAddress = new Uri(baseUrl),
                 Timeout = TimeSpan.FromSeconds(timeout)
-            };
+            });
         }
     }
 
@@ -97,7 +97,7 @@ public class DlpTestService : IDlpTestService
         Func<string, object>? successParser = null,
         Func<HttpResponseMessage, string, object>? errorBuilder = null)
     {
-        HttpClient httpClient = null;
+        HttpClient? httpClient = null;
         try
         {
             var config = await _dlpConfigService.GetSensitiveConfigAsync();
@@ -136,7 +136,7 @@ public class DlpTestService : IDlpTestService
             }
 
             object parsedContent = responseContent;
-            try { parsedContent = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent); } catch { }
+            try { parsedContent = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent) ?? (object)responseContent; } catch { }
 
             var finalSuccess = successParser != null ? successParser(responseContent) : new
             {
@@ -156,7 +156,7 @@ public class DlpTestService : IDlpTestService
 
     public async Task<DlpTestResult> TestAuthenticationAsync()
     {
-        HttpClient httpClient = null;
+        HttpClient? httpClient = null;
         try
         {
             var config = await _dlpConfigService.GetSensitiveConfigAsync();
@@ -183,7 +183,7 @@ public class DlpTestService : IDlpTestService
 
     public async Task<DlpTestResult> TestConnectionAsync()
     {
-        HttpClient httpClient = null;
+        HttpClient? httpClient = null;
         try
         {
             var config = await _dlpConfigService.GetSensitiveConfigAsync();

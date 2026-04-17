@@ -32,7 +32,7 @@ public class CollectorBackgroundService : BackgroundService
     private readonly int _pageSize;
     private DateTime _lastDailyRun = DateTime.MinValue;
     private DateTime _lastRegularRun = DateTime.MinValue;
-    private bool _isAutoCollecting = false;
+
 
     private readonly IDLPCollectorService _collectorService;
     private readonly ICollectorLogService _logService;
@@ -98,11 +98,9 @@ public class CollectorBackgroundService : BackgroundService
                 // Check for regular run (every 6 hours)
                 if (ShouldRunRegular(now))
                 {
-                    _isAutoCollecting = true;
                     _logger.LogInformation("=== REGULAR COLLECTION TRIGGERED ({LookbackHours}h lookback) ===", _regularLookbackHours);
                     await CollectIncidentsAsync(_regularLookbackHours, "Regular", stoppingToken);
                     _lastRegularRun = now;
-                    _isAutoCollecting = false;
                 }
                 
                 // Check for manual collection in queue
