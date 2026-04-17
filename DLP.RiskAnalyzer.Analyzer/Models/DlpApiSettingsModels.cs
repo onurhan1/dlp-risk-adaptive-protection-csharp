@@ -2,11 +2,22 @@ namespace DLP.RiskAnalyzer.Analyzer.Models;
 
 public class DlpApiSettingsRequest
 {
+    [System.Text.Json.Serialization.JsonPropertyName("manager_ip")]
     public string ManagerIp { get; set; } = string.Empty;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("manager_port")]
     public int ManagerPort { get; set; } = 8443;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("use_https")]
     public bool UseHttps { get; set; } = true;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("timeout_seconds")]
     public int TimeoutSeconds { get; set; } = 30;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("username")]
     public string Username { get; set; } = string.Empty;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("password")]
     public string? Password { get; set; }
 }
 
