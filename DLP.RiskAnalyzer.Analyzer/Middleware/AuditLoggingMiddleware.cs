@@ -16,7 +16,7 @@ public class AuditLoggingMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, AuditLogService auditLogService)
+    public async Task InvokeAsync(HttpContext context, IAuditLogService auditLogService)
     {
         var stopwatch = Stopwatch.StartNew();
         var path = context.Request.Path.Value ?? "";

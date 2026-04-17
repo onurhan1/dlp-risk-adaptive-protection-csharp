@@ -67,7 +67,7 @@ public class AnalyzerBackgroundService : BackgroundService
             {
                 using (var scope = _serviceProvider.CreateScope())
                 {
-                    var dbService = scope.ServiceProvider.GetRequiredService<DatabaseService>();
+                    var dbService = scope.ServiceProvider.GetRequiredService<IDatabaseService>();
                     var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<IRiskAnalyzerService>();
                     var scoringService = scope.ServiceProvider.GetRequiredService<IRiskScoringService>();
 
