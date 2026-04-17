@@ -76,7 +76,7 @@ public class AnalyzerBackgroundService : BackgroundService
                     {
                         try
                         {
-                            var syncService = scope.ServiceProvider.GetRequiredService<PolicyExceptionSyncService>();
+                            var syncService = scope.ServiceProvider.GetRequiredService<IPolicyExceptionSyncService>();
                             var syncedCount = await syncService.SyncAsync();
                             _lastExceptionSync = DateTime.UtcNow;
                             _logger.LogInformation("Policy exception sync completed: {Count} exceptions synced", syncedCount);
