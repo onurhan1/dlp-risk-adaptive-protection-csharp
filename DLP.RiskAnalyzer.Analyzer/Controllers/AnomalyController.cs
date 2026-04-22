@@ -11,12 +11,12 @@ public class AnomalyController : ControllerBase
 {
     private readonly AnomalyDetector _anomalyDetector;
     private readonly AnalyzerDbContext _context;
-    private readonly DatabaseService _dbService;
+    private readonly IDatabaseService _dbService;
 
     public AnomalyController(
         AnomalyDetector anomalyDetector,
         AnalyzerDbContext context,
-        DatabaseService dbService)
+        IDatabaseService dbService)
     {
         _anomalyDetector = anomalyDetector;
         _context = context;

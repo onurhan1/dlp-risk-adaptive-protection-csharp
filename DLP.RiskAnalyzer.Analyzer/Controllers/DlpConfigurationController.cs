@@ -87,6 +87,11 @@ public class DlpConfigurationController : ControllerBase
             var sensitive = await _configurationService.GetSensitiveConfigAsync(cancellationToken);
             return Ok(sensitive);
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogInformation("DLP API settings are not yet configured.");
+            return NotFound(new { detail = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve sensitive DLP settings");

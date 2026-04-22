@@ -13,13 +13,13 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/[controller]")]
 public class IncidentsController : ControllerBase
 {
-    private readonly DatabaseService _dbService;
+    private readonly IDatabaseService _dbService;
     private readonly DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer _riskAnalyzer;
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<IncidentsController> _logger;
 
     public IncidentsController(
-        DatabaseService dbService,
+        IDatabaseService dbService,
         DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer,
         AnalyzerDbContext context,
         ILogger<IncidentsController> logger)

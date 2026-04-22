@@ -201,14 +201,14 @@ public class DlpConfigurationService : IDlpConfigurationService
         // If ManagerIp is "localhost" and Username is empty, it means settings are not configured
         if (response.ManagerIp == "localhost" && string.IsNullOrWhiteSpace(response.Username))
         {
-            _logger.LogWarning("DLP API settings are not configured in database. Please configure via Settings page.");
+            _logger.LogInformation("DLP API settings are not configured in database. Please configure via Settings page.");
             throw new InvalidOperationException("DLP API settings are not configured. Please configure via Settings page in the dashboard.");
         }
         
         // If password is not set, throw exception
         if (!response.PasswordSet)
         {
-            _logger.LogWarning("DLP API password is not configured in database. Please configure via Settings page.");
+            _logger.LogInformation("DLP API password is not configured in database. Please configure via Settings page.");
             throw new InvalidOperationException("DLP API password is not configured. Please configure via Settings page in the dashboard.");
         }
         

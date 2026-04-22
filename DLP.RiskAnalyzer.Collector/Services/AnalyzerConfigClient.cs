@@ -38,6 +38,12 @@ public class AnalyzerConfigClient
             var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.LogInformation("DLP configuration is not yet set up on the Analyzer.");
+                    return null;
+                }
+
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("Failed to fetch DLP config from Analyzer API. Status: {Status}, Body: {Body}",
                     response.StatusCode, body);
