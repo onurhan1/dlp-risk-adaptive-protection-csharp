@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
@@ -401,12 +401,12 @@ export default function SettingsPage() {
           password_set: true,
           last_updated: response.data.settings.updatedAt ?? new Date().toISOString()
         }))
-        setDlpMessage({ type: 'success', text: 'DLP API ayarlarÄ± kaydedildi' })
+        setDlpMessage({ type: 'success', text: 'DLP API ayarları kaydedildi' })
       } else {
         throw new Error(response.data?.detail || 'Ayarlar kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarlarÄ± kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarları kaydedilemedi'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpSaving(false)
@@ -424,9 +424,9 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setDlpMessage({ type: 'success', text: response.data?.message || 'BaÄŸlantÄ± baÅŸarÄ±lÄ±' })
+      setDlpMessage({ type: 'success', text: response.data?.message || 'Bağlantı başarılı' })
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'BaÄŸlantÄ± testi baÅŸarÄ±sÄ±z'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Bağlantı testi başarısız'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpTesting(false)
@@ -473,12 +473,12 @@ export default function SettingsPage() {
           last_updated: saved.updatedAt ?? new Date().toISOString()
         })
         setEmailConfigured(saved.isConfigured ?? false)
-        setEmailMessage({ type: 'success', text: 'SMTP ayarlarÄ± kaydedildi' })
+        setEmailMessage({ type: 'success', text: 'SMTP ayarları kaydedildi' })
       } else {
-        throw new Error(response.data?.detail || 'SMTP ayarlarÄ± kaydedilemedi')
+        throw new Error(response.data?.detail || 'SMTP ayarları kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarlarÄ± kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarları kaydedilemedi'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailSaving(false)
@@ -499,9 +499,9 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±' })
+      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP bağlantısı başarılı' })
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi baÅŸarÄ±sÄ±z'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi başarısız'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailTesting(false)
@@ -683,7 +683,7 @@ export default function SettingsPage() {
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
                   <input type="checkbox" checked={showEmailPassword} onChange={(e) => setShowEmailPassword(e.target.checked)} />
-                  Åifreyi gÃ¶ster
+                  Şifreyi göster
                 </label>
               </div>
               <div>
@@ -719,7 +719,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-              {emailSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+              {emailSettings.last_updated ? `Son güncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
             </div>
             <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button
@@ -880,12 +880,12 @@ export default function SettingsPage() {
                 </div>
                 {emailConfigured === false && (
                   <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
-                    âš ï¸ Email service is not configured. Please configure SMTP settings below.
+                    ⚠️ Email service is not configured. Please configure SMTP settings below.
                   </p>
                 )}
                 {emailConfigured === true && (
                   <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', marginBottom: 0 }}>
-                    âœ“ Email service is configured and ready
+                    ✓ Email service is configured and ready
                   </p>
                 )}
               </div>
@@ -1206,7 +1206,7 @@ export default function SettingsPage() {
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
                   <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
-                  Åifreyi gÃ¶ster
+                  Şifreyi göster
                 </label>
               </div>
               <div>
@@ -1222,7 +1222,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-              {dlpSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+              {dlpSettings.last_updated ? `Son güncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'Henüz yapılandırılmadı'}
             </div>
             <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button

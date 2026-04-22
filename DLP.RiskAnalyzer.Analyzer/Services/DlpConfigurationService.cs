@@ -137,7 +137,12 @@ public class DlpConfigurationService : IDlpConfigurationService
         var effectiveConfig = await BuildEffectiveConfigAsync(request, cancellationToken);
         if (string.IsNullOrWhiteSpace(effectiveConfig.Password))
         {
-            throw new InvalidOperationException("Password is required to test the DLP API connection.");
+            return new DlpApiTestResult 
+            { 
+                Success = false, 
+                Message = "Password is required to test the DLP API connection.", 
+                TestedAt = DateTime.UtcNow 
+            };
         }
 
         var result = new DlpApiTestResult { TestedAt = DateTime.UtcNow };
