@@ -75,7 +75,7 @@ public class AIBehavioralController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting AI behavioral overview");
-            return StatusCode(500, new { detail = "Failed to get AI behavioral overview" });
+            return StatusCode(500, new { detail = $"Failed to get AI behavioral overview: {ex.Message} - {ex.InnerException?.Message}" });
         }
     }
 
