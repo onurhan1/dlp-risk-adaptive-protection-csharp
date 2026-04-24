@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [username, setUsername] = useState<string | null>(null)
   const [role, setRole] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -42,16 +43,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(storedRole)
         setIsAuthenticated(true)
       }
+      setMounted(true)
     }
   }, [])
 
   useEffect(() => {
-    // Protect routes except login page
+    // Don't redirect until auth state has been read from localStorage
+    if (!mounted) return
+
     if (typeof window !== 'undefined') {
       if (pathname !== '/login') {
         const storedToken = localStorage.getItem('authToken')
         const storedRole = localStorage.getItem('userRole')
-        
+
         if (!storedToken) {
           router.push('/login')
           return
@@ -69,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 100)
       }
     }
-  }, [pathname, isAuthenticated, router])
+  }, [pathname, isAuthenticated, router, mounted])
 
   const login = (newToken: string, newUsername: string, newRole: string) => {
     if (typeof window !== 'undefined') {
