@@ -48,6 +48,7 @@ export default function AIBehavioralPage() {
   const [selectedEntity, setSelectedEntity] = useState<AIBehavioralAnalysis | null>(null)
   const [lookbackDays, setLookbackDays] = useState(30)
   const [analyzing, setAnalyzing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<EntityTab>('users')
   const [filterText, setFilterText] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -80,6 +81,7 @@ export default function AIBehavioralPage() {
 
   const fetchOverview = async (forceRefresh: boolean = false) => {
     setLoading(true)
+    setError(null)
     try {
       const overviewRes = await apiClient.get('/api/ai-behavioral/overview', {
         params: { lookbackDays, forceRefresh }
@@ -89,7 +91,6 @@ export default function AIBehavioralPage() {
       // Fetch Azure AI data separately to not block main data if it fails
       try {
         const azureAIRes = await apiClient.get('/api/azure-ai/users-with-analysis')
-        // Build a map of user email -> Azure AI average score
         const azureMap = new Map<string, number>()
         if (azureAIRes.data?.users) {
           azureAIRes.data.users.forEach((u: any) => {
@@ -102,6 +103,11 @@ export default function AIBehavioralPage() {
       }
     } catch (error: any) {
       console.error('Error fetching AI behavioral overview:', error)
+      const msg = error?.response?.data?.detail
+        || error?.response?.data?.message
+        || error?.message
+        || 'AI Behavioral Analysis servisi yanıt vermiyor'
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -228,6 +234,49 @@ export default function AIBehavioralPage() {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
         <LoadingOverlay isLoading={loading} message="AI Behavioral Analysis yükleniyor" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        minHeight: '60vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px',
+        padding: '40px'
+      }}>
+        <div style={{
+          width: '56px', height: '56px', borderRadius: '16px',
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px'
+        }}>⚠️</div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>
+            AI Behavioral Analysis yüklenemedi
+          </div>
+          <div style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '480px' }}>
+            {error}
+          </div>
+        </div>
+        <button
+          onClick={() => fetchOverview()}
+          style={{
+            padding: '10px 24px',
+            background: 'var(--primary)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '14px'
+          }}
+        >
+          Tekrar Dene
+        </button>
       </div>
     )
   }
