@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
+import { Settings, Users, Bot, ClipboardList } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -154,15 +155,16 @@ export default function SettingsPage() {
       const apiUrl = getApiUrlDynamic()
       const response = await axios.get(`${apiUrl}/api/settings/dlp`)
       const data = response.data
+      // API uses SnakeCaseLower policy → all keys are snake_case
       setDlpSettings({
-        manager_ip: data.managerIp ?? '',
-        manager_port: Number(data.managerPort) || 8443,
-        use_https: data.useHttps ?? true,
-        timeout_seconds: Number(data.timeoutSeconds) || 30,
+        manager_ip: data.manager_ip ?? '',
+        manager_port: Number(data.manager_port) || 8443,
+        use_https: data.use_https ?? true,
+        timeout_seconds: Number(data.timeout_seconds) || 30,
         username: data.username ?? '',
         password: '',
-        password_set: data.passwordSet ?? false,
-        last_updated: data.updatedAt ?? null
+        password_set: data.password_set ?? false,
+        last_updated: data.updated_at ?? null
       })
     } catch (error) {
       console.error('Error fetching DLP settings:', error)
@@ -368,11 +370,12 @@ export default function SettingsPage() {
 
   const buildDlpPayload = () => {
     const trimmedPassword = dlpSettings.password?.trim()
+    // API uses SnakeCaseLower policy → must send snake_case keys
     return {
-      managerIp: dlpSettings.manager_ip,
-      managerPort: dlpSettings.manager_port,
-      useHttps: dlpSettings.use_https,
-      timeoutSeconds: dlpSettings.timeout_seconds,
+      manager_ip: dlpSettings.manager_ip,
+      manager_port: dlpSettings.manager_port,
+      use_https: dlpSettings.use_https,
+      timeout_seconds: dlpSettings.timeout_seconds,
       username: dlpSettings.username,
       password: trimmedPassword ? trimmedPassword : undefined
     }
@@ -390,16 +393,17 @@ export default function SettingsPage() {
       })
 
       if (response.data?.success) {
+        // API uses SnakeCaseLower policy → response keys are snake_case
         setDlpSettings((prev) => ({
           ...prev,
-          manager_ip: response.data.settings.managerIp ?? prev.manager_ip,
-          manager_port: Number(response.data.settings.managerPort) || prev.manager_port,
-          use_https: response.data.settings.useHttps ?? prev.use_https,
-          timeout_seconds: Number(response.data.settings.timeoutSeconds) || prev.timeout_seconds,
+          manager_ip: response.data.settings.manager_ip ?? prev.manager_ip,
+          manager_port: Number(response.data.settings.manager_port) || prev.manager_port,
+          use_https: response.data.settings.use_https ?? prev.use_https,
+          timeout_seconds: Number(response.data.settings.timeout_seconds) || prev.timeout_seconds,
           username: response.data.settings.username ?? prev.username,
           password: '',
           password_set: true,
-          last_updated: response.data.settings.updatedAt ?? new Date().toISOString()
+          last_updated: response.data.settings.updated_at ?? new Date().toISOString()
         }))
         setDlpMessage({ type: 'success', text: 'DLP API ayarları kaydedildi' })
       } else {
@@ -424,7 +428,13 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setDlpMessage({ type: 'success', text: response.data?.message || 'Bağlantı başarılı' })
+      const data = response.data
+      if (data?.success) {
+        const latency = data.latency_ms ? ` (${data.latency_ms}ms)` : ''
+        setDlpMessage({ type: 'success', text: data.message || `Bağlantı başarılı${latency}` })
+      } else {
+        setDlpMessage({ type: 'error', text: data?.message || 'Bağlantı testi başarısız' })
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Bağlantı testi başarısız'
       setDlpMessage({ type: 'error', text: errorMessage })
@@ -567,32 +577,41 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid var(--border)', paddingBottom: '2px' }}>
-        {[
-          { id: 'general' as SettingsTab, label: 'âš™ï¸ General', icon: '' },
-          { id: 'users' as SettingsTab, label: 'ğŸ‘¤ Users', icon: '' },
-          { id: 'ai' as SettingsTab, label: 'ğŸ¤– AI Settings', icon: '' },
-          { id: 'logs' as SettingsTab, label: 'ğŸ“‹ Logs', icon: '' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '12px 24px',
-              background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
-              color: activeTab === tab.id ? 'white' : 'var(--text-primary)',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '14px',
-              transition: 'all 0.2s',
-              borderRadius: '6px 6px 0 0'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '2px solid var(--border)', paddingBottom: '0' }}>
+        {([
+          { id: 'general' as SettingsTab, label: 'General',     Icon: Settings },
+          { id: 'users'   as SettingsTab, label: 'Users',       Icon: Users },
+          { id: 'ai'      as SettingsTab, label: 'AI Settings', Icon: Bot },
+          { id: 'logs'    as SettingsTab, label: 'Logs',        Icon: ClipboardList }
+        ] as const).map(({ id, label, Icon }) => {
+          const isActive = activeTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: isActive ? 'rgba(var(--primary-rgb, 59 130 246) / 0.1)' : 'transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                border: 'none',
+                borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
+                marginBottom: '-2px',
+                cursor: 'pointer',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '14px',
+                transition: 'all 0.2s',
+                borderRadius: '6px 6px 0 0',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Users Tab */}
