@@ -9,7 +9,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/ai-behavioral")]
 public class AIBehavioralController : ControllerBase
 {
-    private readonly BehaviorEngineService _behaviorEngine;
+    private readonly IBehaviorEngineService _behaviorEngine;
     private readonly ILogger<AIBehavioralController> _logger;
     private readonly IMemoryCache _cache;
     
@@ -18,7 +18,7 @@ public class AIBehavioralController : ControllerBase
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
 
     public AIBehavioralController(
-        BehaviorEngineService behaviorEngine,
+        IBehaviorEngineService behaviorEngine,
         ILogger<AIBehavioralController> logger,
         IMemoryCache cache)
     {
