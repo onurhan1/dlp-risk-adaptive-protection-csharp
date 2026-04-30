@@ -16,6 +16,8 @@ import {
   Globe,
   FileText as FileTextIcon,
   ListChecks,
+  Pin,
+  RotateCcw
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -138,7 +140,7 @@ export default function Sidebar() {
                     className={`sidebar-subitem ${pathname === '/exceptions/exception-list/permanent' ? 'active' : ''}`}
                     style={{ paddingLeft: '48px', fontSize: '13px' }}
                   >
-                    <span style={{ width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>📌</span>
+                    <Pin size={16} />
                     <span>{t('nav.permanentExceptions')}</span>
                   </Link>
                   <Link
@@ -146,7 +148,7 @@ export default function Sidebar() {
                     className={`sidebar-subitem ${pathname === '/exceptions/exception-list/removal' ? 'active' : ''}`}
                     style={{ paddingLeft: '48px', fontSize: '13px' }}
                   >
-                    <span style={{ width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🔄</span>
+                    <RotateCcw size={16} />
                     <span>{t('nav.exceptionRemovals')}</span>
                   </Link>
                 </div>
