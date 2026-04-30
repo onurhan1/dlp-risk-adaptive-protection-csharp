@@ -9,12 +9,12 @@ interface ExceptionRemoval {
   id: number
   team: string
   rule: string
-  exceptionName: string
+  exception_name: string
   status: string
-  usageCount: number
-  removalReason: string
-  actionDate: string
-  changeNo: string
+  usage_count: number
+  removal_reason: string
+  action_date: string
+  change_no: string
 }
 
 export default function ExceptionRemovalsPage() {
@@ -38,8 +38,8 @@ export default function ExceptionRemovalsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<ExceptionRemoval | null>(null)
   const [formData, setFormData] = useState({
-    team: '', rule: '', exceptionName: '', status: 'Aktif',
-    usageCount: 0, removalReason: '', actionDate: '', changeNo: ''
+    team: '', rule: '', exception_name: '', status: 'Aktif',
+    usage_count: 0, removal_reason: '', action_date: '', change_no: ''
   })
 
   useEffect(() => {
@@ -98,18 +98,18 @@ export default function ExceptionRemovalsPage() {
       setFormData({
         team: item.team || '',
         rule: item.rule || '',
-        exceptionName: item.exceptionName || '',
+        exception_name: item.exception_name || '',
         status: item.status || 'Aktif',
-        usageCount: item.usageCount || 0,
-        removalReason: item.removalReason || '',
-        actionDate: item.actionDate ? item.actionDate.split('T')[0] : '',
-        changeNo: item.changeNo || ''
+        usage_count: item.usage_count || 0,
+        removal_reason: item.removal_reason || '',
+        action_date: item.action_date ? item.action_date.split('T')[0] : '',
+        change_no: item.change_no || ''
       })
     } else {
       setEditingItem(null)
       setFormData({
-        team: '', rule: '', exceptionName: '', status: 'Aktif',
-        usageCount: 0, removalReason: '', actionDate: '', changeNo: ''
+        team: '', rule: '', exception_name: '', status: 'Aktif',
+        usage_count: 0, removal_reason: '', action_date: '', change_no: ''
       })
     }
     setShowModal(true)
@@ -118,14 +118,21 @@ export default function ExceptionRemovalsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.exceptionName) {
+    if (!formData.exception_name) {
       setError('İstisna Adı zorunludur')
       return
     }
 
     try {
       const payload = {
-        ...formData,
+        team: formData.team,
+        rule: formData.rule,
+        exceptionName: formData.exception_name,
+        status: formData.status,
+        usageCount: formData.usage_count,
+        removalReason: formData.removal_reason,
+        actionDate: formData.action_date,
+        changeNo: formData.change_no,
         createdBy: username
       }
 
@@ -248,7 +255,7 @@ export default function ExceptionRemovalsPage() {
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px' }}>{item.team || '-'}</td>
                     <td style={{ padding: '12px' }}>{item.rule || '-'}</td>
-                    <td style={{ padding: '12px', fontWeight: 500 }}>{item.exceptionName}</td>
+                    <td style={{ padding: '12px', fontWeight: 500 }}>{item.exception_name}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ 
                         padding: '4px 8px', 
@@ -263,14 +270,14 @@ export default function ExceptionRemovalsPage() {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <span style={{ background: 'var(--background)', padding: '2px 8px', borderRadius: '12px' }}>
-                        {item.usageCount}
+                        {item.usage_count}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.removalReason}>
-                      {item.removalReason || '-'}
+                    <td style={{ padding: '12px', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.removal_reason}>
+                      {item.removal_reason || '-'}
                     </td>
-                    <td style={{ padding: '12px' }}>{formatDate(item.actionDate)}</td>
-                    <td style={{ padding: '12px' }}>{item.changeNo || '-'}</td>
+                    <td style={{ padding: '12px' }}>{formatDate(item.action_date)}</td>
+                    <td style={{ padding: '12px' }}>{item.change_no || '-'}</td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button onClick={() => openModal(item)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}>
@@ -325,7 +332,7 @@ export default function ExceptionRemovalsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>İstisna Adı *</label>
-                  <input required value={formData.exceptionName} onChange={e => setFormData({...formData, exceptionName: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                  <input required value={formData.exception_name} onChange={e => setFormData({...formData, exception_name: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                 </div>
                 
                 <div>
@@ -348,23 +355,23 @@ export default function ExceptionRemovalsPage() {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kullanım Sayısı</label>
-                    <input type="number" min="0" value={formData.usageCount} onChange={e => setFormData({...formData, usageCount: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                    <input type="number" min="0" value={formData.usage_count} onChange={e => setFormData({...formData, usage_count: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kaldırılma Nedeni</label>
-                  <textarea value={formData.removalReason} onChange={e => setFormData({...formData, removalReason: e.target.value})} rows={2} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px', resize: 'vertical' }} />
+                  <textarea value={formData.removal_reason} onChange={e => setFormData({...formData, removal_reason: e.target.value})} rows={2} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px', resize: 'vertical' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Tarih</label>
-                    <input type="date" value={formData.actionDate} onChange={e => setFormData({...formData, actionDate: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                    <input type="date" value={formData.action_date} onChange={e => setFormData({...formData, action_date: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Change No</label>
-                    <input value={formData.changeNo} onChange={e => setFormData({...formData, changeNo: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
+                    <input value={formData.change_no} onChange={e => setFormData({...formData, change_no: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                 </div>
               </div>

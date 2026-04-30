@@ -7,15 +7,15 @@ import { useAuth } from '@/components/AuthProvider'
 
 interface PermanentException {
   id: number
-  exceptionName: string
-  exceptionDomain: string
+  exception_name: string
+  exception_domain: string
   team: string
   policies: string
   rules: string
   channel: string
   duration: string
-  actionDate: string
-  changeNo: string
+  action_date: string
+  change_no: string
 }
 
 export default function PermanentExceptionsPage() {
@@ -38,8 +38,8 @@ export default function PermanentExceptionsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingItem, setEditingItem] = useState<PermanentException | null>(null)
   const [formData, setFormData] = useState({
-    exceptionName: '', exceptionDomain: '', team: '', policies: '',
-    rules: '', channel: '', duration: '', actionDate: '', changeNo: ''
+    exception_name: '', exception_domain: '', team: '', policies: '',
+    rules: '', channel: '', duration: '', action_date: '', change_no: ''
   })
 
   useEffect(() => {
@@ -96,21 +96,21 @@ export default function PermanentExceptionsPage() {
     if (item) {
       setEditingItem(item)
       setFormData({
-        exceptionName: item.exceptionName || '',
-        exceptionDomain: item.exceptionDomain || '',
+        exception_name: item.exception_name || '',
+        exception_domain: item.exception_domain || '',
         team: item.team || '',
         policies: item.policies || '',
         rules: item.rules || '',
         channel: item.channel || '',
         duration: item.duration || '',
-        actionDate: item.actionDate ? item.actionDate.split('T')[0] : '',
-        changeNo: item.changeNo || ''
+        action_date: item.action_date ? item.action_date.split('T')[0] : '',
+        change_no: item.change_no || ''
       })
     } else {
       setEditingItem(null)
       setFormData({
-        exceptionName: '', exceptionDomain: '', team: '', policies: '',
-        rules: '', channel: '', duration: '', actionDate: '', changeNo: ''
+        exception_name: '', exception_domain: '', team: '', policies: '',
+        rules: '', channel: '', duration: '', action_date: '', change_no: ''
       })
     }
     setShowModal(true)
@@ -119,14 +119,22 @@ export default function PermanentExceptionsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.exceptionName) {
+    if (!formData.exception_name) {
       setError('İstisna Adı zorunludur')
       return
     }
 
     try {
       const payload = {
-        ...formData,
+        exceptionName: formData.exception_name,
+        exceptionDomain: formData.exception_domain,
+        team: formData.team,
+        policies: formData.policies,
+        rules: formData.rules,
+        channel: formData.channel,
+        duration: formData.duration,
+        actionDate: formData.action_date,
+        changeNo: formData.change_no,
         createdBy: username
       }
 
@@ -278,8 +286,8 @@ export default function PermanentExceptionsPage() {
               ) : (
                 exceptions.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px', fontWeight: 500 }}>{item.exceptionName}</td>
-                    <td style={{ padding: '12px' }}>{item.exceptionDomain || '-'}</td>
+                    <td style={{ padding: '12px', fontWeight: 500 }}>{item.exception_name}</td>
+                    <td style={{ padding: '12px' }}>{item.exception_domain || '-'}</td>
                     <td style={{ padding: '12px' }}>{item.team || '-'}</td>
                     <td style={{ padding: '12px', maxWidth: '250px' }}>
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.policies}>
@@ -295,8 +303,8 @@ export default function PermanentExceptionsPage() {
                       </span>
                     </td>
                     <td style={{ padding: '12px' }}>{item.duration || '-'}</td>
-                    <td style={{ padding: '12px' }}>{formatDate(item.actionDate)}</td>
-                    <td style={{ padding: '12px' }}>{item.changeNo || '-'}</td>
+                    <td style={{ padding: '12px' }}>{formatDate(item.action_date)}</td>
+                    <td style={{ padding: '12px' }}>{item.change_no || '-'}</td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button onClick={() => openModal(item)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}>
@@ -357,8 +365,8 @@ export default function PermanentExceptionsPage() {
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>İstisna Adı *</label>
                   <input
                     required
-                    value={formData.exceptionName}
-                    onChange={e => setFormData({...formData, exceptionName: e.target.value})}
+                    value={formData.exception_name}
+                    onChange={e => setFormData({...formData, exception_name: e.target.value})}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}
                   />
                 </div>
@@ -366,8 +374,8 @@ export default function PermanentExceptionsPage() {
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Domain</label>
                   <input
-                    value={formData.exceptionDomain}
-                    onChange={e => setFormData({...formData, exceptionDomain: e.target.value})}
+                    value={formData.exception_domain}
+                    onChange={e => setFormData({...formData, exception_domain: e.target.value})}
                     placeholder="örn: cisco.com, gmail.com"
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}
                   />
@@ -426,8 +434,8 @@ export default function PermanentExceptionsPage() {
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Tarih</label>
                   <input
                     type="date"
-                    value={formData.actionDate}
-                    onChange={e => setFormData({...formData, actionDate: e.target.value})}
+                    value={formData.action_date}
+                    onChange={e => setFormData({...formData, action_date: e.target.value})}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}
                   />
                 </div>
@@ -435,8 +443,8 @@ export default function PermanentExceptionsPage() {
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Change No</label>
                   <input
-                    value={formData.changeNo}
-                    onChange={e => setFormData({...formData, changeNo: e.target.value})}
+                    value={formData.change_no}
+                    onChange={e => setFormData({...formData, change_no: e.target.value})}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}
                   />
                 </div>
