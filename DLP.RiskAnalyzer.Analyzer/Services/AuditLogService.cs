@@ -57,6 +57,25 @@ public class AuditLogService : IAuditLogService
             };
 
             _context.AuditLogs.Add(auditLog);
+
+            // Mirror to User Activity Logs for UI visibility
+            if (!string.IsNullOrEmpty(userName) && userName != "System")
+            {
+                var activityLog = new UserActivityLog
+                {
+                    Timestamp = DateTime.UtcNow,
+                    UserName = userName,
+                    AuthSource = "Local",
+                    ActivityType = eventType,
+                    ActionDetail = action,
+                    PagePath = resource,
+                    PageTitle = "System Action",
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent
+                };
+                _context.UserActivityLogs.Add(activityLog);
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             // Send to Splunk if enabled
