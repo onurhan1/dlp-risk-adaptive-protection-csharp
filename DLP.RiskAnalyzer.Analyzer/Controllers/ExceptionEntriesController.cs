@@ -467,18 +467,17 @@ public class ExceptionEntriesController : ControllerBase
         using var reader = new System.IO.StreamReader(entry.Open());
         var xml = reader.ReadToEnd();
 
-        // Simple XML parsing for <t> elements
-        var startTag = "<t";
-        var endTag = "</t>";
-        int pos = 0;
-        while ((pos = xml.IndexOf(startTag, pos, StringComparison.Ordinal)) >= 0)
+        var siMatches = System.Text.RegularExpressions.Regex.Matches(xml, @"<si.*?>(.*?)</si>", System.Text.RegularExpressions.RegexOptions.Singleline);
+        foreach (System.Text.RegularExpressions.Match match in siMatches)
         {
-            var tagEnd = xml.IndexOf('>', pos);
-            if (tagEnd < 0) break;
-            var closePos = xml.IndexOf(endTag, tagEnd, StringComparison.Ordinal);
-            if (closePos < 0) break;
-            strings.Add(System.Net.WebUtility.HtmlDecode(xml.Substring(tagEnd + 1, closePos - tagEnd - 1)));
-            pos = closePos + endTag.Length;
+            var siContent = match.Groups[1].Value;
+            var tMatches = System.Text.RegularExpressions.Regex.Matches(siContent, @"<t[^>]*>(.*?)</t>");
+            var str = "";
+            foreach (System.Text.RegularExpressions.Match t in tMatches)
+            {
+                str += t.Groups[1].Value;
+            }
+            strings.Add(System.Net.WebUtility.HtmlDecode(str));
         }
 
         return strings;
@@ -529,14 +528,32 @@ public class ExceptionEntriesController : ControllerBase
                 // Extract r attribute (cell reference like A1, B2)
                 var rMatch = System.Text.RegularExpressions.Regex.Match(cellXml, @"r=""([A-Z]+)\d+""");
                 var tMatch = System.Text.RegularExpressions.Regex.Match(cellXml, @"t=""(\w+)""");
-                var vMatch = System.Text.RegularExpressions.Regex.Match(cellXml, @"<v>(.*?)</v>");
+                
+                string cellValue = "";
+                bool hasValue = false;
 
-                if (rMatch.Success && vMatch.Success)
+                var vMatch = System.Text.RegularExpressions.Regex.Match(cellXml, @"<v>(.*?)</v>");
+                if (vMatch.Success) 
+                {
+                    cellValue = vMatch.Groups[1].Value;
+                    hasValue = true;
+                } 
+                else 
+                {
+                    var isMatch = System.Text.RegularExpressions.Regex.Match(cellXml, @"<t[^>]*>(.*?)</t>");
+                    if (isMatch.Success) 
+                    {
+                        cellValue = isMatch.Groups[1].Value;
+                        hasValue = true;
+                    }
+                }
+
+                if (rMatch.Success && hasValue)
                 {
                     var colLetter = rMatch.Groups[1].Value;
                     var colIndex = ColumnLetterToIndex(colLetter);
                     var type = tMatch.Success ? tMatch.Groups[1].Value : null;
-                    cells.Add((colIndex, vMatch.Groups[1].Value, type));
+                    cells.Add((colIndex, System.Net.WebUtility.HtmlDecode(cellValue), type));
                 }
 
                 cPos = cellEnd;
@@ -563,11 +580,12 @@ public class ExceptionEntriesController : ControllerBase
     private static int ColumnLetterToIndex(string letter)
     {
         int index = 0;
-        foreach (char c in letter)
+        for (int i = 0; i < letter.Length; i++)
         {
-            index = index * 26 + (c - 'A');
+            index *= 26;
+            index += (letter[i] - 'A' + 1);
         }
-        return index;
+        return index - 1;
     }
 
     private static DateTime? ParseExcelDate(string? value)
