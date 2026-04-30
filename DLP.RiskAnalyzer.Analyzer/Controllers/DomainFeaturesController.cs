@@ -1,7 +1,9 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -14,11 +16,13 @@ public class DomainFeaturesController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<DomainFeaturesController> _logger;
+    private readonly IAuditLogService _auditLogService;
 
-    public DomainFeaturesController(AnalyzerDbContext context, ILogger<DomainFeaturesController> logger)
+    public DomainFeaturesController(AnalyzerDbContext context, ILogger<DomainFeaturesController> logger, IAuditLogService auditLogService)
     {
         _context = context;
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -114,6 +118,9 @@ public class DomainFeaturesController : ControllerBase
                 d.Hukuk,
                 d.Denetim,
                 d.Banka,
+                d.NdaFilePath,
+                d.NdaUpdatedBy,
+                d.NdaUpdatedAt,
                 CustomFeatures = features
             };
         });
@@ -298,6 +305,9 @@ public class DomainFeaturesController : ControllerBase
                 d.Hukuk,
                 d.Denetim,
                 d.Banka,
+                d.NdaFilePath,
+                d.NdaUpdatedBy,
+                d.NdaUpdatedAt,
                 CustomFeatures = features,
                 IncidentCount = domainCounts.ContainsKey(domainLower) ? domainCounts[domainLower] : 0,
                 IncidentStats = new 
@@ -457,7 +467,6 @@ public class DomainFeaturesController : ControllerBase
                 var domain = domains.FirstOrDefault(d => d.Id == update.Id);
                 if (domain == null) continue;
 
-                // Update static properties
                 domain.HasNda = update.HasNda;
                 domain.IsPersonal = update.IsPersonal;
                 domain.IstirakDomain = update.IstirakDomain;
@@ -468,6 +477,18 @@ public class DomainFeaturesController : ControllerBase
                 domain.Banka = update.Banka;
                 domain.IsUnknown = false; // Mark as reviewed
                 domain.UpdatedAt = DateTime.UtcNow;
+
+                // NDA file path tracking
+                if (update.HasNda && !string.IsNullOrWhiteSpace(update.NdaFilePath))
+                {
+                    domain.NdaFilePath = update.NdaFilePath;
+                    domain.NdaUpdatedBy = update.UpdatedBy ?? "System";
+                    domain.NdaUpdatedAt = DateTime.UtcNow;
+                }
+                else if (!update.HasNda)
+                {
+                    // NDA kaldırıldığında bilgileri temizleme - yol bilgisi korunur, sadece flag false olur
+                }
 
                 // Update dynamic values
                 if (update.CustomFeatures != null)
@@ -508,6 +529,29 @@ public class DomainFeaturesController : ControllerBase
             await _context.SaveChangesAsync();
             
             _logger.LogInformation("Bulk saved {Count} domain features", updates.Count);
+
+            // Audit log for each updated domain
+            foreach (var update in updates)
+            {
+                var domain = domains.FirstOrDefault(d => d.Id == update.Id);
+                if (domain == null) continue;
+
+                var details = new Dictionary<string, object>
+                {
+                    ["domain"] = domain.Domain,
+                    ["has_nda"] = update.HasNda,
+                    ["nda_file_path"] = update.NdaFilePath ?? ""
+                };
+
+                await _auditLogService.LogAsync(
+                    eventType: "DomainFeatureUpdate",
+                    userName: update.UpdatedBy ?? "System",
+                    userRole: null,
+                    action: $"Domain features updated: {domain.Domain}",
+                    resource: $"Domain:{domain.Id}",
+                    details: JsonSerializer.Serialize(details),
+                    success: true);
+            }
 
             return Ok(new { success = true, updated = updates.Count });
         }
@@ -596,6 +640,8 @@ public class DomainFeatureUpdate
     public bool Hukuk { get; set; }
     public bool Denetim { get; set; }
     public bool Banka { get; set; }
+    public string? NdaFilePath { get; set; }
+    public string? UpdatedBy { get; set; }
     public Dictionary<string, bool>? CustomFeatures { get; set; }
 }
 

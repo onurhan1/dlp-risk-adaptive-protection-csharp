@@ -61,6 +61,8 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.faq': 'S.S.S.',
         'nav.releaseNotes': 'Sürüm Notları',
         'nav.help': 'Yardım & Destek',
+        'nav.permanentExceptions': 'Kalıcı İstisna Listesi',
+        'nav.exceptionRemovals': 'İstisna Kaldırma Listesi',
 
         // Dashboard
         'dashboard.title': 'Anasayfa',
@@ -274,6 +276,8 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.faq': 'F.A.Q.',
         'nav.releaseNotes': 'Release Notes',
         'nav.help': 'Help & Support',
+        'nav.permanentExceptions': 'Permanent Exceptions',
+        'nav.exceptionRemovals': 'Exception Removals',
 
         // Dashboard
         'dashboard.title': 'Home Page',

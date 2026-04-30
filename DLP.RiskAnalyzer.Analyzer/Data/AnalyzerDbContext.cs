@@ -27,6 +27,9 @@ public class AnalyzerDbContext : DbContext
     public DbSet<MercekIncident> MercekIncidents { get; set; }
     public DbSet<PolicyRuleException> PolicyRuleExceptions { get; set; }
     public DbSet<UserEntity> Users { get; set; }
+    public DbSet<PermanentExceptionEntry> PermanentExceptions { get; set; }
+    public DbSet<ExceptionRemovalEntry> ExceptionRemovals { get; set; }
+    public DbSet<UserActivityLog> UserActivityLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -222,6 +225,11 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Denetim).HasColumnName("denetim").HasDefaultValue(false);
             entity.Property(e => e.Banka).HasColumnName("banka").HasDefaultValue(false);
             
+            // NDA tracking fields
+            entity.Property(e => e.NdaFilePath).HasColumnName("nda_file_path").HasMaxLength(1000);
+            entity.Property(e => e.NdaUpdatedBy).HasColumnName("nda_updated_by").HasMaxLength(100);
+            entity.Property(e => e.NdaUpdatedAt).HasColumnName("nda_updated_at");
+            
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -411,6 +419,80 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
 
             entity.HasIndex(e => e.Username).IsUnique();
+        });
+
+        // Configure PermanentExceptionEntry
+        modelBuilder.Entity<PermanentExceptionEntry>(entity =>
+        {
+            entity.ToTable("permanent_exceptions");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.ExceptionName).HasColumnName("exception_name").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.ExceptionDomain).HasColumnName("exception_domain").HasMaxLength(1000);
+            entity.Property(e => e.Team).HasColumnName("team").HasMaxLength(500);
+            entity.Property(e => e.Policies).HasColumnName("policies").HasMaxLength(2000);
+            entity.Property(e => e.Rules).HasColumnName("rules").HasMaxLength(2000);
+            entity.Property(e => e.Channel).HasColumnName("channel").HasMaxLength(200);
+            entity.Property(e => e.Duration).HasColumnName("duration").HasMaxLength(100);
+            entity.Property(e => e.ActionDate).HasColumnName("action_date");
+            entity.Property(e => e.ChangeNo).HasColumnName("change_no").HasMaxLength(200);
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.ExceptionName);
+            entity.HasIndex(e => e.Team);
+            entity.HasIndex(e => e.ActionDate);
+        });
+
+        // Configure ExceptionRemovalEntry
+        modelBuilder.Entity<ExceptionRemovalEntry>(entity =>
+        {
+            entity.ToTable("exception_removals");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Team).HasColumnName("team").HasMaxLength(500);
+            entity.Property(e => e.Rule).HasColumnName("rule").HasMaxLength(500);
+            entity.Property(e => e.ExceptionName).HasColumnName("exception_name").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50);
+            entity.Property(e => e.UsageCount).HasColumnName("usage_count").HasDefaultValue(0);
+            entity.Property(e => e.RemovalReason).HasColumnName("removal_reason").HasMaxLength(1000);
+            entity.Property(e => e.ActionDate).HasColumnName("action_date");
+            entity.Property(e => e.ChangeNo).HasColumnName("change_no").HasMaxLength(200);
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.ExceptionName);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.ActionDate);
+        });
+
+        // Configure UserActivityLog
+        modelBuilder.Entity<UserActivityLog>(entity =>
+        {
+            entity.ToTable("user_activity_logs");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp").IsRequired();
+            entity.Property(e => e.UserName).HasColumnName("user_name").IsRequired().HasMaxLength(100);
+            entity.Property(e => e.AuthSource).HasColumnName("auth_source").HasMaxLength(20).HasDefaultValue("Local");
+            entity.Property(e => e.ActivityType).HasColumnName("activity_type").IsRequired().HasMaxLength(50);
+            entity.Property(e => e.PagePath).HasColumnName("page_path").HasMaxLength(500);
+            entity.Property(e => e.PageTitle).HasColumnName("page_title").HasMaxLength(200);
+            entity.Property(e => e.ActionDetail).HasColumnName("action_detail").HasMaxLength(2000);
+            entity.Property(e => e.IpAddress).HasColumnName("ip_address").HasMaxLength(45);
+            entity.Property(e => e.SessionDurationSeconds).HasColumnName("session_duration_seconds");
+            entity.Property(e => e.UserAgent).HasColumnName("user_agent").HasMaxLength(500);
+
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.UserName);
+            entity.HasIndex(e => e.ActivityType);
+            entity.HasIndex(e => e.AuthSource);
+            entity.HasIndex(e => new { e.UserName, e.Timestamp });
         });
     }
 }

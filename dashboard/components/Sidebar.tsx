@@ -133,6 +133,22 @@ export default function Sidebar() {
                     <ListChecks size={16} />
                     <span>{t('nav.exceptionList')}</span>
                   </Link>
+                  <Link
+                    href="/exceptions/exception-list/permanent"
+                    className={`sidebar-subitem ${pathname === '/exceptions/exception-list/permanent' ? 'active' : ''}`}
+                    style={{ paddingLeft: '48px', fontSize: '13px' }}
+                  >
+                    <span style={{ width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>📌</span>
+                    <span>{t('nav.permanentExceptions')}</span>
+                  </Link>
+                  <Link
+                    href="/exceptions/exception-list/removal"
+                    className={`sidebar-subitem ${pathname === '/exceptions/exception-list/removal' ? 'active' : ''}`}
+                    style={{ paddingLeft: '48px', fontSize: '13px' }}
+                  >
+                    <span style={{ width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🔄</span>
+                    <span>{t('nav.exceptionRemovals')}</span>
+                  </Link>
                 </div>
               )}
             </div>

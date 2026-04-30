@@ -26,10 +26,24 @@ interface ApplicationLog {
     exception?: string
 }
 
+interface UserActivityLog {
+    id: number
+    timestamp: string
+    userName: string
+    authSource: string
+    activityType: string
+    pagePath?: string
+    pageTitle?: string
+    actionDetail?: string
+    ipAddress?: string
+    sessionDurationSeconds?: number
+}
+
 export default function LogsTab() {
-    const [activeTab, setActiveTab] = useState<'audit' | 'application'>('audit')
+    const [activeTab, setActiveTab] = useState<'audit' | 'application' | 'user_activity'>('audit')
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
     const [applicationLogs, setApplicationLogs] = useState<ApplicationLog[]>([])
+    const [activityLogs, setActivityLogs] = useState<UserActivityLog[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [page, setPage] = useState(1)
@@ -40,11 +54,23 @@ export default function LogsTab() {
     const [endDate, setEndDate] = useState('')
     const [eventType, setEventType] = useState('')
     const [eventTypes, setEventTypes] = useState<string[]>([])
+    const [activityTypes, setActivityTypes] = useState<string[]>([])
     const [appLevel, setAppLevel] = useState('')
+    const [usernameFilter, setUsernameFilter] = useState('')
 
     useEffect(() => {
         fetchEventTypes()
+        fetchActivityTypes()
     }, [])
+
+    const fetchActivityTypes = async () => {
+        try {
+            const response = await apiClient.get('/api/activity/activity-types')
+            setActivityTypes(response.data)
+        } catch (err) {
+            console.error('Error fetching activity types:', err)
+        }
+    }
 
     const fetchEventTypes = async () => {
         try {
@@ -95,6 +121,27 @@ export default function LogsTab() {
         }
     }
 
+    const fetchActivityLogs = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+            const params: any = { page, pageSize }
+            if (startDate) params.startDate = new Date(startDate).toISOString()
+            if (endDate) params.endDate = new Date(endDate).toISOString()
+            if (eventType) params.activityType = eventType
+            if (usernameFilter) params.userName = usernameFilter
+
+            const response = await apiClient.get('/api/activity/logs', { params })
+            setActivityLogs(response.data?.logs || [])
+            setTotal(response.data?.total || 0)
+            setTotalPages(response.data?.totalPages || 0)
+        } catch (err: any) {
+            setError(err.response?.data?.detail || 'Failed to fetch user activity logs')
+        } finally {
+            setLoading(false)
+        }
+    }
+
     const formatTimestamp = (ts: string) => new Date(ts).toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
     const getEventColor = (type: string) => {
@@ -112,15 +159,18 @@ export default function LogsTab() {
         setEndDate('')
         setEventType('')
         setAppLevel('')
+        setUsernameFilter('')
         setPage(1)
         if (activeTab === 'audit') setAuditLogs([])
-        else setApplicationLogs([])
+        else if (activeTab === 'application') setApplicationLogs([])
+        else setActivityLogs([])
     }
 
     const handleSearch = () => {
         setPage(1)
         if (activeTab === 'audit') fetchAuditLogs()
-        else fetchApplicationLogs()
+        else if (activeTab === 'application') fetchApplicationLogs()
+        else fetchActivityLogs()
     }
 
     const inputStyle = { padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', background: 'var(--surface)', color: 'var(--text-primary)' }
@@ -142,6 +192,10 @@ export default function LogsTab() {
                     padding: '8px 16px', background: activeTab === 'application' ? 'var(--primary)' : 'transparent',
                     color: activeTab === 'application' ? 'white' : 'var(--text-primary)', border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer', fontWeight: 600, fontSize: '13px'
                 }}>Application Logs</button>
+                <button onClick={() => { setActiveTab('user_activity'); setActivityLogs([]); setTotal(0); setEventType(''); setUsernameFilter('') }} style={{
+                    padding: '8px 16px', background: activeTab === 'user_activity' ? 'var(--primary)' : 'transparent',
+                    color: activeTab === 'user_activity' ? 'white' : 'var(--text-primary)', border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer', fontWeight: 600, fontSize: '13px'
+                }}>User Activity Logs</button>
             </div>
 
             {/* Filters */}
@@ -175,6 +229,21 @@ export default function LogsTab() {
                                 <option value="Critical">Critical</option>
                             </select>
                         </div>
+                    )}
+                    {activeTab === 'user_activity' && (
+                        <>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Activity Type</label>
+                                <select value={eventType} onChange={(e) => setEventType(e.target.value)} style={{ ...inputStyle, minWidth: '150px' }}>
+                                    <option value="">All Activities</option>
+                                    {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Username</label>
+                                <input type="text" placeholder="Filter by username" value={usernameFilter} onChange={(e) => setUsernameFilter(e.target.value)} style={inputStyle} />
+                            </div>
+                        </>
                     )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -210,6 +279,36 @@ export default function LogsTab() {
                                     <td style={{ padding: '10px', fontWeight: 500 }}>{log.userName}</td>
                                     <td style={{ padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>{log.action}</td>
                                     <td style={{ padding: '10px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: log.success ? '#10b98120' : '#ef444420', color: log.success ? '#10b981' : '#ef4444', fontSize: '11px', fontWeight: 600 }}>{log.success ? 'OK' : 'Failed'}</span></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : activeTab === 'user_activity' ? (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Time</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Activity</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>User</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Page/Context</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Details</th>
+                                <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'none' }}>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {activityLogs.length === 0 ? (
+                                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No user activity logs. Click Search to load.</td></tr>
+                            ) : activityLogs.map(log => (
+                                <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                    <td style={{ padding: '10px' }}>{formatTimestamp(log.timestamp)}</td>
+                                    <td style={{ padding: '10px' }}><span style={{ padding: '3px 8px', borderRadius: '4px', background: '#3b82f620', color: '#3b82f6', fontSize: '11px', fontWeight: 600 }}>{log.activityType}</span></td>
+                                    <td style={{ padding: '10px', fontWeight: 500 }}>
+                                        {log.userName}
+                                        <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--text-muted)' }}>({log.authSource})</span>
+                                    </td>
+                                    <td style={{ padding: '10px', fontSize: '12px' }}>{log.pageTitle || log.pagePath || '-'}</td>
+                                    <td style={{ padding: '10px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.actionDetail}>{log.actionDetail || '-'}</td>
+                                    <td style={{ padding: '10px' }}>{log.sessionDurationSeconds ? `${log.sessionDurationSeconds}s` : '-'}</td>
                                 </tr>
                             ))}
                         </tbody>

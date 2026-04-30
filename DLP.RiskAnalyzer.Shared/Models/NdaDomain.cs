@@ -52,6 +52,17 @@ public class NdaDomain
     /// <summary>Banka mı?</summary>
     public bool Banka { get; set; } = false;
     
+    // ===== NDA TRACKING FIELDS =====
+    
+    /// <summary>Gizlilik sözleşmesi dosya dizin yolu (UNC veya yerel yol)</summary>
+    public string? NdaFilePath { get; set; }
+    
+    /// <summary>NDA işlemini yapan kullanıcı</summary>
+    public string? NdaUpdatedBy { get; set; }
+    
+    /// <summary>NDA işlem zamanı</summary>
+    public DateTime? NdaUpdatedAt { get; set; }
+    
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
