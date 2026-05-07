@@ -164,25 +164,25 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
       {userIncidents.length > 0 && userReportData.length > 0 && (
         <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', cursor: 'pointer' }} className="group">
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Policies</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalPolicies')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)' }}>{userReportData.length}</div>
             {uniqueUserPolicies.length > 0 && (
               <div className="hidden group-hover:block" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', background: 'var(--surface)', border: '1px solid var(--border)', padding: '12px', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, minWidth: '200px', maxWidth: '400px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>Policies ({uniqueUserPolicies.length}):</div>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>{t('exc.policies')} ({uniqueUserPolicies.length}):</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{uniqueUserPolicies.map((p, i) => <div key={i} style={{ marginBottom: '4px' }}>• {p}</div>)}</div>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Incidents</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalIncidents')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#3b82f6' }}>{userIncidents.length}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', cursor: 'pointer' }} className="group">
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Channels</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalChannels')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#10b981' }}>{uniqueUserChannels.length}</div>
             {uniqueUserChannels.length > 0 && (
               <div className="hidden group-hover:block" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', background: 'var(--surface)', border: '1px solid var(--border)', padding: '12px', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, minWidth: '200px', maxWidth: '400px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>Channels ({uniqueUserChannels.length}):</div>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>{t('exc.channels')} ({uniqueUserChannels.length}):</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{uniqueUserChannels.map((c, i) => <div key={i} style={{ marginBottom: '4px' }}>• {c}</div>)}</div>
               </div>
             )}
@@ -210,8 +210,8 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                     <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>{policy.name}</h3>
                   </div>
                   <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
-                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>Total Incidents</div><div style={{ ...STYLES.statValue(), fontSize: '16px' }}>{policy.incidentCount}</div></div>
-                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>Avg Matches</div><div style={{ ...STYLES.statValue('#3b82f6'), fontSize: '16px' }}>{policy.avgMatches.toFixed(1)}</div></div>
+                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>{t('exc.totalIncidents')}</div><div style={{ ...STYLES.statValue(), fontSize: '16px' }}>{policy.incidentCount}</div></div>
+                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>{t('exc.avgMatches')}</div><div style={{ ...STYLES.statValue('#3b82f6'), fontSize: '16px' }}>{policy.avgMatches.toFixed(1)}</div></div>
                   </div>
                 </div>
 
@@ -227,7 +227,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}><ClipboardList size={16} style={{ marginRight: '4px' }} /> {rule.name}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                              {[{ label: 'Incidents', value: rule.incidentCount, color: undefined }, { label: 'Avg Matches', value: rule.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: rule.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: rule.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: rule.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                              {[{ label: t('exceptionList.incidents'), value: rule.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: rule.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: rule.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: rule.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: rule.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                 <div key={s.label} style={{ textAlign: 'right' }}><div style={STYLES.statLabel()}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                               ))}
                             </div>
@@ -297,7 +297,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               {rule.classifiers.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px', marginBottom: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Classifier Statistics</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('exc.classifierStats')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {rule.classifiers.map((classifier, cIdx) => {
                                         const isExpanded = expandedClassifiers.has(`${pIdx}-${rIdx}-${cIdx}`)
@@ -311,7 +311,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                             </div>
                                             {isExpanded && (
                                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', fontSize: '11px', marginTop: '8px' }}>
-                                                {[{ label: 'Incidents', value: classifier.incidentCount, color: undefined }, { label: 'Avg Matches', value: classifier.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: classifier.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: classifier.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: classifier.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                                                {[{ label: t('exc.incidents'), value: classifier.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: classifier.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: classifier.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: classifier.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: classifier.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                                   <div key={s.label} style={{ textAlign: 'center' }}><div style={STYLES.statLabel()}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                                                 ))}
                                               </div>
@@ -327,7 +327,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               {rule.exceptions && rule.exceptions.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px', marginBottom: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Exception Statistics</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('heatmap.exceptionStats')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {rule.exceptions.map((exception, eIdx) => {
                                         const isExpanded = expandedExceptions.has(`${pIdx}-${rIdx}-${eIdx}`)
@@ -340,8 +340,8 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                                 <span style={{ fontSize: '10px', fontWeight: '600', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', textTransform: 'none' as const }}>Exception</span>
                                               </div>
                                               <div style={{ display: 'flex', gap: '12px', fontSize: '11px' }}>
-                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>Incidents</div><div style={STYLES.statValue()}>{exception.incidentCount}</div></div>
-                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>Avg Matches</div><div style={STYLES.statValue('#3b82f6')}>{exception.avgMatches.toFixed(1)}</div></div>
+                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>{t('exc.incidents')}</div><div style={STYLES.statValue()}>{exception.incidentCount}</div></div>
+                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>{t('exc.avgMatches')}</div><div style={STYLES.statValue('#3b82f6')}>{exception.avgMatches.toFixed(1)}</div></div>
                                               </div>
                                             </div>
                                             {isExpanded && exception.classifiers && exception.classifiers.length > 0 && (
@@ -353,7 +353,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                                       <div key={cIdx} style={{ padding: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px' }}>
                                                         <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>{cl.name}</div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', fontSize: '10px' }}>
-                                                          {[{ label: 'Incidents', value: cl.incidentCount, color: undefined }, { label: 'Avg Matches', value: cl.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: cl.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: cl.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: cl.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                                                          {[{ label: t('exc.incidents'), value: cl.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: cl.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: cl.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: cl.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: cl.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                                             <div key={s.label} style={{ textAlign: 'center' }}><div style={STYLES.statLabel('9px')}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                                                           ))}
                                                         </div>
@@ -374,7 +374,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               {rule.classifiers.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Exception Recommendations</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('heatmap.exceptionRecommendations')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       <div style={{ padding: '12px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '6px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>

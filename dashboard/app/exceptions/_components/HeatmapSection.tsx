@@ -10,6 +10,7 @@ import {
   DEFAULT_START, DEFAULT_END, TEAMS_PER_PAGE, INITIAL_DOMAIN_COUNT,
   DEFAULT_APPLIED_FILTERS, EMPTY_BREAKDOWN, OTHER_LABEL, STYLES
 } from '../_lib/constants'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface HeatmapSectionProps {
   incidents: Incident[]
@@ -19,6 +20,7 @@ interface HeatmapSectionProps {
 }
 
 export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniqueTeams, uniqueActions }: HeatmapSectionProps) {
+  const { t } = useTranslation()
   // Heatmap pagination & visibility
   const [heatmapTeamPage, setHeatmapTeamPage] = useState(1)
   const [heatmapDomainCount, setHeatmapDomainCount] = useState(INITIAL_DOMAIN_COUNT)
@@ -173,44 +175,44 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
         <div style={STYLES.iconBox('linear-gradient(135deg, #3b82f6, #06b6d4)', '0 3px 10px rgba(59, 130, 246, 0.25)')}>
           <BarChart3 size={17} color="#fff" />
         </div>
-        <h2 style={STYLES.gradientText('linear-gradient(135deg, #3b82f6, #06b6d4)')}>Team Based Analysis Heatmap</h2>
+        <h2 style={STYLES.gradientText('linear-gradient(135deg, #3b82f6, #06b6d4)')}>{t('heatmap.teamBasedAnalysis')}</h2>
       </div>
 
       {/* Inline Filters Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', alignItems: 'end', marginBottom: '16px', padding: '14px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>Start</label>
+          <label style={STYLES.filterLabel}>{t('heatmap.start')}</label>
           <input type="date" value={dateRange.start} onChange={handleDateChange('start')}
             style={{ ...STYLES.filterInput, border: dateError ? '1px solid #ef4444' : '1px solid var(--border)' }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>End</label>
+          <label style={STYLES.filterLabel}>{t('heatmap.end')}</label>
           <input type="date" value={dateRange.end} onChange={handleDateChange('end')}
             style={{ ...STYLES.filterInput, border: dateError ? '1px solid #ef4444' : '1px solid var(--border)' }} />
           {dateError && <span style={{ color: '#ef4444', fontSize: '9px', marginTop: '1px' }}>{dateError}</span>}
         </div>
-        <SearchableMultiSelect label="Department" options={uniqueDepartments} selectedValues={selectedDepartments} onChange={setSelectedDepartments} placeholder="All" compact />
-        <SearchableMultiSelect label="Team" options={uniqueTeams} selectedValues={selectedTeams} onChange={setSelectedTeams} placeholder="All" compact />
+        <SearchableMultiSelect label={t('heatmap.department')} options={uniqueDepartments} selectedValues={selectedDepartments} onChange={setSelectedDepartments} placeholder="All" compact />
+        <SearchableMultiSelect label={t('heatmap.team')} options={uniqueTeams} selectedValues={selectedTeams} onChange={setSelectedTeams} placeholder="All" compact />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>User</label>
-          <input type="text" placeholder="User..." value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} style={STYLES.filterInput} />
+          <label style={STYLES.filterLabel}>{t('heatmap.user')}</label>
+          <input type="text" placeholder={`${t('heatmap.user')}...`} value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} style={STYLES.filterInput} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>Manager Name</label>
-          <input type="text" placeholder="Name..." value={selectedFullName} onChange={(e) => setSelectedFullName(e.target.value)} style={STYLES.filterInput} />
+          <label style={STYLES.filterLabel}>{t('heatmap.managerName')}</label>
+          <input type="text" placeholder={`${t('heatmap.managerName')}...`} value={selectedFullName} onChange={(e) => setSelectedFullName(e.target.value)} style={STYLES.filterInput} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>Policy</label>
-          <input type="text" placeholder="Policy..." value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value)} style={STYLES.filterInput} />
+          <label style={STYLES.filterLabel}>{t('heatmap.policy')}</label>
+          <input type="text" placeholder={`${t('heatmap.policy')}...`} value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value)} style={STYLES.filterInput} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <label style={STYLES.filterLabel}>Domain</label>
-          <input type="text" placeholder="Domain..." value={selectedDomain} onChange={(e) => setSelectedDomain(e.target.value)} style={STYLES.filterInput} />
+          <label style={STYLES.filterLabel}>{t('heatmap.domain')}</label>
+          <input type="text" placeholder={`${t('heatmap.domain')}...`} value={selectedDomain} onChange={(e) => setSelectedDomain(e.target.value)} style={STYLES.filterInput} />
         </div>
-        <SearchableMultiSelect label="Action" options={uniqueActions} selectedValues={selectedActions} onChange={setSelectedActions} placeholder="All" compact />
+        <SearchableMultiSelect label={t('heatmap.action')} options={uniqueActions} selectedValues={selectedActions} onChange={setSelectedActions} placeholder="All" compact />
         <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', alignSelf: 'end' }}>
-          <button onClick={applyFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>Filtrele</button>
-          <button onClick={resetFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>Temizle</button>
+          <button onClick={applyFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>{t('heatmap.filter')}</button>
+          <button onClick={resetFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>{t('heatmap.clear')}</button>
         </div>
       </div>
 
@@ -219,17 +221,17 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           {hiddenDomains.size > 0 && (
             <button onClick={() => setHiddenDomains(new Set())} style={{ padding: '4px 10px', borderRadius: '4px', border: '1px solid #f59e0b', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontSize: '11px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <RotateCcw size={14} /> {hiddenDomains.size} gizli domain göster
+              <RotateCcw size={14} /> {hiddenDomains.size} {t('heatmap.showHiddenDomains')}
             </button>
           )}
           {hiddenTeams.size > 0 && (
             <button onClick={() => setHiddenTeams(new Set())} style={{ padding: '4px 10px', borderRadius: '4px', border: '1px solid #8b5cf6', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', fontSize: '11px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <RotateCcw size={14} /> {hiddenTeams.size} gizli team göster
+              <RotateCcw size={14} /> {hiddenTeams.size} {t('heatmap.showHiddenTeams')}
             </button>
           )}
           {heatmapDomainCount > INITIAL_DOMAIN_COUNT && (
             <button onClick={() => setHeatmapDomainCount(INITIAL_DOMAIN_COUNT)} style={{ padding: '4px 10px', borderRadius: '4px', border: '1px solid #3b82f6', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', fontSize: '11px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <ChevronUp size={14} /> Domain listesini daralt (ilk 10)
+              <ChevronUp size={14} /> {t('heatmap.collapseDomains')}
             </button>
           )}
         </div>
@@ -242,12 +244,12 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
             {/* Corner Cell */}
             <div style={{ padding: '10px 12px', fontWeight: '700', color: '#3b82f6', fontSize: '11px', textTransform: 'none', letterSpacing: '0.5px', position: 'sticky', left: 0, zIndex: 10, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(6, 182, 212, 0.06))', borderRadius: '8px 0 0 0', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '2px solid rgba(59, 130, 246, 0.15)', borderRight: '2px solid rgba(59, 130, 246, 0.15)' }}>
               <span style={{ display: 'inline-flex', width: '6px', height: '6px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #06b6d4)' }} />
-              Domain / Team
+              {t('heatmap.domainTeam')}
             </div>
             {/* Team Headers */}
             {paginatedTeams.map((team, idx) => (
               <div key={team} style={{ padding: '10px 6px', fontWeight: '700', color: 'var(--text-primary)', fontSize: '11px', textAlign: 'center', background: 'linear-gradient(180deg, rgba(59, 130, 246, 0.07) 0%, rgba(59, 130, 246, 0.03) 100%)', borderRadius: idx === paginatedTeams.length - 1 ? '0 8px 0 0' : '0', minHeight: '64px', maxHeight: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '110px', cursor: 'pointer', transition: 'all 0.2s', borderBottom: '2px solid rgba(59, 130, 246, 0.15)', letterSpacing: '0.2px' }}
-                title={`${team} - Gizlemek için tıklayın`}
+                title={`${team} - ${t('heatmap.clickToHide')}`}
                 onClick={() => setHiddenTeams(prev => new Set([...Array.from(prev), team]))}
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(180deg, rgba(59, 130, 246, 0.07) 0%, rgba(59, 130, 246, 0.03) 100%)' }}
@@ -260,7 +262,7 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
             {visibleDomains.map((domain, rowIdx) => (
               <React.Fragment key={domain}>
                 <div style={{ padding: '8px 12px', fontWeight: '600', color: domain === OTHER_LABEL ? '#3b82f6' : 'var(--text-primary)', fontSize: '12px', background: domain === OTHER_LABEL ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.04))' : rowIdx % 2 === 0 ? 'rgba(148, 163, 184, 0.04)' : 'rgba(148, 163, 184, 0.08)', borderRadius: rowIdx === visibleDomains.length - 1 ? '0 0 0 8px' : '0', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', position: 'sticky', left: 0, zIndex: 5, cursor: 'pointer', gap: '6px', transition: 'all 0.2s', borderRight: '2px solid rgba(59, 130, 246, 0.1)', letterSpacing: '0.1px' }}
-                  title={domain === OTHER_LABEL ? 'Tıklayarak 10 domain daha göster' : `${domain} - Gizlemek için tıklayın`}
+                  title={domain === OTHER_LABEL ? t('heatmap.clickToShowMore') : `${domain} - ${t('heatmap.clickToHide')}`}
                   onClick={() => domain === OTHER_LABEL ? setHeatmapDomainCount(prev => prev + 10) : setHiddenDomains(prev => new Set([...Array.from(prev), domain]))}
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)' }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = domain === OTHER_LABEL ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.04))' : rowIdx % 2 === 0 ? 'rgba(148, 163, 184, 0.04)' : 'rgba(148, 163, 184, 0.08)' }}
@@ -284,10 +286,10 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
                         <div className="hidden group-hover:block" style={{ position: 'absolute', ...(showTooltipBelow ? { top: '100%', marginTop: '6px' } : { bottom: '100%', marginBottom: '6px' }), left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid rgba(99, 102, 241, 0.15)', padding: '10px 12px', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)', zIndex: 20, minWidth: '170px', pointerEvents: 'none' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', marginBottom: '6px', borderBottom: '1px solid var(--border)', paddingBottom: '6px', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{domain} / {team}</div>
                           {[
-                            { label: 'Block', color: '#ef4444', value: bd.block },
-                            { label: 'Quarantine', color: '#f59e0b', value: bd.quarantine },
-                            { label: 'Authorized', color: '#3b82f6', value: bd.authorized },
-                            { label: 'Released', color: '#10b981', value: bd.permit },
+                            { label: t('heatmap.block'), color: '#ef4444', value: bd.block },
+                            { label: t('heatmap.quarantine'), color: '#f59e0b', value: bd.quarantine },
+                            { label: t('heatmap.authorized'), color: '#3b82f6', value: bd.authorized },
+                            { label: t('heatmap.released'), color: '#10b981', value: bd.permit },
                           ].map(item => (
                             <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', alignItems: 'center' }}>
                               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.color, display: 'inline-block' }} />{item.label}</span>
@@ -295,7 +297,7 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
                             </div>
                           ))}
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid var(--border)', alignItems: 'center' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />Avg Max Match</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />{t('heatmap.avgMaxMatch')}</span>
                             <span style={{ color: '#8b5cf6', fontWeight: '700' }}>{bd.incidentCount > 0 ? (bd.maxMatchTotal / bd.incidentCount).toFixed(1) : 0}</span>
                           </div>
                         </div>
