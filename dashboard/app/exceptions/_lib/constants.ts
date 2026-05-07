@@ -7,7 +7,10 @@ export const UNKNOWN_TEAM = 'Takım Belirtilmemiş'
 export const UNKNOWN_DOMAIN = 'Unknown'
 export const DEFAULT_TEAM_FALLBACK = 'Hesap Araştırmaları'
 export const SUBE_SUFFIX = 'Şubesi'
-export const SUBE_NORMALIZED = 'Şube'
+export const SUBE_SUFFIX_ALT = 'Şube'
+export const SUBE_TICARI = 'Ticari Şube'
+export const SUBE_KURUMSAL = 'Kurumsal Şube'
+export const SUBE_NORMAL = 'Şube'
 export const OTHER_LABEL = 'Diğer'
 
 // Pagination

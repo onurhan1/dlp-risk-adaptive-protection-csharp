@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, memo, useCallback } from 'react'
-import { Plus, Minus, ClipboardList, Search, Sparkles } from 'lucide-react'
+import { Plus, Minus, ClipboardList, Search, Sparkles, SlidersHorizontal } from 'lucide-react'
 import { parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns'
 import SearchableMultiSelect from './SearchableMultiSelect'
 import useUserReportData from '../_hooks/useUserReportData'
@@ -34,6 +34,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
   const [expandedClassifiers, setExpandedClassifiers] = useState<Set<string>>(new Set())
   const [expandedExceptions, setExpandedExceptions] = useState<Set<string>>(new Set())
+  const [ruleThresholds, setRuleThresholds] = useState<Record<string, string>>({})
 
   const userReportData = useUserReportData(userIncidents)
 
@@ -91,6 +92,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
     setUserSearchQuery(''); setExceptionDomainFilter(''); setExceptionActionFilter([]); setExceptionChannelFilter([]); setExceptionPolicyFilter([]); setExceptionTeamFilter([]); setExceptionDeptFilter([])
     setExceptionDateRange({ start: DEFAULT_START, end: DEFAULT_END }); setUserIncidents([])
     setExpandedPolicies(new Set()); setExpandedRules(new Set()); setExpandedClassifiers(new Set()); setExpandedExceptions(new Set())
+    setRuleThresholds({})
   }, [])
 
   const togglePolicy = (pIdx: number) => setExpandedPolicies(prev => toggleSetItem(prev, pIdx))
@@ -228,6 +230,65 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               ))}
                             </div>
                           </div>
+
+                          {isRuleExpanded && rule.allMatches && rule.allMatches.length > 0 && (() => {
+                            const ruleKey = `${pIdx}-${rIdx}`
+                            const thresholdStr = ruleThresholds[ruleKey] || ''
+                            const thresholdVal = thresholdStr ? parseFloat(thresholdStr) : null
+                            const belowCount = thresholdVal !== null ? rule.allMatches.filter(m => m <= thresholdVal).length : null
+                            const aboveCount = thresholdVal !== null ? rule.allMatches.filter(m => m > thresholdVal).length : null
+                            const totalCount = rule.allMatches.length
+                            const belowPct = belowCount !== null && totalCount > 0 ? ((belowCount / totalCount) * 100).toFixed(1) : null
+                            const abovePct = aboveCount !== null && totalCount > 0 ? ((aboveCount / totalCount) * 100).toFixed(1) : null
+                            return (
+                              <div style={{ margin: '12px 0 0 8px', padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.04))', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.18)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                  <SlidersHorizontal size={14} color="#6366f1" />
+                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1' }}>Threshold Analizi</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Threshold Değeri:</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      placeholder="Örn: 5"
+                                      value={thresholdStr}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        setRuleThresholds(prev => ({ ...prev, [ruleKey]: e.target.value }))
+                                      }}
+                                      style={{ width: '90px', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.3)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', fontWeight: '600', textAlign: 'center', outline: 'none', transition: 'border-color 0.2s' }}
+                                      onFocus={(e) => { e.currentTarget.style.borderColor = '#6366f1' }}
+                                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)' }}
+                                    />
+                                  </div>
+                                  {thresholdVal !== null && belowCount !== null && aboveCount !== null && (
+                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>≤ {thresholdVal}:</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>{belowCount}</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>({belowPct}%)</span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>&gt; {thresholdVal}:</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#ef4444' }}>{aboveCount}</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>({abovePct}%)</span>
+                                      </div>
+                                      {/* Progress bar */}
+                                      <div style={{ flex: 1, minWidth: '80px', maxWidth: '200px', height: '8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.2)', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${belowPct}%`, background: 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '4px', transition: 'width 0.3s ease' }} />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
 
                           {isRuleExpanded && (
                             <>

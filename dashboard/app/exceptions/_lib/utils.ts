@@ -1,6 +1,6 @@
 import { parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns'
 import type { Incident, DateRange } from './types'
-import { UNKNOWN_TEAM, UNKNOWN_DOMAIN, SUBE_SUFFIX, SUBE_NORMALIZED } from './constants'
+import { UNKNOWN_TEAM, UNKNOWN_DOMAIN, SUBE_SUFFIX, SUBE_SUFFIX_ALT, SUBE_TICARI, SUBE_KURUMSAL, SUBE_NORMAL } from './constants'
 
 // Memoize normalizeTeamName results for performance
 const teamNameCache = new Map<string, string>()
@@ -13,8 +13,18 @@ export function normalizeTeamName(team: string | undefined | null): string {
   let result: string
   if (trimmed === 'Unknown' || trimmed === '') {
     result = UNKNOWN_TEAM
+  } else if (trimmed.endsWith(SUBE_SUFFIX) || trimmed.endsWith(SUBE_SUFFIX_ALT)) {
+    // Classify branch type based on keywords in the name
+    const lower = trimmed.toLowerCase()
+    if (lower.includes('ticari')) {
+      result = SUBE_TICARI
+    } else if (lower.includes('kurumsal')) {
+      result = SUBE_KURUMSAL
+    } else {
+      result = SUBE_NORMAL
+    }
   } else {
-    result = trimmed.endsWith(SUBE_SUFFIX) ? SUBE_NORMALIZED : trimmed
+    result = trimmed
   }
   teamNameCache.set(team, result)
   return result
@@ -42,6 +52,17 @@ export function extractDomain(dest: string): string {
 export function mapIncidentData(item: Record<string, any>): Incident {
   const dest = item.destination || ''
   const dept = item.department || item.user_department
+  // Apply same branch classification to department
+  let normalizedDept = dept
+  if (dept) {
+    const deptTrimmed = dept.trim()
+    if (deptTrimmed.endsWith(SUBE_SUFFIX) || deptTrimmed.endsWith(SUBE_SUFFIX_ALT)) {
+      const deptLower = deptTrimmed.toLowerCase()
+      if (deptLower.includes('ticari')) normalizedDept = SUBE_TICARI
+      else if (deptLower.includes('kurumsal')) normalizedDept = SUBE_KURUMSAL
+      else normalizedDept = SUBE_NORMAL
+    }
+  }
   return {
     id: item.id,
     timestamp: item.timestamp,
@@ -49,7 +70,7 @@ export function mapIncidentData(item: Record<string, any>): Incident {
     policy: item.policy,
     action: item.action || 'Permit',
     domain: extractDomain(dest) || UNKNOWN_DOMAIN,
-    department: (dept && dept.trim().endsWith(SUBE_SUFFIX)) ? SUBE_NORMALIZED : dept,
+    department: normalizedDept,
     team: item.team,
     fullName: item.full_name || item.fullName,
     maxMatches: item.max_matches || item.maxMatches || 0,

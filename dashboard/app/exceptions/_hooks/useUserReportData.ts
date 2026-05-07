@@ -157,7 +157,7 @@ export default function useUserReportData(userIncidents: Incident[]): PolicyRepo
         ruleData.exceptions.forEach(exMap => allMaps.push(exMap))
         const ruleStats = aggregateStats(allMaps)
 
-        return { name: ruleName, incidentCount: ruleStats.incidentCount, avgMatches: ruleStats.avgMatches, p25: ruleStats.p25, p75: ruleStats.p75, p90: ruleStats.p90, classifiers, exceptions }
+        return { name: ruleName, incidentCount: ruleStats.incidentCount, avgMatches: ruleStats.avgMatches, p25: ruleStats.p25, p75: ruleStats.p75, p90: ruleStats.p90, allMatches: ruleStats.allMatches, classifiers, exceptions }
       })
 
       // Policy-level stats
