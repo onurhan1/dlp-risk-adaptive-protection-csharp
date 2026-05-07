@@ -4,6 +4,7 @@ import React, { useState, useMemo, memo, useCallback } from 'react'
 import { Plus, Minus, ClipboardList, Search, Sparkles, SlidersHorizontal } from 'lucide-react'
 import { parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns'
 import SearchableMultiSelect from './SearchableMultiSelect'
+import { useTranslation } from '@/components/LanguageProvider'
 import useUserReportData from '../_hooks/useUserReportData'
 import type { Incident } from '../_lib/types'
 import { normalizeTeamName, parseViolationTriggers, extractPoliciesFromIncidents, toggleSetItem } from '../_lib/utils'
@@ -19,6 +20,7 @@ interface ExceptionRecommendationProps {
 }
 
 export default memo(function ExceptionRecommendation({ incidents, uniqueDepartments, uniqueTeams, uniqueActions, uniqueChannels, uniquePolicies }: ExceptionRecommendationProps) {
+  const { t } = useTranslation()
   const [exceptionDeptFilter, setExceptionDeptFilter] = useState<string[]>([])
   const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
   const [userSearchQuery, setUserSearchQuery] = useState('')
@@ -149,7 +151,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
         <button onClick={handleClearFilters} style={{ padding: '12px 24px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.transform = 'translateY(0)' }}>
-          Filtreleri Temizle
+          {t('exc.clearFilters')}
         </button>
         <button onClick={handleRecommend} disabled={!canRecommend} style={{ padding: '12px 24px', borderRadius: '6px', border: 'none', background: canRecommend ? '#3b82f6' : '#93c5fd', color: '#ffffff', fontSize: '14px', fontWeight: '600', cursor: canRecommend ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: canRecommend ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none', opacity: canRecommend ? 1 : 0.7 }}
           onMouseEnter={(e) => { if (canRecommend) { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
@@ -190,11 +192,11 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
 
       {/* Report Data */}
       {loadingUserIncidents ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Öneri hesaplanıyor…</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.calculatingRecommendation')}</div>
       ) : userIncidents.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Seçilen filtrelere uyan incident bulunamadı</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.noIncidentsForFilter')}</div>
       ) : userReportData.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Bu kayıtlar için politika / tetikleyici verisi bulunamadı</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.noPolicyData')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {userReportData.map((policy, pIdx) => {
@@ -244,11 +246,11 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               <div style={{ margin: '12px 0 0 8px', padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.04))', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.18)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                                   <SlidersHorizontal size={14} color="#6366f1" />
-                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1' }}>Threshold Analizi</span>
+                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1' }}>{t('exc.thresholdAnalysis')}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <label style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Threshold Değeri:</label>
+                                    <label style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{t('exc.thresholdValue')}</label>
                                     <input
                                       type="number"
                                       min="0"

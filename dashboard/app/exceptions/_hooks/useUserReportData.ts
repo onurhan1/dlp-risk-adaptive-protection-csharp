@@ -3,8 +3,7 @@ import type { Incident, PolicyReport } from '../_lib/types'
 import { parseViolationTriggers, calculatePercentile } from '../_lib/utils'
 
 interface ClassifierAccumulator {
-  incidentIds: Set<number>
-  matches: number[]
+  incidentMatches: Map<number, number>
 }
 
 type ClassifierMap = Map<string, ClassifierAccumulator>
@@ -27,7 +26,7 @@ function ensureRule(ruleMap: RuleMap, name: string): RuleAccumulator {
 }
 
 function ensureClassifier(map: ClassifierMap, name: string): ClassifierAccumulator {
-  if (!map.has(name)) map.set(name, { incidentIds: new Set(), matches: [] })
+  if (!map.has(name)) map.set(name, { incidentMatches: new Map() })
   return map.get(name)!
 }
 
@@ -38,8 +37,8 @@ function ensureException(exceptionMap: ExceptionMap, name: string): ClassifierMa
 
 function addToClassifier(map: ClassifierMap, classifierName: string, incidentId: number, matches: number) {
   const data = ensureClassifier(map, classifierName)
-  data.incidentIds.add(incidentId)
-  data.matches.push(matches)
+  const current = data.incidentMatches.get(incidentId) || 0
+  data.incidentMatches.set(incidentId, Math.max(current, matches))
 }
 
 function processClassifiers(classifiers: any[], classifierMap: ClassifierMap, incidentId: number, fallbackMatches: number) {
@@ -59,16 +58,17 @@ function processClassifiers(classifiers: any[], classifierMap: ClassifierMap, in
 
 function buildClassifierStats(classifierMap: ClassifierMap) {
   return Array.from(classifierMap.entries()).map(([name, data]) => {
-    const avgMatches = data.matches.length > 0 ? data.matches.reduce((a, b) => a + b, 0) / data.matches.length : 0
-    const p25 = calculatePercentile(data.matches, 25)
-    const p50 = calculatePercentile(data.matches, 50)
-    const p70 = calculatePercentile(data.matches, 70)
-    const p75 = calculatePercentile(data.matches, 75)
-    const p90 = calculatePercentile(data.matches, 90)
+    const matchValues = Array.from(data.incidentMatches.values())
+    const avgMatches = matchValues.length > 0 ? matchValues.reduce((a, b) => a + b, 0) / matchValues.length : 0
+    const p25 = calculatePercentile(matchValues, 25)
+    const p50 = calculatePercentile(matchValues, 50)
+    const p70 = calculatePercentile(matchValues, 70)
+    const p75 = calculatePercentile(matchValues, 75)
+    const p90 = calculatePercentile(matchValues, 90)
 
     return {
       name,
-      incidentCount: data.incidentIds.size,
+      incidentCount: data.incidentMatches.size,
       avgMatches, p25, p50, p70, p75, p90,
       recommendations: {
         medium: { threshold: Math.max(p50 - 1, 1), label: 'Medium (Audit)', action: 'Audit' },
@@ -79,16 +79,19 @@ function buildClassifierStats(classifierMap: ClassifierMap) {
 }
 
 function aggregateStats(maps: ClassifierMap[]) {
-  const allIds = new Set<number>()
-  const allMatches: number[] = []
+  const incidentMaxMatches = new Map<number, number>()
   maps.forEach(map => {
     map.forEach(data => {
-      data.incidentIds.forEach(id => allIds.add(id))
-      allMatches.push(...data.matches)
+      data.incidentMatches.forEach((matches, id) => {
+        const current = incidentMaxMatches.get(id) || 0
+        incidentMaxMatches.set(id, Math.max(current, matches))
+      })
     })
   })
+  
+  const allMatches = Array.from(incidentMaxMatches.values())
   return {
-    incidentCount: allIds.size,
+    incidentCount: incidentMaxMatches.size,
     avgMatches: allMatches.length > 0 ? allMatches.reduce((a, b) => a + b, 0) / allMatches.length : 0,
     p25: calculatePercentile(allMatches, 25),
     p75: calculatePercentile(allMatches, 75),
