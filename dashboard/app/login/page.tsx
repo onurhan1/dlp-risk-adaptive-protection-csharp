@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
+import { useTranslation } from '@/components/LanguageProvider'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   const { login } = useAuth()
+  const { t } = useTranslation()
 
   useEffect(() => {
     // Check if already logged in
@@ -78,13 +80,13 @@ export default function LoginPage() {
           router.refresh()
         }, 100)
       } else {
-        setError('Invalid response from server')
+        setError(t('login.invalidResponse'))
         setLoading(false)
       }
     } catch (err: any) {
       console.error('Login error:', err)
       if (err.response?.status === 401 || err.response?.status === 404) {
-        setError('Invalid username or password. Please check your credentials.')
+        setError(t('login.invalidCredentials'))
       } else if (err.response?.status === 404) {
         setError('API endpoint not found. Please check if the API is running.')
       } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
@@ -110,13 +112,13 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('login.username')}</label>
             <input
               id="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
+              placeholder={t('login.enterUsername')}
               required
               autoFocus
               disabled={loading}
@@ -124,13 +126,13 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('login.password')}</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder={t('login.enterPassword')}
               required
               disabled={loading}
             />
@@ -150,20 +152,20 @@ export default function LoginPage() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 disabled={loading}
               />
-              <span>Remember me</span>
+              <span>{t('login.rememberMe')}</span>
             </label>
-            <button type="button" className="forgot-password" onClick={() => alert('Please contact your system administrator to reset your password.')}>
-              Forgot Password?
+            <button type="button" className="forgot-password" onClick={() => alert(t('login.forgotPasswordAlert'))}>
+              {t('login.forgotPassword')}
             </button>
           </div>
 
           <button type="submit" className="login-button" disabled={loading}>
-            {loading ? 'Logging in...' : 'LOGIN'}
+            {loading ? t('login.loggingIn') : t('login.loginButton')}
           </button>
         </form>
 
         <div className="login-footer">
-          <p>RADAR - Risk Adaptive Protection</p>
+          <p>{t('login.footer')}</p>
         </div>
       </div>
 

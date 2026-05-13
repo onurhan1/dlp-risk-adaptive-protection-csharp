@@ -78,6 +78,7 @@ export default function Pagination({
         }
     }, [handlePageInput])
 
+    if (totalPages <= 0) return null
     if (totalPages <= 1 && !showTotalItems) return null
 
     // Button base classes

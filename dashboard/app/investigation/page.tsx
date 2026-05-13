@@ -9,6 +9,7 @@ import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
 import EntityDetailModal from '@/components/EntityDetailModal'
+import { useTranslation } from '@/components/LanguageProvider'
 import { Zap, Brain } from 'lucide-react'
 
 interface TimelineEvent {
@@ -41,13 +42,14 @@ interface TimelineEvent {
 
 export default function InvestigationPage() {
   return (
-    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-secondary)' }}>...</div>}>
       <InvestigationPageContent />
     </Suspense>
   )
 }
 
 function InvestigationPageContent() {
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const [selectedUser, setSelectedUser] = useState<string>()
   const [selectedUserRiskScore, setSelectedUserRiskScore] = useState<number | null>(null)
@@ -283,7 +285,7 @@ function InvestigationPageContent() {
       {/* Header */}
       <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '16px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>Investigation</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>{t('investigation.title')}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 12px', background: 'var(--surface)' }}>
               <button
@@ -310,7 +312,7 @@ function InvestigationPageContent() {
                   }
                 }}
               >
-                Users
+                {t('investigation.users')}
               </button>
               <button
                 onClick={() => setActiveTab('alerts')}
@@ -336,7 +338,7 @@ function InvestigationPageContent() {
                   }
                 }}
               >
-                Alerts
+                {t('investigation.alerts')}
               </button>
             </div>
             <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
@@ -352,11 +354,11 @@ function InvestigationPageContent() {
         <div style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
             <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-              {activeTab === 'users' ? 'Investigation' : `Alerts (${alertsTotal})`}
+              {activeTab === 'users' ? t('investigation.title') : `${t('investigation.alerts')} (${alertsTotal})`}
             </h2>
             <input
               type="text"
-              placeholder={activeTab === 'users' ? 'Search users...' : 'Search by user email...'}
+              placeholder={activeTab === 'users' ? t('investigation.searchUsers') : t('investigation.searchByEmail')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -401,11 +403,11 @@ function InvestigationPageContent() {
                   e.currentTarget.style.boxShadow = 'none'
                 }}
               >
-                <option value="all">All Risk Levels</option>
-                <option value="critical">Critical (80+)</option>
-                <option value="high">High (50-79)</option>
-                <option value="medium">Medium (30-49)</option>
-                <option value="low">Low (0-29)</option>
+                <option value="all">{t('investigation.allRiskLevels')}</option>
+                <option value="critical">{t('investigation.critical')}</option>
+                <option value="high">{t('investigation.high')}</option>
+                <option value="medium">{t('investigation.medium')}</option>
+                <option value="low">{t('investigation.low')}</option>
               </select>
             </div>
           </div>
@@ -424,19 +426,19 @@ function InvestigationPageContent() {
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {alertsLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  Loading alerts...
+                  {t('investigation.loadingAlerts')}
                 </div>
               ) : alerts.length === 0 ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No alerts found
+                  {t('investigation.noAlerts')}
                 </div>
               ) : (
                 <>
                   <div style={{ padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 80px', gap: '12px' }}>
-                      <span>Risk</span>
-                      <span>User</span>
-                      <span style={{ textAlign: 'right' }}>Time</span>
+                      <span>{t('investigation.risk')}</span>
+                      <span>{t('common.user')}</span>
+                      <span style={{ textAlign: 'right' }}>{t('investigation.time')}</span>
                     </div>
                   </div>
                   {alerts.map((alert) => {
@@ -524,9 +526,9 @@ function InvestigationPageContent() {
                           opacity: alertsPage === 1 ? 0.5 : 1
                         }}
                       >
-                        Previous
+                        {t('investigation.previous')}
                       </button>
-                      <span>Page {alertsPage}</span>
+                      <span>{t('investigation.page')} {alertsPage}</span>
                       <button
                         onClick={() => setAlertsPage(p => p + 1)}
                         disabled={alerts.length < alertsPageSize}
@@ -540,7 +542,7 @@ function InvestigationPageContent() {
                           opacity: alerts.length < alertsPageSize ? 0.5 : 1
                         }}
                       >
-                        Next
+                        {t('investigation.next')}
                       </button>
                     </div>
                   )}
@@ -555,7 +557,7 @@ function InvestigationPageContent() {
           <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                {activeTab === 'users' ? 'Timeline' : 'Alerts Timeline'}
+                {activeTab === 'users' ? t('investigation.timeline') : t('investigation.alertsTimeline')}
               </h2>
               {activeTab === 'users' && selectedUser && (
                 <button
@@ -661,7 +663,7 @@ function InvestigationPageContent() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  AI Behavioral Analysis
+                  {t('investigation.aiBehavioral')}
                 </h3>
                 <button
                   onClick={() => {
@@ -692,18 +694,18 @@ function InvestigationPageContent() {
                     e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
-                  <Brain size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> View AI Analysis
+                  <Brain size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('investigation.viewAIAnalysis')}
                 </button>
               </div>
               {loadingAI ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  Analyzing user behavior...
+                  {t('investigation.analyzingBehavior')}
                 </div>
               ) : aiAnalysis ? (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
                     <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.riskScore')}</div>
                       <div style={{
                         fontSize: '24px',
                         fontWeight: '700',
@@ -713,7 +715,7 @@ function InvestigationPageContent() {
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Anomaly Level</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.anomalyLevel')}</div>
                       <div style={{
                         fontSize: '16px',
                         fontWeight: '600',
@@ -723,20 +725,20 @@ function InvestigationPageContent() {
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.referenceIncidents')}</div>
                       <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
                         {(aiAnalysis.reference_incident_ids || aiAnalysis.referenceIncidentIds)?.length || 0}
                       </div>
                     </div>
                   </div>
                   <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Explanation</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{t('investigation.aiExplanation')}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                       {aiAnalysis.ai_explanation || aiAnalysis.aiExplanation}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>AI Recommendation</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{t('investigation.aiRecommendation')}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                       {aiAnalysis.ai_recommendation || aiAnalysis.aiRecommendation}
                     </div>
@@ -744,7 +746,7 @@ function InvestigationPageContent() {
                 </div>
               ) : (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                  No AI analysis available. Click "View Details" to analyze.
+                  {t('investigation.noAIAnalysis')}
                 </div>
               )}
             </div>
@@ -763,11 +765,11 @@ function InvestigationPageContent() {
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
               {alertsLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  Loading timeline...
+                  {t('investigation.loadingTimeline')}
                 </div>
               ) : alerts.length === 0 ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No alerts found
+                  {t('investigation.noAlerts')}
                 </div>
               ) : (
                 (() => {

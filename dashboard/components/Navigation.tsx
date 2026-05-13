@@ -128,7 +128,7 @@ function NavigationContent() {
                 <div className="user-dropdown">
                   <button onClick={() => { logout(); setUserMenuOpen(false); }} className="dropdown-item">
                     <LogOut size={16} />
-                    <span>Logout</span>
+                    <span>{t('login.logout')}</span>
                   </button>
                 </div>
               )}

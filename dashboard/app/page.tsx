@@ -145,7 +145,8 @@ export default function Home() {
   const [topUsers24h, setTopUsers24h] = useState<TopUser[]>([])
   const [topUsersPeriod, setTopUsersPeriod] = useState<TopUser[]>([])
   const [highImpactAlerts, setHighImpactAlerts] = useState<HighImpactAlert[]>([])
-  const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 10, totalCount: 0, totalPages: 0 })
+  const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 20, totalCount: 0, totalPages: 0 })
+  const [highImpactLoading, setHighImpactLoading] = useState(false)
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
   const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
   // Period selectors for Data Movement and Top Rules
@@ -1390,8 +1391,8 @@ export default function Home() {
             </span>
           </div>
 
-          {/* Accordion List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Accordion List */}\r
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: highImpactLoading ? 0.5 : 1, transition: 'opacity 0.3s', pointerEvents: highImpactLoading ? 'none' : 'auto' }}>
             {highImpactAlerts.map((alert, idx) => {
               const isExpanded = expandedAlerts.has(alert.user_email + alert.highest_risk_date)
               const toggleExpand = () => {
@@ -1629,24 +1630,36 @@ export default function Home() {
           </div>
 
           {/* Pagination */}
-          <Pagination
-            currentPage={highImpactPagination.page}
-            totalPages={highImpactPagination.totalPages}
-            totalItems={highImpactPagination.totalCount}
-            onPageChange={async (newPage: number) => {
-              const apiUrl = getApiUrlDynamic()
-              const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-                params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
-              })
-              const data = res.data as HighImpactAlertsResponse
-              setHighImpactAlerts(data.data)
-              setHighImpactPagination(data.pagination)
-            }}
-            compact
-            labels={{
-              totalItems: t('pagination.totalItems'),
-            }}
-          />
+          {highImpactPagination.totalPages > 1 && (
+            <Pagination
+              currentPage={highImpactPagination.page}
+              totalPages={highImpactPagination.totalPages}
+              totalItems={highImpactPagination.totalCount}
+              onPageChange={async (newPage: number) => {
+                if (highImpactLoading) return
+                setHighImpactLoading(true)
+                try {
+                  const apiUrl = getApiUrlDynamic()
+                  const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
+                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
+                  })
+                  const data = res.data as HighImpactAlertsResponse
+                  setHighImpactAlerts(data?.data || [])
+                  if (data?.pagination) {
+                    setHighImpactPagination(data.pagination)
+                  }
+                  setExpandedAlerts(new Set())
+                } catch (error) {
+                  console.error('Error fetching high impact alerts page:', error)
+                } finally {
+                  setHighImpactLoading(false)
+                }
+              }}
+              labels={{
+                totalItems: t('pagination.totalItems'),
+              }}
+            />
+          )}
         </div>
       )}
 

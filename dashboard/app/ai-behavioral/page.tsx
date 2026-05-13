@@ -6,6 +6,7 @@ import apiClient from '@/lib/axios'
 import EntityDetailModal from '@/components/EntityDetailModal'
 import { BarChart3, Bot } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface AIBehavioralAnalysis {
   entity_type: string
@@ -43,6 +44,7 @@ type EntityTab = 'users' | 'channels' | 'departments' | 'destinations' | 'rules'
 
 export default function AIBehavioralPage() {
   const router = useRouter()
+  const { t } = useTranslation()
   const [overview, setOverview] = useState<AIBehavioralOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedEntity, setSelectedEntity] = useState<AIBehavioralAnalysis | null>(null)
@@ -106,7 +108,7 @@ export default function AIBehavioralPage() {
       const msg = error?.response?.data?.detail
         || error?.response?.data?.message
         || error?.message
-        || 'AI Behavioral Analysis servisi yanıt vermiyor'
+        || t('ai.serviceNotResponding')
       setError(msg)
     } finally {
       setLoading(false)
@@ -223,17 +225,17 @@ export default function AIBehavioralPage() {
   }, [currentTabData.anomalies, filterText])
 
   const tabConfig = [
-    { key: 'users' as const, label: 'Users', count: overview?.user_anomalies?.length || 0 },
-    { key: 'channels' as const, label: 'Channels', count: overview?.channel_anomalies?.length || 0 },
-    { key: 'departments' as const, label: 'Departments', count: overview?.department_anomalies?.length || 0 },
-    { key: 'destinations' as const, label: 'Destinations', count: overview?.destination_anomalies?.length || 0 },
-    { key: 'rules' as const, label: 'Rules', count: overview?.rule_anomalies?.length || 0 },
+    { key: 'users' as const, label: t('ai.users'), count: overview?.user_anomalies?.length || 0 },
+    { key: 'channels' as const, label: t('ai.channels'), count: overview?.channel_anomalies?.length || 0 },
+    { key: 'departments' as const, label: t('ai.departments'), count: overview?.department_anomalies?.length || 0 },
+    { key: 'destinations' as const, label: t('ai.destinations'), count: overview?.destination_anomalies?.length || 0 },
+    { key: 'rules' as const, label: t('ai.rules'), count: overview?.rule_anomalies?.length || 0 },
   ]
 
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
-        <LoadingOverlay isLoading={loading} message="AI Behavioral Analysis yükleniyor" />
+        <LoadingOverlay isLoading={loading} message={t('ai.loading')} />
       </div>
     )
   }
@@ -256,7 +258,7 @@ export default function AIBehavioralPage() {
         }}>⚠️</div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>
-            AI Behavioral Analysis yüklenemedi
+            {t('ai.loadFailed')}
           </div>
           <div style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '480px' }}>
             {error}
@@ -275,7 +277,7 @@ export default function AIBehavioralPage() {
             fontSize: '14px'
           }}
         >
-          Tekrar Dene
+          {t('ai.retry')}
         </button>
       </div>
     )
@@ -287,10 +289,10 @@ export default function AIBehavioralPage() {
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
-            AI Behavioral Analysis
+            {t('ai.title')}
           </h1>
           <p style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>
-            Advanced anomaly detection using statistical analysis and behavioral patterns
+            {t('ai.subtitle')}
           </p>
         </div>
 
@@ -306,7 +308,7 @@ export default function AIBehavioralPage() {
           flexWrap: 'wrap'
         }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
-            Lookback Period:
+            {t('ai.lookbackPeriod')}
             <select
               value={lookbackDays}
               onChange={(e) => setLookbackDays(Number(e.target.value))}
@@ -318,9 +320,9 @@ export default function AIBehavioralPage() {
                 color: 'var(--text-primary)'
               }}
             >
-              <option value={7}>7 days</option>
-              <option value={14}>14 days</option>
-              <option value={30}>30 days</option>
+              <option value={7}>7 {t('ai.days')}</option>
+              <option value={14}>14 {t('ai.days')}</option>
+              <option value={30}>30 {t('ai.days')}</option>
             </select>
           </label>
           <button
@@ -336,7 +338,7 @@ export default function AIBehavioralPage() {
               opacity: loading ? 0.6 : 1
             }}
           >
-            Refresh
+            {t('ai.refresh')}
           </button>
 
           {/* Azure AI Filter Toggle */}
@@ -375,25 +377,25 @@ export default function AIBehavioralPage() {
         {overview && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Total Analyzed</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>{t('ai.totalAnalyzed')}</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)' }}>
                 {overview.total_analyzed}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>High Anomalies</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>{t('ai.highAnomalies')}</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#dc2626' }}>
                 {overview.high_anomaly_count}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Medium Anomalies</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>{t('ai.mediumAnomalies')}</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
                 {overview.medium_anomaly_count}
               </div>
             </div>
             <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Low Anomalies</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>{t('ai.lowAnomalies')}</div>
               <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
                 {overview.low_anomaly_count}
               </div>
@@ -441,7 +443,7 @@ export default function AIBehavioralPage() {
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
               <input
                 type="text"
-                placeholder={`Filter ${activeTab}...`}
+                placeholder={`${t('ai.filter')} ${activeTab}...`}
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 onFocus={() => setShowDropdown(true)}
@@ -498,7 +500,7 @@ export default function AIBehavioralPage() {
               {filteredAnomalies.length > 0 && (
                 <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredAnomalies.length)} of {filteredAnomalies.length}
+                    {t('ai.showing')} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredAnomalies.length)} {t('ai.of')} {filteredAnomalies.length}
                   </span>
                   {totalPages > 1 && (
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -515,10 +517,10 @@ export default function AIBehavioralPage() {
                           fontSize: '13px'
                         }}
                       >
-                        ← Prev
+                        {t('ai.prev')}
                       </button>
                       <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
-                        Page {currentPage} / {totalPages}
+                        {t('investigation.page')} {currentPage} / {totalPages}
                       </span>
                       <button
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
@@ -533,7 +535,7 @@ export default function AIBehavioralPage() {
                           fontSize: '13px'
                         }}
                       >
-                        Next →
+                        {t('ai.next')}
                       </button>
                     </div>
                   )}
@@ -541,7 +543,7 @@ export default function AIBehavioralPage() {
               )}
               {paginatedAnomalies.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  No anomalies found for this entity type
+                  {t('ai.noAnomalies')}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -642,7 +644,7 @@ export default function AIBehavioralPage() {
           <div style={{ background: 'var(--surface)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                Analysis Details: {selectedEntity.entity_type.toUpperCase()} - {selectedEntity.entity_id}
+                {t('ai.analysisDetails')}: {selectedEntity.entity_type.toUpperCase()} - {selectedEntity.entity_id}
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -678,13 +680,13 @@ export default function AIBehavioralPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.riskScore')}</div>
                 <div style={{ fontSize: '32px', fontWeight: '700', color: getRiskColor(selectedEntity.risk_score) }}>
                   {selectedEntity.risk_score}
                 </div>
               </div>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Anomaly Level</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.anomalyLevel')}</div>
                 <div style={{
                   fontSize: '20px',
                   fontWeight: '700',
@@ -694,13 +696,13 @@ export default function AIBehavioralPage() {
                 </div>
               </div>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.referenceIncidents')}</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
                   {selectedEntity.reference_incident_ids.length}
                 </div>
                 {selectedEntity.reference_incident_ids.length > 0 && (
                   <div style={{ marginTop: '8px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>View in Investigation:</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.viewInInvestigation')}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {selectedEntity.reference_incident_ids.slice(0, 5).map((incidentId) => (
                         <a
@@ -721,7 +723,7 @@ export default function AIBehavioralPage() {
                       ))}
                       {selectedEntity.reference_incident_ids.length > 5 && (
                         <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px' }}>
-                          +{selectedEntity.reference_incident_ids.length - 5} more
+                          +{selectedEntity.reference_incident_ids.length - 5} {t('investigation.more')}
                         </span>
                       )}
                     </div>
@@ -731,14 +733,14 @@ export default function AIBehavioralPage() {
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Explanation</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>{t('investigation.aiExplanation')}</h3>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 {selectedEntity.ai_explanation}
               </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Recommendation</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>{t('investigation.aiRecommendation')}</h3>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 {selectedEntity.ai_recommendation}
               </div>
@@ -746,7 +748,7 @@ export default function AIBehavioralPage() {
 
             {Object.keys(selectedEntity.analysis_metadata || {}).length > 0 && (
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Analysis Metadata</h3>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>{t('ai.analysisMetadata')}</h3>
                 <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <pre style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0, whiteSpace: 'pre-wrap' }}>
                     {JSON.stringify(selectedEntity.analysis_metadata, null, 2)}
