@@ -147,7 +147,13 @@ public static class ServiceCollectionExtensions
         });
 
         // DataProtection & Caching
-        services.AddDataProtection();
+        // Persist keys to a fixed directory so they are accessible regardless of which
+        // user account runs the process (e.g. interactive user vs SYSTEM via Task Scheduler).
+        var keysDirectory = Path.Combine(AppContext.BaseDirectory, "DataProtection-Keys");
+        Directory.CreateDirectory(keysDirectory);
+        services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory))
+            .SetApplicationName("DLP-RiskAnalyzer");
         services.AddMemoryCache();
 
         // ── Health Checks ────────────────────────────────────────────────────────
