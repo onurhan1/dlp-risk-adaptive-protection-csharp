@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface User {
     id: number
@@ -16,6 +17,7 @@ interface User {
 }
 
 export default function UsersTab() {
+    const { t } = useTranslation()
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
@@ -132,8 +134,8 @@ export default function UsersTab() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>User Management</h3>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>Manage system users and their roles</p>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{t('users.title')}</h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>{t('users.subtitle')}</p>
                 </div>
                 <button
                     onClick={handleCreate}
@@ -170,16 +172,16 @@ export default function UsersTab() {
                     <thead>
                         <tr style={{ borderBottom: '2px solid var(--border)' }}>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>ID</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Username</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Email</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Role</th>
-                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Status</th>
-                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Actions</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.username')}</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.email')}</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.role')}</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.status')}</th>
+                            <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {users.length === 0 ? (
-                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No users found</td></tr>
+                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('users.noUsers')}</td></tr>
                         ) : (
                             users.map((user) => (
                                 <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -195,7 +197,7 @@ export default function UsersTab() {
                                             background: user.role === 'admin' ? 'rgba(0, 168, 232, 0.2)' : 'rgba(100, 116, 139, 0.2)',
                                             color: user.role === 'admin' ? 'var(--primary)' : 'var(--text-secondary)'
                                         }}>
-                                            {user.role === 'admin' ? 'Admin' : 'Standard'}
+                                            {user.role === 'admin' ? t('users.admin') : t('users.standard')}
                                         </span>
                                     </td>
                                     <td style={{ padding: '12px' }}>
@@ -211,8 +213,8 @@ export default function UsersTab() {
                                         </span>
                                     </td>
                                     <td style={{ padding: '12px', textAlign: 'right' }}>
-                                        <button onClick={() => handleEdit(user)} style={{ padding: '6px 12px', marginRight: '8px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Edit</button>
-                                        <button onClick={() => handleDelete(user.id)} style={{ padding: '6px 12px', background: 'rgba(217, 83, 79, 0.1)', color: '#d9534f', border: '1px solid rgba(217, 83, 79, 0.3)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>Delete</button>
+                                        <button onClick={() => handleEdit(user)} style={{ padding: '6px 12px', marginRight: '8px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{t('users.edit')}</button>
+                                        <button onClick={() => handleDelete(user.id)} style={{ padding: '6px 12px', background: 'rgba(217, 83, 79, 0.1)', color: '#d9534f', border: '1px solid rgba(217, 83, 79, 0.3)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>{t('users.delete')}</button>
                                     </td>
                                 </tr>
                             ))
@@ -225,31 +227,31 @@ export default function UsersTab() {
             {showModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }} onClick={() => setShowModal(false)}>
                     <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '24px', width: '90%', maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{editingUser ? 'Edit User' : 'Create New User'}</h3>
+                        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{editingUser ? t('users.editUser') : t('common.add')}</h3>
                         <form onSubmit={handleSubmit}>
                             <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Username</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.username')}</label>
                                 <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                             </div>
                             <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Email</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.email')}</label>
                                 <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                             </div>
                             {!editingUser && (
                                 <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Password</label>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.password')}</label>
                                     <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                                 </div>
                             )}
                             <div style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Role</label>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.role')}</label>
                                 <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }}>
-                                    <option value="standard">Standard</option>
-                                    <option value="admin">Admin</option>
+                                    <option value="standard">{t('users.standard')}</option>
+                                    <option value="admin">{t('users.admin')}</option>
                                 </select>
                             </div>
                             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer' }}>{t('users.cancel')}</button>
                                 <button type="submit" style={{ padding: '10px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>{editingUser ? 'Update' : 'Create'}</button>
                             </div>
                         </form>
