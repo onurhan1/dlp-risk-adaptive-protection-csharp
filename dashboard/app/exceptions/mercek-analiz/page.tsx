@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import Pagination from '@/components/ui/Pagination'
 import GridExport from '@/components/ui/GridExport'
+import { useTranslation } from '@/components/LanguageProvider'
 import {
   BarChart2,
   BarChart3,
@@ -45,6 +46,7 @@ interface ReleasedIncident {
 }
 
 export default function MercekAnalyzePage() {
+  const { t } = useTranslation()
   // Released Incidents States
   const [releasedIncidents, setReleasedIncidents] = useState<ReleasedIncident[]>([])
   const [loadingReleasedIncidents, setLoadingReleasedIncidents] = useState(false)

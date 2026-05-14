@@ -58,6 +58,7 @@ interface SearchableMultiSelectProps {
 }
 
 function SearchableMultiSelect({ label, options, selectedValues, onChange, placeholder }: SearchableMultiSelectProps) {
+    const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const dropdownRef = React.useRef<HTMLDivElement>(null)
