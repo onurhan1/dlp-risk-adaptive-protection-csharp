@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import RemediateButton from './RemediateButton'
 import { ClipboardList, CheckCircle } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface InvestigationAlertDetailsProps {
   event?: {
@@ -44,10 +45,11 @@ interface InvestigationAlertDetailsProps {
 
 export default function InvestigationAlertDetails({ event }: InvestigationAlertDetailsProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   if (!event) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '32px' }}>
-        <p style={{ textAlign: 'center' }}>Select an alert from the timeline to view details</p>
+        <p style={{ textAlign: 'center' }}>{t('investigation.selectAlert')}</p>
       </div>
     )
   }
@@ -64,22 +66,22 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       {/* Summary Section */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Channel:</span>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{t('investigation.channel')}</span>
           <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.channel || 'Unknown'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Action:</span>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{t('investigation.action')}</span>
           <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.action || 'Permit'}</span>
         </div>
         {event.destination && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Destination:</span>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{t('investigation.destination')}</span>
             <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{event.destination}</span>
           </div>
         )}
         {event.classification && event.classification.length > 0 && (
           <div>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>Classification:</span>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>{t('investigation.classification')}</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {event.classification.map((cls, idx) => (
                 <span
@@ -97,7 +99,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       {/* Matched Policy - Grouped by Policy with Rules and Classifiers */}
       {(event.policy || event.violationTriggers) && (
         <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Matched Policy</h4>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{t('investigation.matchedPolicy')}</h4>
           {(() => {
             let triggers: any[] = []
             if (event.violationTriggers) {
@@ -271,7 +273,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                 {/* Legacy rules without policies */}
                 {legacyRules.length > 0 && (
                   <div style={{ marginTop: '12px' }}>
-                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</h5>
+                    <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>{t('investigation.matchedRules')}</h5>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '12px' }}>
                       {legacyRules.map((rule: string, idx: number) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
@@ -291,7 +293,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       {/* Legacy Matched Rules (if no policy/violationTriggers but matched_rules exist) */}
       {!event.policy && !event.violationTriggers && event.matched_rules && event.matched_rules.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Matched Rule(s)</h4>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{t('investigation.matchedRules')}</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {event.matched_rules.map((rule, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
@@ -305,41 +307,41 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
 
       {/* Details Section */}
       <div style={{ marginBottom: '24px' }}>
-        <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>Details</h4>
+        <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>{t('investigation.details')}</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
           {event.loginName && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>Login Name: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.loginName')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.loginName}</span>
             </div>
           )}
           {event.emailAddress && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>Email Address: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.emailAddress')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.emailAddress}</span>
             </div>
           )}
           {event.fileName && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>File Name: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.fileName')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.fileName}</span>
             </div>
           )}
           {event.source_application && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>Source application: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.sourceApp')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.source_application}</span>
             </div>
           )}
           {event.email_subject && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>Email Subject: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.emailSubject')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.email_subject}</span>
             </div>
           )}
           {event.recipients && (
             <div>
-              <span style={{ color: 'var(--text-secondary)' }}>Recipients To: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{t('investigation.recipientsTo')}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{event.recipients}</span>
             </div>
           )}
@@ -349,9 +351,9 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       {/* Forensics Section - Only show if files are available */}
       {event.files && event.files.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Forensics</h4>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{t('investigation.forensics')}</h4>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-            Filter the table below by classification type or search for a specific file.
+            {t('investigation.forensicsDesc')}
           </p>
 
           {/* Search and Filter */}
@@ -359,7 +361,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Search / select a file"
+                placeholder={t('investigation.searchFile')}
                 style={{
                   width: '100%',
                   padding: '8px 32px 8px 12px',
@@ -410,7 +412,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
                 e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
               }}
             >
-              <span>Classifiers</span>
+              <span>{t('investigation.classifiers')}</span>
               <span>▼</span>
             </button>
           </div>
@@ -433,9 +435,10 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             <table style={{ width: '100%', fontSize: '14px' }}>
               <thead style={{ background: 'var(--background-secondary)' }}>
                 <tr>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Name</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Size</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Protected</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('investigation.name')}</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('investigation.size')}</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('investigation.protected')}</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('investigation.classification')}</th>
                   <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Classification</th>
                 </tr>
               </thead>
@@ -492,7 +495,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '18px' }}><CheckCircle size={18} style={{ color: '#10b981' }} /></span>
-                <span style={{ fontWeight: '600', color: '#10b981' }}>Remediated #{event.id}</span>
+                <span style={{ fontWeight: '600', color: '#10b981' }}>{t('investigation.remediated')} #{event.id}</span>
               </div>
               <RemediateButton
                 incidentId={event.id}
@@ -506,19 +509,19 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
               <div style={{ marginBottom: '4px' }}>
-                <strong>Date:</strong> {event.remediatedAt ? new Date(event.remediatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                <strong>{t('investigation.date')}</strong> {event.remediatedAt ? new Date(event.remediatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
               </div>
               <div style={{ marginBottom: '4px' }}>
-                <strong>By:</strong> {event.remediatedBy || 'System'}
+                <strong>{t('investigation.by')}</strong> {event.remediatedBy || 'System'}
               </div>
               {event.remediationAction && (
                 <div style={{ marginBottom: '4px' }}>
-                  <strong>Action:</strong> <span style={{ color: '#f59e0b', fontWeight: '500' }}>{event.remediationAction}</span>
+                  <strong>{t('investigation.actionLabel')}</strong> <span style={{ color: '#f59e0b', fontWeight: '500' }}>{event.remediationAction}</span>
                 </div>
               )}
               {event.remediationNotes && (
                 <div>
-                  <strong>Notes:</strong> {event.remediationNotes}
+                  <strong>{t('investigation.notes')}</strong> {event.remediationNotes}
                 </div>
               )}
             </div>

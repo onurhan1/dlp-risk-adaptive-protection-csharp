@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import apiClient from '@/lib/axios'
 import { Search, Upload, Plus, Edit2, Trash2, X, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface ExceptionRemoval {
   id: number
@@ -19,6 +20,7 @@ interface ExceptionRemoval {
 
 export default function ExceptionRemovalsPage() {
   const { username } = useAuth()
+  const { t } = useTranslation()
   const [exceptions, setExceptions] = useState<ExceptionRemoval[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -57,7 +59,7 @@ export default function ExceptionRemovalsPage() {
       setTotalPages(response.data.totalPages || 1)
       setTotal(response.data.total || 0)
     } catch (err: any) {
-      setError('Veriler yüklenirken hata oluştu: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorLoad')} ` + (err.response?.data?.error || err.message))
     } finally {
       setLoading(false)
     }
@@ -86,7 +88,7 @@ export default function ExceptionRemovalsPage() {
       fetchExceptions()
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err: any) {
-      setError('Dosya yüklenirken hata oluştu: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorUpload')} ` + (err.response?.data?.error || err.message))
     } finally {
       setUploading(false)
     }
@@ -119,7 +121,7 @@ export default function ExceptionRemovalsPage() {
     e.preventDefault()
     
     if (!formData.exception_name) {
-      setError('İstisna Adı zorunludur')
+      setError(t('exceptionsList.exceptionNameRequired'))
       return
     }
 
@@ -145,18 +147,18 @@ export default function ExceptionRemovalsPage() {
       setShowModal(false)
       fetchExceptions()
     } catch (err: any) {
-      setError('Kaydetme hatası: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorSave')} ` + (err.response?.data?.error || err.message))
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) return
+    if (!window.confirm(t('exceptionsList.deleteConfirm'))) return
 
     try {
       await apiClient.delete(`/api/exception-entries/removal/${id}`)
       fetchExceptions()
     } catch (err: any) {
-      setError('Silme hatası: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorDelete')} ` + (err.response?.data?.error || err.message))
     }
   }
 
@@ -171,10 +173,10 @@ export default function ExceptionRemovalsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 8px 0', color: 'var(--text-primary)' }}>
-            İstisna Kaldırma Listesi
+            {t('exceptionsList.titleRemoval')}
           </h1>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Toplam {total} kayıt bulundu
+            {t('exceptionsList.totalRecords').replace('{count}', total.toString())}
           </p>
         </div>
 
@@ -184,15 +186,15 @@ export default function ExceptionRemovalsPage() {
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px' }}
           >
-            <option value="">Tümü</option>
-            <option value="Aktif">Aktif</option>
-            <option value="Pasif">Pasif</option>
+            <option value="">{t('exceptionsList.statusAll')}</option>
+            <option value="Aktif">{t('exceptionsList.statusActive')}</option>
+            <option value="Pasif">{t('exceptionsList.statusPassive')}</option>
           </select>
 
           <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
             <input
               type="text"
-              placeholder="Ara..."
+              placeholder={`${t('common.search')}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px' }}
@@ -209,7 +211,7 @@ export default function ExceptionRemovalsPage() {
             style={{ padding: '8px 16px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500 }}
           >
             <Upload size={18} />
-            {uploading ? 'Yükleniyor...' : 'Excel Yükle'}
+            {uploading ? t('exceptionsList.uploading') : t('exceptionsList.uploadExcel')}
           </button>
 
           <button
@@ -217,7 +219,7 @@ export default function ExceptionRemovalsPage() {
             style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500 }}
           >
             <Plus size={18} />
-            Yeni Ekle
+            {t('exceptionsList.addNew')}
           </button>
         </div>
       </div>
@@ -234,22 +236,22 @@ export default function ExceptionRemovalsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Ekip</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Kural</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>İstisna Adı</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Durum</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Kullanım (Son 1 Yıl)</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Kaldırılma Nedeni</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Tarih</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Change No</th>
-                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>İşlemler</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.team')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.rule')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.exceptionName')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.status')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.usageCount')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.removalReason')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.date')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.changeNo')}</th>
+                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Yükleniyor...</td></tr>
+                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('exceptionsList.loading')}</td></tr>
               ) : exceptions.length === 0 ? (
-                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Kayıt bulunamadı.</td></tr>
+                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('exceptionsList.noRecords')}</td></tr>
               ) : (
                 exceptions.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -262,10 +264,10 @@ export default function ExceptionRemovalsPage() {
                         borderRadius: '4px', 
                         fontSize: '12px', 
                         fontWeight: 600,
-                        background: item.status?.toLowerCase() === 'aktif' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        color: item.status?.toLowerCase() === 'aktif' ? '#10b981' : '#ef4444'
+                        background: item.status?.toLowerCase() === 'aktif' || item.status?.toLowerCase() === 'active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: item.status?.toLowerCase() === 'aktif' || item.status?.toLowerCase() === 'active' ? '#10b981' : '#ef4444'
                       }}>
-                        {item.status || '-'}
+                        {item.status?.toLowerCase() === 'aktif' || item.status?.toLowerCase() === 'active' ? t('exceptionsList.statusActive') : item.status?.toLowerCase() === 'pasif' || item.status?.toLowerCase() === 'passive' ? t('exceptionsList.statusPassive') : '-'}
                       </span>
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -298,18 +300,18 @@ export default function ExceptionRemovalsPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Sayfa {page} / {totalPages}</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{t('pagination.page')} {page} {t('pagination.of')} {totalPages}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
                 onClick={() => setPage(p => Math.max(1, p - 1))} 
                 disabled={page === 1}
                 style={{ padding: '6px 12px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
-              >Önceki</button>
+              >{t('pagination.previous')}</button>
               <button 
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
                 disabled={page >= totalPages}
                 style={{ padding: '6px 12px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
-              >Sonraki</button>
+              >{t('pagination.next')}</button>
             </div>
           </div>
         )}
@@ -321,7 +323,7 @@ export default function ExceptionRemovalsPage() {
           <div style={{ background: 'var(--surface)', width: '100%', maxWidth: '500px', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-                {editingItem ? 'Kaydı Düzenle' : 'Yeni İstisna Kaldırma Kaydı'}
+                {editingItem ? t('exceptionsList.editRecord') : t('exceptionsList.newRemovalRecord')}
               </h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <X size={20} />
@@ -331,54 +333,54 @@ export default function ExceptionRemovalsPage() {
             <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>İstisna Adı *</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.exceptionName')} *</label>
                   <input required value={formData.exception_name} onChange={e => setFormData({...formData, exception_name: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kural</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.rule')}</label>
                   <input value={formData.rule} onChange={e => setFormData({...formData, rule: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Ekip / Departman</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.team')}</label>
                   <input value={formData.team} onChange={e => setFormData({...formData, team: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Durum</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.status')}</label>
                     <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }}>
-                      <option value="Aktif">Aktif</option>
-                      <option value="Pasif">Pasif</option>
+                      <option value="Aktif">{t('exceptionsList.statusActive')}</option>
+                      <option value="Pasif">{t('exceptionsList.statusPassive')}</option>
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kullanım Sayısı</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.usageCountLabel')}</label>
                     <input type="number" min="0" value={formData.usage_count} onChange={e => setFormData({...formData, usage_count: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kaldırılma Nedeni</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.removalReason')}</label>
                   <textarea value={formData.removal_reason} onChange={e => setFormData({...formData, removal_reason: e.target.value})} rows={2} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px', resize: 'vertical' }} />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Tarih</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.date')}</label>
                     <input type="date" value={formData.action_date} onChange={e => setFormData({...formData, action_date: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Change No</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.changeNo')}</label>
                     <input value={formData.change_no} onChange={e => setFormData({...formData, change_no: e.target.value})} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-primary)', fontSize: '14px' }} />
                   </div>
                 </div>
               </div>
 
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>İptal</button>
-                <button type="submit" style={{ padding: '8px 16px', background: 'var(--primary)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Kaydet</button>
+                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>{t('exceptionsList.cancel')}</button>
+                <button type="submit" style={{ padding: '8px 16px', background: 'var(--primary)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>{t('exceptionsList.save')}</button>
               </div>
             </form>
           </div>

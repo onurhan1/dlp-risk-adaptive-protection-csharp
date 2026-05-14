@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { BarChart3 } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface TimelineEvent {
   id: number
@@ -26,6 +27,7 @@ interface TimelineViewProps {
 
 export default function TimelineView({ userEmail, onEventSelect }: TimelineViewProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [filterActive, setFilterActive] = useState(false)
@@ -177,9 +179,9 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
     return (
       <div className="timeline-view closed">
         <div className="closed-message">
-          <p>Timeline closed</p>
+          <p>{t('timeline.closed')}</p>
           <button onClick={() => setIsClosed(false)} className="reopen-btn">
-            Reopen Timeline
+            {t('timeline.reopen')}
           </button>
         </div>
         <style jsx>{`
@@ -213,7 +215,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
   return (
     <div className="timeline-view">
       <div className="timeline-header">
-        <h3>Timeline</h3>
+        <h3>{t('timeline.title')}</h3>
         <div
           className="close-btn"
           onClick={handleCloseClick}
@@ -235,7 +237,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
         <div className="user-header">
           <div className="user-info">
             <h4>{userEmail}</h4>
-            <span className="user-title">User Profile</span>
+            <span className="user-title">{t('timeline.userProfile')}</span>
           </div>
           <button
             className="insights-btn"
@@ -245,7 +247,7 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
               }
             }}
           >
-            <span><BarChart3 size={14} /></span> User Insights
+            <span><BarChart3 size={14} /></span> {t('timeline.userInsights')}
           </button>
         </div>
       )}
@@ -284,13 +286,13 @@ export default function TimelineView({ userEmail, onEventSelect }: TimelineViewP
       </div>
 
       {loading ? (
-        <div className="loading">Loading timeline...</div>
+        <div className="loading">{t('timeline.loading')}</div>
       ) : (
         <div className="timeline-content">
           {Object.entries(groupedEvents).map(([date, dateEvents]) => (
             <div key={date} className="date-group">
               <div className="date-header">
-                {date} ({dateEvents.length} {dateEvents.length === 1 ? 'alert' : 'alerts'})
+                {date} ({dateEvents.length} {dateEvents.length === 1 ? t('timeline.alert') : t('timeline.alerts')})
               </div>
 
               {dateEvents.map((event) => (

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import apiClient from '@/lib/axios'
 import { Search, Upload, Download, Plus, Edit2, Trash2, X, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface PermanentException {
   id: number
@@ -20,6 +21,7 @@ interface PermanentException {
 
 export default function PermanentExceptionsPage() {
   const { username } = useAuth()
+  const { t } = useTranslation()
   const [exceptions, setExceptions] = useState<PermanentException[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -57,7 +59,7 @@ export default function PermanentExceptionsPage() {
       setTotalPages(response.data.totalPages || 1)
       setTotal(response.data.total || 0)
     } catch (err: any) {
-      setError('Veriler yüklenirken hata oluştu: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorLoad')} ` + (err.response?.data?.error || err.message))
     } finally {
       setLoading(false)
     }
@@ -86,7 +88,7 @@ export default function PermanentExceptionsPage() {
       fetchExceptions()
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err: any) {
-      setError('Dosya yüklenirken hata oluştu: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorUpload')} ` + (err.response?.data?.error || err.message))
     } finally {
       setUploading(false)
     }
@@ -120,7 +122,7 @@ export default function PermanentExceptionsPage() {
     e.preventDefault()
     
     if (!formData.exception_name) {
-      setError('İstisna Adı zorunludur')
+      setError(t('exceptionsList.exceptionNameRequired'))
       return
     }
 
@@ -147,18 +149,18 @@ export default function PermanentExceptionsPage() {
       setShowModal(false)
       fetchExceptions()
     } catch (err: any) {
-      setError('Kaydetme hatası: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorSave')} ` + (err.response?.data?.error || err.message))
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) return
+    if (!window.confirm(t('exceptionsList.deleteConfirm'))) return
 
     try {
       await apiClient.delete(`/api/exception-entries/permanent/${id}`)
       fetchExceptions()
     } catch (err: any) {
-      setError('Silme hatası: ' + (err.response?.data?.error || err.message))
+      setError(`${t('exceptionsList.errorDelete')} ` + (err.response?.data?.error || err.message))
     }
   }
 
@@ -173,10 +175,10 @@ export default function PermanentExceptionsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 8px 0', color: 'var(--text-primary)' }}>
-            Kalıcı İstisna Listesi
+            {t('exceptionsList.titlePermanent')}
           </h1>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Toplam {total} kayıt bulundu
+            {t('exceptionsList.totalRecords').replace('{count}', total.toString())}
           </p>
         </div>
 
@@ -184,7 +186,7 @@ export default function PermanentExceptionsPage() {
           <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
             <input
               type="text"
-              placeholder="Ara..."
+              placeholder={`${t('common.search')}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -226,7 +228,7 @@ export default function PermanentExceptionsPage() {
             }}
           >
             <Upload size={18} />
-            {uploading ? 'Yükleniyor...' : 'Excel Yükle'}
+            {uploading ? t('exceptionsList.uploading') : t('exceptionsList.uploadExcel')}
           </button>
 
           <button
@@ -246,7 +248,7 @@ export default function PermanentExceptionsPage() {
             }}
           >
             <Plus size={18} />
-            Yeni Ekle
+            {t('exceptionsList.addNew')}
           </button>
         </div>
       </div>
@@ -263,25 +265,25 @@ export default function PermanentExceptionsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>İstisna Adı</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Domain</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Ekip</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Politika / Kurallar</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Kanal</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Süre</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Tarih</th>
-                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Change No</th>
-                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>İşlemler</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.exceptionName')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.domain')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.team')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.policiesRules')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.channel')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.duration')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.date')}</th>
+                <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.changeNo')}</th>
+                <th style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('exceptionsList.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Yükleniyor...</td>
+                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('exceptionsList.loading')}</td>
                 </tr>
               ) : exceptions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Kayıt bulunamadı.</td>
+                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('exceptionsList.noRecords')}</td>
                 </tr>
               ) : (
                 exceptions.map((item) => (
@@ -291,10 +293,10 @@ export default function PermanentExceptionsPage() {
                     <td style={{ padding: '12px' }}>{item.team || '-'}</td>
                     <td style={{ padding: '12px', maxWidth: '250px' }}>
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.policies}>
-                        <strong style={{fontSize:'11px', color:'var(--text-secondary)'}}>POLİTİKA:</strong> {item.policies || '-'}
+                        <strong style={{fontSize:'11px', color:'var(--text-secondary)'}}>{t('exceptionsList.policyLabel')}</strong> {item.policies || '-'}
                       </div>
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.rules}>
-                        <strong style={{fontSize:'11px', color:'var(--text-secondary)'}}>KURAL:</strong> {item.rules || '-'}
+                        <strong style={{fontSize:'11px', color:'var(--text-secondary)'}}>{t('exceptionsList.ruleLabel')}</strong> {item.rules || '-'}
                       </div>
                     </td>
                     <td style={{ padding: '12px' }}>
@@ -325,21 +327,21 @@ export default function PermanentExceptionsPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Sayfa {page} / {totalPages}</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{t('pagination.page')} {page} {t('pagination.of')} {totalPages}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
                 onClick={() => setPage(p => Math.max(1, p - 1))} 
                 disabled={page === 1}
                 style={{ padding: '6px 12px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
               >
-                Önceki
+                {t('pagination.previous')}
               </button>
               <button 
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
                 disabled={page >= totalPages}
                 style={{ padding: '6px 12px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}
               >
-                Sonraki
+                {t('pagination.next')}
               </button>
             </div>
           </div>
@@ -352,7 +354,7 @@ export default function PermanentExceptionsPage() {
           <div style={{ background: 'var(--surface)', width: '100%', maxWidth: '600px', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-                {editingItem ? 'İstisnayı Düzenle' : 'Yeni Kalıcı İstisna Ekle'}
+                {editingItem ? t('exceptionsList.editRecord') : t('exceptionsList.newPermanentRecord')}
               </h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 <X size={20} />
@@ -362,7 +364,7 @@ export default function PermanentExceptionsPage() {
             <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>İstisna Adı *</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.exceptionName')} *</label>
                   <input
                     required
                     value={formData.exception_name}
@@ -372,7 +374,7 @@ export default function PermanentExceptionsPage() {
                 </div>
                 
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Domain</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.domain')}</label>
                   <input
                     value={formData.exception_domain}
                     onChange={e => setFormData({...formData, exception_domain: e.target.value})}
@@ -382,7 +384,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Ekip / Departman</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.team')}</label>
                   <input
                     value={formData.team}
                     onChange={e => setFormData({...formData, team: e.target.value})}
@@ -391,7 +393,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kanal (Channel)</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.channel')}</label>
                   <input
                     value={formData.channel}
                     onChange={e => setFormData({...formData, channel: e.target.value})}
@@ -401,7 +403,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Politikalar</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.policies')}</label>
                   <textarea
                     value={formData.policies}
                     onChange={e => setFormData({...formData, policies: e.target.value})}
@@ -411,7 +413,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Kurallar</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.rules')}</label>
                   <textarea
                     value={formData.rules}
                     onChange={e => setFormData({...formData, rules: e.target.value})}
@@ -421,7 +423,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Süre</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.duration')}</label>
                   <input
                     value={formData.duration}
                     onChange={e => setFormData({...formData, duration: e.target.value})}
@@ -431,7 +433,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Tarih</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.date')}</label>
                   <input
                     type="date"
                     value={formData.action_date}
@@ -441,7 +443,7 @@ export default function PermanentExceptionsPage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>Change No</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)' }}>{t('exceptionsList.changeNo')}</label>
                   <input
                     value={formData.change_no}
                     onChange={e => setFormData({...formData, change_no: e.target.value})}
@@ -452,10 +454,10 @@ export default function PermanentExceptionsPage() {
 
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>
-                  İptal
+                  {t('exceptionsList.cancel')}
                 </button>
                 <button type="submit" style={{ padding: '8px 16px', background: 'var(--primary)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>
-                  Kaydet
+                  {t('exceptionsList.save')}
                 </button>
               </div>
             </form>

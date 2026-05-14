@@ -4,6 +4,7 @@ import { useState } from 'react'
 import axios from 'axios'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface RemediateButtonProps {
   incidentId: number
@@ -15,6 +16,7 @@ interface RemediateButtonProps {
 }
 
 export default function RemediateButton({ incidentId, currentStatus, onRemediated, isRemediated, currentAction, currentNotes }: RemediateButtonProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [action, setAction] = useState(currentAction || 'resolved')
@@ -55,8 +57,8 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
   }
 
   // Determine button text based on remediation status
-  const buttonText = isRemediated ? 'Update Status' : 'Remediate'
-  const modalTitle = isRemediated ? `Update Remediation #${incidentId}` : `Remediate Incident #${incidentId}`
+  const buttonText = isRemediated ? t('remediate.updateStatus') : t('remediate.remediate')
+  const modalTitle = isRemediated ? `${t('remediate.updateTitle')} #${incidentId}` : `${t('remediate.remediateTitle')} #${incidentId}`
 
   return (
     <>
@@ -65,7 +67,7 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
         className={isRemediated ? "update-status-btn" : "remediate-btn"}
         disabled={loading}
       >
-        {loading ? 'Processing...' : buttonText}
+        {loading ? t('remediate.processing') : buttonText}
       </button>
 
       {showModal && (
@@ -74,40 +76,40 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
             <h3>{modalTitle}</h3>
 
             <div className="form-group">
-              <label>Action:</label>
+              <label>{t('remediate.actionLabel')}</label>
               <select value={action} onChange={(e) => setAction(e.target.value)}>
-                <option value="resolved">Resolved</option>
-                <option value="false_positive">False Positive</option>
-                <option value="investigating">Investigating</option>
+                <option value="resolved">{t('remediate.resolved')}</option>
+                <option value="false_positive">{t('remediate.falsePositive')}</option>
+                <option value="investigating">{t('remediate.investigating')}</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label>Reason:</label>
+              <label>{t('remediate.reason')}</label>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Reason for remediation"
+                placeholder={t('remediate.reasonPlaceholder')}
               />
             </div>
 
             <div className="form-group">
-              <label>Notes:</label>
+              <label>{t('remediate.notes')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Additional notes..."
+                placeholder={t('remediate.notesPlaceholder')}
                 rows={4}
               />
             </div>
 
             <div className="modal-actions">
               <button onClick={handleRemediate} disabled={loading} className="btn-primary">
-                {loading ? 'Processing...' : 'Confirm'}
+                {loading ? t('remediate.processing') : t('remediate.confirm')}
               </button>
               <button onClick={() => setShowModal(false)} className="btn-secondary">
-                Cancel
+                {t('remediate.cancel')}
               </button>
             </div>
           </div>

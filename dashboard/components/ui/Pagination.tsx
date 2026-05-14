@@ -7,6 +7,7 @@ import {
     ChevronsLeft,
     ChevronsRight,
 } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 export interface PaginationProps {
     currentPage: number
@@ -34,17 +35,6 @@ export interface PaginationProps {
     }
 }
 
-const defaultLabels = {
-    first: 'İlk',
-    previous: 'Önceki',
-    next: 'Sonraki',
-    last: 'Son',
-    page: 'Sayfa',
-    of: '/',
-    totalItems: 'toplam kayıt',
-    pageSize: 'Sayfa Boyutu',
-    goToPage: 'Git',
-}
 
 export default function Pagination({
     currentPage,
@@ -61,6 +51,20 @@ export default function Pagination({
     compact = false,
     labels: customLabels,
 }: PaginationProps) {
+    const { t } = useTranslation()
+    
+    const defaultLabels = {
+        first: t('pagination.first'),
+        previous: t('pagination.previous'),
+        next: t('pagination.next'),
+        last: t('pagination.last'),
+        page: t('pagination.page'),
+        of: t('pagination.of'),
+        totalItems: t('pagination.totalItems'),
+        pageSize: t('pagination.pageSize'),
+        goToPage: t('pagination.goToPage'),
+    }
+
     const labels = { ...defaultLabels, ...customLabels }
     const [pageInput, setPageInput] = useState('')
 

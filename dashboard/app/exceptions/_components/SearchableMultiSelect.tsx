@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, memo } from 'react'
 import { ChevronDown, X, Check, Search } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface SearchableMultiSelectProps {
   label: string
@@ -13,6 +14,7 @@ interface SearchableMultiSelectProps {
 }
 
 export default memo(function SearchableMultiSelect({ label, options, selectedValues, onChange, placeholder, compact = false }: SearchableMultiSelectProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -49,10 +51,10 @@ export default memo(function SearchableMultiSelect({ label, options, selectedVal
   }
 
   const displayText = selectedValues.length === 0
-    ? (placeholder || 'All')
+    ? (placeholder || t('common.all'))
     : selectedValues.length === 1
       ? selectedValues[0]
-      : `${selectedValues.length} selected`
+      : `${selectedValues.length} ${t('common.selected')}`
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: compact ? '2px' : '8px' }}>
@@ -152,7 +154,7 @@ export default memo(function SearchableMultiSelect({ label, options, selectedVal
               <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
               <input
                 type="text"
-                placeholder="Ara..."
+                placeholder={`${t('common.search')}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
@@ -200,9 +202,9 @@ export default memo(function SearchableMultiSelect({ label, options, selectedVal
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             {selectedValues.length === filteredOptions.length && filteredOptions.length > 0 ? (
-              <><Check size={12} /> Seçimi Kaldır</>
+              <><Check size={12} /> {t('common.clearSelection')}</>
             ) : (
-              <>Tümünü Seç ({filteredOptions.length})</>
+              <>{t('common.selectAll')} ({filteredOptions.length})</>
             )}
           </div>
 
@@ -260,7 +262,7 @@ export default memo(function SearchableMultiSelect({ label, options, selectedVal
             })}
             {filteredOptions.length === 0 && (
               <div style={{ padding: '20px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center', fontStyle: 'italic' }}>
-                Sonuç bulunamadı
+                {t('common.noResults')}
               </div>
             )}
           </div>

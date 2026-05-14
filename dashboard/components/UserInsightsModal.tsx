@@ -5,6 +5,7 @@ import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
 import Pagination from './ui/Pagination'
 import { Loader2, Inbox, BarChart3, TrendingUp, TrendingDown, Minus, Target, ClipboardList, Calendar, CalendarDays, CalendarRange, AlertTriangle } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -73,6 +74,7 @@ export default function UserInsightsModal({
     userName
 }: UserInsightsModalProps) {
     const [loading, setLoading] = useState(true)
+    const { t } = useTranslation()
     const [data, setData] = useState<ComprehensiveInsights | null>(null)
     const [activePeriod, setActivePeriod] = useState<PeriodFilter>('monthly')
     const [error, setError] = useState<string | null>(null)
@@ -146,10 +148,10 @@ export default function UserInsightsModal({
     }
 
     const periodLabels: Record<PeriodFilter, string> = {
-        daily: 'Last 7 Days',
-        weekly: 'Last 2 Weeks',
-        monthly: 'Last 1 Month',
-        quarterly: 'Last 3 Months'
+        daily: t('insights.last7Days'),
+        weekly: t('insights.last2Weeks'),
+        monthly: t('insights.last1Month'),
+        quarterly: t('insights.last3Months')
     }
 
     const plotlyLayout = {
@@ -187,7 +189,7 @@ export default function UserInsightsModal({
                 <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg, var(--surface) 0%, var(--background-secondary) 100%)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>User Risk Insights</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>{t('insights.title')}</div>
                             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{data?.full_name || userName || userEmail}</h2>
                             {(data?.full_name || userName) && <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>{userEmail} {data?.team && `• ${data.team}`}</div>}
                         </div>
@@ -209,31 +211,31 @@ export default function UserInsightsModal({
                 {/* Content */}
                 <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Loader2 size={48} style={{ animation: 'spin 1s linear infinite' }} /></div><style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>Loading user insights...</div>
+                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Loader2 size={48} style={{ animation: 'spin 1s linear infinite' }} /></div><style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>{t('insights.loading')}</div>
                     ) : error ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}><div style={{ marginBottom: '16px' }}><AlertTriangle size={48} /></div>{error}</div>
                     ) : !data || data.daily_scores.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Inbox size={48} style={{ opacity: 0.4 }} /></div>No risk data available for this period</div>
+                        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}><div style={{ marginBottom: '16px' }}><Inbox size={48} style={{ opacity: 0.4 }} /></div>{t('insights.noData')}</div>
                     ) : (
                         <div style={{ display: 'grid', gap: '24px' }}>
                             {/* Period Averages */}
                             <div style={{ background: 'linear-gradient(135deg, var(--background) 0%, var(--surface) 100%)', borderRadius: '12px', padding: '20px', border: '2px solid var(--primary)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> Period Averages Comparison</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> {t('insights.periodAvg')}</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Weekly Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>{t('insights.weeklyAvg')}</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.weekly.avg_score) }}>{data.period_averages.weekly.avg_score.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.weekly.total_incidents} incidents</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.weekly.total_incidents} {t('insights.incidents')}</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Monthly Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>{t('insights.monthlyAvg')}</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.monthly.avg_score) }}>{data.period_averages.monthly.avg_score.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.monthly.total_incidents} incidents</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.monthly.total_incidents} {t('insights.incidents')}</div>
                                     </div>
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>3-Month Avg</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>{t('insights.threeMonthAvg')}</div>
                                         <div style={{ fontSize: '32px', fontWeight: '800', color: getRiskColor(data.period_averages.quarterly.avg_score) }}>{data.period_averages.quarterly.avg_score.toFixed(1)}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.quarterly.total_incidents} incidents</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{data.period_averages.quarterly.total_incidents} {t('insights.incidents')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -241,53 +243,53 @@ export default function UserInsightsModal({
                             {/* Summary Cards */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Avg Daily Score</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>{t('insights.avgDailyScore')}</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: getRiskColor(data.summary.avg_daily_score) }}>{data.summary.avg_daily_score.toFixed(1)}</div>
                                     <div style={{ marginTop: '8px', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', display: 'inline-block', background: `${getRiskColor(data.summary.avg_daily_score)}20`, color: getRiskColor(data.summary.avg_daily_score) }}>{getRiskLevel(data.summary.avg_daily_score)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Total Incidents</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>{t('insights.totalIncidents')}</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text-primary)' }}>{data.summary.total_incidents.toLocaleString()}</div>
                                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>in {periodLabels[activePeriod].toLowerCase()}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Max Matches</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>{t('insights.maxMatches')}</div>
                                     <div style={{ fontSize: '36px', fontWeight: '800', color: (data.summary.max_max_matches ?? 0) > 100 ? '#ef4444' : 'var(--text-primary)' }}>{(data.summary.max_max_matches ?? 0).toLocaleString()}</div>
                                     <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>avg: {(data.summary.avg_max_matches ?? 0).toFixed(1)}</div>
                                 </div>
                                 <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Trend</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>{t('insights.trend')}</div>
                                     <div style={{ fontSize: '36px' }}>{trendDirection === 'up' ? <TrendingUp size={36} color="#ef4444" /> : trendDirection === 'down' ? <TrendingDown size={36} color="#10b981" /> : <Minus size={36} color="var(--text-secondary)" />}</div>
-                                    <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: '600', color: trendDirection === 'up' ? '#ef4444' : trendDirection === 'down' ? '#10b981' : 'var(--text-secondary)' }}>{trendDirection === 'up' ? 'Increasing' : trendDirection === 'down' ? 'Decreasing' : 'Stable'}</div>
+                                    <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: '600', color: trendDirection === 'up' ? '#ef4444' : trendDirection === 'down' ? '#10b981' : 'var(--text-secondary)' }}>{trendDirection === 'up' ? t('insights.increasing') : trendDirection === 'down' ? t('insights.decreasing') : t('insights.stable')}</div>
                                 </div>
                             </div>
 
                             {/* Action Breakdown */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><Target size={18} /> Action Breakdown</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><Target size={18} /> {t('insights.actionBreakdown')}</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{data.summary.total_block_count ?? 0}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>BLOCKED</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{t('insights.blocked')}</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>{data.summary.total_quarantine_count ?? 0}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>QUARANTINED</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{t('insights.quarantined')}</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{data.summary.total_permit_count ?? 0}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>PERMITTED</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{t('insights.permitted')}</div>
                                     </div>
                                     <div style={{ textAlign: 'center', padding: '16px', background: 'var(--surface)', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>{data.summary.total_released_count ?? 0}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>RELEASED</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{t('insights.released')}</div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Risk Score Chart */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><TrendingUp size={18} /> Risk Score Trend - {periodLabels[activePeriod]}</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><TrendingUp size={18} /> {t('insights.riskScoreTrend')} - {periodLabels[activePeriod]}</h3>
                                 <Plot
                                     data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.daily_risk_score), type: 'scatter', mode: 'lines+markers', name: 'Daily Risk Score', line: { color: '#3b82f6', width: 3, shape: 'spline' }, marker: { size: 8, color: data.daily_scores.map(d => getRiskColor(d.daily_risk_score)) }, fill: 'tozeroy', fillcolor: 'rgba(59, 130, 246, 0.1)' }]}
                                     layout={{ ...plotlyLayout, height: 350, yaxis: { ...plotlyLayout.yaxis, title: 'Risk Score (0-100)', range: [0, 100] }, shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 75, y1: 75, line: { color: '#dc2626', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 50, y1: 50, line: { color: '#f59e0b', width: 1, dash: 'dash' } }, { type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 25, y1: 25, line: { color: '#eab308', width: 1, dash: 'dash' } }], annotations: [{ x: 1.02, xref: 'paper', y: 75, text: 'Critical', showarrow: false, font: { size: 10, color: '#dc2626' } }, { x: 1.02, xref: 'paper', y: 50, text: 'High', showarrow: false, font: { size: 10, color: '#f59e0b' } }, { x: 1.02, xref: 'paper', y: 25, text: 'Medium', showarrow: false, font: { size: 10, color: '#eab308' } }] }}
@@ -298,7 +300,7 @@ export default function UserInsightsModal({
 
                             {/* Incident & Matches Chart */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> Incidents & Matches</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><BarChart3 size={18} /> {t('insights.incidentsMatches')}</h3>
                                 <Plot
                                     data={[{ x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.incident_count), type: 'bar', name: 'Incidents', marker: { color: '#3b82f6', opacity: 0.8 } }, { x: data.daily_scores.map(d => d.date), y: data.daily_scores.map(d => d.max_max_matches), type: 'scatter', mode: 'lines+markers', name: 'Max Matches', yaxis: 'y2', line: { color: '#f59e0b', width: 2 }, marker: { size: 6 } }]}
                                     layout={{ ...plotlyLayout, height: 280, yaxis: { ...plotlyLayout.yaxis, title: 'Incident Count' }, yaxis2: { overlaying: 'y', side: 'right', title: 'Max Matches', gridcolor: 'transparent' } }}
@@ -309,22 +311,22 @@ export default function UserInsightsModal({
 
                             {/* Detailed Table */}
                             <div style={{ background: 'var(--background)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><ClipboardList size={18} /> Detailed Daily History</h3>
+                                <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}><ClipboardList size={18} /> {t('insights.detailedHistory')}</h3>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid var(--border)' }}>
                                                 <th style={{ textAlign: 'left', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>#</th>
-                                                <th style={{ textAlign: 'left', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Date</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Score</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Incidents</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: '#ef4444', fontWeight: '600' }}>Block</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: '#8b5cf6', fontWeight: '600' }}>Quarantine</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: '#10b981', fontWeight: '600' }}>Permit</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: '#f59e0b', fontWeight: '600' }}>Released</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Max Matches</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Avg Matches</th>
-                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Level</th>
+                                                <th style={{ textAlign: 'left', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('logs.time')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('insights.score')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('insights.incidents')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: '#ef4444', fontWeight: '600' }}>{t('insights.block')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: '#8b5cf6', fontWeight: '600' }}>{t('insights.quarantine')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: '#10b981', fontWeight: '600' }}>{t('insights.permit')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: '#f59e0b', fontWeight: '600' }}>{t('insights.released')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('insights.maxMatches')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('insights.avgMatches')}</th>
+                                                <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('insights.level')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>

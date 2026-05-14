@@ -191,8 +191,8 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
             style={{ ...STYLES.filterInput, border: dateError ? '1px solid #ef4444' : '1px solid var(--border)' }} />
           {dateError && <span style={{ color: '#ef4444', fontSize: '9px', marginTop: '1px' }}>{dateError}</span>}
         </div>
-        <SearchableMultiSelect label={t('heatmap.department')} options={uniqueDepartments} selectedValues={selectedDepartments} onChange={setSelectedDepartments} placeholder="All" compact />
-        <SearchableMultiSelect label={t('heatmap.team')} options={uniqueTeams} selectedValues={selectedTeams} onChange={setSelectedTeams} placeholder="All" compact />
+        <SearchableMultiSelect label={t('heatmap.department')} options={uniqueDepartments} selectedValues={selectedDepartments} onChange={setSelectedDepartments} placeholder={t('common.all')} compact />
+        <SearchableMultiSelect label={t('heatmap.team')} options={uniqueTeams} selectedValues={selectedTeams} onChange={setSelectedTeams} placeholder={t('common.all')} compact />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <label style={STYLES.filterLabel}>{t('heatmap.user')}</label>
           <input type="text" placeholder={`${t('heatmap.user')}...`} value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} style={STYLES.filterInput} />
@@ -209,7 +209,7 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
           <label style={STYLES.filterLabel}>{t('heatmap.domain')}</label>
           <input type="text" placeholder={`${t('heatmap.domain')}...`} value={selectedDomain} onChange={(e) => setSelectedDomain(e.target.value)} style={STYLES.filterInput} />
         </div>
-        <SearchableMultiSelect label={t('heatmap.action')} options={uniqueActions} selectedValues={selectedActions} onChange={setSelectedActions} placeholder="All" compact />
+        <SearchableMultiSelect label={t('heatmap.action')} options={uniqueActions} selectedValues={selectedActions} onChange={setSelectedActions} placeholder={t('common.all')} compact />
         <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', alignSelf: 'end' }}>
           <button onClick={applyFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: 'none', background: '#3b82f6', color: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>{t('heatmap.filter')}</button>
           <button onClick={resetFilters} style={{ flex: 1, padding: '6px 0', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>{t('heatmap.clear')}</button>

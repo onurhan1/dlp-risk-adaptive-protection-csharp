@@ -94,10 +94,10 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
     }
 
     const displayText = selectedValues.length === 0
-        ? (placeholder || 'All')
+        ? (placeholder || t('exceptionsList.statusAll'))
         : selectedValues.length === 1
             ? selectedValues[0]
-            : `${selectedValues.length} seçili`
+            : `${selectedValues.length} ${t('common.selected')}`
 
     return (
         <div ref={dropdownRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -200,7 +200,7 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
                             }} />
                             <input
                                 type="text"
-                                placeholder="Ara..."
+                                placeholder={`${t('common.search')}...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 autoFocus
@@ -254,9 +254,9 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
                         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                         {selectedValues.length === filteredOptions.length && filteredOptions.length > 0 ? (
-                            <><Check size={12} /> Seçimi Kaldır</>
+                            <><Check size={12} /> {t('common.clearSelection')}</>
                         ) : (
-                            <>Tümünü Seç ({filteredOptions.length})</>
+                            <>{t('common.selectAll')} ({filteredOptions.length})</>
                         )}
                     </div>
 
@@ -325,7 +325,7 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
                                 textAlign: 'center',
                                 fontStyle: 'italic'
                             }}>
-                                Sonuç bulunamadı
+                                {t('common.noResults')}
                             </div>
                         )}
                     </div>
@@ -338,8 +338,9 @@ function SearchableMultiSelect({ label, options, selectedValues, onChange, place
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ExceptionListPage() {
+    const { t } = useTranslation()
     return (
-        <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}><LoadingOverlay isLoading={true} message="Exception List yükleniyor" /></div>}>
+        <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}><LoadingOverlay isLoading={true} message={t('exceptionsList.loading')} /></div>}>
             <ExceptionListContent />
         </Suspense>
     )
@@ -423,7 +424,7 @@ function ExceptionListContent() {
                         setApiError(`Backend Error: ${res.data.error}`)
                     } else {
                         console.warn('--- UNEXPECTED POLICY EXCEPTIONS FORMAT ---', res.data)
-                        setApiError(`Beklenmeyen veri formatı: ${JSON.stringify(res.data).substring(0, 100)}...`)
+                        setApiError(`${t('exceptionsList.unexpectedDataFormat')}: ${JSON.stringify(res.data).substring(0, 100)}...`)
                     }
                 })
                 .catch(err => {
@@ -671,7 +672,7 @@ function ExceptionListContent() {
     if (loading) {
         return (
             <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
-                <LoadingOverlay isLoading={loading} message="Exception List verileri yükleniyor" />
+                <LoadingOverlay isLoading={loading} message={t('exceptionsList.loading')} />
             </div>
         )
     }
@@ -707,7 +708,7 @@ function ExceptionListContent() {
                 }}>
                     <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
                     <div>
-                        <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>API Bağlantı Hatası</div>
+                        <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>{t('exceptionsList.apiConnectionError')}</div>
                         <div style={{ fontSize: '13px', fontFamily: 'monospace' }}>{apiError}</div>
                     </div>
                 </div>
@@ -776,7 +777,7 @@ function ExceptionListContent() {
                     </div>
                     <div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '2px' }}>
-                            İstisnaya Takılan Olay
+                            {t('exceptionsList.exceptionMatchedIncident')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                             <span style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
@@ -784,7 +785,7 @@ function ExceptionListContent() {
                             </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            SQL aggregation ile
+                            {t('exceptionsList.sqlAggregationInfo')}
                         </div>
                     </div>
                 </div>
