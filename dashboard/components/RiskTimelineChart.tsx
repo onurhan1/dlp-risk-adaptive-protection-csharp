@@ -5,6 +5,7 @@ import axios from 'axios'
 import { format, subDays } from 'date-fns'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface TopUser {
   user_email: string
@@ -23,6 +24,7 @@ interface TopRule {
 }
 
 export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
+  const { t } = useTranslation()
   const [data, setData] = useState<any>(null)
   const [topUsers, setTopUsers] = useState<TopUser[]>([])
   const [topRules, setTopRules] = useState<TopRule[]>([])
@@ -132,7 +134,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
   }
 
   if (loading) {
-    return <div>Loading investigation timeline...</div>
+    return <div>{t('riskTimeline.loading')}</div>
   }
 
   // Chart data for timeline view - only showing total incidents
@@ -154,7 +156,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
     <div className="risk-timeline-chart">
       <div className="chart-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h3>Investigation</h3>
+          <h3>{t('riskTimeline.title')}</h3>
           <div className="date-filters" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="date"
@@ -169,7 +171,7 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
                 fontSize: '13px'
               }}
             />
-            <span style={{ color: 'var(--text-secondary)' }}>to</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{t('riskTimeline.to')}</span>
             <input
               type="date"
               value={dateRange.end}
@@ -190,13 +192,13 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
             className={`tab ${activeTab === 'users' ? 'active' : ''}`}
             onClick={() => setActiveTab('users')}
           >
-            Risky users
+            {t('riskTimeline.riskyUsers')}
           </button>
           <button
             className={`tab ${activeTab === 'alerts' ? 'active' : ''}`}
             onClick={() => setActiveTab('alerts')}
           >
-            Alerts
+            {t('riskTimeline.alerts')}
           </button>
         </div>
       </div>
@@ -209,16 +211,16 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>User</th>
-                  <th>Risk Score</th>
-                  <th>Incidents</th>
+                  <th>{t('riskTimeline.user')}</th>
+                  <th>{t('riskTimeline.riskScore')}</th>
+                  <th>{t('riskTimeline.incidents')}</th>
                 </tr>
               </thead>
               <tbody>
                 {topUsers.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                      No data available
+                      {t('riskTimeline.noData')}
                     </td>
                   </tr>
                 ) : (
@@ -265,16 +267,16 @@ export default function RiskTimelineChart({ days = 30 }: { days?: number }) {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Rule</th>
-                  <th>Alerts</th>
-                  <th>Users</th>
+                  <th>{t('riskTimeline.rule')}</th>
+                  <th>{t('riskTimeline.alerts')}</th>
+                  <th>{t('riskTimeline.users')}</th>
                 </tr>
               </thead>
               <tbody>
                 {topRules.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                      No data available
+                      {t('riskTimeline.noData')}
                     </td>
                   </tr>
                 ) : (

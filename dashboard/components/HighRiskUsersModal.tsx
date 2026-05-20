@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import axios from 'axios'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface HighRiskUser {
     user_email: string
@@ -21,6 +22,7 @@ interface HighRiskUsersModalProps {
 }
 
 export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUsersModalProps) {
+    const { t } = useTranslation()
     const [users, setUsers] = useState<HighRiskUser[]>([])
     const [loading, setLoading] = useState(false)
     const [currentPage, setCurrentPage] = useState(1)
@@ -157,14 +159,14 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                                 borderRadius: '50%',
                                 backgroundColor: '#ef4444'
                             }} />
-                            High Risk Users
+                            {t('highRisk.title')}
                         </h2>
                         <p style={{
                             margin: '4px 0 0 0',
                             fontSize: '13px',
                             color: 'var(--text-muted)'
                         }}>
-                            {formattedDate} • {users.length} user{users.length !== 1 ? 's' : ''} with risk score ≥ 50
+                            {formattedDate} • {users.length} {t('highRisk.usersWithRisk')}
                         </p>
                     </div>
                     <button
@@ -193,7 +195,7 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                             padding: '40px',
                             color: 'var(--text-muted)'
                         }}>
-                            Loading high-risk users...
+                            {t('highRisk.loading')}
                         </div>
                     ) : users.length === 0 ? (
                         <div style={{
@@ -205,18 +207,18 @@ export default function HighRiskUsersModal({ isOpen, onClose, date }: HighRiskUs
                             color: 'var(--text-muted)'
                         }}>
                             <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No high-risk users</div>
-                            <div style={{ fontSize: '13px', marginTop: '4px' }}>on {formattedDate}</div>
+                            <div style={{ fontSize: '16px', fontWeight: '500' }}>{t('highRisk.noUsers')}</div>
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>{t('highRisk.on')} {formattedDate}</div>
                         </div>
                     ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ backgroundColor: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>#</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>User</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Department</th>
-                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Risk Score</th>
-                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Incidents</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.user')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('highRisk.department')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('highRisk.riskScore')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('highRisk.incidents')}</th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface UserRisk {
   user_email: string
@@ -23,6 +24,7 @@ export default function InvestigationUsersList({
   searchQuery,
   filterRisk
 }: InvestigationUsersListProps) {
+  const { t } = useTranslation()
   const [allUsers, setAllUsers] = useState<UserRisk[]>([])  // All users from API
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -103,19 +105,19 @@ export default function InvestigationUsersList({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, flex: 1 }}>
       {/* Table Header */}
       <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>Risk</span>
-        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>User</span>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('userList.risk')}</span>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('userList.user')}</span>
       </div>
 
       {/* User List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            Loading users...
+            {t('userList.loading')}
           </div>
         ) : paginatedUsers.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            No users found
+            {t('userList.noUsers')}
           </div>
         ) : (
           paginatedUsers.map((user, idx) => (
@@ -212,7 +214,7 @@ export default function InvestigationUsersList({
               }
             }}
           >
-            Previous
+            {t('userList.previous')}
           </button>
           <span>{startItem}-{endItem} of {total} items</span>
           <button
@@ -239,7 +241,7 @@ export default function InvestigationUsersList({
               }
             }}
           >
-            Next
+            {t('userList.next')}
           </button>
         </div>
       )}

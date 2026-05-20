@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Mail, Globe, Usb, Printer, ClipboardList, ShieldCheck, Cloud, ArrowUpRight, Package, FileText } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface ChannelActivity {
   channel: string
@@ -38,6 +39,7 @@ const FALLBACK_DESTINATIONS: DestinationActivity[] = [
 ]
 
 export default function ChannelActivity({ days = 30 }: { days?: number }) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'channel' | 'destination'>('channel')
   const [channels, setChannels] = useState<ChannelActivity[]>([])
   const [destinations, setDestinations] = useState<DestinationActivity[]>([])
@@ -193,7 +195,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
             }
           }}
         >
-          Channel
+          {t('channel.channel')}
         </button>
         <button
           type="button"
@@ -222,7 +224,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
             }
           }}
         >
-          Destination
+          {t('channel.destination')}
         </button>
       </div>
 
@@ -237,11 +239,11 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
       }}>
         {loading ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            Loading {activeTab} data...
+            Loading {activeTab === 'channel' ? t('channel.channel') : t('channel.destination')} {t('channel.loadingData')}
           </div>
         ) : currentData.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            No {activeTab} data available
+            {activeTab === 'channel' ? t('channel.channel') : t('channel.destination')} {t('channel.noData')}
           </div>
         ) : (
           currentData.slice(0, 100).map((item: any, idx: number) => {
@@ -292,7 +294,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
                     {percentage}%
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    {count} alerts
+                    {count} {t('channel.alerts')}
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>

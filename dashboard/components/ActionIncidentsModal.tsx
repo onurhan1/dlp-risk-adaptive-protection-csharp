@@ -6,6 +6,7 @@ import { format, subDays } from 'date-fns'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import Pagination from './ui/Pagination'
 import { Loader2, Inbox, Calendar } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface ActionIncident {
     login_name: string
@@ -84,6 +85,7 @@ function FilterDropdown({
     options: string[]
     placeholder: string
 }) {
+    const { t } = useTranslation()
     const [showDropdown, setShowDropdown] = useState(false)
     const DISPLAY_LIMIT = 100 // Performance optimization
 
@@ -171,7 +173,7 @@ function FilterDropdown({
                             fontStyle: 'italic',
                             backgroundColor: 'var(--background-secondary)'
                         }}>
-                            +{totalCount - DISPLAY_LIMIT} more... (type to filter)
+                            +{totalCount - DISPLAY_LIMIT} {t('modal.moreTypeToFilter')}
                         </div>
                     )}
                 </div>
@@ -186,6 +188,7 @@ export default function ActionIncidentsModal({
     action,
     initialDate  // Single day mode for Reports page
 }: ActionIncidentsModalProps) {
+    const { t } = useTranslation()
     // Single day mode when initialDate is provided
     const isSingleDayMode = !!initialDate
 
@@ -410,7 +413,7 @@ export default function ActionIncidentsModal({
                                 borderRadius: '50%',
                                 backgroundColor: actionColor
                             }} />
-                            {action} Incidents
+                            {action} {t('modal.incidents')}
                             <span style={{
                                 fontSize: '14px',
                                 fontWeight: '400',
@@ -419,7 +422,7 @@ export default function ActionIncidentsModal({
                                 padding: '4px 12px',
                                 borderRadius: '20px'
                             }}>
-                                {totalCount.toLocaleString()} total
+                                {totalCount.toLocaleString()} {t('modal.total')}
                             </span>
                         </h2>
                         <button
@@ -448,7 +451,7 @@ export default function ActionIncidentsModal({
                         backgroundColor: 'var(--background-secondary)',
                         borderRadius: '8px'
                     }}>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Date Range:</span>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {t('modal.dateRange')}:</span>
                         {isSingleDayMode ? (
                             <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
                                 {new Date(dateRange.start).toLocaleDateString('en-US', {
@@ -466,7 +469,7 @@ export default function ActionIncidentsModal({
                                     onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
                                     style={dateInputStyle}
                                 />
-                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>to</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{t('common.to')}</span>
                                 <input
                                     type="date"
                                     value={dateRange.end}
@@ -480,39 +483,39 @@ export default function ActionIncidentsModal({
                     {/* Filters Row */}
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                         <FilterDropdown
-                            label="User"
+                            label={t('modal.user')}
                             value={filters.user}
                             onChange={(val) => setFilters(f => ({ ...f, user: val }))}
                             options={filterOptions?.users || []}
-                            placeholder="Filter user..."
+                            placeholder={t('modal.filterUser')}
                         />
                         <FilterDropdown
-                            label="Destination"
+                            label={t('modal.destination')}
                             value={filters.destination}
                             onChange={(val) => setFilters(f => ({ ...f, destination: val }))}
                             options={filterOptions?.destinations || []}
-                            placeholder="Filter destination..."
+                            placeholder={t('modal.filterDestination')}
                         />
                         <FilterDropdown
-                            label="Channel"
+                            label={t('modal.channel')}
                             value={filters.channel}
                             onChange={(val) => setFilters(f => ({ ...f, channel: val }))}
                             options={filterOptions?.channels || []}
-                            placeholder="Filter channel..."
+                            placeholder={t('modal.filterChannel')}
                         />
                         <FilterDropdown
-                            label="Policy"
+                            label={t('modal.policy')}
                             value={filters.policy}
                             onChange={(val) => setFilters(f => ({ ...f, policy: val }))}
                             options={filterOptions?.policies || []}
-                            placeholder="Filter policy..."
+                            placeholder={t('modal.filterPolicy')}
                         />
                         <FilterDropdown
-                            label="Rule"
+                            label={t('modal.rule')}
                             value={filters.rule}
                             onChange={(val) => setFilters(f => ({ ...f, rule: val }))}
                             options={filterOptions?.rules || []}
-                            placeholder="Filter rule..."
+                            placeholder={t('modal.filterRule')}
                         />
 
                         {hasActiveFilters && (
@@ -530,7 +533,7 @@ export default function ActionIncidentsModal({
                                     marginBottom: '2px'
                                 }}
                             >
-                                Clear Filters
+                                {t('modal.clearFilters')}
                             </button>
                         )}
                     </div>
@@ -549,7 +552,7 @@ export default function ActionIncidentsModal({
                             <div style={{ textAlign: 'center' }}>
                                 <Loader2 size={32} style={{ marginBottom: '12px', animation: 'spin 1s linear infinite' }} />
                                 <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                                Loading incidents...
+                                {t('modal.loadingIncidents')}
                             </div>
                         </div>
                     ) : incidents.length === 0 ? (
@@ -562,8 +565,8 @@ export default function ActionIncidentsModal({
                             color: 'var(--text-muted)'
                         }}>
                             <Inbox size={48} style={{ marginBottom: '16px', opacity: 0.4 }} />
-                            <div style={{ fontSize: '16px', fontWeight: '500' }}>No {action.toLowerCase()} incidents found</div>
-                            <div style={{ fontSize: '13px', marginTop: '4px' }}>Try adjusting your filters or date range</div>
+                            <div style={{ fontSize: '16px', fontWeight: '500' }}>{action} {t('modal.noIncidentsFound')}</div>
+                            <div style={{ fontSize: '13px', marginTop: '4px' }}>{t('modal.tryAdjusting')}</div>
                         </div>
                     ) : (
                         <table style={{
@@ -578,13 +581,13 @@ export default function ActionIncidentsModal({
                                     top: 0
                                 }}>
                                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none', width: '40px' }}>#</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Login Name</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Destination</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Channel</th>
-                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Policy/Rule</th>
-                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Matches</th>
-                                    {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Status</th>}
-                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>Date/Time</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.loginName')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.destination')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.channel')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.policyRule')}</th>
+                                    <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.matches')}</th>
+                                    {action === 'TOTAL' && <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.status')}</th>}
+                                    <th style={{ padding: '12px', textAlign: 'right', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'none' }}>{t('modal.dateTime')}</th>
                                 </tr>
                             </thead>
                             <tbody>

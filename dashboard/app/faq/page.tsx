@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { BookOpen, Lock, Check, X } from 'lucide-react'
-
-type Language = 'tr' | 'en'
+import { useTranslation } from '@/components/LanguageProvider'
 
 export default function FAQPage() {
-    const [language, setLanguage] = useState<Language>('tr')
+    const { locale, t } = useTranslation()
 
     return (
         <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -20,49 +18,9 @@ export default function FAQPage() {
                 borderBottom: '1px solid var(--border)'
             }}>
                 <h1 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-                    {language === 'tr' ? <><BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />Sıkça Sorulan Sorular</> : <><BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />Frequently Asked Questions</>}
+                    <BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />
+                    {t('faq.title')}
                 </h1>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        onClick={() => setLanguage('tr')}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            background: language === 'tr' ? 'linear-gradient(135deg, #e11d48, #be123c)' : 'var(--background-secondary)',
-                            color: language === 'tr' ? 'white' : 'var(--text-secondary)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        TR Türkçe
-                    </button>
-                    <button
-                        onClick={() => setLanguage('en')}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            background: language === 'en' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'var(--background-secondary)',
-                            color: language === 'en' ? 'white' : 'var(--text-secondary)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        EN English
-                    </button>
-                </div>
             </div>
 
             {/* Content */}
@@ -72,7 +30,7 @@ export default function FAQPage() {
                 padding: '32px',
                 lineHeight: '1.7'
             }}>
-                {language === 'tr' ? <TurkishContent /> : <EnglishContent />}
+                {locale === 'tr' ? <TurkishContent /> : <EnglishContent />}
             </div>
         </div>
     )
