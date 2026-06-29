@@ -46,7 +46,8 @@ public class UserService : IUserService
         {
             logger?.LogWarning("Users table check failed ({Message}), creating table...", ex.Message);
             await _db.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS users (
+                CREATE SCHEMA IF NOT EXISTS auth;
+                CREATE TABLE IF NOT EXISTS auth.users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL UNIQUE,
                     email VARCHAR(255),

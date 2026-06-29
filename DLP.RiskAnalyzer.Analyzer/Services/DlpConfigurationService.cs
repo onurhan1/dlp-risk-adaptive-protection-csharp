@@ -9,7 +9,7 @@ using StackExchange.Redis;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class DlpConfigurationService
+public class DlpConfigurationService : IDlpConfigurationService
 {
     private const string ManagerIpKey = "dlp_manager_ip";
     private const string ManagerPortKey = "dlp_manager_port";
@@ -79,8 +79,10 @@ public class DlpConfigurationService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to decrypt DLP API password");
-                throw new InvalidOperationException("Stored DLP API password cannot be decrypted. Please re-enter credentials.");
+                // Data protection keys may have been replaced (e.g. after a redeploy).
+                // Treat the password as not set so the UI prompts for re-entry instead of failing.
+                _logger.LogWarning(ex, "Stored DLP API password cannot be decrypted; data protection keys may have changed. Please re-enter the password in Settings.");
+                response.PasswordSet = false;
             }
         }
 
@@ -137,7 +139,12 @@ public class DlpConfigurationService
         var effectiveConfig = await BuildEffectiveConfigAsync(request, cancellationToken);
         if (string.IsNullOrWhiteSpace(effectiveConfig.Password))
         {
-            throw new InvalidOperationException("Password is required to test the DLP API connection.");
+            return new DlpApiTestResult 
+            { 
+                Success = false, 
+                Message = "Password is required to test the DLP API connection.", 
+                TestedAt = DateTime.UtcNow 
+            };
         }
 
         var result = new DlpApiTestResult { TestedAt = DateTime.UtcNow };
@@ -201,14 +208,14 @@ public class DlpConfigurationService
         // If ManagerIp is "localhost" and Username is empty, it means settings are not configured
         if (response.ManagerIp == "localhost" && string.IsNullOrWhiteSpace(response.Username))
         {
-            _logger.LogWarning("DLP API settings are not configured in database. Please configure via Settings page.");
+            _logger.LogInformation("DLP API settings are not configured in database. Please configure via Settings page.");
             throw new InvalidOperationException("DLP API settings are not configured. Please configure via Settings page in the dashboard.");
         }
         
         // If password is not set, throw exception
         if (!response.PasswordSet)
         {
-            _logger.LogWarning("DLP API password is not configured in database. Please configure via Settings page.");
+            _logger.LogInformation("DLP API password is not configured in database. Please configure via Settings page.");
             throw new InvalidOperationException("DLP API password is not configured. Please configure via Settings page in the dashboard.");
         }
         

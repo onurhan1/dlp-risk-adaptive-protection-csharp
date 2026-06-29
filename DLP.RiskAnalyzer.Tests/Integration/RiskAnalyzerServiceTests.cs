@@ -13,6 +13,7 @@ public class RiskAnalyzerServiceTests : IDisposable
     private readonly AnalyzerDbContext _db;
     private readonly IncidentRepository _repo;
     private readonly RiskAnalyzerService _sut;
+    private readonly RiskScoringService _scoringSut;
 
     public RiskAnalyzerServiceTests()
     {
@@ -21,7 +22,10 @@ public class RiskAnalyzerServiceTests : IDisposable
             .Options;
         _db = new AnalyzerDbContext(options);
         _repo = new IncidentRepository(_db);
-        _sut = new RiskAnalyzerService(_repo, _db);
+        var dailyScoreRepo = new DLP.RiskAnalyzer.Analyzer.Repositories.Implementations.UserDailyRiskScoreRepository(_db);
+        var userInsights = new UserInsightsService(dailyScoreRepo, _repo);
+        _sut = new RiskAnalyzerService(_repo, _db, userInsights);
+        _scoringSut = new RiskScoringService(_repo, _db);
     }
 
     private Incident MakeIncident(
@@ -229,7 +233,7 @@ public class RiskAnalyzerServiceTests : IDisposable
         await SeedIncidents(
             MakeIncident(riskScore: null, channel: "Email", action: "BLOCK", maxMatches: 100));
 
-        var count = await _sut.CalculateRiskScoresAsync();
+        var count = await _scoringSut.CalculateRiskScoresAsync();
 
         count.Should().Be(1);
         var incident = await _db.Incidents.FirstAsync();
@@ -243,7 +247,7 @@ public class RiskAnalyzerServiceTests : IDisposable
     {
         await SeedIncidents(MakeIncident(riskScore: 50));
 
-        var count = await _sut.CalculateRiskScoresAsync();
+        var count = await _scoringSut.CalculateRiskScoresAsync();
         count.Should().Be(0);
     }
 
@@ -253,7 +257,7 @@ public class RiskAnalyzerServiceTests : IDisposable
         await SeedIncidents(
             MakeIncident(riskScore: null, action: "RELEASED", maxMatches: 500));
 
-        await _sut.CalculateRiskScoresAsync();
+        await _scoringSut.CalculateRiskScoresAsync();
 
         var incident = await _db.Incidents.FirstAsync();
         incident.RiskScore.Should().Be(0);
@@ -271,7 +275,7 @@ public class RiskAnalyzerServiceTests : IDisposable
             MakeIncident(user: "a@t.com", ts: todayDt.AddHours(1), riskScore: 50, action: "BLOCK"),
             MakeIncident(user: "a@t.com", ts: todayDt.AddHours(2), riskScore: 30, action: "AUTHORIZED"));
 
-        var count = await _sut.CalculateDailyScoresAsync(today);
+        var count = await _scoringSut.CalculateDailyScoresAsync(today);
 
         count.Should().Be(1);
         var score = await _db.UserDailyRiskScores.FirstAsync();
@@ -290,13 +294,13 @@ public class RiskAnalyzerServiceTests : IDisposable
         await SeedIncidents(
             MakeIncident(user: "a@t.com", ts: todayDt.AddHours(1), riskScore: 50));
 
-        await _sut.CalculateDailyScoresAsync(today);
+        await _scoringSut.CalculateDailyScoresAsync(today);
         var initialScore = (await _db.UserDailyRiskScores.FirstAsync()).DailyRiskScore;
 
         _db.Incidents.Add(MakeIncident(user: "a@t.com", ts: todayDt.AddHours(3), riskScore: 90));
         await _db.SaveChangesAsync();
 
-        await _sut.CalculateDailyScoresAsync(today);
+        await _scoringSut.CalculateDailyScoresAsync(today);
 
         var scores = await _db.UserDailyRiskScores.Where(s => s.UserEmail == "a@t.com").ToListAsync();
         scores.Should().HaveCount(1, "should update existing, not create duplicate");

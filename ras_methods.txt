@@ -1,0 +1,25 @@
+﻿  22: public RiskAnalyzerService(
+  36: public async Task<List<UserRiskTrend>> GetUserRiskTrendsAsync(int days = 30, string? user = null)
+  56: public async Task<List<DepartmentSummary>> GetDepartmentSummariesAsync(
+  88: public async Task<List<DailySummary>> GetDailySummariesAsync(int days = 7)
+ 109: public async Task<RiskHeatmapData> GetRiskHeatmapAsync(
+ 139: public async Task<int> ProcessRedisStreamAsync(IRedisStreamProcessor redisProcessor)
+ 155: public async Task<int> CalculateRiskScoresAsync()
+ 297: public async Task<UserListResponse> GetUserListAsync(int page = 1, int pageSize = 15, string? search = null)
+ 365: public async Task<ChannelActivityResponse> GetChannelActivityAsync(
+ 405: public async Task<List<IOBDetectionItem>> GetIOBDetectionsAsync(
+ 450: public async Task<List<TopUserItem>> GetTopUsersByDayAsync(
+ 486: public async Task<List<TopRuleItem>> GetTopRulesByDayAsync(
+ 533: public async Task<DailyReportResponse> GetDailyReportDataAsync(DateTime date)
+ 712: public double GetDisplayScore(int riskScore)
+ 721: public async Task<int> CalculateDailyScoresAsync(DateOnly? date = null)
+ 841: public Task<List<UserDailyRiskScore>> GetUserDailyScoresAsync(string userEmail, DateOnly startDate, DateOnly endDate) =>
+ 844: public Task<UserComprehensiveInsightsResponse> GetUserComprehensiveInsightsAsync(string userEmail, string period) =>
+ 847: public Task<UserTrendResponse> GetUserWeeklyTrendAsync(string userEmail) =>
+ 850: public Task<UserTrendResponse> GetUserMonthlyTrendAsync(string userEmail) =>
+ 853: public Task<UserTrendResponse> GetUserQuarterlyTrendAsync(string userEmail) =>
+ 856: public Task<List<string>> DetectUserAnomaliesAsync(string userEmail) =>
+ 859: public Task<List<RiskyUserReportItem>> GetRiskyUsersReportAsync(string period) =>
+ 862: public Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20) =>
+ 865: public Task<List<DailySummaryScoreItem>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate) =>
+ 868: public Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20) =>

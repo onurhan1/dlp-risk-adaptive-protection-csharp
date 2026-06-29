@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.DataProtection;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class SplunkService
+public class SplunkService : ISplunkService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;

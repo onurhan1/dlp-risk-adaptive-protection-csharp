@@ -13,7 +13,7 @@ public class SplunkSettingsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
-    private readonly SplunkService? _splunkService;
+    private readonly ISplunkService? _splunkService;
     private readonly ILogger<SplunkSettingsController> _logger;
 
     private const string EnabledKey = "splunk_enabled";
@@ -35,7 +35,7 @@ public class SplunkSettingsController : ControllerBase
         
         try
         {
-            _splunkService = serviceProvider.GetService<SplunkService>();
+            _splunkService = serviceProvider.GetService<ISplunkService>();
         }
         catch
         {

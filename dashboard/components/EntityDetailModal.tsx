@@ -5,6 +5,7 @@ import apiClient from '@/lib/axios'
 import dynamic from 'next/dynamic'
 import Pagination from './ui/Pagination'
 import { Loader2, AlertTriangle, BarChart3, TrendingUp, TrendingDown, Minus, Target, ClipboardList, Bot, Clock, Calendar } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 // Dynamic import for Plotly (client-side only)
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -103,6 +104,7 @@ export default function EntityDetailModal({
     entityType,
     entityId
 }: EntityDetailModalProps) {
+    const { t } = useTranslation()
     const [data, setData] = useState<EntityDetailData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -159,7 +161,7 @@ export default function EntityDetailModal({
             setData(response30.data)
             setWeeklyData(response7.data)
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Failed to load detail')
+            setError(err.response?.data?.detail || t('entityDetail.loadingAnalysis'))
         } finally {
             setLoading(false)
         }
@@ -252,7 +254,7 @@ export default function EntityDetailModal({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>
-                                {entityType} Analysis
+                                {entityType} {t('entityDetail.analysis')}
                             </div>
                             <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
                                 {entityId}
@@ -290,9 +292,9 @@ export default function EntityDetailModal({
                                     color: activeView === view ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                {view === 'overview' ? <><BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Overview</> :
-                                    view === 'trends' ? <><TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Trends</> :
-                                        <><ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Incidents</>}
+                                {view === 'overview' ? <><BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('entityDetail.overview')}</> :
+                                    view === 'trends' ? <><TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('entityDetail.trends')}</> :
+                                        <><ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('entityDetail.incidents')}</>}
                             </button>
                         ))}
                     </div>
@@ -304,7 +306,7 @@ export default function EntityDetailModal({
                         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
                             <div style={{ marginBottom: '16px' }}><Loader2 size={48} style={{ animation: 'spin 1s linear infinite' }} /></div>
                             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                            Loading detailed analysis...
+                            {t('entityDetail.loadingAnalysis')}
                         </div>
                     ) : error ? (
                         <div style={{ textAlign: 'center', padding: '60px', color: '#ef4444' }}>
@@ -321,7 +323,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    Risk Assessment
+                                    {t('entityDetail.riskAssessment')}
                                 </h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                                     <div style={{
@@ -355,10 +357,10 @@ export default function EntityDetailModal({
                                             color: getRiskColor(data.risk_score),
                                             textTransform: 'none'
                                         }}>
-                                            {data.anomaly_level} RISK
+                                            {data.anomaly_level} {t('entityDetail.risk')}
                                         </div>
                                         <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            {data.total_incidents} incidents • {data.total_matches.toLocaleString()} matches
+                                            {data.total_incidents} {t('entityDetail.incidentsLabel')} • {data.total_matches.toLocaleString()} {t('entityDetail.matchesLabel')}
                                         </div>
                                     </div>
                                 </div>
@@ -384,13 +386,13 @@ export default function EntityDetailModal({
                                         fontSize: '11px',
                                         fontWeight: '700'
                                     }}>
-                                        7-DAY ANALYSIS
+                                        {t('entityDetail.weeklyAnalysis')}
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '8px' }}>
                                         {/* Weekly Score */}
                                         <div style={{ textAlign: 'center' }}>
                                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                                                Weekly Risk Score
+                                                {t('entityDetail.weeklyRiskScore')}
                                             </div>
                                             <div style={{
                                                 fontSize: '28px',
@@ -440,8 +442,8 @@ export default function EntityDetailModal({
                                         gridTemplateColumns: '1fr 1fr',
                                         gap: '8px'
                                     }}>
-                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Weekly Incidents: <strong>{weeklyData.total_incidents}</strong></div>
-                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Monthly Incidents: <strong>{data.total_incidents}</strong></div>
+                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />{t('entityDetail.weeklyIncidents')}: <strong>{weeklyData.total_incidents}</strong></div>
+                                        <div><BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />{t('entityDetail.vsMonthly')}: <strong>{data.total_incidents}</strong></div>
                                     </div>
                                 </div>
                             )}
@@ -454,7 +456,7 @@ export default function EntityDetailModal({
                                 border: '1px solid var(--border)'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    Action Breakdown
+                                    {t('entityDetail.actionDistribution')}
                                 </h3>
                                 {Object.keys(data.action_counts).length > 0 ? (
                                     <Plot
@@ -475,7 +477,7 @@ export default function EntityDetailModal({
                                     />
                                 ) : (
                                     <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>
-                                        No action data available
+                                        {t('entityDetail.noActionData')}
                                     </div>
                                 )}
                             </div>
@@ -489,7 +491,7 @@ export default function EntityDetailModal({
                                 gridColumn: 'span 2'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    Z-Score Analysis <span style={{ fontSize: '11px', fontWeight: 'normal' }}>(click for details)</span>
+                                    {t('entityDetail.zScoreAnalysis')} <span style={{ fontSize: '11px', fontWeight: 'normal' }}>({t('entityDetail.clickForDetails')})</span>
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
                                     {Object.entries(data.z_scores).map(([key, value]) => {
@@ -563,29 +565,29 @@ export default function EntityDetailModal({
                                             }}
                                         >×</button>
                                         <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--primary)', textTransform: 'capitalize' }}>
-                                            <BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {selectedZScore.key.replace(/_/g, ' ')} Calculation Details
+                                            <BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {selectedZScore.key.replace(/_/g, ' ')} {t('entityDetail.zScoreDetails')}
                                         </h4>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '12px' }}>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Current Value</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('entityDetail.actual')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                                                     {selectedZScore.detail.current_value?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Baseline (Mean)</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('entityDetail.mean')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                                                     {selectedZScore.detail.mean?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Standard Deviation</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('entityDetail.stdDev')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>
                                                     {selectedZScore.detail.std_dev?.toFixed(2) ?? 'N/A'}
                                                 </div>
                                             </div>
                                             <div style={{ padding: '8px', background: 'var(--background)', borderRadius: '6px' }}>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Z-Score Result</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('entityDetail.zScore')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: '700', color: getZScoreStatus(selectedZScore.detail.z_score).color }}>
                                                     {selectedZScore.detail.z_score?.toFixed(2) ?? 'N/A'}
                                                 </div>
@@ -607,16 +609,16 @@ export default function EntityDetailModal({
                                 gridColumn: 'span 2'
                             }}>
                                 <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                    <Bot size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> AI Analysis
+                                    <Bot size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('entityDetail.aiInsights')}
                                 </h3>
                                 <div style={{ marginBottom: '16px' }}>
-                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Explanation</div>
+                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{t('entityDetail.aiExplanation')}</div>
                                     <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                                         {data.ai_explanation}
                                     </p>
                                 </div>
                                 <div>
-                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>Recommendation</div>
+                                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px' }}>{t('entityDetail.aiRecommendation')}</div>
                                     <p style={{ margin: 0, color: 'var(--primary)', lineHeight: 1.6 }}>
                                         {data.ai_recommendation}
                                     </p>
@@ -633,7 +635,7 @@ export default function EntityDetailModal({
                                     gridColumn: 'span 2'
                                 }}>
                                     <h3 style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'none' }}>
-                                        <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Reference Incidents ({data.top_incidents.length})
+                                        <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('entityDetail.referenceIncidents')} ({data.top_incidents.length})
                                     </h3>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', position: 'relative' }}>
                                         {(showAllReferenceIncidents ? data.top_incidents : data.top_incidents.slice(0, 5)).map((inc, idx) => (
@@ -695,7 +697,7 @@ export default function EntityDetailModal({
                                                     fontWeight: '600'
                                                 }}
                                             >
-                                                Show less
+                                                {t('entityDetail.showLess')}
                                             </button>
                                         )}
                                     </div>

@@ -1,0 +1,13 @@
+﻿  Geri y├╝klenecek projeler belirleniyor...
+  Geri y├╝kleme i├ğin t├╝m projeler g├╝ncel.
+  DLP.RiskAnalyzer.Shared -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Shared\bin\Debug\net8.0\DLP.RiskAnalyzer.Shared.dll
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Helpers\IncidentResponseMapper.cs(30,33): warning CS8601: Olas─▒ null ba┼şvuru atamas─▒. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+  DLP.RiskAnalyzer.Analyzer -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\bin\Debug\net8.0\DLP.RiskAnalyzer.Analyzer.dll
+
+Olu┼şturma ba┼şar─▒l─▒ oldu.
+
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Helpers\IncidentResponseMapper.cs(30,33): warning CS8601: Olas─▒ null ba┼şvuru atamas─▒. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+    1 Uyar─▒
+    0 Hata
+
+Ge├ğen S├╝re 00:00:06.55

@@ -637,7 +637,7 @@ public class Program
             try
             {
                 // Check if already exists (upsert / conflict handling)
-                var checkSql = @"SELECT COUNT(*) FROM released_incidents 
+                var checkSql = @"SELECT COUNT(*) FROM dlp.released_incidents
                                  WHERE incident_id = @incidentId AND update_time = @updateTime";
                 
                 await using var checkCmd = new NpgsqlCommand(checkSql, conn);
@@ -653,7 +653,7 @@ public class Program
                 }
 
                 // Insert
-                var insertSql = @"INSERT INTO released_incidents 
+                var insertSql = @"INSERT INTO dlp.released_incidents
                                   (incident_id, incident_timestamp, action, task_name, admin_name, comments, update_time)
                                   VALUES (@incidentId, @incidentTimestamp, @action, @taskName, @adminName, @comments, @updateTime)";
 

@@ -7,6 +7,7 @@ import { getApiUrlDynamic } from '@/lib/api-config'
 import ActionIncidentsModal from './ActionIncidentsModal'
 import Pagination from './ui/Pagination'
 import { Calendar, TrendingUp, Download } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface ActionSummary {
     authorized: number
@@ -61,6 +62,7 @@ interface ReportModalProps {
 }
 
 export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
+    const { t } = useTranslation()
     const [dailySummary, setDailySummary] = useState<DailySummary | null>(null)
     const [loading, setLoading] = useState(false)
     const [generating, setGenerating] = useState(false)
@@ -155,12 +157,12 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
             link.remove()
             window.URL.revokeObjectURL(url)
 
-            setMessage({ type: 'success', text: 'PDF downloaded successfully!' })
+            setMessage({ type: 'success', text: t('report.pdfSuccess') })
             setTimeout(() => setMessage(null), 5000)
         } catch (error: any) {
             setMessage({
                 type: 'error',
-                text: error.response?.data?.detail || 'Failed to download PDF'
+                text: error.response?.data?.detail || t('report.pdfFailed')
             })
             setTimeout(() => setMessage(null), 5000)
         } finally {
@@ -236,12 +238,12 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                     }}>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>
-                                {reportView === 'daily_summary' ? <><Calendar size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />Daily Summary Reports</> : <><TrendingUp size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />Risky Users Trend Report</>}
+                                {reportView === 'daily_summary' ? <><Calendar size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />{t('report.dailySummary')}</> : <><TrendingUp size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />{t('report.riskyUsersTrend')}</>}
                             </h2>
                             <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
                                 {reportView === 'daily_summary'
-                                    ? 'View and export daily security reports'
-                                    : 'Analyze user risk trends over time'}
+                                    ? t('report.viewExportDaily')
+                                    : t('report.analyzeUserTrends')}
                             </p>
                         </div>
                         <button
@@ -291,7 +293,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     color: reportView === 'daily_summary' ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Daily Summary
+                                <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('report.dailySummaryTab')}
                             </button>
                             <button
                                 onClick={() => setReportView('risky_users')}
@@ -306,7 +308,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     color: reportView === 'risky_users' ? 'white' : 'var(--text-secondary)'
                                 }}
                             >
-                                <TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Risky Users Trends
+                                <TrendingUp size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('report.riskyUsersTrendsTab')}
                             </button>
                         </div>
 
@@ -324,7 +326,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                         }}>
                             {reportView === 'daily_summary' ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <label style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Report Date:</label>
+                                    <label style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{t('report.reportDate')}</label>
                                     <input
                                         type="date"
                                         value={selectedDate}
@@ -341,7 +343,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <label style={{ fontWeight: '600', color: 'var(--text-primary)' }}>Analysis Period:</label>
+                                    <label style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{t('report.analysisPeriod')}</label>
                                     <div style={{ display: 'flex', background: 'var(--surface)', padding: '4px', borderRadius: '6px' }}>
                                         {(['weekly', 'monthly', 'quarterly'] as const).map((p) => (
                                             <button
@@ -382,7 +384,7 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                         opacity: generating ? 0.6 : 1
                                     }}
                                 >
-                                    {generating ? 'Generating PDF...' : <><Download size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Download PDF Report</>}
+                                    {generating ? t('report.generatingPdf') : <><Download size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('report.downloadPdf')}</>}
                                 </button>
                             )}
                         </div>
@@ -391,17 +393,17 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                         {reportView === 'daily_summary' ? (
                             loading ? (
                                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                    Loading daily summary...
+                                    {t('report.loadingDaily')}
                                 </div>
                             ) : !dailySummary ? (
                                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                    No data available for {selectedDate}
+                                    {t('report.noDataFor')} {selectedDate}
                                 </div>
                             ) : (
                                 <>
                                     {/* Action Summary Cards */}
                                     <div style={{ marginBottom: '24px' }}>
-                                        <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>Action Summary</h3>
+                                        <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>{t('report.actionSummary')}</h3>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
                                             {[
                                                 { key: 'AUTHORIZED', value: dailySummary.action_summary.authorized, color: '#10b981' },
@@ -433,19 +435,19 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
                                         {/* Top 10 Users */}
                                         <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px' }}>
-                                            <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Top 10 Users</h3>
+                                            <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>{t('report.top10Users')}</h3>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                                 <thead>
                                                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <th style={{ padding: '8px', textAlign: 'left' }}>#</th>
-                                                        <th style={{ padding: '8px', textAlign: 'left' }}>User</th>
-                                                        <th style={{ padding: '8px', textAlign: 'center' }}>Risk</th>
-                                                        <th style={{ padding: '8px', textAlign: 'right' }}>Incidents</th>
+                                                        <th style={{ padding: '8px', textAlign: 'left' }}>{t('report.user')}</th>
+                                                        <th style={{ padding: '8px', textAlign: 'center' }}>{t('report.risk')}</th>
+                                                        <th style={{ padding: '8px', textAlign: 'right' }}>{t('report.incidents')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {dailySummary.top_users.length === 0 ? (
-                                                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
+                                                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>{t('report.noData')}</td></tr>
                                                     ) : (
                                                         dailySummary.top_users.map((user, idx) => (
                                                             <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -473,18 +475,18 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
 
                                         {/* Channel Breakdown */}
                                         <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px' }}>
-                                            <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Channel Breakdown</h3>
+                                            <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>{t('report.channelBreakdown')}</h3>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                                 <thead>
                                                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                                        <th style={{ padding: '8px', textAlign: 'left' }}>Channel</th>
-                                                        <th style={{ padding: '8px', textAlign: 'right' }}>Alerts</th>
-                                                        <th style={{ padding: '8px', textAlign: 'right' }}>Percentage</th>
+                                                        <th style={{ padding: '8px', textAlign: 'left' }}>{t('report.channel')}</th>
+                                                        <th style={{ padding: '8px', textAlign: 'right' }}>{t('report.alerts')}</th>
+                                                        <th style={{ padding: '8px', textAlign: 'right' }}>{t('report.percentage')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {dailySummary.channel_breakdown.length === 0 ? (
-                                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
+                                                        <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>{t('report.noData')}</td></tr>
                                                     ) : (
                                                         dailySummary.channel_breakdown.map((channel, idx) => (
                                                             <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -508,9 +510,9 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
 
                                     {/* Top Policies */}
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-                                        <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Top 10 Policies</h3>
+                                        <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>{t('report.top10Policies')}</h3>
                                         {dailySummary.top_policies.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</div>
+                                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>{t('report.noData')}</div>
                                         ) : (
                                             dailySummary.top_policies.map((policy, idx) => (
                                                 <div key={idx} style={{ border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '8px' }}>
@@ -530,18 +532,18 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                                                             <span style={{ fontWeight: '500', fontSize: '13px' }}>{policy.policy_name}</span>
                                                         </div>
                                                         <span style={{ padding: '3px 10px', backgroundColor: '#f59e0b', color: 'white', borderRadius: '10px', fontSize: '12px', fontWeight: '600' }}>
-                                                            {policy.total_alerts} alerts
+                                                            {policy.total_alerts} {t('report.alerts').toLowerCase()}
                                                         </span>
                                                     </div>
                                                     {expandedPolicies.has(policy.policy_name) && (
                                                         <div style={{ padding: '10px 14px 10px 40px', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
                                                             {policy.top_rules.length === 0 ? (
-                                                                <div style={{ color: 'var(--text-muted)' }}>No rules available</div>
+                                                                <div style={{ color: 'var(--text-muted)' }}>{t('report.noRulesAvailable')}</div>
                                                             ) : (
                                                                 policy.top_rules.map((rule, rIdx) => (
                                                                     <div key={rIdx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: rIdx < policy.top_rules.length - 1 ? '1px solid var(--border)' : 'none' }}>
                                                                         <span style={{ color: 'var(--text-secondary)' }}>• {rule.rule_name}</span>
-                                                                        <span style={{ color: 'var(--text-muted)' }}>{rule.alert_count} alerts</span>
+                                                                        <span style={{ color: 'var(--text-muted)' }}>{rule.alert_count} {t('report.alerts').toLowerCase()}</span>
                                                                     </div>
                                                                 ))
                                                             )}
@@ -554,18 +556,18 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
 
                                     {/* Top Destinations */}
                                     <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px' }}>
-                                        <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Top 10 Destinations</h3>
+                                        <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>{t('report.top10Destinations')}</h3>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <th style={{ padding: '8px', textAlign: 'left' }}>#</th>
-                                                    <th style={{ padding: '8px', textAlign: 'left' }}>Destination</th>
-                                                    <th style={{ padding: '8px', textAlign: 'right' }}>Alerts</th>
+                                                    <th style={{ padding: '8px', textAlign: 'left' }}>{t('modal.destination')}</th>
+                                                    <th style={{ padding: '8px', textAlign: 'right' }}>{t('report.alerts')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {dailySummary.top_destinations.length === 0 ? (
-                                                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No data</td></tr>
+                                                    <tr><td colSpan={3} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>{t('report.noData')}</td></tr>
                                                 ) : (
                                                     dailySummary.top_destinations.map((dest, idx) => (
                                                         <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -584,25 +586,25 @@ export default function ReportModal({ isOpen, onClose }: ReportModalProps) {
                             // Risky Users Trends
                             loadingRiskyUsers ? (
                                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                    Loading trend report...
+                                    {t('report.loadingTrend')}
                                 </div>
                             ) : riskyUsers.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                                    No risky users found in this period.
+                                    {t('report.noRiskyUsers')}
                                 </div>
                             ) : (
                                 <div style={{ background: 'var(--background)', borderRadius: '8px', padding: '16px' }}>
-                                    <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: 600 }}>Risky Users Trends ({period})</h3>
+                                    <h3 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: 600 }}>{t('report.riskyUsersTrends')} ({period})</h3>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                                                <th style={{ padding: '10px', textAlign: 'left' }}>Rank</th>
-                                                <th style={{ padding: '10px', textAlign: 'left' }}>User</th>
-                                                <th style={{ padding: '10px', textAlign: 'right' }}>Current Risk</th>
-                                                <th style={{ padding: '10px', textAlign: 'right' }}>Avg Risk</th>
-                                                <th style={{ padding: '10px', textAlign: 'right' }}>Max Risk</th>
-                                                <th style={{ padding: '10px', textAlign: 'right' }}>Incidents</th>
-                                                <th style={{ padding: '10px', textAlign: 'center' }}>Trend</th>
+                                                <th style={{ padding: '10px', textAlign: 'left' }}>{t('report.rank')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'left' }}>{t('report.user')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>{t('report.currentRisk')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>{t('report.avgRisk')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>{t('report.maxRisk')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'right' }}>{t('report.incidents')}</th>
+                                                <th style={{ padding: '10px', textAlign: 'center' }}>{t('report.trend')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>

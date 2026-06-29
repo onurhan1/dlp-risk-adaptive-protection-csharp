@@ -3,12 +3,13 @@ using System.Net.Http.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.Configuration;
+using DLP.RiskAnalyzer.Dashboard.Services;
+using DLP.RiskAnalyzer.Dashboard.Constants;
 
 namespace DLP.RiskAnalyzer.Dashboard;
 
 public partial class MainWindow : Window
 {
-    private readonly HttpClient _httpClient;
     private readonly string _apiBaseUrl;
 
     public MainWindow()
@@ -20,24 +21,20 @@ public partial class MainWindow : Window
         
         var configuration = new ConfigurationBuilder()
             .SetBasePath(appDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile(UIConstants.Configuration.ConfigFileName, optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
-        _apiBaseUrl = configuration["ApiBaseUrl"] ?? "http://localhost:5001"; // Default to 5001 instead of 8000
+        _apiBaseUrl = configuration["ApiBaseUrl"] ?? UIConstants.DefaultApiBaseUrl;
         
-        // Debug: Log the API URL being used
-        System.Diagnostics.Debug.WriteLine($"[MainWindow] API Base URL: {_apiBaseUrl}");
-        _httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(_apiBaseUrl)
-        };
+        // Ensure ApiClient is initialized
+        ApiClient.Initialize(_apiBaseUrl);
 
         // Add authentication token to requests
         var token = LoginWindow.AuthToken;
         if (!string.IsNullOrEmpty(token))
         {
-            _httpClient.DefaultRequestHeaders.Authorization = 
+            ApiClient.Instance.DefaultRequestHeaders.Authorization = 
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
 
@@ -54,7 +51,7 @@ public partial class MainWindow : Window
         try
         {
             // Load incidents
-            var incidents = await _httpClient.GetFromJsonAsync<List<IncidentResponse>>("/api/incidents?limit=100");
+            var incidents = await ApiClient.Instance.GetFromJsonAsync<List<IncidentResponse>>("/api/incidents?limit=100");
 
             if (incidents != null)
             {
@@ -89,7 +86,7 @@ public partial class MainWindow : Window
         MainTabControl.SelectedIndex = 1;
     }
 
-    private async void UsersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void UsersListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         // Load timeline for selected user
         // Implementation here

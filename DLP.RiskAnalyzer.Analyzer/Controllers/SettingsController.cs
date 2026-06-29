@@ -11,10 +11,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class SettingsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
-    private readonly EmailService _emailService;
+    private readonly IEmailService _emailService;
     private readonly ILogger<SettingsController> _logger;
 
-    public SettingsController(AnalyzerDbContext context, EmailService emailService, ILogger<SettingsController> logger)
+    public SettingsController(AnalyzerDbContext context, IEmailService emailService, ILogger<SettingsController> logger)
     {
         _context = context;
         _emailService = emailService;
@@ -30,7 +30,8 @@ public class SettingsController : ControllerBase
             try
             {
                 await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE TABLE IF NOT EXISTS system_settings (
+                    CREATE SCHEMA IF NOT EXISTS auth;
+                    CREATE TABLE IF NOT EXISTS auth.system_settings (
                         key VARCHAR(100) PRIMARY KEY,
                         value TEXT NOT NULL,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -147,7 +148,8 @@ public class SettingsController : ControllerBase
             try
             {
                 await _context.Database.ExecuteSqlRawAsync(@"
-                    CREATE TABLE IF NOT EXISTS system_settings (
+                    CREATE SCHEMA IF NOT EXISTS auth;
+                    CREATE TABLE IF NOT EXISTS auth.system_settings (
                         key VARCHAR(100) PRIMARY KEY,
                         value TEXT NOT NULL,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

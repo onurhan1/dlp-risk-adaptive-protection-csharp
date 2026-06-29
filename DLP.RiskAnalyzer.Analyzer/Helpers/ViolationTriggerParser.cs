@@ -33,7 +33,7 @@ public static class ViolationTriggerParser
         }
         catch (JsonException)
         {
-            // Malformed JSON — caller should fall back to policy name
+            // Intentionally empty — malformed JSON returns null; caller falls back to policy name
         }
 
         return null;
@@ -61,7 +61,7 @@ public static class ViolationTriggerParser
                     results.Add(name);
             }
         }
-        catch (JsonException) { }
+        catch (JsonException) { /* Intentionally empty — malformed JSON returns safe default */ }
 
         return results;
     }
@@ -107,7 +107,7 @@ public static class ViolationTriggerParser
                 }
             }
         }
-        catch (JsonException) { }
+        catch (JsonException) { /* Intentionally empty — malformed JSON returns safe default */ }
 
         return maxMatches;
     }
@@ -162,7 +162,7 @@ public static class ViolationTriggerParser
                 }
             }
         }
-        catch (JsonException) { }
+        catch (JsonException) { /* Intentionally empty — malformed JSON returns safe default */ }
 
         return (firstRuleName, maxMatches);
     }

@@ -13,9 +13,17 @@ public record TopUserDto(string UserEmail, int TotalAlerts, int MaxRiskScore, st
 /// </summary>
 public interface IIncidentRepository
 {
+    Task<Incident?> GetByIdAsync(int id);
+    Task<(int saved, int skipped)> BulkInsertIncidentsAsync(IEnumerable<Incident> incidents);
+    Task<int> UpdateIncidentAsync(Incident incident);
+    
     Task<List<Incident>> GetIncidentsAsync(DateOnly startDate, DateOnly endDate, int maxRows = 10_000);
+    Task<List<Incident>> GetIncidentsByDateRangeAsync(DateTime startDate, DateTime endDate);
     Task<List<Incident>> GetIncidentsAsync(DateOnly startDate, DateOnly endDate, int page, int pageSize);
     Task<List<Incident>> GetIncidentsByUserAsync(string userEmail, DateOnly startDate, DateOnly endDate);
+    Task<List<Incident>> GetIncidentsForWeeklyFlagsAsync(DateOnly startDate, DateOnly endDate);
+    Task<List<Incident>> GetIncidentsForEntityAsync(string entityType, string entityId, DateTime startDate, DateTime endDate);
+    Task<List<Incident>> GetHighImpactIncidentsAsync(string userEmail, DateTime startOfDay, DateTime endOfDay);
     Task<List<Incident>> GetIncidentsByDepartmentAsync(DateOnly startDate, DateOnly endDate);
     Task<List<Incident>> GetIncidentsWithoutRiskScoreAsync(int batchSize = 2000);
     Task<int> GetPreviousIncidentsCountAsync(string userEmail, DateTime beforeDate);

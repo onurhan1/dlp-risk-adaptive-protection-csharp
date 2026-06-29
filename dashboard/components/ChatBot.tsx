@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import apiClient from '@/lib/axios'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface Message {
     id: string
@@ -629,6 +630,7 @@ function generateResponse(userMessage: string): string {
 }
 
 export default function ChatBot() {
+    const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(false)
     const [isMinimized, setIsMinimized] = useState(false)
     const [messages, setMessages] = useState<Message[]>([
@@ -753,7 +755,7 @@ export default function ChatBot() {
             {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: '🔄 **Sohbet temizlendi.**\n\nMerhaba! Ben Radarix. DLP sistemimiz icin buradayim.',
+                content: t('chatbot.chatCleared'),
                 timestamp: new Date(),
             },
         ])
@@ -840,13 +842,13 @@ export default function ChatBot() {
                                     background: '#7fffcc', display: 'inline-block',
                                     boxShadow: '0 0 6px #7fffcc', animation: 'pulse 2s infinite',
                                 }} />
-                                Cevrimici
+                                {t('chatbot.online')}
                             </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
                             {/* Clear button */}
-                            <button onClick={clearChat} title="Sohbeti temizle"
+                            <button onClick={clearChat} title={t('chatbot.clearChat')}
                                 style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '6px', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: '4px 6px', transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
                                 onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; e.currentTarget.style.color = '#fff' }}
                                 onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)' }}>
@@ -940,7 +942,7 @@ export default function ChatBot() {
                                     value={inputValue}
                                     onChange={e => setInputValue(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Ornek: leasing ifadesiyle analiz yap..."
+                                    placeholder={t('chatbot.placeholder')}
                                     style={{ flex: 1, background: 'var(--background-secondary)', border: '1px solid var(--border)', borderRadius: '10px', padding: '9px 13px', color: 'var(--text-primary)', fontSize: '12.5px', outline: 'none', transition: 'all 0.2s' }}
                                     onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.12)' }}
                                     onBlur={(e: React.FocusEvent<HTMLInputElement>) => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none' }}
@@ -969,7 +971,7 @@ export default function ChatBot() {
             {/* FAB Toggle Button */}
             <button
                 onClick={() => { setIsOpen(!isOpen); setIsMinimized(false); setHasNewMessage(false) }}
-                title="RADAR Guvenlik Asistani"
+                title={t('chatbot.assistantTitle')}
                 style={{
                     position: 'fixed', bottom: '24px', right: '24px',
                     width: '60px', height: '60px', borderRadius: '50%',

@@ -14,9 +14,9 @@ public class AISettingsController : ControllerBase
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
     private readonly ILogger<AISettingsController> _logger;
-    private readonly OpenAIService? _openAIService;
-    private readonly CopilotService? _copilotService;
-    private readonly AzureOpenAIService? _azureOpenAIService;
+    private readonly IOpenAIService? _openAIService;
+    private readonly ICopilotService? _copilotService;
+    private readonly IAzureOpenAIService? _azureOpenAIService;
 
     private const string OpenAIKeyKey = "ai_openai_api_key_protected";
     private const string CopilotKeyKey = "ai_copilot_api_key_protected";
@@ -41,7 +41,7 @@ public class AISettingsController : ControllerBase
         // Get OpenAIService if available (optional dependency)
         try
         {
-            _openAIService = serviceProvider.GetService<OpenAIService>();
+            _openAIService = serviceProvider.GetService<IOpenAIService>();
         }
         catch
         {
@@ -51,7 +51,7 @@ public class AISettingsController : ControllerBase
         // Get CopilotService if available (optional dependency)
         try
         {
-            _copilotService = serviceProvider.GetService<CopilotService>();
+            _copilotService = serviceProvider.GetService<ICopilotService>();
         }
         catch
         {
@@ -61,7 +61,7 @@ public class AISettingsController : ControllerBase
         // Get AzureOpenAIService if available (optional dependency)
         try
         {
-            _azureOpenAIService = serviceProvider.GetService<AzureOpenAIService>();
+            _azureOpenAIService = serviceProvider.GetService<IAzureOpenAIService>();
         }
         catch
         {

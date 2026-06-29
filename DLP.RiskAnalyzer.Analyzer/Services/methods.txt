@@ -1,0 +1,10 @@
+Line 29: public async Task<List<Incident>> GetIncidentsAsync(
+Line 86: public async Task<List<ExceptionIncidentStats>> GetExceptionIncidentStatsAsync(
+Line 160: public async Task<Incident?> GetIncidentByIdAsync(
+Line 167: public async Task<int> InsertIncidentAsync(
+Line 174: public async Task<int> ProcessRedisStreamAsync(
+Line 560: public async Task<int> ProcessReleasedIncidentsStreamAsync(
+Line 698: private int ParseMaxMatchesFromRedis(
+Line 716: private int CalculateMaxMatches(
+Line 781: private string DeduplicateViolationTriggers(
+Line 880: private int GetJsonIntValue(

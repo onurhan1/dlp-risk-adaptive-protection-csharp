@@ -11,12 +11,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class ReleasedIncidentsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
-    private readonly ReleasedIncidentSyncService _syncService;
+    private readonly IReleasedIncidentSyncService _syncService;
     private readonly ILogger<ReleasedIncidentsController> _logger;
 
     public ReleasedIncidentsController(
         AnalyzerDbContext context,
-        ReleasedIncidentSyncService syncService,
+        IReleasedIncidentSyncService syncService,
         ILogger<ReleasedIncidentsController> logger)
     {
         _context = context;

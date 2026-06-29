@@ -10,6 +10,9 @@
 
 BEGIN;
 
+-- Tablolar "dlp" şemasına taşındı; şemasız referanslar dlp'ye çözümlensin.
+SET search_path TO dlp, public;
+
 -- ─── ADIM 1: user_daily_risk_scores tablosuna email_address kolonu ekle ───────
 ALTER TABLE user_daily_risk_scores 
 ADD COLUMN IF NOT EXISTS email_address VARCHAR(255);

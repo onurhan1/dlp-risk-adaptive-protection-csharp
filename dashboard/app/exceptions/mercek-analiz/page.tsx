@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import apiClient from '@/lib/axios'
 import Pagination from '@/components/ui/Pagination'
 import GridExport from '@/components/ui/GridExport'
+import { useTranslation } from '@/components/LanguageProvider'
 import {
   BarChart2,
   BarChart3,
@@ -45,6 +46,7 @@ interface ReleasedIncident {
 }
 
 export default function MercekAnalyzePage() {
+  const { t } = useTranslation()
   // Released Incidents States
   const [releasedIncidents, setReleasedIncidents] = useState<ReleasedIncident[]>([])
   const [loadingReleasedIncidents, setLoadingReleasedIncidents] = useState(false)
@@ -534,7 +536,7 @@ export default function MercekAnalyzePage() {
 
               {loadingReleasedIncidents ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  Yükleniyor...
+                  {t('common.loading')}
                 </div>
               ) : (
                 <>
@@ -635,7 +637,7 @@ export default function MercekAnalyzePage() {
 
               {mercekLoading ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  Yükleniyor...
+                  {t('common.loading')}
                 </div>
               ) : mercekStatistics && (() => {
                 const lastWeekCount = mercekStatistics.last_week_count ?? mercekStatistics.lastWeekCount ?? 0
@@ -797,7 +799,7 @@ export default function MercekAnalyzePage() {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button onClick={() => { setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }} disabled={mercekLoading}
                           style={{ flex: 1, padding: '9px 16px', borderRadius: '6px', border: 'none', background: mercekLoading ? 'var(--border)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '13px', fontWeight: '600', cursor: mercekLoading ? 'not-allowed' : 'pointer' }}>
-                          {mercekLoading ? 'Yükleniyor...' : 'Filtrele'}
+                          {mercekLoading ? t('common.loading') : t('common.filter')}
                         </button>
                         {(csvDateFrom || csvDateTo || csvSelectedUser || mercekAssignedUserFilter) && (
                           <button onClick={() => { setCsvDateFrom(''); setCsvDateTo(''); setCsvSelectedUser(''); setMercekAssignedUserFilter(''); setCsvCurrentPage(1); fetchMercekData(1); fetchMercekStatistics() }}
@@ -1174,7 +1176,7 @@ export default function MercekAnalyzePage() {
                               cursor: 'pointer'
                             }}
                           >
-                            <X size={14} /> Filtreleri Temizle
+                            <X size={14} /> {t('mercek.clearFilters')}
                           </button>
                         )}
                         <GridExport
@@ -1295,14 +1297,14 @@ export default function MercekAnalyzePage() {
                                       }}
                                     >
                                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {hasActiveFilter ? `${selectedValues.length} seçildi` : 'Tümü'}
+                                        {hasActiveFilter ? `${selectedValues.length} ${t('common.selected')}` : t('common.all')}
                                       </span>
                                       <ChevronDown size={12} />
                                     </button>
                                   ) : isTextSearch ? (
                                     <input
                                       type="text"
-                                      placeholder="Ara..."
+                                      placeholder={`${t('common.search')}...`}
                                       value={textFilterValue}
                                       onChange={(e) => handleMercekTextFilter(header, e.target.value)}
                                       style={{
@@ -1338,7 +1340,7 @@ export default function MercekAnalyzePage() {
                                       }}
                                     >
                                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {hasActiveFilter ? 'Filtreli' : 'Tümü'}
+                                        {hasActiveFilter ? t('common.filtered') : t('common.all')}
                                       </span>
                                       <Filter size={12} />
                                     </button>
@@ -1367,7 +1369,7 @@ export default function MercekAnalyzePage() {
                                         <>
                                           <input
                                             type="text"
-                                            placeholder="Ara..."
+                                            placeholder={`${t('common.search')}...`}
                                             value={searchQuery}
                                             onChange={(e) => setDropdownSearchQuery(prev => ({ ...prev, [header]: e.target.value }))}
                                             autoFocus
@@ -1403,7 +1405,7 @@ export default function MercekAnalyzePage() {
                                               marginBottom: '4px'
                                             }}
                                           >
-                                            {selectedValues.length === filteredOptions.length ? '✓ Seçimi Kaldır' : 'Tümünü Seç'}
+                                            {selectedValues.length === filteredOptions.length ? `✓ ${t('common.clearSelection')}` : t('common.selectAll')}
                                           </div>
                                           {filteredOptions.slice(0, 100).map(value => (
                                             <label
@@ -1434,7 +1436,7 @@ export default function MercekAnalyzePage() {
                                           ))}
                                           {filteredOptions.length > 100 && (
                                             <div style={{ padding: '6px 8px', fontSize: '10px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                              +{filteredOptions.length - 100} daha...
+                                              +{filteredOptions.length - 100} {t('common.more')}...
                                             </div>
                                           )}
                                         </>
@@ -1451,7 +1453,7 @@ export default function MercekAnalyzePage() {
                                                   addTagFilter(header, tagInput)
                                                 }
                                               }}
-                                              placeholder="Kelime girin + Enter"
+                                              placeholder={t('mercek.enterKeyword')}
                                               autoFocus
                                               style={{
                                                 flex: 1,
@@ -1477,7 +1479,7 @@ export default function MercekAnalyzePage() {
                                                 cursor: tagInput.trim() ? 'pointer' : 'not-allowed'
                                               }}
                                             >
-                                              Ekle
+                                              {t('common.add')}
                                             </button>
                                           </div>
                                           {tagFilterValues.length > 0 && (
@@ -1531,11 +1533,11 @@ export default function MercekAnalyzePage() {
                                                 cursor: 'pointer'
                                               }}
                                             >
-                                              ✕ Tümünü Temizle
+                                              ✕ {t('common.clearAll')}
                                             </button>
                                           )}
                                           <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                                            Birden fazla kelime ekleyebilirsiniz. Herhangi birini içeren kayıtlar gösterilir.
+                                            {t('mercek.tagSearchHint')}
                                           </div>
                                         </div>
                                       ) : isDate ? (
@@ -1593,7 +1595,7 @@ export default function MercekAnalyzePage() {
                                                 cursor: 'pointer'
                                               }}
                                             >
-                                              ✕ Tarihleri Temizle
+                                              ✕ {t('common.clearDates')}
                                             </button>
                                           )}
                                         </div>
@@ -1604,7 +1606,7 @@ export default function MercekAnalyzePage() {
                                             type="text"
                                             value={textFilterValue}
                                             onChange={(e) => handleMercekTextFilter(header, e.target.value)}
-                                            placeholder="Ara..."
+                                            placeholder={t('common.search')}
                                             autoFocus
                                             style={{
                                               width: '100%',
@@ -1630,7 +1632,7 @@ export default function MercekAnalyzePage() {
                                                 cursor: 'pointer'
                                               }}
                                             >
-                                              ✕ Temizle
+                                              ✕ {t('common.clear')}
                                             </button>
                                           )}
                                         </div>
@@ -1646,7 +1648,7 @@ export default function MercekAnalyzePage() {
                           {paginatedData.length === 0 ? (
                             <tr>
                               <td colSpan={csvHeaders.length} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                                Filtre sonucu kayıt bulunamadı
+                                {t('mercek.noFilterResults')}
                               </td>
                             </tr>
                           ) : paginatedData.map((row, rowIndex) => (

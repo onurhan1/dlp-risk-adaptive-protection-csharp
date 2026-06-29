@@ -7,9 +7,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api")]
 public class ClassificationController : ControllerBase
 {
-    private readonly ClassificationService _classificationService;
+    private readonly IClassificationService _classificationService;
 
-    public ClassificationController(ClassificationService classificationService)
+    public ClassificationController(IClassificationService classificationService)
     {
         _classificationService = classificationService;
     }

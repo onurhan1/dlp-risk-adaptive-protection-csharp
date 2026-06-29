@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, Suspense } from 'react'
+import Link from 'next/link'
 import { useAuth } from './AuthProvider'
 import { useTheme } from './ThemeProvider'
 import { useTranslation } from './LanguageProvider'
@@ -101,18 +102,18 @@ function NavigationContent() {
             </button>
             {settingsMenuOpen && (
               <div className="settings-dropdown">
-                <a href="/settings" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                <Link href="/settings" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
                   <Settings size={16} />
                   <span>{t('nav.settings')}</span>
-                </a>
-                <a href="/release-notes" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                </Link>
+                <Link href="/release-notes" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
                   <FileText size={16} />
                   <span>{t('nav.releaseNotes')}</span>
-                </a>
-                <a href="/faq" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                </Link>
+                <Link href="/faq" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
                   <HelpCircle size={16} />
                   <span>{t('nav.faq')}</span>
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -127,7 +128,7 @@ function NavigationContent() {
                 <div className="user-dropdown">
                   <button onClick={() => { logout(); setUserMenuOpen(false); }} className="dropdown-item">
                     <LogOut size={16} />
-                    <span>Logout</span>
+                    <span>{t('login.logout')}</span>
                   </button>
                 </div>
               )}

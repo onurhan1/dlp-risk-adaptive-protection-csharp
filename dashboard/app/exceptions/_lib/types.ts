@@ -80,6 +80,7 @@ export interface RuleStats {
   p25: number
   p75: number
   p90: number
+  allMatches: number[]
   classifiers: ClassifierStats[]
   exceptions: ExceptionStats[]
 }

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class EmailConfigurationService
+public class EmailConfigurationService : IEmailConfigurationService
 {
     private const string HostKey = "email_smtp_host";
     private const string PortKey = "email_smtp_port";
@@ -91,6 +91,26 @@ public class EmailConfigurationService
 
     public async Task<EmailConfigTestResult> TestAsync(EmailSettingsRequest request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            // Fall back to the stored password so the user can test without retyping it.
+            var stored = await _context.SystemSettings.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Key == PasswordKey, cancellationToken);
+            request.Password = stored != null
+                ? TryUnprotect(stored.Value)
+                : _configuration["Email:SmtpPassword"];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return new EmailConfigTestResult
+            {
+                Success = false,
+                Message = "SMTP password is required. Enter the password or save the settings with a password first.",
+                TestedAt = DateTime.UtcNow
+            };
+        }
+
         ValidateRequest(request, allowEmptyPassword: false);
 
         try

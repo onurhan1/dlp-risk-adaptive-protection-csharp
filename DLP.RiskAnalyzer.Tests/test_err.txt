@@ -1,0 +1,22 @@
+  Geri yüklenecek projeler belirleniyor...
+  Geri yükleme için tüm projeler güncel.
+  DLP.RiskAnalyzer.Shared -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Shared\bin\Debug\net8.0\DLP.RiskAnalyzer.Shared.dll
+  DLP.RiskAnalyzer.Collector -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Collector\bin\Debug\net8.0\DLP.RiskAnalyzer.Collector.dll
+  DLP.RiskAnalyzer.Analyzer -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\bin\Debug\net8.0\DLP.RiskAnalyzer.Analyzer.dll
+  DLP.RiskAnalyzer.Tests -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Tests\bin\Debug\net8.0\DLP.RiskAnalyzer.Tests.dll
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Tests\bin\Debug\net8.0\DLP.RiskAnalyzer.Tests.dll (.NETCoreApp,Version=v8.0) için test çalıştırması
+VSTest sürümü 17.11.1 (x64)
+
+Test yürütmesi başlatılıyor, lütfen bekleyin...
+Toplam 1 test dosyası belirtilen desenle eşleşti.
+[xUnit.net 00:00:00.53]     DLP.RiskAnalyzer.Tests.Services.RedisStreamProcessorTests.ProcessRedisStreamAsync_WithValidIncident_SavesIncident [FAIL]
+  Başarısız DLP.RiskAnalyzer.Tests.Services.RedisStreamProcessorTests.ProcessRedisStreamAsync_WithValidIncident_SavesIncident [7 ms]
+  Hata İletisi:
+   Assert.Equal() Failure: Values differ
+Expected: 1
+Actual:   0
+  Yığın İzleme:
+     at DLP.RiskAnalyzer.Tests.Services.RedisStreamProcessorTests.ProcessRedisStreamAsync_WithValidIncident_SavesIncident() in C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Tests\Services\RedisStreamProcessorTests.cs:line 105
+--- End of stack trace from previous location ---
+
+Başarısız! - Başarısız:     1, Başarılı:   257, Atlanan:     0, Toplam:   258, Süre: 1 s - DLP.RiskAnalyzer.Tests.dll (net8.0)

@@ -17,7 +17,9 @@ public class UserInsightsServiceTests : IDisposable
             .UseInMemoryDatabase($"UserInsightsTests_{Guid.NewGuid()}")
             .Options;
         _db = new AnalyzerDbContext(options);
-        _sut = new UserInsightsService(_db);
+        var incidentRepoMock = new Moq.Mock<DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces.IIncidentRepository>();
+        var dailyScoreRepo = new DLP.RiskAnalyzer.Analyzer.Repositories.Implementations.UserDailyRiskScoreRepository(_db);
+        _sut = new UserInsightsService(dailyScoreRepo, incidentRepoMock.Object);
     }
 
     public void Dispose() => _db.Dispose();

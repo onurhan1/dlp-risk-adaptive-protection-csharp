@@ -16,6 +16,12 @@ import {
   Globe,
   FileText as FileTextIcon,
   ListChecks,
+  Pin,
+  RotateCcw,
+  ShieldCheck,
+  BrainCircuit,
+  Mail,
+  CalendarClock
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -26,13 +32,23 @@ export default function Sidebar() {
   const { t } = useTranslation()
 
   const isExceptionsPage = pathname?.startsWith('/exceptions')
+  const isAiBehavioralPage = pathname?.startsWith('/ai-behavioral')
+  const isInvestigationPage = pathname?.startsWith('/investigation')
   const [exceptionsOpen, setExceptionsOpen] = useState(false)
+  const [aiBehavioralOpen, setAiBehavioralOpen] = useState(false)
+  const [investigationOpen, setInvestigationOpen] = useState(false)
 
   useEffect(() => {
-    if (isExceptionsPage) {
-      setExceptionsOpen(true)
-    }
+    if (isExceptionsPage) setExceptionsOpen(true)
   }, [isExceptionsPage])
+
+  useEffect(() => {
+    if (isAiBehavioralPage) setAiBehavioralOpen(true)
+  }, [isAiBehavioralPage])
+
+  useEffect(() => {
+    if (isInvestigationPage) setInvestigationOpen(true)
+  }, [isInvestigationPage])
 
   return (
     <div className="sidebar">
@@ -69,15 +85,103 @@ export default function Sidebar() {
 
         {isAdmin && (
           <>
-            <Link href="/investigation" className={`sidebar-icon ${pathname === '/investigation' ? 'active' : ''}`}>
-              <Search size={20} />
-              <span>{t('nav.investigation')}</span>
-            </Link>
+            {/* Investigation - expandable menu */}
+            <div>
+              <div
+                className={`sidebar-icon ${isInvestigationPage ? 'active' : ''}`}
+                onClick={() => {
+                  setInvestigationOpen(!investigationOpen)
+                  if (!isInvestigationPage) router.push('/investigation')
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <Search size={20} />
+                <span style={{ flex: 1 }}>{t('nav.investigation')}</span>
+                <ChevronDown
+                  size={16}
+                  style={{
+                    transition: 'transform 0.2s',
+                    transform: investigationOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    flexShrink: 0,
+                    opacity: 0.6,
+                  }}
+                />
+              </div>
+              {investigationOpen && (
+                <div className="sidebar-submenu">
+                  <Link
+                    href="/investigation"
+                    className={`sidebar-subitem ${pathname === '/investigation' ? 'active' : ''}`}
+                  >
+                    <Search size={16} />
+                    <span>{t('nav.investigationOverview')}</span>
+                  </Link>
+                  <Link
+                    href="/investigation/weekly-review"
+                    className={`sidebar-subitem ${pathname === '/investigation/weekly-review' ? 'active' : ''}`}
+                  >
+                    <CalendarClock size={16} />
+                    <span>{t('nav.investigationWeekly')}</span>
+                  </Link>
+                  <Link
+                    href="/investigation/mail-templates"
+                    className={`sidebar-subitem ${pathname === '/investigation/mail-templates' ? 'active' : ''}`}
+                  >
+                    <Mail size={16} />
+                    <span>{t('nav.mailTemplates')}</span>
+                  </Link>
+                </div>
+              )}
+            </div>
 
-            <Link href="/ai-behavioral" className={`sidebar-icon ${pathname === '/ai-behavioral' ? 'active' : ''}`}>
-              <Layers size={20} />
-              <span>{t('nav.aiBehavioral')}</span>
-            </Link>
+            {/* AI Behavioral - expandable menu */}
+            <div>
+              <div
+                className={`sidebar-icon ${isAiBehavioralPage ? 'active' : ''}`}
+                onClick={() => {
+                  setAiBehavioralOpen(!aiBehavioralOpen)
+                  if (!isAiBehavioralPage) router.push('/ai-behavioral')
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <Layers size={20} />
+                <span style={{ flex: 1 }}>{t('nav.aiBehavioral')}</span>
+                <ChevronDown
+                  size={16}
+                  style={{
+                    transition: 'transform 0.2s',
+                    transform: aiBehavioralOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    flexShrink: 0,
+                    opacity: 0.6,
+                  }}
+                />
+              </div>
+              {aiBehavioralOpen && (
+                <div className="sidebar-submenu">
+                  <Link
+                    href="/ai-behavioral"
+                    className={`sidebar-subitem ${pathname === '/ai-behavioral' ? 'active' : ''}`}
+                  >
+                    <BarChart3 size={16} />
+                    <span>Genel Bakış</span>
+                  </Link>
+                  <Link
+                    href="/ai-behavioral/rule-based"
+                    className={`sidebar-subitem ${pathname === '/ai-behavioral/rule-based' ? 'active' : ''}`}
+                  >
+                    <ShieldCheck size={16} />
+                    <span>Kural Tabanlı</span>
+                  </Link>
+                  <Link
+                    href="/ai-behavioral/ai-model"
+                    className={`sidebar-subitem ${pathname === '/ai-behavioral/ai-model' ? 'active' : ''}`}
+                  >
+                    <BrainCircuit size={16} />
+                    <span>AI Risk Model</span>
+                  </Link>
+                </div>
+              )}
+            </div>
 
             {/* Exceptions - expandable menu */}
             <div>
@@ -132,6 +236,22 @@ export default function Sidebar() {
                   >
                     <ListChecks size={16} />
                     <span>{t('nav.exceptionList')}</span>
+                  </Link>
+                  <Link
+                    href="/exceptions/exception-list/permanent"
+                    className={`sidebar-subitem ${pathname === '/exceptions/exception-list/permanent' ? 'active' : ''}`}
+                    style={{ paddingLeft: '48px', fontSize: '13px' }}
+                  >
+                    <Pin size={16} />
+                    <span>{t('nav.permanentExceptions')}</span>
+                  </Link>
+                  <Link
+                    href="/exceptions/exception-list/removal"
+                    className={`sidebar-subitem ${pathname === '/exceptions/exception-list/removal' ? 'active' : ''}`}
+                    style={{ paddingLeft: '48px', fontSize: '13px' }}
+                  >
+                    <RotateCcw size={16} />
+                    <span>{t('nav.exceptionRemovals')}</span>
                   </Link>
                 </div>
               )}

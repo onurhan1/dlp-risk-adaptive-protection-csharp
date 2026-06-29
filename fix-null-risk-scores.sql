@@ -8,6 +8,9 @@
 
 BEGIN;
 
+-- Tablolar "dlp" şemasına taşındı; şemasız referanslar dlp'ye çözümlensin (yedek tabloları da dlp'de oluşur).
+SET search_path TO dlp, public;
+
 -- 1. BACKUP (CRITICAL!)
 CREATE TABLE IF NOT EXISTS incidents_backup_null_scores_20260313 AS 
 SELECT * FROM incidents WHERE risk_score IS NULL;

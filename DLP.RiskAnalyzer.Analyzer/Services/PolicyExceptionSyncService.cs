@@ -11,10 +11,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// DLP API'den policy rule exception bilgilerini çekip veritabanına kaydeden servis.
 /// 24 saatte bir senkronize edilir.
 /// </summary>
-public class PolicyExceptionSyncService
+public class PolicyExceptionSyncService : IPolicyExceptionSyncService
 {
     private readonly AnalyzerDbContext _context;
-    private readonly DlpConfigurationService _dlpConfigService;
+    private readonly IDlpConfigurationService _dlpConfigService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PolicyExceptionSyncService> _logger;
 
@@ -24,7 +24,7 @@ public class PolicyExceptionSyncService
 
     public PolicyExceptionSyncService(
         AnalyzerDbContext context,
-        DlpConfigurationService dlpConfigService,
+        IDlpConfigurationService dlpConfigService,
         IConfiguration configuration,
         ILogger<PolicyExceptionSyncService> logger)
     {
@@ -269,9 +269,9 @@ public class PolicyExceptionSyncService
                 Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds)
             };
         }
-        catch
+        catch (Exception ex)
         {
-            // Fallback to appsettings.json
+            _logger.LogWarning(ex, "Failed to load DLP config from database, falling back to appsettings.json");
             var dlpIp = _configuration["DLP:ManagerIP"] ?? "localhost";
             var dlpPort = _configuration.GetValue<int>("DLP:ManagerPort", 8443);
             var useHttps = _configuration.GetValue<bool>("DLP:UseHttps", true);

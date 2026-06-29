@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 export interface FilterConfig {
     key: string
@@ -25,14 +26,7 @@ export interface GridFiltersProps {
     }
 }
 
-const defaultLabels = {
-    reset: 'Sıfırla',
-    filter: 'Filtrele',
-    from: 'Başlangıç',
-    to: 'Bitiş',
-    all: 'Tümü',
-    selected: 'seçili',
-}
+
 
 export default function GridFilters({
     filters,
@@ -41,6 +35,15 @@ export default function GridFilters({
     onReset,
     labels: customLabels,
 }: GridFiltersProps) {
+    const { t } = useTranslation()
+    const defaultLabels = {
+        reset: t('gridFilter.reset'),
+        filter: t('gridFilter.filter'),
+        from: t('gridFilter.from'),
+        to: t('gridFilter.to'),
+        all: t('gridFilter.all'),
+        selected: t('gridFilter.selected'),
+    }
     const labels = { ...defaultLabels, ...customLabels }
     const [openDropdown, setOpenDropdown] = useState<string | null>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)

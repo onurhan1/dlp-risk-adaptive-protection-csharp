@@ -13,7 +13,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Remediation Service - Incident remediation via Forcepoint DLP API + Database storage
 /// </summary>
-public class RemediationService
+public class RemediationService : IRemediationService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
@@ -154,8 +154,9 @@ public class RemediationService
                     apiSuccess = response.IsSuccessStatusCode;
                     apiMessage = apiSuccess ? "DLP API updated" : $"DLP API returned {response.StatusCode}";
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogDebug(ex, "DLP API call failed for incident {IncidentId}", incidentId);
                     apiMessage = "DLP API unavailable";
                 }
             }
@@ -164,8 +165,9 @@ public class RemediationService
                 apiMessage = "DLP API unavailable";
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "DLP API error during remediation of incident {IncidentId}", incidentId);
             apiMessage = "DLP API error";
         }
         

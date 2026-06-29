@@ -7,7 +7,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// GitHub Copilot API Service for testing connections and validating API keys
 /// </summary>
-public class CopilotService
+public class CopilotService : ICopilotService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<CopilotService> _logger;

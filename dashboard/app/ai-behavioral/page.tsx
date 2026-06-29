@@ -1,723 +1,404 @@
-'use client'
+﻿'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import apiClient from '@/lib/axios'
-import EntityDetailModal from '@/components/EntityDetailModal'
-import { BarChart3, Bot } from 'lucide-react'
+import { BarChart3, TrendingUp, Users, AlertTriangle, BrainCircuit, ShieldCheck, RefreshCw, Clock, Calendar, ChevronRight, Info } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import EntityDetailModal from '@/components/EntityDetailModal'
 
-interface AIBehavioralAnalysis {
+interface RuleBasedAnalysis {
   entity_type: string
   entity_id: string
   risk_score: number
   anomaly_level: string
   ai_explanation: string
-  ai_recommendation: string
-  reference_incident_ids: number[]
-  analysis_metadata: Record<string, any>
-  analysis_date: string
 }
 
-interface AIBehavioralOverview {
+interface RuleBasedOverview {
   total_analyzed: number
   high_anomaly_count: number
   medium_anomaly_count: number
   low_anomaly_count: number
-  user_anomalies: AIBehavioralAnalysis[]
-  channel_anomalies: AIBehavioralAnalysis[]
-  department_anomalies: AIBehavioralAnalysis[]
-  destination_anomalies: AIBehavioralAnalysis[]
-  rule_anomalies: AIBehavioralAnalysis[]
-  unique_users: string[]
-  unique_channels: string[]
-  unique_departments: string[]
-  unique_destinations: string[]
-  unique_rules: string[]
-  top_anomalies: AIBehavioralAnalysis[]
-  anomaly_by_channel: Record<string, number>
-  anomaly_by_department: Record<string, number>
+  user_anomalies: RuleBasedAnalysis[]
 }
 
-type EntityTab = 'users' | 'channels' | 'departments' | 'destinations' | 'rules'
+interface IFScore {
+  user_email: string
+  if_score: number
+  is_anomaly: boolean
+  department?: string
+  incident_count: number
+}
 
-export default function AIBehavioralPage() {
+interface IFOverview {
+  user_scores: IFScore[]
+  total_users: number
+  anomaly_count: number
+  status?: {
+    last_run_at?: string
+    last_user_count?: number
+  }
+}
+
+const LOOKBACK_OPTIONS = [
+  { label: '7 Gün',  value: 7 },
+  { label: '14 Gün', value: 14 },
+  { label: '30 Gün', value: 30 },
+  { label: '60 Gün', value: 60 },
+  { label: '90 Gün', value: 90 },
+]
+
+interface MergedUser {
+  user_id: string
+  rule_score: number
+  rule_level: string
+  ai_score: number | null
+  is_ai_anomaly: boolean | null
+  department?: string
+  incident_count: number
+  explanation: string
+}
+
+function getRuleColor(score: number) {
+  if (score >= 85) return '#7c2d12'
+  if (score >= 65) return '#dc2626'
+  if (score >= 40) return '#f59e0b'
+  return '#10b981'
+}
+
+function getAIColor(score: number) {
+  if (score >= 75) return '#dc2626'
+  if (score >= 50) return '#f59e0b'
+  if (score >= 25) return '#3b82f6'
+  return '#10b981'
+}
+
+function getLevelBg(level: string) {
+  switch (level?.toLowerCase()) {
+    case 'critical': return { bg: 'rgba(124,45,18,0.12)', color: '#7c2d12', border: 'rgba(124,45,18,0.25)' }
+    case 'high':     return { bg: 'rgba(220,38,38,0.1)',  color: '#dc2626', border: 'rgba(220,38,38,0.25)' }
+    case 'medium':   return { bg: 'rgba(245,158,11,0.1)', color: '#d97706', border: 'rgba(245,158,11,0.25)' }
+    default:         return { bg: 'rgba(16,185,129,0.1)', color: '#10b981', border: 'rgba(16,185,129,0.25)' }
+  }
+}
+
+export default function AIBehavioralOverviewPage() {
   const router = useRouter()
-  const [overview, setOverview] = useState<AIBehavioralOverview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedEntity, setSelectedEntity] = useState<AIBehavioralAnalysis | null>(null)
   const [lookbackDays, setLookbackDays] = useState(30)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [activeTab, setActiveTab] = useState<EntityTab>('users')
-  const [filterText, setFilterText] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 100
-
-  // Azure AI data state
-  const [azureAIUsers, setAzureAIUsers] = useState<Map<string, number>>(new Map())
-  const [showOnlyAzureAI, setShowOnlyAzureAI] = useState(false)
-
-  // Detail modal state
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [ruleOverview, setRuleOverview] = useState<RuleBasedOverview | null>(null)
+  const [ifOverview, setIfOverview]     = useState<IFOverview | null>(null)
+  const [ruleLoading, setRuleLoading]   = useState(true)
+  const [aiLoading, setAiLoading]       = useState(true)
+  const [detailOpen, setDetailOpen]     = useState(false)
   const [detailEntity, setDetailEntity] = useState<{ type: string; id: string } | null>(null)
 
+  const fetchIF = useCallback((top20Emails?: string[]) => {
+    setAiLoading(true)
+    const params = top20Emails && top20Emails.length > 0
+      ? { requiredEmails: top20Emails.join(',') }
+      : {}
+    apiClient.get('/api/isolation-forest/overview', { params })
+      .then(r => setIfOverview(r.data))
+      .catch(() => {})
+      .finally(() => setAiLoading(false))
+  }, [])
+
+  // Initial load: fetch rule first, then IF with required emails from top 20
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const entityType = params.get('entityType')
-      const entityId = params.get('entityId')
-      if (entityType && entityId) {
-        const decodedEntityId = decodeURIComponent(entityId)
-        analyzeEntity(entityType, decodedEntityId)
-      } else {
-        fetchOverview()
-      }
-    } else {
-      fetchOverview()
-    }
-  }, [lookbackDays])
-
-  const fetchOverview = async (forceRefresh: boolean = false) => {
-    setLoading(true)
-    try {
-      const overviewRes = await apiClient.get('/api/ai-behavioral/overview', {
-        params: { lookbackDays, forceRefresh }
+    setRuleLoading(true)
+    setRuleOverview(null)
+    apiClient.get('/api/ai-behavioral/overview', { params: { lookbackDays } })
+      .then(r => {
+        const data: RuleBasedOverview = r.data
+        setRuleOverview(data)
+        // Extract top 20 emails to guarantee IF scores for them
+        const top20Emails = (data.user_anomalies || [])
+          .sort((a, b) => b.risk_score - a.risk_score)
+          .slice(0, 20)
+          .map(u => u.entity_id)
+        fetchIF(top20Emails)
       })
-      setOverview(overviewRes.data)
+      .catch(() => { fetchIF() })
+      .finally(() => setRuleLoading(false))
+  }, [lookbackDays, fetchIF])
+  const isLoading = ruleLoading || aiLoading
 
-      // Fetch Azure AI data separately to not block main data if it fails
-      try {
-        const azureAIRes = await apiClient.get('/api/azure-ai/users-with-analysis')
-        // Build a map of user email -> Azure AI average score
-        const azureMap = new Map<string, number>()
-        if (azureAIRes.data?.users) {
-          azureAIRes.data.users.forEach((u: any) => {
-            azureMap.set(u.user_email || u.userEmail, u.average_risk_score || u.averageRiskScore)
-          })
+  // Merge: top 20 by rule score
+  const top20: MergedUser[] = (() => {
+    if (!ruleOverview) return []
+    const aiMap = new Map<string, IFScore>()
+    if (ifOverview) {
+      ifOverview.user_scores.forEach(u => aiMap.set(u.user_email.toLowerCase(), u))
+    }
+    return (ruleOverview.user_anomalies || [])
+      .sort((a, b) => b.risk_score - a.risk_score)
+      .slice(0, 20)
+      .map(u => {
+        const ai = aiMap.get(u.entity_id.toLowerCase())
+        return {
+          user_id: u.entity_id,
+          rule_score: u.risk_score,
+          rule_level: u.anomaly_level,
+          ai_score: ai ? ai.if_score : null,
+          is_ai_anomaly: ai ? ai.is_anomaly : null,
+          department: ai?.department,
+          incident_count: ai?.incident_count ?? 0,
+          explanation: u.ai_explanation,
         }
-        setAzureAIUsers(azureMap)
-      } catch (azureError) {
-        console.warn('Azure AI data fetch failed, continuing without it:', azureError)
-      }
-    } catch (error: any) {
-      console.error('Error fetching AI behavioral overview:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const analyzeEntity = async (entityType: string, entityId: string) => {
-    setAnalyzing(true)
-    setLoading(true)
-    try {
-      const response = await apiClient.get(`/api/ai-behavioral/entity/${entityType}/${encodeURIComponent(entityId)}`, {
-        params: { lookbackDays }
       })
-      setSelectedEntity(response.data)
-    } catch (error: any) {
-      console.error('Error analyzing entity:', error)
-      try {
-        const postResponse = await apiClient.post('/api/ai-behavioral/analyze', {
-          entityType,
-          entityId,
-          lookbackDays
-        })
-        setSelectedEntity(postResponse.data)
-      } catch (postError: any) {
-        alert(postError.response?.data?.detail || 'Failed to analyze entity')
-      }
-    } finally {
-      setAnalyzing(false)
-      setLoading(false)
-    }
-  }
+  })()
 
-  const getAnomalyColor = (level: string): string => {
-    switch (level.toLowerCase()) {
-      case 'critical': return '#7c2d12' // dark red for critical
-      case 'high': return '#dc2626'
-      case 'medium': return '#f59e0b'
-      case 'low': return '#10b981'
-      default: return '#6b7280'
-    }
-  }
-
-  const getRiskColor = (score: number): string => {
-    if (score >= 85) return '#7c2d12' // critical
-    if (score >= 65) return '#dc2626' // high
-    if (score >= 40) return '#f59e0b' // medium
-    return '#10b981' // low
-  }
-
-  // Get current tab's anomalies and unique values
-  const currentTabData = useMemo(() => {
-    if (!overview) return { anomalies: [], uniqueValues: [] }
-
-    switch (activeTab) {
-      case 'users':
-        return { anomalies: overview.user_anomalies || [], uniqueValues: overview.unique_users || [] }
-      case 'channels':
-        return { anomalies: overview.channel_anomalies || [], uniqueValues: overview.unique_channels || [] }
-      case 'departments':
-        return { anomalies: overview.department_anomalies || [], uniqueValues: overview.unique_departments || [] }
-      case 'destinations':
-        return { anomalies: overview.destination_anomalies || [], uniqueValues: overview.unique_destinations || [] }
-      case 'rules':
-        return { anomalies: overview.rule_anomalies || [], uniqueValues: overview.unique_rules || [] }
-      default:
-        return { anomalies: [], uniqueValues: [] }
-    }
-  }, [overview, activeTab])
-
-  // Filter anomalies based on filter text and Azure AI filter
-  const filteredAnomalies = useMemo(() => {
-    let anomalies = currentTabData.anomalies
-
-    // Filter by text
-    if (filterText.trim()) {
-      anomalies = anomalies.filter(a =>
-        a.entity_id.toLowerCase().includes(filterText.toLowerCase())
-      )
-    }
-
-    // Filter by Azure AI analysis (only for users tab)
-    if (showOnlyAzureAI && activeTab === 'users') {
-      anomalies = anomalies.filter(a => azureAIUsers.has(a.entity_id))
-    }
-
-    return anomalies
-  }, [currentTabData.anomalies, filterText, showOnlyAzureAI, activeTab, azureAIUsers])
-
-  // Pagination
-  const totalPages = Math.ceil(filteredAnomalies.length / itemsPerPage)
-  const paginatedAnomalies = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    return filteredAnomalies.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredAnomalies, currentPage, itemsPerPage])
-
-  // Reset page when filter or tab changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [filterText, activeTab])
-
-  // Filter dropdown suggestions - show analyzed entities from anomalies
-  const filteredSuggestions = useMemo(() => {
-    // Get entity IDs from anomalies (these are the analyzed ones)
-    const analyzedEntityIds = currentTabData.anomalies.map(a => a.entity_id)
-
-    if (!filterText.trim()) {
-      // When not typing, show all analyzed entities
-      return analyzedEntityIds
-    }
-
-    // When typing, filter and show matches
-    return analyzedEntityIds
-      .filter(v => v.toLowerCase().includes(filterText.toLowerCase()))
-  }, [currentTabData.anomalies, filterText])
-
-  const tabConfig = [
-    { key: 'users' as const, label: 'Users', count: overview?.user_anomalies?.length || 0 },
-    { key: 'channels' as const, label: 'Channels', count: overview?.channel_anomalies?.length || 0 },
-    { key: 'departments' as const, label: 'Departments', count: overview?.department_anomalies?.length || 0 },
-    { key: 'destinations' as const, label: 'Destinations', count: overview?.destination_anomalies?.length || 0 },
-    { key: 'rules' as const, label: 'Rules', count: overview?.rule_anomalies?.length || 0 },
+  const stats = [
+    { label: 'Toplam Analiz Edilen', value: ruleOverview?.total_analyzed ?? '—',       color: 'var(--text-primary)', icon: <Users size={18} />,        note: `Son ${lookbackDays} gün`,     loading: ruleLoading },
+    { label: 'Yüksek Riskli',        value: ruleOverview?.high_anomaly_count ?? '—',   color: '#dc2626',             icon: <AlertTriangle size={18} />, note: 'Kural tabanlı',               loading: ruleLoading },
+    { label: 'Orta Riskli',          value: ruleOverview?.medium_anomaly_count ?? '—', color: '#f59e0b',             icon: <TrendingUp size={18} />,    note: 'Kural tabanlı',               loading: ruleLoading },
+    { label: 'AI Anormal Davranış',  value: ifOverview?.anomaly_count ?? '—',          color: '#7c3aed',             icon: <BrainCircuit size={18} />,  note: 'Son 6 ay (IF modeli)',        loading: aiLoading },
   ]
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--background)', position: 'relative' }}>
-        <LoadingOverlay isLoading={loading} message="AI Behavioral Analysis yükleniyor" />
-      </div>
-    )
-  }
+  const ifLastRun = ifOverview?.status?.last_run_at
+    ? new Date(ifOverview.status.last_run_at).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })
+    : null
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
-            AI Behavioral Analysis
-          </h1>
-          <p style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>
-            Advanced anomaly detection using statistical analysis and behavioral patterns
-          </p>
+    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '28px' }}>
+      <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
+
+        {/* ── Header ── */}
+        <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+              🛡️ AI Behavioral Analiz — Genel Bakış
+            </h1>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Kural tabanlı skor seçilen zaman penceresine göre hesaplanır.
+              AI (Isolation Forest) skoru gece çalışan batch ile son <strong>6 aylık</strong> veriye göre otomatik güncellenir.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+            <button
+              onClick={() => router.push('/ai-behavioral/rule-based')}
+              style={{ padding: '8px 16px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <ShieldCheck size={14} /> Kural Tabanlı Detay
+            </button>
+            <button
+              onClick={() => router.push('/ai-behavioral/ai-model')}
+              style={{ padding: '8px 16px', background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <BrainCircuit size={14} /> AI Model Detay
+            </button>
+          </div>
         </div>
 
-        {/* Controls */}
-        <div style={{
-          background: 'var(--surface)',
-          padding: '20px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          display: 'flex',
-          gap: '16px',
-          alignItems: 'center',
-          flexWrap: 'wrap'
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
-            Lookback Period:
-            <select
-              value={lookbackDays}
-              onChange={(e) => setLookbackDays(Number(e.target.value))}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                background: 'var(--surface)',
-                color: 'var(--text-primary)'
-              }}
+        {/* ── Lookback window selector ── */}
+        <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '16px 20px', border: '1px solid var(--border)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 600 }}>
+            <Calendar size={15} />
+            <span>Kural Tabanlı Zaman Penceresi:</span>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {LOOKBACK_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setLookbackDays(opt.value)}
+                style={{
+                  padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  background: lookbackDays === opt.value ? 'var(--primary)' : 'var(--background)',
+                  color: lookbackDays === opt.value ? 'white' : 'var(--text-secondary)',
+                  border: lookbackDays === opt.value ? '1px solid var(--primary)' : '1px solid var(--border)',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '8px', padding: '6px 12px' }}>
+              <Clock size={12} color='#7c3aed' />
+              <span>AI son güncelleme:</span>
+              <strong style={{ color: '#7c3aed' }}>{aiLoading ? '…' : (ifLastRun ?? 'Henüz çalışmadı')}</strong>
+            </div>            <button
+              onClick={() => fetchIF()}
+              disabled={aiLoading}
+              title="AI skorlarını yenile"
+              style={{ padding: '6px 10px', borderRadius: '8px', background: 'transparent', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
             >
-              <option value={7}>7 days</option>
-              <option value={14}>14 days</option>
-              <option value={30}>30 days</option>
-            </select>
-          </label>
-          <button
-            onClick={() => fetchOverview(true)}
-            disabled={loading}
-            style={{
-              padding: '8px 16px',
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1
-            }}
-          >
-            Refresh
-          </button>
-
-          {/* Azure AI Filter Toggle */}
-          {activeTab === 'users' && (
-            <button
-              onClick={() => setShowOnlyAzureAI(!showOnlyAzureAI)}
-              style={{
-                padding: '8px 16px',
-                background: showOnlyAzureAI ? '#10b981' : 'var(--background)',
-                color: showOnlyAzureAI ? 'white' : 'var(--text-secondary)',
-                border: showOnlyAzureAI ? 'none' : '1px solid var(--border)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Bot size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {showOnlyAzureAI ? 'Showing AI Analyzed' : 'Show AI Analyzed Only'}
-              <span style={{
-                background: showOnlyAzureAI ? 'rgba(255,255,255,0.2)' : 'var(--primary)',
-                color: 'white',
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontSize: '11px'
-              }}>
-                {azureAIUsers.size}
-              </span>
+              <RefreshCw size={13} style={{ animation: aiLoading ? 'spin 1s linear infinite' : 'none' }} />
             </button>
+          </div>
+        </div>
+
+        {/* ── Info banners ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.18)', borderRadius: '10px', padding: '12px 16px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <ShieldCheck size={16} color='#3b82f6' style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#3b82f6', marginBottom: '3px' }}>📐 Kural Tabanlı Risk Skoru</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                Seçilen <strong>{lookbackDays} günlük</strong> pencerede incident oluşturan tüm kullanıcılar için anlık hesaplanır. Politika ihlalleri, kanal ve departman anomalileri dikkate alınır.
+              </div>
+            </div>
+          </div>
+          <div style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.18)', borderRadius: '10px', padding: '12px 16px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <BrainCircuit size={16} color='#7c3aed' style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#7c3aed', marginBottom: '3px' }}>🤖 AI Risk Skoru (Isolation Forest)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                Son <strong>6 aylık</strong> veriyle her gece otomatik yeniden eğitilir. Kısa dönem (30 gün) veriyle yeterli anomali tespiti yapılamadığından 6 aylık pencere kullanılır.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Stats row ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '16px', marginBottom: '24px' }}>
+          {stats.map((s, i) => (
+            <div key={i} style={{ background: 'var(--surface)', borderRadius: '12px', padding: '18px 20px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>{s.label}</span>
+                <span style={{ color: s.color, opacity: 0.7 }}>{s.icon}</span>
+              </div>
+              <div style={{ fontSize: '30px', fontWeight: 800, color: s.color, marginBottom: '4px' }}>{s.loading ? '…' : s.value}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{s.note}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Top 20 table ── */}
+        <div style={{ background: 'var(--surface)', borderRadius: '14px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>🏆 En Riskli 20 Kullanıcı</span>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                Kural tabanlı skora göre sıralanmış (son {lookbackDays} gün) — AI risk skoru son 6 aylık batch sonucu
+              </div>
+            </div>
+            {ruleLoading && <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--text-secondary)' }} />}
+          </div>
+
+          {ruleLoading ? (
+            <div style={{ position: 'relative', minHeight: '200px' }}>
+              <LoadingOverlay isLoading message="Kural tabanlı veriler yükleniyor..." />
+            </div>
+          ) : top20.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
+              <div>Seçilen {lookbackDays} günlük pencerede analiz verisi bulunamadı.</div>
+              <div style={{ fontSize: '12px', marginTop: '6px' }}>Farklı bir zaman penceresi seçmeyi deneyin.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: 'var(--background)' }}>
+                    {[
+                      { h: '#' },
+                      { h: 'Kullanıcı' },
+                      { h: 'Departman' },
+                      { h: `Kural Skoru (${lookbackDays}g)`, info: '#3b82f6' },
+                      { h: 'Risk Seviyesi' },
+                      { h: 'AI Skoru (6 ay)', info: '#7c3aed' },
+                      { h: 'AI Durumu' },
+                      { h: 'Detay' },
+                    ].map((col, ci) => (
+                      <th key={ci} style={{ padding: '11px 16px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {col.h}
+                          {col.info && <Info size={11} color={col.info} />}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {top20.map((u, i) => {
+                    const lvl = getLevelBg(u.rule_level)
+                    return (
+                      <tr
+                        key={i}
+                        style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--background)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: i < 3 ? '#f59e0b' : 'var(--text-secondary)', fontSize: '14px', width: '48px' }}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.user_id}>{u.user_id}</div>
+                          {u.incident_count > 0 && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{u.incident_count} güvenlik olayı</div>}
+                        </td>
+                        <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{u.department ?? '—'}</td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '70px', height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${u.rule_score}%`, background: getRuleColor(u.rule_score), borderRadius: '3px' }} />
+                            </div>
+                            <span style={{ fontWeight: 700, color: getRuleColor(u.rule_score), fontSize: '15px' }}>{u.rule_score}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: lvl.bg, color: lvl.color, border: `1px solid ${lvl.border}` }}>
+                            {u.rule_level?.toUpperCase() ?? '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          {aiLoading ? (
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>yükleniyor…</span>
+                          ) : u.ai_score !== null ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '50px', height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${u.ai_score}%`, background: getAIColor(u.ai_score), borderRadius: '3px' }} />
+                              </div>
+                              <span style={{ fontWeight: 700, color: getAIColor(u.ai_score), fontSize: '15px' }}>{u.ai_score.toFixed(1)}</span>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }} title="Henüz AI skoru yok">—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          {aiLoading ? (
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>…</span>
+                          ) : u.is_ai_anomaly === null ? (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>—</span>
+                          ) : u.is_ai_anomaly ? (
+                            <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: 'rgba(220,38,38,0.1)', color: '#dc2626', border: '1px solid rgba(220,38,38,0.2)' }}>⚠️ Anormal</span>
+                          ) : (
+                            <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '11px', fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}>✓ Normal</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <button
+                            onClick={() => { setDetailEntity({ type: 'user', id: u.user_id }); setDetailOpen(true) }}
+                            style={{ padding: '5px 12px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <BarChart3 size={12} /> Detay
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        {/* Overview Stats */}
-        {overview && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Total Analyzed</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                {overview.total_analyzed}
-              </div>
-            </div>
-            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>High Anomalies</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#dc2626' }}>
-                {overview.high_anomaly_count}
-              </div>
-            </div>
-            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Medium Anomalies</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
-                {overview.medium_anomaly_count}
-              </div>
-            </div>
-            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Low Anomalies</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
-                {overview.low_anomaly_count}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Entity Tabs */}
-        {overview && (
-          <div style={{ background: 'var(--surface)', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--border)' }}>
-            {/* Tab Headers */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', overflow: 'auto' }}>
-              {tabConfig.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => { setActiveTab(tab.key); setFilterText(''); }}
-                  style={{
-                    padding: '16px 24px',
-                    background: activeTab === tab.key ? 'var(--primary)' : 'transparent',
-                    color: activeTab === tab.key ? 'white' : 'var(--text-secondary)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: '600',
-                    fontSize: '14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {tab.label}
-                  <span style={{
-                    background: activeTab === tab.key ? 'rgba(255,255,255,0.2)' : 'var(--border)',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px'
-                  }}>
-                    {tab.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Filter Input with Autocomplete */}
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
-              <input
-                type="text"
-                placeholder={`Filter ${activeTab}...`}
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                style={{
-                  width: '100%',
-                  maxWidth: '400px',
-                  padding: '10px 14px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  background: 'var(--background)',
-                  color: 'var(--text-primary)',
-                  fontSize: '14px'
-                }}
-              />
-              {/* Dropdown Suggestions */}
-              {showDropdown && filteredSuggestions.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: '16px',
-                  width: '400px',
-                  maxHeight: '300px',
-                  overflowY: 'auto',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  zIndex: 100
-                }}>
-                  {filteredSuggestions.map((suggestion, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => { setFilterText(suggestion); setShowDropdown(false); }}
-                      style={{
-                        padding: '10px 14px',
-                        cursor: 'pointer',
-                        borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border)' : 'none',
-                        color: 'var(--text-primary)'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--primary)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Anomalies List */}
-            <div style={{ padding: '16px' }}>
-              {/* Pagination Info */}
-              {filteredAnomalies.length > 0 && (
-                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredAnomalies.length)} of {filteredAnomalies.length}
-                  </span>
-                  {totalPages > 1 && (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        style={{
-                          padding: '6px 12px',
-                          background: currentPage === 1 ? 'var(--border)' : 'var(--primary)',
-                          color: currentPage === 1 ? 'var(--text-muted)' : 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                          fontSize: '13px'
-                        }}
-                      >
-                        ← Prev
-                      </button>
-                      <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>
-                        Page {currentPage} / {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        style={{
-                          padding: '6px 12px',
-                          background: currentPage === totalPages ? 'var(--border)' : 'var(--primary)',
-                          color: currentPage === totalPages ? 'var(--text-muted)' : 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                          fontSize: '13px'
-                        }}
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {paginatedAnomalies.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  No anomalies found for this entity type
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {paginatedAnomalies.map((anomaly, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '16px',
-                        background: selectedEntity?.entity_id === anomaly.entity_id ? 'var(--primary)' : 'var(--background)',
-                        borderRadius: '8px',
-                        border: `2px solid ${getAnomalyColor(anomaly.anomaly_level)}`,
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
-                        <div
-                          style={{ flex: 1, cursor: 'pointer' }}
-                          onClick={() => {
-                            router.push(`/ai-behavioral?entityType=${encodeURIComponent(anomaly.entity_type)}&entityId=${encodeURIComponent(anomaly.entity_id)}`)
-                          }}
-                        >
-                          <div style={{ fontSize: '14px', fontWeight: '600', color: selectedEntity?.entity_id === anomaly.entity_id ? 'white' : 'var(--text-primary)' }}>
-                            {anomaly.entity_id}
-                          </div>
-                          <div style={{ fontSize: '12px', color: selectedEntity?.entity_id === anomaly.entity_id ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', marginTop: '4px' }}>
-                            {anomaly.ai_explanation}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                            <div style={{
-                              padding: '4px 12px',
-                              borderRadius: '12px',
-                              background: getAnomalyColor(anomaly.anomaly_level),
-                              color: 'white',
-                              fontSize: '12px',
-                              fontWeight: '600'
-                            }}>
-                              {anomaly.anomaly_level.toUpperCase()}
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <div style={{
-                                fontSize: '20px',
-                                fontWeight: '700',
-                                color: selectedEntity?.entity_id === anomaly.entity_id ? 'white' : getRiskColor(anomaly.risk_score)
-                              }}>
-                                {anomaly.risk_score}
-                              </div>
-                              {activeTab === 'users' && azureAIUsers.has(anomaly.entity_id) && (
-                                <div style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  padding: '4px 8px',
-                                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                                  borderRadius: '8px'
-                                }}>
-                                  <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.8)' }}>Azure AI</span>
-                                  <span style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>
-                                    {azureAIUsers.get(anomaly.entity_id)}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDetailEntity({ type: anomaly.entity_type, id: anomaly.entity_id })
-                              setDetailModalOpen(true)
-                            }}
-                            style={{
-                              padding: '6px 12px',
-                              background: '#0ea5e9',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            <BarChart3 size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Analyze
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Selected Entity Details */}
-        {selectedEntity && (
-          <div style={{ background: 'var(--surface)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                Analysis Details: {selectedEntity.entity_type.toUpperCase()} - {selectedEntity.entity_id}
-              </h2>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => analyzeEntity(selectedEntity.entity_type, selectedEntity.entity_id)}
-                  disabled={analyzing}
-                  style={{
-                    padding: '8px 16px',
-                    background: analyzing ? '#9ca3af' : 'var(--primary)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: analyzing ? 'not-allowed' : 'pointer',
-                    fontWeight: '500',
-                    opacity: analyzing ? 0.6 : 1
-                  }}
-                >
-                  {analyzing ? 'Analyzing...' : 'Re-analyze'}
-                </button>
-                <button
-                  onClick={() => setSelectedEntity(null)}
-                  style={{
-                    padding: '8px 16px',
-                    background: 'transparent',
-                    border: '1px solid var(--border)',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Risk Score</div>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: getRiskColor(selectedEntity.risk_score) }}>
-                  {selectedEntity.risk_score}
-                </div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Anomaly Level</div>
-                <div style={{
-                  fontSize: '20px',
-                  fontWeight: '700',
-                  color: getAnomalyColor(selectedEntity.anomaly_level)
-                }}>
-                  {selectedEntity.anomaly_level.toUpperCase()}
-                </div>
-              </div>
-              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Reference Incidents</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '8px' }}>
-                  {selectedEntity.reference_incident_ids.length}
-                </div>
-                {selectedEntity.reference_incident_ids.length > 0 && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>View in Investigation:</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {selectedEntity.reference_incident_ids.slice(0, 5).map((incidentId) => (
-                        <a
-                          key={incidentId}
-                          href={`/investigation?user=${encodeURIComponent(selectedEntity.entity_id)}&incident=${incidentId}`}
-                          style={{
-                            padding: '4px 8px',
-                            background: 'var(--primary)',
-                            color: 'white',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            textDecoration: 'none',
-                            display: 'inline-block'
-                          }}
-                        >
-                          #{incidentId}
-                        </a>
-                      ))}
-                      {selectedEntity.reference_incident_ids.length > 5 && (
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '4px 8px' }}>
-                          +{selectedEntity.reference_incident_ids.length - 5} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Explanation</h3>
-              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                {selectedEntity.ai_explanation}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>AI Recommendation</h3>
-              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                {selectedEntity.ai_recommendation}
-              </div>
-            </div>
-
-            {Object.keys(selectedEntity.analysis_metadata || {}).length > 0 && (
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Analysis Metadata</h3>
-                <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <pre style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0, whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(selectedEntity.analysis_metadata, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Entity Detail Modal */}
       {detailEntity && (
         <EntityDetailModal
-          isOpen={detailModalOpen}
-          onClose={() => setDetailModalOpen(false)}
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
           entityType={detailEntity.type}
           entityId={detailEntity.id}
         />
       )}
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }

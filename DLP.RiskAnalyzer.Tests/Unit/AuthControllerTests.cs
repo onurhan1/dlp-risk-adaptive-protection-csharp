@@ -1,9 +1,9 @@
+using DLP.RiskAnalyzer.Analyzer.Auth;
 using DLP.RiskAnalyzer.Analyzer.Controllers;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -13,7 +13,7 @@ public class AuthControllerTests : IDisposable
 {
     private readonly AnalyzerDbContext _db;
     private readonly AuthController _sut;
-    private readonly IConfiguration _config;
+    private readonly AuthJwtSettings _jwt;
 
     public AuthControllerTests()
     {
@@ -22,20 +22,16 @@ public class AuthControllerTests : IDisposable
             .Options;
         _db = new AnalyzerDbContext(options);
 
-        _config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Jwt:SecretKey"] = "TestSecretKeyThatIsAtLeast32CharactersLong!!",
-                ["Jwt:Issuer"] = "TestIssuer",
-                ["Jwt:Audience"] = "TestAudience",
-                ["Jwt:ExpirationHours"] = "8",
-                ["Authentication:Username"] = "admin",
-                ["Authentication:Password"] = "admin123"
-            })
-            .Build();
+        _jwt = new AuthJwtSettings
+        {
+            SecretKey = "TestSecretKeyThatIsAtLeast32CharactersLong!!",
+            Issuer = "TestIssuer",
+            Audience = "TestAudience",
+            ExpirationHours = 8
+        };
 
         var logger = new Mock<ILogger<AuthController>>();
-        _sut = new AuthController(_db, _config, logger.Object);
+        _sut = new AuthController(_db, _jwt, logger.Object);
 
         SeedTestUser("testuser", "TestPassword123!");
     }

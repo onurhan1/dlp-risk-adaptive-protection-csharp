@@ -13,7 +13,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 ///
 /// On production the flag is absent → this class does nothing.
 /// </summary>
-public class DevDataSeeder
+public class DevDataSeeder : IDevDataSeeder
 {
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<DevDataSeeder> _logger;

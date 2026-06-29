@@ -6,12 +6,15 @@ using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
 using System.Text;
 using System.IO;
+using DLP.RiskAnalyzer.Dashboard.Constants;
+using DLP.RiskAnalyzer.Dashboard.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DLP.RiskAnalyzer.Dashboard;
 
 public partial class LoginWindow : Window
 {
-    private readonly HttpClient _httpClient;
+    private readonly ILogger<LoginWindow> _logger;
     private readonly string _apiBaseUrl;
     private static string? _authToken;
 
@@ -21,39 +24,41 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
 
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddDebug();
+            // builder.AddConsole(); // Optional if needed
+        });
+        _logger = loggerFactory.CreateLogger<LoginWindow>();
+
         // Load configuration
         var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        var configPath = Path.Combine(appDirectory, "appsettings.json");
+        var configPath = Path.Combine(appDirectory, UIConstants.Configuration.ConfigFileName);
         
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] App directory: {appDirectory}");
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file path: {configPath}");
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Config file exists: {File.Exists(configPath)}");
+        _logger.LogInformation("App directory: {AppDir}", appDirectory);
+        _logger.LogInformation("Config file exists: {Exists}", File.Exists(configPath));
         
         var configuration = new ConfigurationBuilder()
             .SetBasePath(appDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile(UIConstants.Configuration.ConfigFileName, optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .Build();
 
         // Try to get API URL from config
         var apiUrlFromConfig = configuration["ApiBaseUrl"];
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] ApiBaseUrl from config: {apiUrlFromConfig ?? "NULL"}");
+        _logger.LogInformation("ApiBaseUrl from config: {Url}", apiUrlFromConfig ?? "NULL");
         
-        _apiBaseUrl = apiUrlFromConfig ?? "http://localhost:5001"; // Default to 5001 instead of 8000
+        _apiBaseUrl = apiUrlFromConfig ?? UIConstants.DefaultApiBaseUrl;
         
-        // Debug: Log the API URL being used
-        System.Diagnostics.Debug.WriteLine($"[LoginWindow] Final API Base URL: {_apiBaseUrl}");
+        _logger.LogInformation("Final API Base URL: {Url}", _apiBaseUrl);
         
         // If config file doesn't exist, show a warning
         if (!File.Exists(configPath))
         {
-            System.Diagnostics.Debug.WriteLine($"[LoginWindow] WARNING: appsettings.json not found! Using default: {_apiBaseUrl}");
+            _logger.LogWarning("appsettings.json not found! Using default: {Url}", _apiBaseUrl);
         }
         
-        _httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(_apiBaseUrl)
-        };
+        ApiClient.Initialize(_apiBaseUrl);
 
         // Focus on username field
         Loaded += (s, e) => UsernameTextBox.Focus();
@@ -66,13 +71,13 @@ public partial class LoginWindow : Window
 
         if (string.IsNullOrWhiteSpace(username))
         {
-            ShowError("Please enter your username");
+            ShowError(UIConstants.ValidationMessages.UsernameRequired);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(password))
         {
-            ShowError("Please enter your password");
+            ShowError(UIConstants.ValidationMessages.PasswordRequired);
             return;
         }
 
@@ -87,7 +92,7 @@ public partial class LoginWindow : Window
                 password = password
             };
 
-            var response = await _httpClient.PostAsJsonAsync("/api/auth/login", loginRequest);
+            var response = await ApiClient.Instance.PostAsJsonAsync("/api/auth/login", loginRequest);
 
             if (response.IsSuccessStatusCode)
             {
@@ -116,25 +121,24 @@ public partial class LoginWindow : Window
                 }
                 else
                 {
-                    ShowError("Invalid response from server");
+                    ShowError(UIConstants.ValidationMessages.InvalidServerResponse);
                 }
             }
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                ShowError("Invalid username or password");
+                ShowError(UIConstants.ValidationMessages.InvalidCredentials);
             }
         }
         catch (HttpRequestException ex)
         {
-            ShowError($"Cannot connect to API. Please check if the API is running on {_apiBaseUrl}");
-            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Connection error: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Attempted URL: {_apiBaseUrl}/api/auth/login");
+            ShowError(string.Format(UIConstants.ValidationMessages.ConnectionFailedForm, _apiBaseUrl));
+            _logger.LogError(ex, "Connection error to API at {Url}", _apiBaseUrl);
         }
         catch (Exception ex)
         {
-            ShowError($"An error occurred: {ex.Message}");
-            System.Diagnostics.Debug.WriteLine($"[LoginWindow] Exception: {ex}");
+            ShowError(string.Format(UIConstants.ValidationMessages.ErrorOccurredForm, ex.Message));
+            _logger.LogError(ex, "An unexpected error occurred during login");
         }
         finally
         {
@@ -153,8 +157,8 @@ public partial class LoginWindow : Window
     private void ForgotPasswordButton_Click(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
-            "Please contact your system administrator to reset your password.",
-            "Forgot Password",
+            UIConstants.DialogMessages.ForgotPasswordMessage,
+            UIConstants.DialogMessages.ForgotPasswordTitle,
             MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
@@ -171,8 +175,8 @@ public partial class LoginWindow : Window
         {
             var configPath = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "DLP.RiskAnalyzer",
-                "config.json");
+                UIConstants.Configuration.AppDataFolderName,
+                UIConstants.Configuration.ConfigFileName);
 
             var configDir = System.IO.Path.GetDirectoryName(configPath);
             if (!Directory.Exists(configDir))
@@ -188,9 +192,9 @@ public partial class LoginWindow : Window
 
             await File.WriteAllTextAsync(configPath, System.Text.Json.JsonSerializer.Serialize(config));
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail if we can't save credentials
+            _logger.LogWarning(ex, "Failed to save user credentials");
         }
     }
 
@@ -200,17 +204,17 @@ public partial class LoginWindow : Window
         {
             var configPath = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "DLP.RiskAnalyzer",
-                "config.json");
+                UIConstants.Configuration.AppDataFolderName,
+                UIConstants.Configuration.ConfigFileName);
 
             if (File.Exists(configPath))
             {
                 File.Delete(configPath);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail if we can't clear credentials
+            _logger.LogWarning(ex, "Failed to clear saved user credentials");
         }
         
         return Task.CompletedTask;

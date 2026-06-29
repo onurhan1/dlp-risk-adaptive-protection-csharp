@@ -1,4 +1,4 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -15,8 +15,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DLP.RiskAnalyzer.Shared", "DLP.RiskAnalyzer.Shared\DLP.RiskAnalyzer.Shared.csproj", "{804DBF8D-2C89-4A0E-0FDA-18DDF507B928}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DLP.RiskAnalyzer.Tests", "DLP.RiskAnalyzer.Tests\DLP.RiskAnalyzer.Tests.csproj", "{4DD9E5FD-BB51-7CA5-25E2-43BBFCC4F100}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DLP.RiskAnalyzer.McpServer", "DLP.RiskAnalyzer.McpServer\DLP.RiskAnalyzer.McpServer.csproj", "{1DF97710-D486-4908-994F-430FD3500E44}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -52,10 +50,6 @@ Global
 		{4DD9E5FD-BB51-7CA5-25E2-43BBFCC4F100}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4DD9E5FD-BB51-7CA5-25E2-43BBFCC4F100}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4DD9E5FD-BB51-7CA5-25E2-43BBFCC4F100}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1DF97710-D486-4908-994F-430FD3500E44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1DF97710-D486-4908-994F-430FD3500E44}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1DF97710-D486-4908-994F-430FD3500E44}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1DF97710-D486-4908-994F-430FD3500E44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

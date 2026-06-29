@@ -9,7 +9,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/ai-behavioral")]
 public class AIBehavioralController : ControllerBase
 {
-    private readonly BehaviorEngineService _behaviorEngine;
+    private readonly IBehaviorEngineService _behaviorEngine;
     private readonly ILogger<AIBehavioralController> _logger;
     private readonly IMemoryCache _cache;
     
@@ -18,7 +18,7 @@ public class AIBehavioralController : ControllerBase
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
 
     public AIBehavioralController(
-        BehaviorEngineService behaviorEngine,
+        IBehaviorEngineService behaviorEngine,
         ILogger<AIBehavioralController> logger,
         IMemoryCache cache)
     {
@@ -37,9 +37,9 @@ public class AIBehavioralController : ControllerBase
     {
         try
         {
-            if (lookbackDays < 1 || lookbackDays > 30)
+            if (lookbackDays < 1 || lookbackDays > 90)
             {
-                return BadRequest(new { detail = "lookbackDays must be between 1 and 30" });
+                return BadRequest(new { detail = "lookbackDays must be between 1 and 90" });
             }
 
             var cacheKey = $"{CacheKeyPrefix}-{lookbackDays}";
@@ -75,7 +75,7 @@ public class AIBehavioralController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting AI behavioral overview");
-            return StatusCode(500, new { detail = "Failed to get AI behavioral overview" });
+            return StatusCode(500, new { detail = $"Failed to get AI behavioral overview: {ex.Message} - {ex.InnerException?.Message}" });
         }
     }
 

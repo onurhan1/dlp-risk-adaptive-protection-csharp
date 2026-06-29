@@ -10,12 +10,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/settings/dlp")]
 public class DlpConfigurationController : ControllerBase
 {
-    private readonly DlpConfigurationService _configurationService;
+    private readonly IDlpConfigurationService _configurationService;
     private readonly InternalApiOptions _internalApiOptions;
     private readonly ILogger<DlpConfigurationController> _logger;
 
     public DlpConfigurationController(
-        DlpConfigurationService configurationService,
+        IDlpConfigurationService configurationService,
         IOptions<InternalApiOptions> internalApiOptions,
         ILogger<DlpConfigurationController> logger)
     {
@@ -39,6 +39,16 @@ public class DlpConfigurationController : ControllerBase
             var saved = await _configurationService.SaveAsync(request, cancellationToken);
             return Ok(new { success = true, settings = saved });
         }
+        catch (ArgumentException ex)
+        {
+            // Validation error — return the specific message so the user knows what to fix
+            return BadRequest(new { success = false, detail = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Business rule error (e.g. password required on first save)
+            return BadRequest(new { success = false, detail = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save DLP API settings");
@@ -52,17 +62,14 @@ public class DlpConfigurationController : ControllerBase
         try
         {
             var result = await _configurationService.TestConnectionAsync(request, cancellationToken);
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-
-            return StatusCode(400, result);
+            // Always return 200 so the frontend can read result.success and result.message.
+            // Returning 4xx causes axios to throw, making the camelCase message field inaccessible.
+            return Ok(result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to test DLP API settings");
-            return StatusCode(500, new DlpApiTestResult
+            return Ok(new DlpApiTestResult
             {
                 Success = false,
                 Message = "Connection test failed. Please verify your settings and try again.",
@@ -86,6 +93,11 @@ public class DlpConfigurationController : ControllerBase
         {
             var sensitive = await _configurationService.GetSensitiveConfigAsync(cancellationToken);
             return Ok(sensitive);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogInformation("DLP API settings are not yet configured.");
+            return NotFound(new { detail = ex.Message });
         }
         catch (Exception ex)
         {

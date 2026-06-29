@@ -17,6 +17,8 @@ public class AnalyzerBackgroundService : BackgroundService
     private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10);
     private readonly TimeSpan _exceptionSyncInterval = TimeSpan.FromHours(24);
     private DateTime _lastExceptionSync = DateTime.MinValue;
+    private DateTime _lastIFRun = DateTime.MinValue;
+    private readonly TimeSpan _ifRunInterval = TimeSpan.FromHours(24);
 
     public AnalyzerBackgroundService(
         IServiceProvider serviceProvider,
@@ -41,7 +43,7 @@ public class AnalyzerBackgroundService : BackgroundService
 
             using (var scope = _serviceProvider.CreateScope())
             {
-                var seeder = scope.ServiceProvider.GetRequiredService<DevDataSeeder>();
+                var seeder = scope.ServiceProvider.GetRequiredService<IDevDataSeeder>();
                 await seeder.SeedAsync();
             }
 
@@ -67,15 +69,16 @@ public class AnalyzerBackgroundService : BackgroundService
             {
                 using (var scope = _serviceProvider.CreateScope())
                 {
-                    var dbService = scope.ServiceProvider.GetRequiredService<DatabaseService>();
-                    var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<RiskAnalyzerService>();
+                    var dbService = scope.ServiceProvider.GetRequiredService<IDatabaseService>();
+                    var riskAnalyzerService = scope.ServiceProvider.GetRequiredService<IRiskAnalyzerService>();
+                    var scoringService = scope.ServiceProvider.GetRequiredService<IRiskScoringService>();
 
                     // Policy exception sync (24 saatte bir)
                     if ((DateTime.UtcNow - _lastExceptionSync) >= _exceptionSyncInterval)
                     {
                         try
                         {
-                            var syncService = scope.ServiceProvider.GetRequiredService<PolicyExceptionSyncService>();
+                            var syncService = scope.ServiceProvider.GetRequiredService<IPolicyExceptionSyncService>();
                             var syncedCount = await syncService.SyncAsync();
                             _lastExceptionSync = DateTime.UtcNow;
                             _logger.LogInformation("Policy exception sync completed: {Count} exceptions synced", syncedCount);
@@ -86,10 +89,27 @@ public class AnalyzerBackgroundService : BackgroundService
                         }
                     }
 
+                    // Isolation Forest daily batch run (uses 180-day window for robust anomaly detection)
+                    if ((DateTime.UtcNow - _lastIFRun) >= _ifRunInterval)
+                    {
+                        try
+                        {
+                            var ifService = _serviceProvider.GetRequiredService<IIsolationForestService>();
+                            _logger.LogInformation("Starting daily Isolation Forest scoring run (lookbackDays=180)");
+                            await ((IsolationForestService)ifService).RunAsync(lookbackDays: 180);
+                            _lastIFRun = DateTime.UtcNow;
+                        }
+                        catch (Exception ifEx)
+                        {
+                            _logger.LogWarning(ifEx, "Isolation Forest daily run failed, will retry tomorrow");
+                        }
+                    }
+
                     // Process released incidents from Redis stream (Collector pushes to dlp:released-incidents)
                     try
                     {
-                        var releasedProcessed = await dbService.ProcessReleasedIncidentsStreamAsync();
+                        var releasedProcessor = scope.ServiceProvider.GetRequiredService<IReleasedIncidentProcessor>();
+                        var releasedProcessed = await releasedProcessor.ProcessReleasedIncidentsStreamAsync();
                         if (releasedProcessed > 0)
                         {
                             _logger.LogInformation("Processed {Count} released incidents from Redis stream", releasedProcessed);
@@ -101,19 +121,25 @@ public class AnalyzerBackgroundService : BackgroundService
                     }
 
                     // Process Redis stream and calculate risk scores
-                    var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(dbService);
+                    var redisProcessor = scope.ServiceProvider.GetRequiredService<IRedisStreamProcessor>();
+                    // Note: ProcessRedisStreamAsync internally handled scoring before, but now we probably need to process the stream and THEN calculate scores? 
+                    // Actually, let me check how RiskAnalyzerService was managing it. Wait, ProcessRedisStreamAsync returns processedCount. Then it logs.
+                    // ProcessRedisStreamAsync itself handles the risks. But wait, did ProcessRedisStreamAsync call CalculateRiskScoresAsync? No, CalculateRiskScoresAsync is a separate batch job for missing scores.
+                    // Let's ensure ProcessRedisStreamAsync is still correct.
+                    var processedCount = await riskAnalyzerService.ProcessRedisStreamAsync(redisProcessor);
                     
                     if (processedCount > 0)
                     {
-                        _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated risk scores", 
-                            processedCount);
+                        var scoredCount = await scoringService.CalculateRiskScoresAsync();
+                        _logger.LogInformation("Processed {Count} incidents from Redis stream and calculated {ScoredCount} risk scores", 
+                            processedCount, scoredCount);
                         
                         // Calculate daily scores for today to keep Dashboard data up-to-date
                         // This populates user_daily_risk_scores table for "Potential Data Exfiltration" and other dashboards
                         try
                         {
                             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                            var updatedUsers = await riskAnalyzerService.CalculateDailyScoresAsync(today);
+                            var updatedUsers = await scoringService.CalculateDailyScoresAsync(today);
                             if (updatedUsers > 0)
                             {
                                 _logger.LogInformation("Updated daily risk scores for {Count} users on {Date}", 

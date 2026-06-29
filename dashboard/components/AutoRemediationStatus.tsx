@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface RemediationHistory {
   id: number
@@ -20,6 +21,7 @@ interface RemediationHistory {
 }
 
 export default function AutoRemediationStatus() {
+  const { t } = useTranslation()
   const [history, setHistory] = useState<RemediationHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [enabled, setEnabled] = useState(false)
@@ -50,11 +52,11 @@ export default function AutoRemediationStatus() {
     <div className="card" style={{ marginTop: '24px', borderLeft: '4px solid var(--primary)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
-          <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Auto Remediation</h3>
+          <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>{t('autoRemediation.title')}</h3>
           <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
             {enabled 
-              ? 'High-risk incidents are being automatically remediated'
-              : 'Auto remediation is disabled. Enable it in Settings to automatically remediate high-risk incidents.'}
+              ? t('autoRemediation.activeDesc')
+              : t('autoRemediation.inactiveDesc')}
           </p>
         </div>
         <span
@@ -67,17 +69,17 @@ export default function AutoRemediationStatus() {
             fontWeight: '600'
           }}
         >
-          {enabled ? '✓ Active' : '○ Inactive'}
+          {enabled ? t('autoRemediation.active') : t('autoRemediation.inactive')}
         </span>
       </div>
 
       {loading ? (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          Loading remediation history...
+          {t('autoRemediation.loadingHistory')}
         </div>
       ) : !enabled ? (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          <p style={{ marginBottom: '12px' }}>Auto remediation is currently disabled.</p>
+          <p style={{ marginBottom: '12px' }}>{t('autoRemediation.disabled')}</p>
           <a 
             href="/settings" 
             style={{
@@ -91,23 +93,23 @@ export default function AutoRemediationStatus() {
               display: 'inline-block'
             }}
           >
-            Go to Settings to Enable
+            {t('autoRemediation.goToSettings')}
           </a>
         </div>
       ) : history.length === 0 ? (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-          No auto-remediated incidents yet. High-risk incidents will be automatically remediated.
+          {t('autoRemediation.noIncidents')}
         </div>
       ) : (
         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
           <table className="data-table" style={{ fontSize: '13px' }}>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>User</th>
-                <th>Risk Score</th>
-                <th>Action</th>
-                <th>Status</th>
+                <th>{t('autoRemediation.time')}</th>
+                <th>{t('autoRemediation.user')}</th>
+                <th>{t('autoRemediation.riskScore')}</th>
+                <th>{t('autoRemediation.action')}</th>
+                <th>{t('autoRemediation.status')}</th>
               </tr>
             </thead>
             <tbody>

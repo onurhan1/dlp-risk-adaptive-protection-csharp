@@ -12,6 +12,7 @@
   <!-- Project references -->
   <ItemGroup>
     <ProjectReference Include="..\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj" />
+    <ProjectReference Include="..\DLP.RiskAnalyzer.Collector\DLP.RiskAnalyzer.Collector.csproj" />
     <ProjectReference Include="..\DLP.RiskAnalyzer.Shared\DLP.RiskAnalyzer.Shared.csproj" />
   </ItemGroup>
 

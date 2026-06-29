@@ -3,10 +3,15 @@ namespace DLP.RiskAnalyzer.Analyzer.Models;
 public class DlpApiSettingsRequest
 {
     public string ManagerIp { get; set; } = string.Empty;
+    
     public int ManagerPort { get; set; } = 8443;
+    
     public bool UseHttps { get; set; } = true;
+    
     public int TimeoutSeconds { get; set; } = 30;
+    
     public string Username { get; set; } = string.Empty;
+    
     public string? Password { get; set; }
 }
 

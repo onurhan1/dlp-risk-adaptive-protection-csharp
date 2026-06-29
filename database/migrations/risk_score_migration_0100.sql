@@ -3,6 +3,9 @@
 -- Date: 2026-02-04
 -- WARNING: BACKUP YOUR DATABASE BEFORE RUNNING THIS SCRIPT!
 
+-- Tablolar "dlp" şemasına taşındı; şemasız referanslar dlp'ye çözümlensin.
+SET search_path TO dlp, public;
+
 -- ============================================
 -- 1. BACKUP TABLES (REQUIRED!)
 -- ============================================

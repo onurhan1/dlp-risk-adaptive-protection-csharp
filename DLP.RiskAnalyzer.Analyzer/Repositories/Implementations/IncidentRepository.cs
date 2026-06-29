@@ -23,11 +23,71 @@ public class IncidentRepository : IIncidentRepository
             i.Timestamp >= startDate.ToDateTime(TimeOnly.MinValue) &&
             i.Timestamp <= endDate.ToDateTime(TimeOnly.MaxValue));
 
+    public async Task<Incident?> GetByIdAsync(int id)
+    {
+        return await _context.Incidents.FirstOrDefaultAsync(i => i.Id == id);
+    }
+
+    public async Task<int> UpdateIncidentAsync(Incident incident)
+    {
+        _context.Incidents.Update(incident);
+        return await _context.SaveChangesAsync();
+    }
+
+    public async Task<(int saved, int skipped)> BulkInsertIncidentsAsync(IEnumerable<Incident> incidents)
+    {
+        var list = incidents.ToList();
+        if (list.Count == 0) return (0, 0);
+
+        _context.Incidents.AddRange(list);
+        
+        try
+        {
+            var saved = await _context.SaveChangesAsync();
+            return (saved, 0);
+        }
+        catch (DbUpdateException)
+        {
+            // One or more rows conflicted; save them individually to isolate the bad one
+            foreach (var inc in list)
+            {
+                _context.Entry(inc).State = EntityState.Detached;
+            }
+
+            var saved = 0;
+            var skipped = 0;
+            
+            foreach (var inc in list)
+            {
+                try
+                {
+                    _context.Incidents.Add(inc);
+                    await _context.SaveChangesAsync();
+                    saved++;
+                }
+                catch (DbUpdateException)
+                {
+                    _context.Entry(inc).State = EntityState.Detached;
+                    skipped++;
+                }
+            }
+            return (saved, skipped);
+        }
+    }
+
     public async Task<List<Incident>> GetIncidentsAsync(DateOnly startDate, DateOnly endDate, int maxRows = 10_000)
     {
         return await DateRangeQuery(startDate, endDate)
             .OrderByDescending(i => i.Timestamp)
             .Take(maxRows)
+            .ToListAsync();
+    }
+
+    public async Task<List<Incident>> GetIncidentsByDateRangeAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Incidents
+            .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate)
+            .AsNoTracking()
             .ToListAsync();
     }
 
@@ -46,6 +106,66 @@ public class IncidentRepository : IIncidentRepository
             .Where(i => i.UserEmail == userEmail &&
                        i.Timestamp >= startDate.ToDateTime(TimeOnly.MinValue) &&
                        i.Timestamp <= endDate.ToDateTime(TimeOnly.MaxValue))
+            .ToListAsync();
+    }
+
+    public async Task<List<Incident>> GetIncidentsForWeeklyFlagsAsync(DateOnly startDate, DateOnly endDate)
+    {
+        // Ordered by user then time so the service can run sliding-window detection per user.
+        return await DateRangeQuery(startDate, endDate)
+            .AsNoTracking()
+            .OrderBy(i => i.UserEmail)
+            .ThenBy(i => i.Timestamp)
+            .ToListAsync();
+    }
+
+    public async Task<List<Incident>> GetIncidentsForEntityAsync(string entityType, string entityId, DateTime startDate, DateTime endDate)
+    {
+        var query = _context.Incidents
+            .Where(i => i.Timestamp >= startDate && i.Timestamp < endDate);
+
+        switch (entityType.ToLower())
+        {
+            case "user":
+                return await query.Where(i => i.UserEmail == entityId).ToListAsync();
+            case "channel":
+                return await query.Where(i => i.Channel == entityId).ToListAsync();
+            case "department":
+                return await query.Where(i => i.Department == entityId).ToListAsync();
+            case "destination":
+                return await query.Where(i => i.Destination == entityId).ToListAsync();
+            case "policy":
+                return await query.Where(i => i.Policy == entityId).ToListAsync();
+            case "datatype":
+                return await query.Where(i => i.DataType == entityId).ToListAsync();
+            case "rule":
+                var allIncidents = await query
+                    .Where(i => !string.IsNullOrEmpty(i.ViolationTriggers) && i.ViolationTriggers.Contains(entityId))
+                    .ToListAsync();
+                
+                var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                return allIncidents.Where(i => 
+                {
+                    try
+                    {
+                        if (string.IsNullOrEmpty(i.ViolationTriggers)) return false;
+                        var triggers = System.Text.Json.JsonSerializer.Deserialize<List<DLP.RiskAnalyzer.Analyzer.Services.ViolationTriggerDto>>(i.ViolationTriggers, jsonOptions);
+                        return triggers?.Any(t => t.RuleName == entityId) == true;
+                    }
+                    catch { return false; }
+                }).ToList();
+            default:
+                return new List<Incident>();
+        }
+    }
+
+    public async Task<List<Incident>> GetHighImpactIncidentsAsync(string userEmail, DateTime startOfDay, DateTime endOfDay)
+    {
+        return await _context.Incidents
+            .Where(i => i.UserEmail == userEmail)
+            .Where(i => i.Timestamp >= startOfDay && i.Timestamp <= endOfDay)
+            .OrderByDescending(i => i.MaxMatches)
+            .Take(5)
             .ToListAsync();
     }
 

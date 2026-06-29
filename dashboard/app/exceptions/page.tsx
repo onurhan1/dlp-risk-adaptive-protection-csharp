@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, Suspense } from 'react'
 import apiClient from '@/lib/axios'
 import { Shield } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import { useTranslation } from '@/components/LanguageProvider'
 import HeatmapSection from './_components/HeatmapSection'
 import IncidentTable from './_components/IncidentTable'
 import ExceptionRecommendation from './_components/ExceptionRecommendation'
@@ -19,6 +20,7 @@ export default function AnalyticsPage() {
 }
 
 function AnalyticsPageContent() {
+  const { t } = useTranslation()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -102,13 +104,13 @@ function AnalyticsPageContent() {
             }}>
               <Shield size={20} color="#fff" />
             </div>
-            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Team Based Analysis</h1>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t('heatmap.teamBasedAnalysis')}</h1>
           </div>
         </div>
 
         {/* Full Page Loading Screen */}
         {loading && (
-          <LoadingOverlay isLoading={loading} message="Team Based Analysis verileri hazırlanıyor" />
+          <LoadingOverlay isLoading={loading} message={`${t('heatmap.teamBasedAnalysis')} ${t('settings.loadingSettings').replace('...', '')}...`} />
         )}
 
         {/* Main Content - Hidden during initial loading */}

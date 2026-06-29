@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class AuditLogService
+public class AuditLogService : IAuditLogService
 {
     private readonly AnalyzerDbContext _context;
     private readonly IServiceProvider _serviceProvider;
@@ -57,12 +57,31 @@ public class AuditLogService
             };
 
             _context.AuditLogs.Add(auditLog);
+
+            // Mirror to User Activity Logs for UI visibility
+            if (!string.IsNullOrEmpty(userName) && userName != "System")
+            {
+                var activityLog = new UserActivityLog
+                {
+                    Timestamp = DateTime.UtcNow,
+                    UserName = userName,
+                    AuthSource = "Local",
+                    ActivityType = eventType,
+                    ActionDetail = action,
+                    PagePath = resource,
+                    PageTitle = "System Action",
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent
+                };
+                _context.UserActivityLogs.Add(activityLog);
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             // Send to Splunk if enabled
             try
             {
-                var splunkService = _serviceProvider.GetService<SplunkService>();
+                var splunkService = _serviceProvider.GetService<ISplunkService>();
                 if (splunkService != null)
                 {
                     var splunkEvent = new AuditLogEvent
@@ -196,7 +215,7 @@ public class AuditLogService
             // Send to Splunk if enabled
             try
             {
-                var splunkService = _serviceProvider.GetService<SplunkService>();
+                var splunkService = _serviceProvider.GetService<ISplunkService>();
                 if (splunkService != null)
                 {
                     var splunkEvent = new AuditLogEvent

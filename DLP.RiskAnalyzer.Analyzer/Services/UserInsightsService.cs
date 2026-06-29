@@ -1,27 +1,26 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
+using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Constants;
 using DLP.RiskAnalyzer.Shared.Helpers;
 using DLP.RiskAnalyzer.Shared.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
-public class UserInsightsService
+public class UserInsightsService : IUserInsightsService
 {
-    private readonly AnalyzerDbContext _context;
+    private readonly IUserDailyRiskScoreRepository _dailyScoreRepository;
+    private readonly IIncidentRepository _incidentRepository;
 
-    public UserInsightsService(AnalyzerDbContext context)
+    public UserInsightsService(IUserDailyRiskScoreRepository dailyScoreRepository, IIncidentRepository incidentRepository)
     {
-        _context = context;
+        _dailyScoreRepository = dailyScoreRepository;
+        _incidentRepository = incidentRepository;
     }
 
     public async Task<List<UserDailyRiskScore>> GetUserDailyScoresAsync(string userEmail, DateOnly startDate, DateOnly endDate)
     {
-        return await _context.UserDailyRiskScores
-            .Where(r => r.UserEmail == userEmail && r.Date >= startDate && r.Date <= endDate)
-            .OrderBy(r => r.Date)
-            .ToListAsync();
+        return await _dailyScoreRepository.GetUserDailyScoresAsync(userEmail, startDate, endDate);
     }
 
     public async Task<UserComprehensiveInsightsResponse> GetUserComprehensiveInsightsAsync(string userEmail, string period)
@@ -117,9 +116,7 @@ public class UserInsightsService
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = PeriodHelper.GetStartDate(endDate, period);
 
-        var scores = await _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .ToListAsync();
+        var scores = await _dailyScoreRepository.GetScoresByDateRangeAsync(startDate, endDate);
 
         var result = new List<RiskyUserReportItem>();
 
@@ -163,85 +160,15 @@ public class UserInsightsService
 
         var startDate = PeriodHelper.GetStartDate(endDate, period);
 
-        var query = _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .GroupBy(r => new { r.UserEmail, r.EmailAddress })
-            .Select(g => new {
-                UserEmail = g.Key.UserEmail,
-                EmailAddress = g.Key.EmailAddress,
-                FullName = g.Max(s => s.FullName),
-                Team = g.Max(s => s.Team),
-                RiskScore = g.Average(s => s.DailyRiskScore),
-                MaxDailyScore = g.Max(s => s.DailyRiskScore),
-                TotalIncidents = g.Sum(s => s.IncidentCount),
-                TotalBlocks = g.Sum(s => s.BlockCount),
-                TotalQuarantines = g.Sum(s => s.QuarantineCount),
-                DaysWithActivity = g.Count()
-            })
-            .Where(u => u.DaysWithActivity >= minDaysRequired && u.RiskScore >= minScore);
+        var (items, totalCount, totalPages) = await _dailyScoreRepository.GetTopRiskyUsersAsync(
+            startDate, endDate, minDaysRequired, minScore, period, page, pageSize);
 
-        var totalCount = await query.CountAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-        var pagedUsers = await query
-            .OrderByDescending(u => u.RiskScore)
-            .ThenByDescending(u => u.DaysWithActivity)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        return pagedUsers.Select(u => new TopRiskyUserItem
-        {
-            UserEmail        = GetValidUserIdentifier(u.UserEmail, u.EmailAddress, u.FullName),
-            FullName         = u.FullName ?? "",
-            Team             = u.Team ?? "",
-            RiskScore        = u.RiskScore,
-            MaxDailyScore    = u.MaxDailyScore,
-            TotalIncidents   = u.TotalIncidents,
-            TotalBlocks      = u.TotalBlocks,
-            TotalQuarantines = u.TotalQuarantines,
-            DaysWithActivity = u.DaysWithActivity,
-            MinDaysRequired  = minDaysRequired,
-            Period           = period,
-            Page             = page,
-            PageSize         = pageSize,
-            TotalCount       = totalCount,
-            TotalPages       = totalPages
-        }).ToList();
+        return items;
     }
 
     public async Task<List<DailySummaryScoreItem>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate)
     {
-        var dailySummaries = await _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .GroupBy(r => r.Date)
-            .Select(g => new
-            {
-                Date = g.Key,
-                TotalIncidents = g.Sum(s => s.IncidentCount),
-                UniqueUsers = g.Count(),
-                AvgRiskScore = g.Average(s => s.DailyRiskScore),
-                MaxRiskScore = g.Max(s => s.DailyRiskScore),
-                HighRiskCount = g.Count(s => s.DailyRiskScore >= RiskConstants.Thresholds.HighDailyScore),
-                CriticalRiskCount = g.Count(s => s.DailyRiskScore >= RiskConstants.Thresholds.CriticalDailyScore),
-                TotalBlocks = g.Sum(s => s.BlockCount),
-                TotalQuarantines = g.Sum(s => s.QuarantineCount)
-            })
-            .OrderBy(d => d.Date)
-            .ToListAsync();
-
-        return dailySummaries.Select(d => new DailySummaryScoreItem
-        {
-            Date              = d.Date.ToString("yyyy-MM-dd"),
-            TotalIncidents    = d.TotalIncidents,
-            UniqueUsers       = d.UniqueUsers,
-            AvgRiskScore      = Math.Round(d.AvgRiskScore, 1),
-            MaxRiskScore      = Math.Round(d.MaxRiskScore, 1),
-            HighRiskCount     = d.HighRiskCount,
-            CriticalRiskCount = d.CriticalRiskCount,
-            TotalBlocks       = d.TotalBlocks,
-            TotalQuarantines  = d.TotalQuarantines
-        }).ToList();
+        return await _dailyScoreRepository.GetDailySummariesAsync(startDate, endDate);
     }
 
     private async Task<UserTrendResponse> BuildUserTrendAsync(string userEmail, string period, int daysBack)
@@ -264,9 +191,10 @@ public class UserInsightsService
     private async Task<List<TopRiskyUserItem>> GetTopUsersFromIncidentsRealTimeAsync(int limit = 10)
     {
         var startTime = DateTime.UtcNow.AddHours(-24);
+        var endTime = DateTime.UtcNow;
 
-        var userGroups = await _context.Incidents
-            .Where(i => i.Timestamp >= startTime)
+        var allIncidents = await _incidentRepository.GetIncidentsByDateRangeAsync(startTime, endTime);
+        var userGroups = allIncidents
             .GroupBy(i => new { i.UserEmail, i.EmailAddress, i.FullName })
             .Select(g => new {
                 UserEmail = g.Key.UserEmail,
@@ -280,7 +208,7 @@ public class UserInsightsService
             })
             .OrderByDescending(u => u.AvgRiskScore)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
 
         return userGroups.Select(u => {
             double riskScore = Math.Min(100.0,
@@ -315,19 +243,8 @@ public class UserInsightsService
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var startDate = endDate.AddDays(-days);
 
-        var query = _context.UserDailyRiskScores
-            .Where(r => r.Date >= startDate && r.Date <= endDate)
-            .Where(r => r.MaxMaxMatches >= minMaxMatches)
-            .Where(r => r.DailyRiskScore >= minDailyRiskScore);
-
-        var totalCount = await query.CountAsync();
-
-        var paginatedHits = await query
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.MaxMaxMatches)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var (paginatedHits, totalCount) = await _dailyScoreRepository.GetHighImpactScoresAsync(
+            startDate, endDate, minMaxMatches, minDailyRiskScore, page, pageSize);
 
         var alertsWithDetails = new List<object>();
         
@@ -336,12 +253,8 @@ public class UserInsightsService
             var startOfDay = alert.Date.ToDateTime(TimeOnly.MinValue);
             var endOfDay = alert.Date.ToDateTime(TimeOnly.MaxValue);
             
-            var incidentDetails = await _context.Incidents
-                .Where(i => i.UserEmail == alert.UserEmail)
-                .Where(i => i.Timestamp >= startOfDay && i.Timestamp <= endOfDay)
-                .OrderByDescending(i => i.MaxMatches)
-                .Take(5)
-                .Select(i => new {
+            var incidentDetails = await _incidentRepository.GetHighImpactIncidentsAsync(alert.UserEmail, startOfDay, endOfDay);
+            var incidentDetailsMapped = incidentDetails.Select(i => new {
                     FileName = i.FileName ?? "",
                     Destination = i.Destination ?? "",
                     Channel = i.Channel ?? "",
@@ -349,8 +262,7 @@ public class UserInsightsService
                     Policy = i.Policy ?? "",
                     i.MaxMatches,
                     Timestamp = i.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")
-                })
-                .ToListAsync();
+                }).ToList();
 
             var impactScore = Math.Min(100.0, (alert.MaxMaxMatches / 10.0) + (alert.DailyRiskScore * 0.5));
 
@@ -368,7 +280,7 @@ public class UserInsightsService
                 severity_level = alert.MaxMaxMatches >= RiskConstants.Thresholds.SeverityCriticalMatches ? "Critical" :
                                  alert.MaxMaxMatches >= RiskConstants.Thresholds.SeverityHighMatches ? "High" :
                                  alert.MaxMaxMatches >= RiskConstants.Thresholds.HighImpactMinMatches ? "Medium" : "Low",
-                incident_details = incidentDetails
+                incident_details = incidentDetailsMapped
             });
         }
 
@@ -393,10 +305,6 @@ public class UserInsightsService
         return Math.Sqrt(sumSquares / (values.Count - 1));
     }
 
-    /// <summary>
-    /// Returns the best available user identifier. If the primary value is null, empty, 
-    /// or "unknown", it falls back to emailAddress, then fullName.
-    /// </summary>
     private static string GetValidUserIdentifier(string? primary, string? emailAddress, string? fullName)
     {
         bool isInvalid = string.IsNullOrWhiteSpace(primary) || 

@@ -11,13 +11,12 @@ namespace DLP.RiskAnalyzer.Importer;
 
 public class Program
 {
-    private static HttpClient _httpClient;
-    private static string _managerIp;
+    private static HttpClient _httpClient = null!;
+    private static string _managerIp = null!;
     private static int _managerPort;
-    private static string _username;
-    private static string _password;
-    private static string _dbConnection;
-    private static int _batchSize = 1000;
+    private static string _username = null!;
+    private static string _password = null!;
+    private static string _dbConnection = null!;
 
     public static async Task Main(string[] args)
     {
@@ -110,7 +109,7 @@ public class Program
                     if (incidents[0].Source != null)
                     {
                         Console.ForegroundColor = ConsoleColor.Cyan;
-                        Console.WriteLine($"  [DEBUG] Manager: '{incidents[0].Source.Manager ?? "NULL"}'");
+                        Console.WriteLine($"  [DEBUG] Manager: '{incidents[0].Source?.Manager ?? "NULL"}'");
                         Console.ResetColor();
                     }
                     else
@@ -210,7 +209,7 @@ public class Program
         Console.WriteLine($"DONE! Total imported: {totalIncidentsImported}");
     }
 
-    private static async Task<string> GetAccessTokenAsync()
+    private static async Task<string?> GetAccessTokenAsync()
     {
         try
         {
@@ -222,13 +221,13 @@ public class Program
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            dynamic json = JsonConvert.DeserializeObject(content);
-            return json.access_token ?? json.accessToken ?? json.token;
+            dynamic? json = JsonConvert.DeserializeObject(content);
+            return (string?)(json?.access_token ?? json?.accessToken ?? json?.token);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Auth Error: {ex.Message}");
-            return null;
+            return null!;
         }
     }
 
@@ -260,7 +259,7 @@ public class Program
         try 
         {
             var wrapper = JsonConvert.DeserializeObject<DLPIncidentResponse>(content);
-            return wrapper.Incidents ?? new List<DLPIncident>();
+            return wrapper?.Incidents ?? new List<DLPIncident>();
         }
         catch (Exception ex)
         {
@@ -361,8 +360,8 @@ public class Program
             }
 
                 // Extract FullName and Team with Fallback logic
-                string fullName = null;
-                string team = null;
+                string? fullName = null;
+                string? team = null;
 
                 if (!string.IsNullOrEmpty(apiModel.Source?.Manager))
                 {
@@ -416,7 +415,6 @@ public class Program
                     FullName = Truncate(fullName, 255),
                     Team = Truncate(team, 255),
                 MaxMatches = maxMatches,
-                MaxMatches = maxMatches,
                 ViolationTriggers = apiModel.ViolationTriggers != null 
                     ? JsonConvert.SerializeObject(apiModel.ViolationTriggers.Select(vt => new 
                     {
@@ -439,16 +437,17 @@ public class Program
 }
 
 // Models needed for deserialization (simplified copies from Collector)
-public class DLPIncidentResponse { public List<DLPIncident> Incidents { get; set; } }
+public class DLPIncidentResponse { public List<DLPIncident> Incidents { get; set; } = new(); }
 public class DLPIncident
 {
     [JsonProperty("id")] public int Id { get; set; }
-    [JsonProperty("severity")] public string SeverityString { get; set; }
+    [JsonProperty("severity")] public string SeverityString { get; set; } = string.Empty;
     public int Severity => SeverityString?.ToUpper() switch { "LOW"=>1, "MEDIUM"=>2, "HIGH"=>3, "CRITICAL"=>4, _=>0 };
-    [JsonProperty("source")] public DLPIncidentSource Source { get; set; }
-    public string User => Source?.LoginName;
-    public string Department => Source?.Department;
-    [JsonProperty("incident_time")] public string IncidentTimeString { get; set; }
+    [JsonProperty("source")] public DLPIncidentSource? Source { get; set; }
+    public string? User => Source?.LoginName;
+    public string? Department => Source?.Department;
+    [JsonProperty("incident_time")] public string? IncidentTimeString { get; set; }
+    [JsonProperty("event_time")] public string? EventTimeString { get; set; }
     public DateTime Timestamp
     {
         get
@@ -484,56 +483,64 @@ public class DLPIncident
             return DateTime.UtcNow;
         }
     }
-    [JsonProperty("policies")] public string Policy { get; set; }
-    [JsonProperty("channel")] public string Channel { get; set; }
-    [JsonProperty("data_type")] public string DataType { get; set; }
-    [JsonProperty("action")] public string Action { get; set; }
-    [JsonProperty("destination")] public string Destination { get; set; }
-    [JsonProperty("file_name")] public string FileName { get; set; }
-    [JsonProperty("violation_triggers")] public List<DLPViolationTrigger> ViolationTriggers { get; set; }
-    public string LoginName => EmailAddress?.Equals("hesaparastirmaservisi@kuveytturk.com.tr", StringComparison.OrdinalIgnoreCase) == true 
+    [JsonProperty("policies")] public string? Policy { get; set; }
+    [JsonProperty("channel")] public string? Channel { get; set; }
+    [JsonProperty("data_type")] public string? DataType { get; set; }
+    [JsonProperty("action")] public string? Action { get; set; }
+    [JsonProperty("destination")] public string? Destination { get; set; }
+    [JsonProperty("file_name")] public string? FileName { get; set; }
+    [JsonProperty("violation_triggers")] public List<DLPViolationTrigger>? ViolationTriggers { get; set; }
+    public string? LoginName => EmailAddress?.Equals("hesaparastirmaservisi@kuveytturk.com.tr", StringComparison.OrdinalIgnoreCase) == true 
         ? "hesaparastirma" 
         : Source?.LoginName;
-    public string EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
+    public string? EmailAddress => Source?.EmailAddress ?? (Source?.BusinessUnit?.Contains("@") == true ? Source.BusinessUnit : null);
+    public List<DLPHistoryItem>? History { get; set; }
 }
 public class DLPIncidentSource
 {
-    [JsonProperty("manager")] public string Manager { get; set; }
-    [JsonProperty("department")] public string Department { get; set; }
-    [JsonProperty("login_name")] public string LoginName { get; set; }
-    [JsonProperty("host_name")] public string HostName { get; set; }
-    [JsonProperty("email_address")] public string EmailAddress { get; set; }
-    [JsonProperty("dn")] public string Dn { get; set; }
-    [JsonProperty("business_unit")] public string BusinessUnit { get; set; }
+    [JsonProperty("manager")] public string? Manager { get; set; }
+    [JsonProperty("department")] public string? Department { get; set; }
+    [JsonProperty("login_name")] public string? LoginName { get; set; }
+    [JsonProperty("host_name")] public string? HostName { get; set; }
+    [JsonProperty("email_address")] public string? EmailAddress { get; set; }
+    [JsonProperty("dn")] public string? Dn { get; set; }
+    [JsonProperty("business_unit")] public string? BusinessUnit { get; set; }
+}
+public class DLPHistoryItem
+{
+    [JsonProperty("task_name")] public string? TaskName { get; set; }
+    [JsonProperty("admin_name")] public string? AdminName { get; set; }
+    [JsonProperty("comments")] public string? Comments { get; set; }
+    [JsonProperty("update_time")] public string? UpdateTime { get; set; }
 }
 public class DLPViolationTrigger
 {
     // Support multiple formats for policy_name
-    [JsonProperty("policy_name")] public string PolicyNameSnake { get; set; }
-    [JsonProperty("PolicyName")] public string PolicyNamePascal { get; set; }
+    [JsonProperty("policy_name")] public string? PolicyNameSnake { get; set; }
+    [JsonProperty("PolicyName")] public string? PolicyNamePascal { get; set; }
     
     [JsonIgnore]
-    public string PolicyName => PolicyNameSnake ?? PolicyNamePascal;
+    public string? PolicyName => PolicyNameSnake ?? PolicyNamePascal;
 
     // Support multiple formats for rule_name
-    [JsonProperty("rule_name")] public string RuleNameSnake { get; set; }
-    [JsonProperty("ruleName")] public string RuleNameCamel { get; set; }
-    [JsonProperty("RuleName")] public string RuleNamePascal { get; set; }
+    [JsonProperty("rule_name")] public string? RuleNameSnake { get; set; }
+    [JsonProperty("ruleName")] public string? RuleNameCamel { get; set; }
+    [JsonProperty("RuleName")] public string? RuleNamePascal { get; set; }
     
     [JsonIgnore]
-    public string RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
+    public string? RuleName => RuleNameSnake ?? RuleNameCamel ?? RuleNamePascal;
 
     [JsonProperty("classifiers")] 
-    public List<DLPClassifier> Classifiers { get; set; }
+    public List<DLPClassifier>? Classifiers { get; set; }
 }
 public class DLPClassifier
 {
     // Support multiple formats for classifier_name
-    [JsonProperty("classifier_name")] public string ClassifierNameSnake { get; set; }
-    [JsonProperty("ClassifierName")] public string ClassifierNamePascal { get; set; }
+    [JsonProperty("classifier_name")] public string? ClassifierNameSnake { get; set; }
+    [JsonProperty("ClassifierName")] public string? ClassifierNamePascal { get; set; }
     
     [JsonIgnore]
-    public string ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
+    public string? ClassifierName => ClassifierNameSnake ?? ClassifierNamePascal;
 
     [JsonProperty("number_matches")] public int NumberMatchesSnake { get; set; }
     [JsonProperty("NumberMatches")] public int NumberMatchesPascal { get; set; }

@@ -20,7 +20,15 @@ export default function AuthLayoutClient({ children }: { children: React.ReactNo
         <div style={{ flexShrink: 0, zIndex: 900 }}>
           <Navigation />
         </div>
-        <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
+        <div
+          key={pathname}
+          className="page-enter"
+          style={{
+            padding: '24px',
+            flex: 1,
+            overflowY: 'auto',
+          }}
+        >
           {children}
         </div>
       </div>

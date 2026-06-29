@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useMemo, memo, useCallback } from 'react'
-import { Plus, Minus, ClipboardList, Search, Sparkles } from 'lucide-react'
+import { Plus, Minus, ClipboardList, Search, Sparkles, SlidersHorizontal } from 'lucide-react'
 import { parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns'
 import SearchableMultiSelect from './SearchableMultiSelect'
+import { useTranslation } from '@/components/LanguageProvider'
 import useUserReportData from '../_hooks/useUserReportData'
 import type { Incident } from '../_lib/types'
 import { normalizeTeamName, parseViolationTriggers, extractPoliciesFromIncidents, toggleSetItem } from '../_lib/utils'
@@ -19,6 +20,7 @@ interface ExceptionRecommendationProps {
 }
 
 export default memo(function ExceptionRecommendation({ incidents, uniqueDepartments, uniqueTeams, uniqueActions, uniqueChannels, uniquePolicies }: ExceptionRecommendationProps) {
+  const { t } = useTranslation()
   const [exceptionDeptFilter, setExceptionDeptFilter] = useState<string[]>([])
   const [exceptionTeamFilter, setExceptionTeamFilter] = useState<string[]>([])
   const [userSearchQuery, setUserSearchQuery] = useState('')
@@ -34,6 +36,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
   const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
   const [expandedClassifiers, setExpandedClassifiers] = useState<Set<string>>(new Set())
   const [expandedExceptions, setExpandedExceptions] = useState<Set<string>>(new Set())
+  const [ruleThresholds, setRuleThresholds] = useState<Record<string, string>>({})
 
   const userReportData = useUserReportData(userIncidents)
 
@@ -91,6 +94,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
     setUserSearchQuery(''); setExceptionDomainFilter(''); setExceptionActionFilter([]); setExceptionChannelFilter([]); setExceptionPolicyFilter([]); setExceptionTeamFilter([]); setExceptionDeptFilter([])
     setExceptionDateRange({ start: DEFAULT_START, end: DEFAULT_END }); setUserIncidents([])
     setExpandedPolicies(new Set()); setExpandedRules(new Set()); setExpandedClassifiers(new Set()); setExpandedExceptions(new Set())
+    setRuleThresholds({})
   }, [])
 
   const togglePolicy = (pIdx: number) => setExpandedPolicies(prev => toggleSetItem(prev, pIdx))
@@ -109,37 +113,37 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
         <div style={STYLES.iconBox('linear-gradient(135deg, #10b981, #059669)', '0 3px 10px rgba(16, 185, 129, 0.25)')}>
           <Sparkles size={17} color="#fff" />
         </div>
-        <h2 style={STYLES.gradientText('linear-gradient(135deg, #10b981, #059669)')}>Exception Recommendation</h2>
+        <h2 style={STYLES.gradientText('linear-gradient(135deg, #10b981, #059669)')}>{t('exc.title')}</h2>
       </div>
 
       {/* Filters Grid */}
       <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', padding: '16px', background: 'rgba(16, 185, 129, 0.03)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.12)' }}>
-        <SearchableMultiSelect label="Filter by Department" options={uniqueDepartments} selectedValues={exceptionDeptFilter} onChange={setExceptionDeptFilter} placeholder="All Departments" />
-        <SearchableMultiSelect label="Filter by Team" options={uniqueTeams} selectedValues={exceptionTeamFilter} onChange={setExceptionTeamFilter} placeholder="All Teams" />
+        <SearchableMultiSelect label={t('exc.filterByDepartment')} options={uniqueDepartments} selectedValues={exceptionDeptFilter} onChange={setExceptionDeptFilter} placeholder={t('exc.allDepartments')} />
+        <SearchableMultiSelect label={t('exc.filterByTeam')} options={uniqueTeams} selectedValues={exceptionTeamFilter} onChange={setExceptionTeamFilter} placeholder={t('exc.allTeams')} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>Date Range</label>
+          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>{t('exc.dateRange')}</label>
           <div style={{ display: 'flex', gap: '4px' }}>
             <input type="date" value={exceptionDateRange.start} onChange={(e) => setExceptionDateRange(prev => ({ ...prev, start: e.target.value }))} style={{ flex: 1, padding: '10px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', transition: 'border-color 0.2s' }} />
             <input type="date" value={exceptionDateRange.end} onChange={(e) => setExceptionDateRange(prev => ({ ...prev, end: e.target.value }))} style={{ flex: 1, padding: '10px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', transition: 'border-color 0.2s' }} />
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>Search User</label>
+          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>{t('exc.searchUser')}</label>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
-            <input type="text" placeholder="Email, login name or full name..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', transition: 'border-color 0.2s', boxSizing: 'border-box' }} />
+            <input type="text" placeholder={t('exc.searchPlaceholder')} value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', transition: 'border-color 0.2s', boxSizing: 'border-box' }} />
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>Filter by Domain</label>
+          <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0.3px' }}>{t('exc.filterByDomain')}</label>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
-            <input type="text" placeholder="Enter domain to filter..." value={exceptionDomainFilter} onChange={(e) => setExceptionDomainFilter(e.target.value)} style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', transition: 'border-color 0.2s', boxSizing: 'border-box' }} />
+            <input type="text" placeholder={t('exc.domainPlaceholder')} value={exceptionDomainFilter} onChange={(e) => setExceptionDomainFilter(e.target.value)} style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', transition: 'border-color 0.2s', boxSizing: 'border-box' }} />
           </div>
         </div>
-        <SearchableMultiSelect label="Filter by Action" options={uniqueActions} selectedValues={exceptionActionFilter} onChange={setExceptionActionFilter} placeholder="All Actions" />
-        <SearchableMultiSelect label="Filter by Channel" options={uniqueChannels} selectedValues={exceptionChannelFilter} onChange={setExceptionChannelFilter} placeholder="All Channels" />
-        <SearchableMultiSelect label="Filter by Policy" options={uniquePolicies} selectedValues={exceptionPolicyFilter} onChange={setExceptionPolicyFilter} placeholder="All Policies" />
+        <SearchableMultiSelect label={t('exc.filterByAction')} options={uniqueActions} selectedValues={exceptionActionFilter} onChange={setExceptionActionFilter} placeholder={t('exc.allActions')} />
+        <SearchableMultiSelect label={t('exc.filterByChannel')} options={uniqueChannels} selectedValues={exceptionChannelFilter} onChange={setExceptionChannelFilter} placeholder={t('exc.allChannels')} />
+        <SearchableMultiSelect label={t('exc.filterByPolicy')} options={uniquePolicies} selectedValues={exceptionPolicyFilter} onChange={setExceptionPolicyFilter} placeholder={t('exc.allPolicies')} />
       </div>
 
       {/* Buttons */}
@@ -147,12 +151,12 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
         <button onClick={handleClearFilters} style={{ padding: '12px 24px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.transform = 'translateY(0)' }}>
-          Filtreleri Temizle
+          {t('exc.clearFilters')}
         </button>
         <button onClick={handleRecommend} disabled={!canRecommend} style={{ padding: '12px 24px', borderRadius: '6px', border: 'none', background: canRecommend ? '#3b82f6' : '#93c5fd', color: '#ffffff', fontSize: '14px', fontWeight: '600', cursor: canRecommend ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: canRecommend ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none', opacity: canRecommend ? 1 : 0.7 }}
           onMouseEnter={(e) => { if (canRecommend) { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
           onMouseLeave={(e) => { if (canRecommend) { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.transform = 'translateY(0)' } }}>
-          Recommend
+          {t('exc.recommend')}
         </button>
       </div>
 
@@ -160,25 +164,25 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
       {userIncidents.length > 0 && userReportData.length > 0 && (
         <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', cursor: 'pointer' }} className="group">
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Policies</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalPolicies')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)' }}>{userReportData.length}</div>
             {uniqueUserPolicies.length > 0 && (
               <div className="hidden group-hover:block" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', background: 'var(--surface)', border: '1px solid var(--border)', padding: '12px', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, minWidth: '200px', maxWidth: '400px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>Policies ({uniqueUserPolicies.length}):</div>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>{t('exc.policies')} ({uniqueUserPolicies.length}):</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{uniqueUserPolicies.map((p, i) => <div key={i} style={{ marginBottom: '4px' }}>• {p}</div>)}</div>
               </div>
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Incidents</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalIncidents')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#3b82f6' }}>{userIncidents.length}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', cursor: 'pointer' }} className="group">
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Total Channels</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{t('exc.totalChannels')}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#10b981' }}>{uniqueUserChannels.length}</div>
             {uniqueUserChannels.length > 0 && (
               <div className="hidden group-hover:block" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', background: 'var(--surface)', border: '1px solid var(--border)', padding: '12px', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, minWidth: '200px', maxWidth: '400px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>Channels ({uniqueUserChannels.length}):</div>
+                <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>{t('exc.channels')} ({uniqueUserChannels.length}):</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{uniqueUserChannels.map((c, i) => <div key={i} style={{ marginBottom: '4px' }}>• {c}</div>)}</div>
               </div>
             )}
@@ -188,11 +192,11 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
 
       {/* Report Data */}
       {loadingUserIncidents ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Öneri hesaplanıyor…</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.calculatingRecommendation')}</div>
       ) : userIncidents.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Seçilen filtrelere uyan incident bulunamadı</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.noIncidentsForFilter')}</div>
       ) : userReportData.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>Bu kayıtlar için politika / tetikleyici verisi bulunamadı</div>
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.noPolicyData')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {userReportData.map((policy, pIdx) => {
@@ -206,8 +210,8 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                     <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>{policy.name}</h3>
                   </div>
                   <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
-                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>Total Incidents</div><div style={{ ...STYLES.statValue(), fontSize: '16px' }}>{policy.incidentCount}</div></div>
-                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>Avg Matches</div><div style={{ ...STYLES.statValue('#3b82f6'), fontSize: '16px' }}>{policy.avgMatches.toFixed(1)}</div></div>
+                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>{t('exc.totalIncidents')}</div><div style={{ ...STYLES.statValue(), fontSize: '16px' }}>{policy.incidentCount}</div></div>
+                    <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('11px')}>{t('exc.avgMatches')}</div><div style={{ ...STYLES.statValue('#3b82f6'), fontSize: '16px' }}>{policy.avgMatches.toFixed(1)}</div></div>
                   </div>
                 </div>
 
@@ -223,18 +227,77 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}><ClipboardList size={16} style={{ marginRight: '4px' }} /> {rule.name}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                              {[{ label: 'Incidents', value: rule.incidentCount, color: undefined }, { label: 'Avg Matches', value: rule.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: rule.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: rule.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: rule.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                              {[{ label: t('exceptionList.incidents'), value: rule.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: rule.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: rule.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: rule.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: rule.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                 <div key={s.label} style={{ textAlign: 'right' }}><div style={STYLES.statLabel()}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                               ))}
                             </div>
                           </div>
+
+                          {isRuleExpanded && rule.allMatches && rule.allMatches.length > 0 && (() => {
+                            const ruleKey = `${pIdx}-${rIdx}`
+                            const thresholdStr = ruleThresholds[ruleKey] || ''
+                            const thresholdVal = thresholdStr ? parseFloat(thresholdStr) : null
+                            const belowCount = thresholdVal !== null ? rule.allMatches.filter(m => m <= thresholdVal).length : null
+                            const aboveCount = thresholdVal !== null ? rule.allMatches.filter(m => m > thresholdVal).length : null
+                            const totalCount = rule.allMatches.length
+                            const belowPct = belowCount !== null && totalCount > 0 ? ((belowCount / totalCount) * 100).toFixed(1) : null
+                            const abovePct = aboveCount !== null && totalCount > 0 ? ((aboveCount / totalCount) * 100).toFixed(1) : null
+                            return (
+                              <div style={{ margin: '12px 0 0 8px', padding: '14px 16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.04))', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.18)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                  <SlidersHorizontal size={14} color="#6366f1" />
+                                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1' }}>{t('exc.thresholdAnalysis')}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{t('exc.thresholdValue')}</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      placeholder={t('exc.thresholdPlaceholder')}
+                                      value={thresholdStr}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        setRuleThresholds(prev => ({ ...prev, [ruleKey]: e.target.value }))
+                                      }}
+                                      style={{ width: '90px', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.3)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', fontWeight: '600', textAlign: 'center', outline: 'none', transition: 'border-color 0.2s' }}
+                                      onFocus={(e) => { e.currentTarget.style.borderColor = '#6366f1' }}
+                                      onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)' }}
+                                    />
+                                  </div>
+                                  {thresholdVal !== null && belowCount !== null && aboveCount !== null && (
+                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>≤ {thresholdVal}:</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>{belowCount}</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>({belowPct}%)</span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>&gt; {thresholdVal}:</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#ef4444' }}>{aboveCount}</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>({abovePct}%)</span>
+                                      </div>
+                                      {/* Progress bar */}
+                                      <div style={{ flex: 1, minWidth: '80px', maxWidth: '200px', height: '8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.2)', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${belowPct}%`, background: 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '4px', transition: 'width 0.3s ease' }} />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
 
                           {isRuleExpanded && (
                             <>
                               {rule.classifiers.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px', marginBottom: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Classifier Statistics</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('exc.classifierStats')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {rule.classifiers.map((classifier, cIdx) => {
                                         const isExpanded = expandedClassifiers.has(`${pIdx}-${rIdx}-${cIdx}`)
@@ -248,7 +311,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                             </div>
                                             {isExpanded && (
                                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', fontSize: '11px', marginTop: '8px' }}>
-                                                {[{ label: 'Incidents', value: classifier.incidentCount, color: undefined }, { label: 'Avg Matches', value: classifier.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: classifier.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: classifier.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: classifier.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                                                {[{ label: t('exc.incidents'), value: classifier.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: classifier.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: classifier.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: classifier.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: classifier.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                                   <div key={s.label} style={{ textAlign: 'center' }}><div style={STYLES.statLabel()}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                                                 ))}
                                               </div>
@@ -264,7 +327,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               {rule.exceptions && rule.exceptions.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px', marginBottom: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Exception Statistics</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('heatmap.exceptionStats')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       {rule.exceptions.map((exception, eIdx) => {
                                         const isExpanded = expandedExceptions.has(`${pIdx}-${rIdx}-${eIdx}`)
@@ -274,23 +337,23 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <div style={STYLES.expandButton(18)}>{isExpanded ? '−' : '+'}</div>
                                                 <span style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b' }}>⚠️ {exception.name}</span>
-                                                <span style={{ fontSize: '10px', fontWeight: '600', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', textTransform: 'none' as const }}>Exception</span>
+                                                <span style={{ fontSize: '10px', fontWeight: '600', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', textTransform: 'none' as const }}>{t('exc.exception')}</span>
                                               </div>
                                               <div style={{ display: 'flex', gap: '12px', fontSize: '11px' }}>
-                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>Incidents</div><div style={STYLES.statValue()}>{exception.incidentCount}</div></div>
-                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>Avg Matches</div><div style={STYLES.statValue('#3b82f6')}>{exception.avgMatches.toFixed(1)}</div></div>
+                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>{t('exc.incidents')}</div><div style={STYLES.statValue()}>{exception.incidentCount}</div></div>
+                                                <div style={{ textAlign: 'right' }}><div style={STYLES.statLabel('9px')}>{t('exc.avgMatches')}</div><div style={STYLES.statValue('#3b82f6')}>{exception.avgMatches.toFixed(1)}</div></div>
                                               </div>
                                             </div>
                                             {isExpanded && exception.classifiers && exception.classifiers.length > 0 && (
                                               <div style={{ marginTop: '8px', paddingLeft: '8px' }}>
                                                 <div style={{ padding: '12px', background: 'var(--background-secondary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                                                  <h6 style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid var(--border)' }}>Exception Classifiers</h6>
+                                                  <h6 style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid var(--border)' }}>{t('exc.exceptionClassifiers')}</h6>
                                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     {exception.classifiers.map((cl, cIdx) => (
                                                       <div key={cIdx} style={{ padding: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px' }}>
                                                         <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>{cl.name}</div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', fontSize: '10px' }}>
-                                                          {[{ label: 'Incidents', value: cl.incidentCount, color: undefined }, { label: 'Avg Matches', value: cl.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: cl.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: cl.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: cl.p90.toFixed(1), color: '#ef4444' }].map(s => (
+                                                          {[{ label: t('exc.incidents'), value: cl.incidentCount, color: undefined }, { label: t('exc.avgMatches'), value: cl.avgMatches.toFixed(1), color: '#3b82f6' }, { label: 'P25', value: cl.p25.toFixed(1), color: '#10b981' }, { label: 'P75', value: cl.p75.toFixed(1), color: '#f59e0b' }, { label: 'P90', value: cl.p90.toFixed(1), color: '#ef4444' }].map(s => (
                                                             <div key={s.label} style={{ textAlign: 'center' }}><div style={STYLES.statLabel('9px')}>{s.label}</div><div style={STYLES.statValue(s.color)}>{s.value}</div></div>
                                                           ))}
                                                         </div>
@@ -311,12 +374,12 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                               {rule.classifiers.length > 0 && (
                                 <div style={{ paddingLeft: '8px', marginTop: '12px' }}>
                                   <div style={{ padding: '16px', background: 'var(--background-secondary)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>Exception Recommendations</h5>
+                                    <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>{t('heatmap.exceptionRecommendations')}</h5>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                       <div style={{ padding: '12px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '6px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                           <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
-                                          <strong style={{ color: '#f59e0b', fontSize: '13px' }}>Medium (Audit):</strong>
+                                          <strong style={{ color: '#f59e0b', fontSize: '13px' }}>{t('exc.mediumAudit')}</strong>
                                         </div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: '1.6', paddingLeft: '18px' }}>
                                           {rule.classifiers.map((c, i) => <span key={i}>{c.name}: &gt;{c.recommendations.medium.threshold.toFixed(0)}{i < rule.classifiers.length - 1 ? ' ' : ''}</span>)}
@@ -325,7 +388,7 @@ export default memo(function ExceptionRecommendation({ incidents, uniqueDepartme
                                       <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                           <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
-                                          <strong style={{ color: '#ef4444', fontSize: '13px' }}>High (Block):</strong>
+                                          <strong style={{ color: '#ef4444', fontSize: '13px' }}>{t('exc.highBlock')}</strong>
                                         </div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: '1.6', paddingLeft: '18px' }}>
                                           {rule.classifiers.map((c, i) => <span key={i}>{c.name}: &gt;{c.recommendations.high.threshold.toFixed(0)}{i < rule.classifiers.length - 1 ? ' ' : ''}</span>)}

@@ -281,20 +281,46 @@ function handleRequest(pathname, query, method, body) {
 
     // Dashboard - High Impact Alerts (Data Exfiltration)
     if (pathname === '/api/risk-trends/high-impact-alerts') {
-        return dummyUsers.slice(0, 6).map((u, idx) => ({
+        const page = parseInt(query.page) || 1
+        const pageSize = parseInt(query.pageSize) || 20
+        const allAlerts = dummyUsers.slice(0, 6).map((u, idx) => ({
             user_email: u.user_email,
-            login_name: u.login_name,
-            department: u.department,
-            risk_score: u.risk_score,
-            severity_level: idx < 2 ? 'Critical' : idx < 4 ? 'High' : 'Medium',
+            full_name: u.login_name,
+            team: randomFrom(teams),
+            impact_score: randomInt(60, 100),
+            max_max_matches: randomInt(100, 500),
             highest_risk_date: formatDate(new Date(Date.now() - idx * 86400000)),
-            total_incidents: randomInt(5, 30),
-            data_volume: `${randomInt(500, 8000)} MB`,
-            top_channel: randomFrom(channels),
-            top_policy: randomFrom(policies),
-            high_impact: true,
-            incidents: allIncidents.filter(i => i.userEmail === u.user_email).slice(0, 5),
+            daily_risk_score: randomInt(80, 100),
+            incident_count: randomInt(5, 30),
+            block_count: randomInt(1, 10),
+            quarantine_count: randomInt(0, 5),
+            days_with_activity: randomInt(1, 10),
+            total_incidents_in_period: randomInt(10, 50),
+            is_single_day_event: Math.random() > 0.5,
+            severity_level: idx < 2 ? 'Critical' : idx < 4 ? 'High' : 'Medium',
+            incident_details: allIncidents.filter(i => i.userEmail === u.user_email).slice(0, 5).map(i => ({
+                file_name: i.files?.[0]?.name || 'report.xlsx',
+                destination: i.destination,
+                channel: i.channel,
+                action: i.action,
+                policy: i.policy,
+                max_matches: randomInt(10, 200),
+                timestamp: i.timestamp
+            })),
         }))
+        const totalCount = allAlerts.length
+        const totalPages = Math.ceil(totalCount / pageSize)
+        const start = (page - 1) * pageSize
+        const paginatedData = allAlerts.slice(start, start + pageSize)
+        return {
+            data: paginatedData,
+            pagination: {
+                page,
+                pageSize,
+                totalCount,
+                totalPages
+            }
+        }
     }
 
     // Dashboard - User Comprehensive Report

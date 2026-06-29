@@ -1,0 +1,14 @@
+﻿  DLP.RiskAnalyzer.Shared -> C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Shared\bin\Debug\net8.0\DLP.RiskAnalyzer.Shared.dll
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Extensions\WebApplicationExtensions.cs(92,72): error CS0234: 'ForwardedHeadersOptions' t├╝r veya ad alan─▒ ad─▒ 'Microsoft.AspNetCore.HttpOverrides' ad alan─▒nda yok (bir derleme ba┼şvurunuz mu eksik?) [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Helpers\IncidentResponseMapper.cs(30,33): warning CS8601: Olas─▒ null ba┼şvuru atamas─▒. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Extensions\ServiceCollectionExtensions.cs(49,28): error CS0118: 'RiskAnalyzer' bir ad alan─▒ ├Â─şesidir ancak t├╝r olarak kullan─▒l─▒r [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+
+Olu┼şturma BA┼ŞARISIZ OLDU.
+
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Helpers\IncidentResponseMapper.cs(30,33): warning CS8601: Olas─▒ null ba┼şvuru atamas─▒. [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Extensions\WebApplicationExtensions.cs(92,72): error CS0234: 'ForwardedHeadersOptions' t├╝r veya ad alan─▒ ad─▒ 'Microsoft.AspNetCore.HttpOverrides' ad alan─▒nda yok (bir derleme ba┼şvurunuz mu eksik?) [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\Extensions\ServiceCollectionExtensions.cs(49,28): error CS0118: 'RiskAnalyzer' bir ad alan─▒ ├Â─şesidir ancak t├╝r olarak kullan─▒l─▒r [C:\Users\abdul\Desktop\dlp-risk-adaptive-protection-csharp-main\DLP.RiskAnalyzer.Analyzer\DLP.RiskAnalyzer.Analyzer.csproj]
+    1 Uyar─▒
+    2 Hata
+
+Ge├ğen S├╝re 00:00:02.48

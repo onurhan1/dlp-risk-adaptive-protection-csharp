@@ -1,8 +1,10 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import dynamic from 'next/dynamic'
+import { Settings, Users, Bot, ClipboardList } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -57,6 +59,7 @@ interface SplunkSettings {
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation()
   const [settings, setSettings] = useState<Settings>({
     email_notifications: true,
     daily_report_time: '06:00',
@@ -102,6 +105,8 @@ export default function SettingsPage() {
   const [emailTesting, setEmailTesting] = useState(false)
   const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
+  const [smtpTestRecipient, setSmtpTestRecipient] = useState('')
+  const [smtpSendingTest, setSmtpSendingTest] = useState(false)
   const [splunkSettings, setSplunkSettings] = useState<SplunkSettings>({
     enabled: false,
     hec_url: '',
@@ -154,15 +159,16 @@ export default function SettingsPage() {
       const apiUrl = getApiUrlDynamic()
       const response = await axios.get(`${apiUrl}/api/settings/dlp`)
       const data = response.data
+      // API uses SnakeCaseLower policy → all keys are snake_case
       setDlpSettings({
-        manager_ip: data.managerIp ?? '',
-        manager_port: Number(data.managerPort) || 8443,
-        use_https: data.useHttps ?? true,
-        timeout_seconds: Number(data.timeoutSeconds) || 30,
+        manager_ip: data.manager_ip ?? '',
+        manager_port: Number(data.manager_port) || 8443,
+        use_https: data.use_https ?? true,
+        timeout_seconds: Number(data.timeout_seconds) || 30,
         username: data.username ?? '',
         password: '',
-        password_set: data.passwordSet ?? false,
-        last_updated: data.updatedAt ?? null
+        password_set: data.password_set ?? false,
+        last_updated: data.updated_at ?? null
       })
     } catch (error) {
       console.error('Error fetching DLP settings:', error)
@@ -178,18 +184,18 @@ export default function SettingsPage() {
       const response = await axios.get(`${apiUrl}/api/settings/email`)
       const data = response.data
       setEmailSettings({
-        smtp_host: data.smtpHost ?? '',
-        smtp_port: Number(data.smtpPort) || 587,
-        enable_ssl: data.enableSsl ?? true,
+        smtp_host: data.smtp_host ?? '',
+        smtp_port: Number(data.smtp_port) || 587,
+        enable_ssl: data.enable_ssl ?? true,
         username: data.username ?? '',
         password: '',
-        password_set: data.passwordSet ?? false,
-        from_email: data.fromEmail ?? '',
-        from_name: data.fromName ?? 'DLP Risk Analyzer',
-        is_configured: data.isConfigured ?? false,
-        last_updated: data.updatedAt ?? null
+        password_set: data.password_set ?? false,
+        from_email: data.from_email ?? '',
+        from_name: data.from_name ?? 'DLP Risk Analyzer',
+        is_configured: data.is_configured ?? false,
+        last_updated: data.updated_at ?? null
       })
-      setEmailConfigured(data.isConfigured ?? false)
+      setEmailConfigured(data.is_configured ?? false)
     } catch (error) {
       console.error('Error fetching SMTP settings:', error)
     } finally {
@@ -368,11 +374,12 @@ export default function SettingsPage() {
 
   const buildDlpPayload = () => {
     const trimmedPassword = dlpSettings.password?.trim()
+    // API uses SnakeCaseLower policy → must send snake_case keys
     return {
-      managerIp: dlpSettings.manager_ip,
-      managerPort: dlpSettings.manager_port,
-      useHttps: dlpSettings.use_https,
-      timeoutSeconds: dlpSettings.timeout_seconds,
+      manager_ip: dlpSettings.manager_ip,
+      manager_port: dlpSettings.manager_port,
+      use_https: dlpSettings.use_https,
+      timeout_seconds: dlpSettings.timeout_seconds,
       username: dlpSettings.username,
       password: trimmedPassword ? trimmedPassword : undefined
     }
@@ -390,23 +397,24 @@ export default function SettingsPage() {
       })
 
       if (response.data?.success) {
+        // API uses SnakeCaseLower policy → response keys are snake_case
         setDlpSettings((prev) => ({
           ...prev,
-          manager_ip: response.data.settings.managerIp ?? prev.manager_ip,
-          manager_port: Number(response.data.settings.managerPort) || prev.manager_port,
-          use_https: response.data.settings.useHttps ?? prev.use_https,
-          timeout_seconds: Number(response.data.settings.timeoutSeconds) || prev.timeout_seconds,
+          manager_ip: response.data.settings.manager_ip ?? prev.manager_ip,
+          manager_port: Number(response.data.settings.manager_port) || prev.manager_port,
+          use_https: response.data.settings.use_https ?? prev.use_https,
+          timeout_seconds: Number(response.data.settings.timeout_seconds) || prev.timeout_seconds,
           username: response.data.settings.username ?? prev.username,
           password: '',
           password_set: true,
-          last_updated: response.data.settings.updatedAt ?? new Date().toISOString()
+          last_updated: response.data.settings.updated_at ?? new Date().toISOString()
         }))
-        setDlpMessage({ type: 'success', text: 'DLP API ayarlarÄ± kaydedildi' })
+        setDlpMessage({ type: 'success', text: 'DLP API ayarları kaydedildi' })
       } else {
         throw new Error(response.data?.detail || 'Ayarlar kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarlarÄ± kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'DLP ayarları kaydedilemedi'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpSaving(false)
@@ -424,9 +432,15 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setDlpMessage({ type: 'success', text: response.data?.message || 'BaÄŸlantÄ± baÅŸarÄ±lÄ±' })
+      const data = response.data
+      if (data?.success) {
+        const latency = data.latency_ms ? ` (${data.latency_ms}ms)` : ''
+        setDlpMessage({ type: 'success', text: data.message || `Bağlantı başarılı${latency}` })
+      } else {
+        setDlpMessage({ type: 'error', text: data?.message || 'Bağlantı testi başarısız' })
+      }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'BaÄŸlantÄ± testi baÅŸarÄ±sÄ±z'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'Bağlantı testi başarısız'
       setDlpMessage({ type: 'error', text: errorMessage })
     } finally {
       setDlpTesting(false)
@@ -437,13 +451,13 @@ export default function SettingsPage() {
   const buildEmailPayload = () => {
     const trimmedPassword = emailSettings.password?.trim()
     return {
-      smtpHost: emailSettings.smtp_host,
-      smtpPort: emailSettings.smtp_port,
-      enableSsl: emailSettings.enable_ssl,
+      smtp_host: emailSettings.smtp_host,
+      smtp_port: emailSettings.smtp_port,
+      enable_ssl: emailSettings.enable_ssl,
       username: emailSettings.username,
       password: trimmedPassword ? trimmedPassword : undefined,
-      fromEmail: emailSettings.from_email,
-      fromName: emailSettings.from_name
+      from_email: emailSettings.from_email,
+      from_name: emailSettings.from_name
     }
   }
 
@@ -461,24 +475,24 @@ export default function SettingsPage() {
       if (response.data?.success) {
         const saved = response.data.settings
         setEmailSettings({
-          smtp_host: saved.smtpHost ?? '',
-          smtp_port: Number(saved.smtpPort) || 587,
-          enable_ssl: saved.enableSsl ?? true,
+          smtp_host: saved.smtp_host ?? '',
+          smtp_port: Number(saved.smtp_port) || 587,
+          enable_ssl: saved.enable_ssl ?? true,
           username: saved.username ?? '',
           password: '',
-          password_set: saved.passwordSet ?? false,
-          from_email: saved.fromEmail ?? '',
-          from_name: saved.fromName ?? 'DLP Risk Analyzer',
-          is_configured: saved.isConfigured ?? false,
-          last_updated: saved.updatedAt ?? new Date().toISOString()
+          password_set: saved.password_set ?? false,
+          from_email: saved.from_email ?? '',
+          from_name: saved.from_name ?? 'DLP Risk Analyzer',
+          is_configured: saved.is_configured ?? false,
+          last_updated: saved.updated_at ?? new Date().toISOString()
         })
-        setEmailConfigured(saved.isConfigured ?? false)
-        setEmailMessage({ type: 'success', text: 'SMTP ayarlarÄ± kaydedildi' })
+        setEmailConfigured(saved.is_configured ?? false)
+        setEmailMessage({ type: 'success', text: 'SMTP ayarları kaydedildi' })
       } else {
-        throw new Error(response.data?.detail || 'SMTP ayarlarÄ± kaydedilemedi')
+        throw new Error(response.data?.detail || 'SMTP ayarları kaydedilemedi')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarlarÄ± kaydedilemedi'
+      const errorMessage = error.response?.data?.detail || error.message || 'SMTP ayarları kaydedilemedi'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailSaving(false)
@@ -499,12 +513,43 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000
       })
-      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±' })
+      setEmailMessage({ type: 'success', text: response.data?.message || 'SMTP bağlantısı başarılı' })
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi baÅŸarÄ±sÄ±z'
+      const errorMessage = error.response?.data?.message || error.response?.data?.detail || error.message || 'SMTP testi başarısız'
       setEmailMessage({ type: 'error', text: errorMessage })
     } finally {
       setEmailTesting(false)
+      setTimeout(() => setEmailMessage(null), 7000)
+    }
+  }
+
+  const sendSmtpTestEmail = async () => {
+    const recipient = smtpTestRecipient.trim()
+    if (!recipient) {
+      setEmailMessage({ type: 'error', text: 'Lütfen bir test alıcısı e-postası girin' })
+      setTimeout(() => setEmailMessage(null), 4000)
+      return
+    }
+    setSmtpSendingTest(true)
+    setEmailMessage(null)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const token = localStorage.getItem('authToken')
+      const response = await axios.post(
+        `${apiUrl}/api/settings/send-test-email`,
+        { email: recipient },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {}, timeout: 20000 }
+      )
+      if (response.data?.success) {
+        setEmailMessage({ type: 'success', text: response.data.message || `Test maili gönderildi: ${recipient}` })
+      } else {
+        throw new Error(response.data?.detail || 'Test maili gönderilemedi')
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Test maili gönderilemedi'
+      setEmailMessage({ type: 'error', text: errorMessage })
+    } finally {
+      setSmtpSendingTest(false)
       setTimeout(() => setEmailMessage(null), 7000)
     }
   }
@@ -552,7 +597,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <div className="dashboard-page">
-        <div className="loading">Loading settings...</div>
+        <div className="loading">{t('settings.loadingSettings')}</div>
       </div>
     )
   }
@@ -561,38 +606,47 @@ export default function SettingsPage() {
     <div className="dashboard-page">
       <div className="dashboard-header">
         <div>
-          <h1>Settings</h1>
-          <p className="text-muted">Configure system preferences and notifications</p>
+          <h1>{t('nav.settings')}</h1>
+          <p className="text-muted">{t('settings.subtitle')}</p>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid var(--border)', paddingBottom: '2px' }}>
-        {[
-          { id: 'general' as SettingsTab, label: 'âš™ï¸ General', icon: '' },
-          { id: 'users' as SettingsTab, label: 'ğŸ‘¤ Users', icon: '' },
-          { id: 'ai' as SettingsTab, label: 'ğŸ¤– AI Settings', icon: '' },
-          { id: 'logs' as SettingsTab, label: 'ğŸ“‹ Logs', icon: '' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '12px 24px',
-              background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
-              color: activeTab === tab.id ? 'white' : 'var(--text-primary)',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '14px',
-              transition: 'all 0.2s',
-              borderRadius: '6px 6px 0 0'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '2px solid var(--border)', paddingBottom: '0' }}>
+        {([
+          { id: 'general' as SettingsTab, label: t('nav.settings'),     Icon: Settings },
+          { id: 'users'   as SettingsTab, label: t('investigation.users'),       Icon: Users },
+          { id: 'ai'      as SettingsTab, label: t('ai.title'), Icon: Bot },
+          { id: 'logs'    as SettingsTab, label: t('settings.logs'),        Icon: ClipboardList }
+        ] as const).map(({ id, label, Icon }) => {
+          const isActive = activeTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: isActive ? 'rgba(var(--primary-rgb, 59 130 246) / 0.1)' : 'transparent',
+                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+                border: 'none',
+                borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
+                marginBottom: '-2px',
+                cursor: 'pointer',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '14px',
+                transition: 'all 0.2s',
+                borderRadius: '6px 6px 0 0',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Users Tab */}
@@ -608,7 +662,7 @@ export default function SettingsPage() {
       {activeTab === 'general' && (
         <>
           <div className="card">
-            <h2>SMTP Configuration</h2>
+            <h2>{t('settings.smtpConfig')}</h2>
             {emailMessage && (
               <div
                 style={{
@@ -625,7 +679,7 @@ export default function SettingsPage() {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>SMTP Host</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.smtpHost')}</label>
                 <input
                   type="text"
                   value={emailSettings.smtp_host}
@@ -635,7 +689,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.port')}</label>
                 <input
                   type="number"
                   min={1}
@@ -646,7 +700,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.username')}</label>
                 <input
                   type="text"
                   value={emailSettings.username}
@@ -656,7 +710,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.password')}</label>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <input
                     type={showEmailPassword ? 'text' : 'password'}
@@ -683,11 +737,11 @@ export default function SettingsPage() {
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
                   <input type="checkbox" checked={showEmailPassword} onChange={(e) => setShowEmailPassword(e.target.checked)} />
-                  Åifreyi gÃ¶ster
+                  {t('settings.showPassword')}
                 </label>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Email</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.fromEmail')}</label>
                 <input
                   type="email"
                   value={emailSettings.from_email}
@@ -697,7 +751,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>From Name</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.fromName')}</label>
                 <input
                   type="text"
                   value={emailSettings.from_name}
@@ -707,20 +761,52 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use SSL/TLS</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.useSsl')}</label>
                 <select
                   value={emailSettings.enable_ssl ? 'true' : 'false'}
                   onChange={(e) => updateEmailSetting('enable_ssl', e.target.value === 'true')}
                   style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
                 >
-                  <option value="true">Enabled</option>
-                  <option value="false">Disabled</option>
+                  <option value="true">{t('settings.enabled')}</option>
+                  <option value="false">{t('settings.disabled')}</option>
                 </select>
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-              {emailSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(emailSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+              {emailSettings.last_updated ? `${t('settings.lastUpdated')}: ${new Date(emailSettings.last_updated).toLocaleString()}` : t('settings.notConfigured')}
             </div>
+
+            {/* Test mail recipient — sends a real test email via saved SMTP config */}
+            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.testEmailRecipient')}</label>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="email"
+                  value={smtpTestRecipient}
+                  onChange={(e) => setSmtpTestRecipient(e.target.value)}
+                  placeholder="ornek@firma.com"
+                  style={{ flex: '1 1 240px', minWidth: '200px', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}
+                />
+                <button
+                  onClick={sendSmtpTestEmail}
+                  disabled={smtpSendingTest}
+                  style={{
+                    padding: '10px 24px',
+                    background: '#16a34a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: smtpSendingTest ? 'not-allowed' : 'pointer',
+                    opacity: smtpSendingTest ? 0.6 : 1,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {smtpSendingTest ? t('settings.sending') : t('settings.sendTestEmail')}
+                </button>
+              </div>
+              <div style={{ marginTop: '6px', fontSize: '12px', color: '#6b7280' }}>{t('settings.sendTestEmailHint')}</div>
+            </div>
+
             <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button
                 onClick={testEmailSettings}
@@ -735,7 +821,7 @@ export default function SettingsPage() {
                   opacity: emailTesting ? 0.6 : 1
                 }}
               >
-                {emailTesting ? 'Testing...' : 'Test SMTP'}
+                {emailTesting ? t('settings.testing') : t('settings.testSmtp')}
               </button>
               <button
                 onClick={saveEmailSettings}
@@ -750,7 +836,7 @@ export default function SettingsPage() {
                   opacity: emailSaving ? 0.6 : 1
                 }}
               >
-                {emailSaving ? 'Saving...' : 'Save SMTP Settings'}
+                {emailSaving ? t('settings.saving') : t('settings.saveSmtp')}
               </button>
             </div>
           </div>
@@ -771,15 +857,15 @@ export default function SettingsPage() {
           )}
 
           <div className="card">
-            <h2>Notification Settings</h2>
+            <h2>{t('settings.notificationSettings')}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
-                    Email Notifications
+                    {t('settings.emailNotifications')}
                   </label>
                   <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
-                    Receive email alerts for high-risk incidents
+                    {t('settings.emailNotificationsDesc')}
                   </p>
                 </div>
                 <label style={{ position: 'relative', display: 'inline-block', width: '52px', height: '28px' }}>
@@ -822,7 +908,7 @@ export default function SettingsPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                  Daily Report Time
+                  {t('settings.dailyReportTime')}
                 </label>
                 <input
                   type="time"
@@ -840,7 +926,7 @@ export default function SettingsPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                  Administrator Email
+                  {t('settings.adminEmail')}
                 </label>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                   <input
@@ -875,17 +961,17 @@ export default function SettingsPage() {
                       opacity: sendingEmail || !settings.admin_email ? 0.6 : 1
                     }}
                   >
-                    {sendingEmail ? 'Sending...' : 'Send Test Email'}
+                    {sendingEmail ? t('settings.sending') : t('settings.sendTestEmail')}
                   </button>
                 </div>
                 {emailConfigured === false && (
                   <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px', marginBottom: 0 }}>
-                    âš ï¸ Email service is not configured. Please configure SMTP settings below.
+                    ⚠️ Email service is not configured. Please configure SMTP settings below.
                   </p>
                 )}
                 {emailConfigured === true && (
                   <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', marginBottom: 0 }}>
-                    âœ“ Email service is configured and ready
+                    ✓ Email service is configured and ready
                   </p>
                 )}
               </div>
@@ -893,11 +979,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="card">
-            <h2>Risk Thresholds</h2>
+            <h2>{t('settings.riskThresholds')}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                  Low Risk Threshold
+                  {t('settings.lowThreshold')}
                 </label>
                 <input
                   type="number"
@@ -919,7 +1005,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                  Medium Risk Threshold
+                  {t('settings.mediumThreshold')}
                 </label>
                 <input
                   type="number"
@@ -941,7 +1027,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text-primary)' }}>
-                  High Risk Threshold
+                  {t('settings.highThreshold')}
                 </label>
                 <input
                   type="number"
@@ -966,7 +1052,7 @@ export default function SettingsPage() {
 
           {/* Splunk Settings Card */}
           <div className="card" style={{ marginTop: '24px' }}>
-            <h2>Splunk SIEM Configuration</h2>
+            <h2>{t('settings.splunkConfig')}</h2>
             {splunkMessage && (
               <div
                 style={{
@@ -984,7 +1070,7 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <label style={{ fontWeight: '500', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
-                  Enable Splunk Integration
+                  {t('settings.splunkEnabled')}
                 </label>
                 <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
                   Send audit and application logs to Splunk SIEM
@@ -1099,7 +1185,7 @@ export default function SettingsPage() {
                   opacity: splunkTesting ? 0.6 : 1
                 }}
               >
-                {splunkTesting ? 'Testing...' : 'Test Connection'}
+                {splunkTesting ? t('settings.testing') : t('settings.testSplunk')}
               </button>
               <button
                 onClick={saveSplunkSettings}
@@ -1114,13 +1200,13 @@ export default function SettingsPage() {
                   opacity: splunkSaving ? 0.6 : 1
                 }}
               >
-                {splunkSaving ? 'Saving...' : 'Save Splunk Settings'}
+                {splunkSaving ? t('settings.saving') : t('settings.saveSplunk')}
               </button>
             </div>
           </div>
 
           <div className="card">
-            <h2>DLP API Configuration</h2>
+            <h2>{t('settings.dlpApiConfig')}</h2>
             {dlpMessage && (
               <div
                 style={{
@@ -1137,7 +1223,7 @@ export default function SettingsPage() {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Manager IP / Host</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.managerIp')}</label>
                 <input
                   type="text"
                   value={dlpSettings.manager_ip}
@@ -1147,7 +1233,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Port</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.managerPort')}</label>
                 <input
                   type="number"
                   min={1}
@@ -1158,7 +1244,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Timeout (sn)</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.timeout')}</label>
                 <input
                   type="number"
                   min={5}
@@ -1169,7 +1255,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Username</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.username')}</label>
                 <input
                   type="text"
                   value={dlpSettings.username}
@@ -1179,7 +1265,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Password</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.password')}</label>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -1200,17 +1286,17 @@ export default function SettingsPage() {
                         cursor: 'pointer'
                       }}
                     >
-                      Reset
+                      {t('settings.reset')}
                     </button>
                   )}
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '6px' }}>
                   <input type="checkbox" checked={showPassword} onChange={(e) => setShowPassword(e.target.checked)} />
-                  Åifreyi gÃ¶ster
+                  {t('settings.showPassword')}
                 </label>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>Use HTTPS</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: 'var(--text-primary)' }}>{t('settings.useHttps')}</label>
                 <select
                   value={dlpSettings.use_https ? 'true' : 'false'}
                   onChange={(e) => updateDlpSetting('use_https', e.target.value === 'true')}
@@ -1222,7 +1308,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-              {dlpSettings.last_updated ? `Son gÃ¼ncelleme: ${new Date(dlpSettings.last_updated).toLocaleString()}` : 'HenÃ¼z yapÄ±landÄ±rÄ±lmadÄ±'}
+              {dlpSettings.last_updated ? `${t('settings.lastUpdated')}: ${new Date(dlpSettings.last_updated).toLocaleString()}` : t('settings.notConfigured')}
             </div>
             <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button
@@ -1238,7 +1324,7 @@ export default function SettingsPage() {
                   opacity: dlpTesting ? 0.6 : 1
                 }}
               >
-                {dlpTesting ? 'Testing...' : 'Test Connection'}
+                {dlpTesting ? t('settings.testing') : t('settings.testConnection')}
               </button>
               <button
                 onClick={saveDlpApiSettings}
@@ -1253,7 +1339,7 @@ export default function SettingsPage() {
                   opacity: dlpSaving ? 0.6 : 1
                 }}
               >
-                {dlpSaving ? 'Saving...' : 'Save DLP Settings'}
+                {dlpSaving ? t('settings.saving') : t('settings.saveDlp')}
               </button>
             </div>
           </div>
@@ -1274,7 +1360,7 @@ export default function SettingsPage() {
                 opacity: saving ? 0.6 : 1
               }}
             >
-              {saving ? 'Saving...' : 'Save Settings'}
+              {saving ? t('settings.saving') : t('settings.saveSettings')}
             </button>
           </div>
         </>

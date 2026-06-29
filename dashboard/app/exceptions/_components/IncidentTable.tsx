@@ -5,15 +5,17 @@ import { ChevronUp, ChevronDown, X, ListChecks } from 'lucide-react'
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns'
 import Pagination from '@/components/ui/Pagination'
 import GridExport from '@/components/ui/GridExport'
+import { useTranslation } from '@/components/LanguageProvider'
 import type { Incident } from '../_lib/types'
 import { normalizeTeamName, getActionStyle } from '../_lib/utils'
-import { DEFAULT_START, DEFAULT_END, ITEMS_PER_PAGE, TABLE_COLUMNS, COLUMN_LABELS, MULTISELECT_COLUMNS, STYLES } from '../_lib/constants'
+import { DEFAULT_START, DEFAULT_END, ITEMS_PER_PAGE, TABLE_COLUMNS, COLUMN_LABELS, MULTISELECT_COLUMNS, STYLES, UNKNOWN_TEAM, DEFAULT_TEAM_FALLBACK } from '../_lib/constants'
 
 interface IncidentTableProps {
   incidents: Incident[]
 }
 
 export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
+  const { t } = useTranslation()
   const [currentPage, setCurrentPage] = useState(1)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -168,17 +170,17 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
             <div style={STYLES.iconBox('linear-gradient(135deg, #f59e0b, #ef4444)', '0 3px 10px rgba(245, 158, 11, 0.25)')}>
               <ListChecks size={16} color="#fff" />
             </div>
-            <h2 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Incidents List</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t('incidentTable.incidentsList')}</h2>
           </div>
           {hasNonDefaultFilters && (
             <button onClick={clearAllFilters} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <X size={14} /> Filtreleri Temizle
+              <X size={14} /> {t('exc.clearFilters')}
             </button>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Showing {filteredIncidents.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredIncidents.length)} of {filteredIncidents.length} incidents
+            {t('incidentTable.showing')} {filteredIncidents.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredIncidents.length)} {t('incidentTable.of')} {filteredIncidents.length} {t('exc.incidents')}
           </span>
           <GridExport data={filteredIncidents} fileName="team-based-analysis" columns={[
             { key: 'timestamp', header: 'Time', formatter: (val) => new Date(val).toLocaleString('tr-TR') },
@@ -198,7 +200,7 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
               return (
                 <th key={column} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: isSorted ? '#f59e0b' : 'var(--text-primary)', width: column === 'time' ? '150px' : column === 'action' ? '100px' : 'auto', borderBottom: 'none' }}>
                   <span onClick={() => handleSort(column)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-                    {COLUMN_LABELS[column]}
+                    {column === 'time' ? t('incidentTable.time') : column === 'max' ? t('incidentTable.max') : t(`heatmap.${column}`) || COLUMN_LABELS[column]}
                     {isSorted && (sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
                   </span>
                 </th>
@@ -227,14 +229,14 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
                     isMultiSelect ? (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); toggleColumnFilter(column) }} style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: hasActiveFilter ? 'rgba(59, 130, 246, 0.1)' : 'var(--surface)', color: hasActiveFilter ? '#3b82f6' : 'var(--text-secondary)', fontSize: '12px', textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hasActiveFilter ? `${selectedValues.length} selected` : 'Tümü'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hasActiveFilter ? `${selectedValues.length} ${t('incidentTable.selected')}` : t('incidentTable.all')}</span>
                           <ChevronDown size={12} />
                         </button>
                         {openColumnFilter === column && (
                           <div style={{ position: 'absolute', top: 'calc(100% - 8px)', left: '12px', width: 'max(100%, 180px)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 1000, maxHeight: '300px', overflowY: 'auto', padding: '8px' }} onClick={(e) => e.stopPropagation()}>
-                            <input type="text" placeholder="Ara..." value={searchQuery} onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))} style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', marginBottom: '8px', boxSizing: 'border-box' }} />
+                            <input type="text" placeholder={t('incidentTable.search')} value={searchQuery} onChange={(e) => setColumnFilterSearch(prev => ({ ...prev, [column]: e.target.value }))} style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', marginBottom: '8px', boxSizing: 'border-box' }} />
                             <div onClick={() => setColumnFilters(prev => ({ ...prev, [column]: selectedValues.length === filteredValues.length ? [] : [...filteredValues] }))} style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', background: selectedValues.length === filteredValues.length ? 'var(--surface-hover)' : 'transparent', marginBottom: '4px' }}>
-                              {selectedValues.length === filteredValues.length ? '✓ Seçimi Kaldır' : 'Tümünü Seç'}
+                              {selectedValues.length === filteredValues.length ? t('incidentTable.clearSelection') : t('incidentTable.selectAll')}
                             </div>
                             {filteredValues.map(value => (
                               <label key={value} style={{ display: 'flex', alignItems: 'center', padding: '6px 8px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', background: selectedValues.includes(value) ? 'var(--surface-hover)' : 'transparent' }}>
@@ -242,12 +244,12 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
                               </label>
                             ))}
-                            {filteredValues.length === 0 && <div style={{ padding: '8px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>Bulunamadı</div>}
+                            {filteredValues.length === 0 && <div style={{ padding: '8px', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>{t('exc.notFound')}</div>}
                           </div>
                         )}
                       </>
                     ) : (
-                      <input type="text" placeholder="Ara..." value={hasActiveFilter ? selectedValues[0] : ''} onChange={(e) => { const val = e.target.value; setColumnFilters(prev => ({ ...prev, [column]: val ? [val] : [] })) }}
+                      <input type="text" placeholder={t('incidentTable.search')} value={hasActiveFilter ? selectedValues[0] : ''} onChange={(e) => { const val = e.target.value; setColumnFilters(prev => ({ ...prev, [column]: val ? [val] : [] })) }}
                         style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }} />
                     )
                   ) : null}
@@ -258,17 +260,21 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
         </thead>
         <tbody>
           {paginatedIncidents.length === 0 ? (
-            <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>No incidents found matching filters</td></tr>
+            <tr><td colSpan={9} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('exc.noIncidentsForFilter')}</td></tr>
           ) : (
             paginatedIncidents.map(incident => {
               const actionStyle = getActionStyle(incident.action)
               return (
                 <tr key={incident.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover:bg-[var(--surface-hover)]">
                   <td style={STYLES.tableCell}>{format(new Date(incident.timestamp), 'dd MMM yyyy HH:mm:ss')}</td>
-                  <td style={STYLES.tableCell}>{incident.userEmail || 'Unknown'}</td>
+                  <td style={STYLES.tableCell}>{incident.userEmail || t('incidentTable.unknown')}</td>
                   <td style={STYLES.tableCell}>{incident.fullName || '-'}</td>
                   <td style={STYLES.tableCell}>{incident.department || '-'}</td>
-                  <td style={STYLES.tableCell}>{normalizeTeamName(incident.team) || 'Hesap Araştırmaları'}</td>
+                  <td style={STYLES.tableCell}>{
+                    normalizeTeamName(incident.team) === UNKNOWN_TEAM ? t('incidentTable.unknown') :
+                    normalizeTeamName(incident.team) === DEFAULT_TEAM_FALLBACK ? t('incidentTable.defaultTeam') :
+                    normalizeTeamName(incident.team)
+                  }</td>
                   <td style={STYLES.tableCell}>{incident.policy || '-'}</td>
                   <td style={STYLES.tableCell}>{incident.domain || '-'}</td>
                   <td style={STYLES.tableCell}>{incident.maxMatches || 0}</td>

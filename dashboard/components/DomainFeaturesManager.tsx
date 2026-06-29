@@ -16,13 +16,17 @@ import {
     Filter,
     CheckCircle,
     Pencil,
-    Trash2
+    Trash2,
+    FileText
 } from 'lucide-react'
 
 interface DomainFeature {
     id: number
     domain: string
     has_nda: boolean
+    nda_file_path?: string
+    nda_updated_by?: string
+    nda_updated_at?: string
     is_unknown: boolean
     is_personal: boolean
     istirak_domain: boolean
@@ -144,6 +148,22 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     const [columns, setColumns] = useState<ColumnDef[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    
+    // Auth info for NDA updates
+    const [username, setUsername] = useState<string>('System')
+
+    // NDA Modal State
+    const [showNdaModal, setShowNdaModal] = useState(false)
+    const [currentNdaDomain, setCurrentNdaDomain] = useState<number | null>(null)
+    const [ndaPathInput, setNdaPathInput] = useState('')
+
+    useEffect(() => {
+        // Try to get username from local storage (AuthProvider sets this)
+        const storedUser = localStorage.getItem('username')
+        if (storedUser) {
+            setUsername(storedUser)
+        }
+    }, [])
 
     // Pagination
     const [page, setPage] = useState(1)
@@ -257,6 +277,26 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
     }
 
     const handleToggle = (domainId: number, col: ColumnDef) => {
+        if (col.key === 'has_nda') {
+            const domain = domains.find(d => d.id === domainId)
+            const currentValue = domain?.has_nda
+            
+            if (!currentValue) {
+                // Changing from false to true -> open modal to ask for path
+                setCurrentNdaDomain(domainId)
+                setNdaPathInput(domain?.nda_file_path || '')
+                setShowNdaModal(true)
+                return // Don't toggle yet, wait for modal
+            } else {
+                // Changing from true to false -> clear NDA status
+                setDomains(prev => prev.map(d => 
+                    d.id === domainId ? { ...d, has_nda: false, nda_file_path: '' } : d
+                ))
+                setModifiedIds(prev => new Set(prev).add(domainId))
+                return
+            }
+        }
+
         setDomains(prev =>
             prev.map(d => {
                 if (d.id === domainId) {
@@ -274,6 +314,28 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
         setModifiedIds(prev => new Set(prev).add(domainId))
     }
 
+    const handleNdaModalSubmit = () => {
+        if (currentNdaDomain && ndaPathInput.trim()) {
+            setDomains(prev => prev.map(d => 
+                d.id === currentNdaDomain 
+                    ? { ...d, has_nda: true, nda_file_path: ndaPathInput.trim(), updated_by: username } 
+                    : d
+            ))
+            setModifiedIds(prev => new Set(prev).add(currentNdaDomain))
+            setShowNdaModal(false)
+            setCurrentNdaDomain(null)
+            setNdaPathInput('')
+        } else {
+            alert('Lütfen gizlilik sözleşmesinin bulunduğu dosya dizin yolunu girin.')
+        }
+    }
+
+    const handleNdaModalCancel = () => {
+        setShowNdaModal(false)
+        setCurrentNdaDomain(null)
+        setNdaPathInput('')
+    }
+
     const handleBulkSave = async () => {
         if (modifiedIds.size === 0) {
             setMessage({ type: 'error', text: 'Kaydedilecek değişiklik yok' })
@@ -287,6 +349,8 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 .map(d => ({
                     id: d.id,
                     has_nda: d.has_nda,
+                    nda_file_path: d.nda_file_path,
+                    updated_by: username,
                     is_personal: d.is_personal,
                     istirak_domain: d.istirak_domain,
                     egitim: d.egitim,
@@ -722,6 +786,65 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                 </div>
             )}
 
+            {/* NDA Path Modal */}
+            {showNdaModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+                }}>
+                    <div style={{
+                        background: 'var(--surface)', padding: '24px', borderRadius: '12px', width: '500px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+                    }}>
+                        <h3 style={{ marginTop: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FileText size={20} style={{ color: '#3b82f6' }} /> Gizlilik Sözleşmesi Dosya Yolu
+                        </h3>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                            Lütfen bu domain için gizlilik sözleşmesinin (NDA) bulunduğu klasör dizinini veya ağ yolunu giriniz.
+                        </p>
+                        
+                        <div style={{ margin: '20px 0' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                                Dosya Dizin Yolu (örn: \\sunucu\ortak\NDA\) *
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="C:\Ortak\NDA\..."
+                                value={ndaPathInput}
+                                onChange={(e) => setNdaPathInput(e.target.value)}
+                                autoFocus
+                                style={{
+                                    width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)',
+                                    background: 'var(--background)', color: 'var(--text-primary)'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                                onClick={handleNdaModalCancel}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)',
+                                    background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer'
+                                }}
+                            >
+                                İptal
+                            </button>
+                            <button
+                                onClick={handleNdaModalSubmit}
+                                disabled={!ndaPathInput.trim()}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                                    background: '#3b82f6', color: 'white', cursor: 'pointer', opacity: !ndaPathInput.trim() ? 0.7 : 1
+                                }}
+                            >
+                                Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Search & Info */}
             <div style={{
                 marginBottom: '16px',
@@ -864,9 +987,23 @@ export default function DomainFeaturesManager({ onClose }: DomainFeaturesManager
                                         const val = getValue(domain, col)
                                         return (
                                             <td key={col.key} style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                                <button onClick={() => handleToggle(domain.id, col)} style={getToggleStyle(val)}>
-                                                    {val ? 'Evet' : 'Hayır'}
-                                                </button>
+                                                {col.key === 'has_nda' && domain.has_nda && domain.nda_file_path ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                                        <button onClick={() => handleToggle(domain.id, col)} style={getToggleStyle(val)}>
+                                                            Evet
+                                                        </button>
+                                                        <span 
+                                                            title={`Ekleyen: ${domain.nda_updated_by || 'Bilinmiyor'} \nYol: ${domain.nda_file_path}`}
+                                                            style={{ fontSize: '10px', color: '#3b82f6', textDecoration: 'underline', cursor: 'help' }}
+                                                        >
+                                                            [Dosya Yolu]
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <button onClick={() => handleToggle(domain.id, col)} style={getToggleStyle(val)}>
+                                                        {val ? 'Evet' : 'Hayır'}
+                                                    </button>
+                                                )}
                                             </td>
                                         )
                                     })}

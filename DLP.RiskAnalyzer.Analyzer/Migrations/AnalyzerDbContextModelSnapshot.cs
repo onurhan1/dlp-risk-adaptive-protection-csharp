@@ -1150,6 +1150,86 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
                 {
                     b.Navigation("Values");
                 });
+
+            modelBuilder.Entity("DLP.RiskAnalyzer.Analyzer.Models.IsolationForestScore", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("AnomalyRaw")
+                        .HasColumnType("double precision")
+                        .HasColumnName("anomaly_raw");
+
+                    b.Property<DateTime>("CalculatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("calculated_at");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("department");
+
+                    b.Property<string>("FeatureContributions")
+                        .IsRequired()
+                        .HasDefaultValue("[]")
+                        .HasColumnType("text")
+                        .HasColumnName("feature_contributions");
+
+                    b.Property<string>("GroupBreakdown")
+                        .IsRequired()
+                        .HasDefaultValue("{}")
+                        .HasColumnType("text")
+                        .HasColumnName("group_breakdown");
+
+                    b.Property<double>("IFScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("if_score");
+
+                    b.Property<int>("IncidentCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("incident_count");
+
+                    b.Property<bool>("IsAnomaly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_anomaly");
+
+                    b.Property<string>("JobId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("job_id");
+
+                    b.Property<int>("LookbackDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("lookback_days");
+
+                    b.Property<string>("UserEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("user_email");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalculatedAt")
+                        .HasDatabaseName("ix_isolation_forest_scores_calculated_at");
+
+                    b.HasIndex("IsAnomaly")
+                        .HasDatabaseName("ix_isolation_forest_scores_is_anomaly");
+
+                    b.HasIndex("JobId")
+                        .HasDatabaseName("ix_isolation_forest_scores_job_id");
+
+                    b.HasIndex("UserEmail")
+                        .HasDatabaseName("ix_isolation_forest_scores_user_email");
+
+                    b.ToTable("isolation_forest_scores");
+                });
+
 #pragma warning restore 612, 618
         }
     }

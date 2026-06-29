@@ -6,7 +6,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// <summary>
 /// Data Classification Service
 /// </summary>
-public class ClassificationService
+public class ClassificationService : IClassificationService
 {
     private readonly AnalyzerDbContext _context;
 

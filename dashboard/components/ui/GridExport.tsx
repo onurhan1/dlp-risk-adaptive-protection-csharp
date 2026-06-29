@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { FileText, FileSpreadsheet, FileImage, Download, ChevronDown } from 'lucide-react'
+import { useTranslation } from '@/components/LanguageProvider'
 
 export interface ExportColumn {
     key: string
@@ -24,12 +25,7 @@ export interface GridExportProps {
     }
 }
 
-const defaultLabels = {
-    csv: 'CSV',
-    xlsx: 'Excel',
-    pdf: 'PDF',
-    exporting: 'Dışa aktarılıyor...',
-}
+
 
 export default function GridExport({
     data,
@@ -39,6 +35,13 @@ export default function GridExport({
     disabled = false,
     labels: customLabels,
 }: GridExportProps) {
+    const { t } = useTranslation()
+    const defaultLabels = {
+        csv: 'CSV',
+        xlsx: 'Excel',
+        pdf: 'PDF',
+        exporting: t('gridExport.exporting'),
+    }
     const labels = { ...defaultLabels, ...customLabels }
     const [exporting, setExporting] = useState<string | null>(null)
 

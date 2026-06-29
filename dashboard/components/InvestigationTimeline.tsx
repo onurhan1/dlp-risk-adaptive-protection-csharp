@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { BarChart3 } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface TimelineEvent {
   id: number
@@ -47,6 +48,7 @@ export default function InvestigationTimeline({
   onEventsLoaded,
   onUserInsightsClick
 }: InvestigationTimelineProps) {
+  const { t } = useTranslation()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [userInfo, setUserInfo] = useState<{ name: string; title: string; risk: number; department?: string } | null>(null)
@@ -252,7 +254,7 @@ export default function InvestigationTimeline({
   if (!userEmail) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-        <p>Select a user from the list to view timeline</p>
+        <p>{t('timeline.selectUser')}</p>
       </div>
     )
   }
@@ -319,7 +321,7 @@ export default function InvestigationTimeline({
               }}
             >
               <span><BarChart3 size={14} /></span>
-              User Insights
+              {t('timeline.userInsights')}
             </button>
           </div>
         </div>
@@ -329,11 +331,11 @@ export default function InvestigationTimeline({
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            Loading timeline...
+            {t('timeline.loading')}
           </div>
         ) : Object.keys(groupedEvents).length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            No events found
+            {t('timeline.noEvents')}
           </div>
         ) : (
           <>
@@ -416,10 +418,10 @@ export default function InvestigationTimeline({
                     fontSize: '12px'
                   }}
                 >
-                  Previous
+                  {t('timeline.previous')}
                 </button>
                 <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Page {currentPage} of {totalPages}
+                  {t('pagination.page')} {currentPage} {t('pagination.of')} {totalPages}
                 </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); setCurrentPage(p => Math.min(totalPages, p + 1)); }}
@@ -434,7 +436,7 @@ export default function InvestigationTimeline({
                     fontSize: '12px'
                   }}
                 >
-                  Next
+                  {t('timeline.next')}
                 </button>
               </div>
             )}

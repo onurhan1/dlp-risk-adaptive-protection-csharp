@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import apiClient from '@/lib/axios'
 import { getApiUrlDynamic } from '@/lib/api-config'
 import { OPENAI_MODELS } from '@/lib/openai-models'
+import { useTranslation } from '@/components/LanguageProvider'
 
 interface AISettings {
     openai_api_key: string
@@ -21,6 +22,7 @@ interface AISettings {
 }
 
 export default function AISettingsTab() {
+    const { t } = useTranslation()
     const [settings, setSettings] = useState<AISettings>({
         openai_api_key: '',
         openai_api_key_set: false,
@@ -155,7 +157,7 @@ export default function AISettingsTab() {
 
             {/* Model Provider Selection */}
             <div style={{ background: 'var(--background)', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-                <h4 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600 }}>Model Provider</h4>
+                <h4 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600 }}>{t('aiSettings.modelProvider')}</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {[
                         { value: 'local', label: 'Local (Z-score Baseline) - No API key required' },
@@ -185,7 +187,7 @@ export default function AISettingsTab() {
                         {settings.openai_api_key_set && <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>✓ API key is configured</div>}
                     </div>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>Model Name</label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>{t('aiSettings.modelName')}</label>
                         <select value={settings.model_name} onChange={(e) => setSettings({ ...settings, model_name: e.target.value })} style={inputStyle}>
                             {OPENAI_MODELS.map((model) => <option key={model.value} value={model.value}>{model.label}</option>)}
                         </select>
@@ -231,14 +233,14 @@ export default function AISettingsTab() {
 
             {/* Advanced Settings */}
             <div style={{ background: 'var(--background)', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-                <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600 }}>Advanced Settings</h4>
+                <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600 }}>{t('aiSettings.advancedSettings')}</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>Temperature (0-1)</label>
                         <input type="number" min="0" max="1" step="0.1" value={settings.temperature} onChange={(e) => setSettings({ ...settings, temperature: Number(e.target.value) })} style={inputStyle} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>Max Tokens</label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>{t('aiSettings.maxTokens')}</label>
                         <input type="number" min="100" max="4000" value={settings.max_tokens} onChange={(e) => setSettings({ ...settings, max_tokens: Number(e.target.value) })} style={inputStyle} />
                     </div>
                 </div>
@@ -263,7 +265,7 @@ export default function AISettingsTab() {
                     fontSize: '14px',
                     opacity: saving ? 0.6 : 1
                 }}>
-                    {saving ? 'Saving...' : 'Save AI Settings'}
+                    {saving ? `${t('settings.saving')}` : `${t('common.save')} AI`}
                 </button>
             </div>
         </div>

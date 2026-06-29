@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.ComponentModel.DataAnnotations;
+using DLP.RiskAnalyzer.Analyzer.Auth;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -13,20 +15,21 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IConfiguration _configuration;
+    private readonly AuthJwtSettings _jwt;
     private readonly ILogger<AuthController> _logger;
     private readonly AnalyzerDbContext _db;
     private readonly IUserService _userService;
 
-    public AuthController(AnalyzerDbContext db, IConfiguration configuration, ILogger<AuthController> logger, IUserService? userService = null)
+    public AuthController(AnalyzerDbContext db, AuthJwtSettings jwt, ILogger<AuthController> logger, IUserService? userService = null)
     {
         _db = db;
-        _configuration = configuration;
+        _jwt = jwt;
         _logger = logger;
         _userService = userService ?? new UserService(db);
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         try
@@ -82,7 +85,7 @@ public class AuthController : ControllerBase
 
             // Generate JWT token (simplified - use proper JWT library in production)
             var token = GenerateToken(normalizedUsername, user!.Role);
-            var expiresAt = DateTime.UtcNow.AddHours(8); // Token expires in 8 hours
+            var expiresAt = DateTime.UtcNow.AddHours(_jwt.ExpirationHours);
 
             _logger.LogInformation("Successful login for username: {Username} with role {Role}", normalizedUsername, user.Role);
 
@@ -111,9 +114,9 @@ public class AuthController : ControllerBase
                 return BadRequest(new { detail = "Token is required" });
             }
 
-            var secretKey = _configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!";
-            var issuer = _configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
-            var audience = _configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
+            var secretKey = _jwt.SecretKey;
+            var issuer = _jwt.Issuer;
+            var audience = _jwt.Audience;
 
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(secretKey);
@@ -152,10 +155,10 @@ public class AuthController : ControllerBase
 
     private string GenerateToken(string username, string role)
     {
-        var secretKey = _configuration["Jwt:SecretKey"] ?? "YourSuperSecretKeyThatShouldBeAtLeast32CharactersLong!";
-        var issuer = _configuration["Jwt:Issuer"] ?? "DLP-RiskAnalyzer";
-        var audience = _configuration["Jwt:Audience"] ?? "DLP-RiskAnalyzer-Client";
-        var expirationHours = _configuration.GetValue<int>("Jwt:ExpirationHours", 8);
+        var secretKey = _jwt.SecretKey;
+        var issuer = _jwt.Issuer;
+        var audience = _jwt.Audience;
+        var expirationHours = _jwt.ExpirationHours;
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

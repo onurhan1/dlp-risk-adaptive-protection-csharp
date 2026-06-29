@@ -1,0 +1,59 @@
+page.tsx:1030: <option value="weekly">Last Week</option>
+page.tsx:28: <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', We
+page.tsx:273: <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Change No</th>
+page.tsx:444: <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)'
+page.tsx:244: <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Change No</th>
+page.tsx:373: <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, marginBottom: '6px', color: 'var(--text-secondary)'
+page.tsx:469: <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', We
+page.tsx:551: <div style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '4px', fontWeight: '500' }}>Toplam Release
+page.tsx:1153: <h3 style={{ fontSize: '20px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #10b981, #06b6d4)', We
+ExceptionRecommendation.tsx:124: <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0
+ExceptionRecommendation.tsx:131: <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', letterSpacing: '0
+ExceptionRecommendation.tsx:350: <h6 style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', paddingBottom: '6px
+page.tsx:23: {language === 'tr' ? <><BookOpen size={22} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '8px' }} />
+page.tsx:110: <p className="login-subtitle">Risk Adaptive Protection</p>
+ActionIncidentsModal.tsx:581: <th style={{ padding: '12px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', te
+AutoRemediationStatus.tsx:108: <th>Risk Score</th>
+EntityDetailModal.tsx:570: <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Current Value</div>
+EntityDetailModal.tsx:582: <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Standard Deviation</div>
+EntityDetailModal.tsx:752: <div style={{ color: 'var(--text-muted)', marginBottom: '2px', fontSize: '10px', textTransform: 'none' }}>Max Matches</d
+HighRiskUsersModal.tsx:218: <th style={{ padding: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', 
+InvestigationAlertDetails.tsx:274: <h5 style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '6px' }}>Matched Rules</
+RemediateButton.tsx:80: <option value="false_positive">False Positive</option>
+ReportModal.tsx:239: {reportView === 'daily_summary' ? <><Calendar size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight
+ReportModal.tsx:404: <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>Action Summary</h3>
+ReportModal.tsx:476: <h3 style={{ marginBottom: '12px', fontSize: '15px', fontWeight: 600 }}>Channel Breakdown</h3>
+ReportModal.tsx:601: <th style={{ padding: '10px', textAlign: 'right' }}>Current Risk</th>
+ReportModal.tsx:602: <th style={{ padding: '10px', textAlign: 'right' }}>Avg Risk</th>
+ReportModal.tsx:603: <th style={{ padding: '10px', textAlign: 'right' }}>Max Risk</th>
+RiskTimelineChart.tsx:213: <th>Risk Score</th>
+TimelineView.tsx:238: <span className="user-title">User Profile</span>
+UserInsightsModal.tsx:190: <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'none', marginBottom: '4px' }}>User Risk Insi
+UserInsightsModal.tsx:224: <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Weekly Avg</di
+UserInsightsModal.tsx:229: <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'none' }}>Monthly Avg</d
+UserInsightsModal.tsx:244: <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Avg Daily Scor
+UserInsightsModal.tsx:249: <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Total Incident
+UserInsightsModal.tsx:254: <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'none' }}>Max Matches</d
+UserInsightsModal.tsx:325: <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Max Matches</th>
+UserInsightsModal.tsx:326: <th style={{ textAlign: 'center', padding: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Avg Matches</th>
+AISettingsTab.tsx:158: <h4 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 600 }}>Model Provider</h4>
+AISettingsTab.tsx:188: <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>Model Name</label>
+AISettingsTab.tsx:234: <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 600 }}>Advanced Settings</h4>
+AISettingsTab.tsx:241: <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, fontSize: '13px' }}>Max Tokens</label>
+LogsTab.tsx:181: <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>System Logs</h3>
+LogsTab.tsx:190: }}>Audit Logs</button>
+LogsTab.tsx:194: }}>Application Logs</button>
+LogsTab.tsx:198: }}>User Activity Logs</button>
+LogsTab.tsx:205: <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)'
+LogsTab.tsx:209: <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)'
+LogsTab.tsx:214: <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)'
+LogsTab.tsx:216: <option value="">All Types</option>
+LogsTab.tsx:225: <option value="">All Levels</option>
+LogsTab.tsx:236: <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)'
+LogsTab.tsx:238: <option value="">All Activities</option>
+UsersTab.tsx:135: <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>User Management</h3>
+buildHooks.test.tsx:1681: <button onClick={handleClick}>Fetch User</button>
+buildHooks.test.tsx:1733: <button onClick={handleClick}>Fetch User</button>
+buildHooks.test.tsx:1827: <button onClick={() => handleLoad()}>Load Data</button>
+buildHooks.test.tsx:1828: <button onClick={() => handleMutate()}>Update Data</button>
+buildHooks.test.tsx:1878: <button onClick={handleFetchClick}>Fetch User</button>

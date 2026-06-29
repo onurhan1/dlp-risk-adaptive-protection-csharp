@@ -13,7 +13,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// Manuel/on-demand tetikleme içindir (POST /api/released-incidents/sync).
 /// Otomatik akış Collector → Redis (dlp:released-incidents) → Analyzer (DatabaseService) üzerinden gider.
 /// </summary>
-public class ReleasedIncidentSyncService
+public class ReleasedIncidentSyncService : IReleasedIncidentSyncService
 {
     private readonly AnalyzerDbContext _context;
     private readonly IConfiguration _configuration;
