@@ -64,7 +64,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
             if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
-                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var options = new System.Text.Json.JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+                };
                 importedPolicies = System.Text.Json.JsonSerializer.Deserialize<List<PIPolicy>>(document.RootElement.GetRawText(), options);
             }
             else if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
