@@ -45,8 +45,180 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
         private async Task<(bool, string, int, int, int)> ImportJsonAsync(IFormFile file)
         {
             using var stream = file.OpenReadStream();
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var importedPolicies = await JsonSerializer.DeserializeAsync<List<PIPolicy>>(stream, options);
+            using var document = await System.Text.Json.JsonDocument.ParseAsync(stream);
+
+            var importedPolicies = new List<PIPolicy>();
+
+            if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                importedPolicies = System.Text.Json.JsonSerializer.Deserialize<List<PIPolicy>>(document.RootElement.GetRawText(), options);
+            }
+            else if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (document.RootElement.TryGetProperty("policy", out var policyElement))
+                {
+                    var policyName = policyElement.TryGetProperty("policy_name", out var pn) ? pn.GetString() : null;
+                    if (!string.IsNullOrEmpty(policyName))
+                    {
+                        var policy = new PIPolicy { PolicyName = policyName };
+                        
+                        if (policyElement.TryGetProperty("rules", out var rulesElement) && rulesElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                        {
+                            foreach (var rElement in rulesElement.EnumerateArray())
+                            {
+                                var rule = new PIRule
+                                {
+                                    RuleName = rElement.TryGetProperty("rule_name", out var rn) ? rn.GetString() : null,
+                                    PartsCountType = rElement.TryGetProperty("parts_count_type", out var pct) ? pct.GetString() : null,
+                                    ConditionRelationType = rElement.TryGetProperty("condition_relation_type", out var crt) ? crt.GetString() : null
+                                };
+                                
+                                if (rElement.TryGetProperty("classifiers", out var classElement) && classElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    foreach (var cElement in classElement.EnumerateArray())
+                                    {
+                                        rule.Classifiers.Add(new PIRuleClassifier
+                                        {
+                                            ClassifierName = cElement.TryGetProperty("classifier_name", out var cn) ? cn.GetString() : null,
+                                            ThresholdType = cElement.TryGetProperty("threshold_type", out var tt) ? tt.GetString() : null,
+                                            ThresholdCalculateType = cElement.TryGetProperty("threshold_calculate_type", out var tct) ? tct.GetString() : null
+                                        });
+                                    }
+                                }
+
+                                if (rElement.TryGetProperty("exception_rules", out var excObj) && excObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    if (excObj.TryGetProperty("exception_rules", out var excArr) && excArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var eElement in excArr.EnumerateArray())
+                                        {
+                                            var exc = new PIException
+                                            {
+                                                ExceptionRuleName = eElement.TryGetProperty("exception_rule_name", out var ern) ? ern.GetString() : null,
+                                                Enabled = eElement.TryGetProperty("enabled", out var ee) ? ee.GetString() : null,
+                                                Description = eElement.TryGetProperty("description", out var ed) ? ed.GetString() : null,
+                                                ConditionEnabled = eElement.TryGetProperty("condition_enabled", out var ce) ? ce.GetString() : null,
+                                                SourceEnabled = eElement.TryGetProperty("source_enabled", out var se) ? se.GetString() : null,
+                                                DestinationEnabled = eElement.TryGetProperty("destination_enabled", out var de) ? de.GetString() : null,
+                                                PartsCountType = eElement.TryGetProperty("parts_count_type", out var epct) ? epct.GetString() : null,
+                                                ConditionRelationType = eElement.TryGetProperty("condition_relation_type", out var ecrt) ? ecrt.GetString() : null
+                                            };
+
+                                            if (eElement.TryGetProperty("severity_action", out var sevObj) && sevObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                if (sevObj.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                {
+                                                    foreach (var cdElement in cdArr.EnumerateArray())
+                                                    {
+                                                        exc.SeverityActions.Add(new PIExceptionSeverityAction
+                                                        {
+                                                            Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
+                                                            SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
+                                                            DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
+                                                            ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
+                                                        });
+                                                    }
+                                                }
+                                            }
+
+                                            if (eElement.TryGetProperty("source", out var srcObj) && srcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                if (srcObj.TryGetProperty("network_details", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                {
+                                                    foreach (var ndElement in ndArr.EnumerateArray())
+                                                    {
+                                                        exc.Sources.Add(new PIExceptionSource
+                                                        {
+                                                            ResourceName = ndElement.TryGetProperty("resource_name", out var srn) ? srn.GetString() : null,
+                                                            ResourceType = ndElement.TryGetProperty("resource_type", out var srt) ? srt.GetString() : null,
+                                                            Include = ndElement.TryGetProperty("include", out var inc) ? inc.GetString() : null
+                                                        });
+                                                    }
+                                                }
+                                            }
+
+                                            if (eElement.TryGetProperty("destination", out var destObj) && destObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                var emailDir = destObj.TryGetProperty("email_monitor_directions", out var emd) ? emd.GetString() : null;
+                                                if (destObj.TryGetProperty("channel_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                {
+                                                    foreach (var cdElement in cdArr.EnumerateArray())
+                                                    {
+                                                        exc.Destinations.Add(new PIExceptionDestination
+                                                        {
+                                                            EmailMonitorDirections = emailDir,
+                                                            ChannelType = cdElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
+                                                            ChannelEnabled = cdElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
+                                                        });
+                                                    }
+                                                }
+                                            }
+
+                                            rule.Exceptions.Add(exc);
+                                        }
+                                    }
+                                }
+
+                                if (rElement.TryGetProperty("severity_action", out var rSevObj) && rSevObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    var maxMatches = rSevObj.TryGetProperty("max_matches", out var mm) ? mm.GetString() : null;
+                                    if (rSevObj.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var cdElement in cdArr.EnumerateArray())
+                                        {
+                                            rule.SeverityActions.Add(new PIRuleSeverityAction
+                                            {
+                                                MaxMatches = maxMatches,
+                                                Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
+                                                SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
+                                                DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
+                                                ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
+                                            });
+                                        }
+                                    }
+                                }
+
+                                if (rElement.TryGetProperty("source", out var rSrcObj) && rSrcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    if (rSrcObj.TryGetProperty("network_details", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var ndElement in ndArr.EnumerateArray())
+                                        {
+                                            rule.Sources.Add(new PIRuleSource
+                                            {
+                                                ResourceName = ndElement.TryGetProperty("resource_name", out var rn2) ? rn2.GetString() : null,
+                                                ResourceType = ndElement.TryGetProperty("resource_type", out var rt) ? rt.GetString() : null,
+                                                Include = ndElement.TryGetProperty("include", out var inc) ? inc.GetString() : null
+                                            });
+                                        }
+                                    }
+                                }
+
+                                if (rElement.TryGetProperty("destination", out var rDestObj) && rDestObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    var emailDir = rDestObj.TryGetProperty("email_monitor_directions", out var emd) ? emd.GetString() : null;
+                                    if (rDestObj.TryGetProperty("channel_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var cdElement in cdArr.EnumerateArray())
+                                        {
+                                            rule.Destinations.Add(new PIRuleDestination
+                                            {
+                                                EmailMonitorDirections = emailDir,
+                                                ChannelType = cdElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
+                                                ChannelEnabled = cdElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
+                                            });
+                                        }
+                                    }
+                                }
+
+                                policy.Rules.Add(rule);
+                            }
+                        }
+                        importedPolicies.Add(policy);
+                    }
+                }
+            }
 
             if (importedPolicies == null || !importedPolicies.Any())
             {
