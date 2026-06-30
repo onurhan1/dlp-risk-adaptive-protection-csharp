@@ -528,17 +528,25 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
         public async Task<byte[]> ExportJsonAsync()
         {
-            var policies = await _context.PIPolicies
-                .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
-                .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
-                .Include(p => p.Rules).ThenInclude(r => r.Sources)
-                .Include(p => p.Rules).ThenInclude(r => r.Destinations).ThenInclude(d => d.ChannelResources)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Classifiers)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations).ThenInclude(d => d.ChannelResources)
-                .AsNoTracking()
-                .ToListAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
+            var policies = await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                var result = await _context.PIPolicies
+                    .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
+                    .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
+                    .Include(p => p.Rules).ThenInclude(r => r.Sources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .ToListAsync();
+
+                await transaction.CommitAsync();
+                return result;
+            });
 
             var options = new JsonSerializerOptions { WriteIndented = true, ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
             return System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(policies, options));
@@ -546,16 +554,25 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
         public async Task<byte[]> ExportExcelAsync()
         {
-            var policies = await _context.PIPolicies
-                .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
-                .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
-                .Include(p => p.Rules).ThenInclude(r => r.Sources)
-                .Include(p => p.Rules).ThenInclude(r => r.Destinations)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
-                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
-                .AsNoTracking()
-                .ToListAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
+            var policies = await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                var result = await _context.PIPolicies
+                    .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
+                    .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
+                    .Include(p => p.Rules).ThenInclude(r => r.Sources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .ToListAsync();
+
+                await transaction.CommitAsync();
+                return result;
+            });
 
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("Politika Envanteri");
