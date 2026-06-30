@@ -99,16 +99,16 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
         [HttpGet("export/excel")]
         public async Task<IActionResult> ExportExcel()
         {
-            // TODO: Generate .xlsx from database records
-            return Ok(new { success = true, message = "Export Excel endpoint ready." });
+            var bytes = await _inventoryService.ExportExcelAsync();
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Politika_Envanteri.xlsx");
         }
 
         // GET: api/policy-inventory/export/json
         [HttpGet("export/json")]
         public async Task<IActionResult> ExportJson()
         {
-            // TODO: Generate .json from database records
-            return Ok(new { success = true, message = "Export JSON endpoint ready." });
+            var bytes = await _inventoryService.ExportJsonAsync();
+            return File(bytes, "application/json", "Politika_Envanteri.json");
         }
     }
 }

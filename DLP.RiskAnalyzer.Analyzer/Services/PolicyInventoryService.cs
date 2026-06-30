@@ -15,6 +15,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
     public interface IPolicyInventoryService
     {
         Task<(bool Success, string Message, int Policies, int Rules, int Exceptions)> ImportFileAsync(IFormFile file);
+        Task<byte[]> ExportJsonAsync();
+        Task<byte[]> ExportExcelAsync();
     }
 
     public class PolicyInventoryService : IPolicyInventoryService
@@ -233,6 +235,208 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                 await transaction.RollbackAsync();
                 return (false, $"Hata oluştu: {ex.Message}", 0, 0, 0);
             }
+        }
+
+        public async Task<byte[]> ExportJsonAsync()
+        {
+            var policies = await _context.PIPolicies
+                .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
+                .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
+                .Include(p => p.Rules).ThenInclude(r => r.Sources)
+                .Include(p => p.Rules).ThenInclude(r => r.Destinations).ThenInclude(d => d.ChannelResources)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Classifiers)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations).ThenInclude(d => d.ChannelResources)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var options = new JsonSerializerOptions { WriteIndented = true, ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles };
+            return System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(policies, options));
+        }
+
+        public async Task<byte[]> ExportExcelAsync()
+        {
+            var policies = await _context.PIPolicies
+                .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
+                .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
+                .Include(p => p.Rules).ThenInclude(r => r.Sources)
+                .Include(p => p.Rules).ThenInclude(r => r.Destinations)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
+                .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
+                .AsNoTracking()
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Politika Envanteri");
+
+            // Başlıklar
+            ws.Cell(1, 1).Value = "Type";
+            ws.Cell(1, 2).Value = "policy_name";
+            ws.Cell(1, 3).Value = "rule_name";
+            ws.Cell(1, 4).Value = "parts_count_type";
+            ws.Cell(1, 5).Value = "condition_relation_type";
+            ws.Cell(1, 6).Value = "classifier_name";
+            ws.Cell(1, 7).Value = "threshold_type";
+            ws.Cell(1, 9).Value = "threshold_calculate_type";
+            ws.Cell(1, 10).Value = "exception_rule_name";
+            ws.Cell(1, 11).Value = "enabled";
+            ws.Cell(1, 12).Value = "description";
+            ws.Cell(1, 13).Value = "condition_enabled";
+            ws.Cell(1, 14).Value = "source_enabled";
+            ws.Cell(1, 15).Value = "destination_enabled";
+            ws.Cell(1, 16).Value = "exc_parts_count_type";
+            ws.Cell(1, 17).Value = "exc_condition_relation_type";
+            ws.Cell(1, 24).Value = "exc_selected";
+            ws.Cell(1, 26).Value = "exc_severity_type";
+            ws.Cell(1, 27).Value = "exc_dup_severity_type";
+            ws.Cell(1, 28).Value = "exc_action_plan";
+            ws.Cell(1, 29).Value = "exc_resource_name";
+            ws.Cell(1, 30).Value = "exc_resource_type";
+            ws.Cell(1, 31).Value = "exc_include";
+            ws.Cell(1, 32).Value = "exc_email_monitor_directions";
+            ws.Cell(1, 33).Value = "exc_channel_type";
+            ws.Cell(1, 34).Value = "exc_channel_enabled";
+            
+            // Rule Severity & Source Dest Başlıkları
+            ws.Cell(1, 38).Value = "rule_sev_type";
+            ws.Cell(1, 39).Value = "rule_sev_max_matches";
+            ws.Cell(1, 40).Value = "rule_sev_selected";
+            ws.Cell(1, 42).Value = "rule_sev_severity_type";
+            ws.Cell(1, 43).Value = "rule_sev_dup_severity";
+            ws.Cell(1, 44).Value = "rule_sev_action_plan";
+            
+            ws.Cell(1, 45).Value = "rule_src_resource_name";
+            ws.Cell(1, 46).Value = "rule_src_resource_type";
+            ws.Cell(1, 47).Value = "rule_src_include";
+            
+            ws.Cell(1, 48).Value = "rule_dest_email_monitor_directions";
+            ws.Cell(1, 49).Value = "rule_dest_channel_type";
+            ws.Cell(1, 50).Value = "rule_dest_channel_enabled";
+
+            ws.Range("A1:AX1").Style.Font.Bold = true;
+            ws.Range("A1:AX1").Style.Fill.BackgroundColor = XLColor.LightGray;
+
+            int r = 2;
+            foreach (var policy in policies)
+            {
+                foreach (var rule in policy.Rules)
+                {
+                    // 1. Policy Satırı ve Exceptions
+                    if (rule.Exceptions.Any())
+                    {
+                        foreach (var exc in rule.Exceptions)
+                        {
+                            ws.Cell(r, 1).Value = "policy";
+                            ws.Cell(r, 2).Value = policy.PolicyName;
+                            ws.Cell(r, 3).Value = rule.RuleName;
+                            ws.Cell(r, 4).Value = rule.PartsCountType;
+                            ws.Cell(r, 5).Value = rule.ConditionRelationType;
+
+                            var ruleClassifier = rule.Classifiers.FirstOrDefault();
+                            if (ruleClassifier != null)
+                            {
+                                ws.Cell(r, 6).Value = ruleClassifier.ClassifierName;
+                                ws.Cell(r, 7).Value = ruleClassifier.ThresholdType;
+                                ws.Cell(r, 9).Value = ruleClassifier.ThresholdCalculateType;
+                            }
+
+                            ws.Cell(r, 10).Value = exc.ExceptionRuleName;
+                            ws.Cell(r, 11).Value = exc.Enabled;
+                            ws.Cell(r, 12).Value = exc.Description;
+                            ws.Cell(r, 13).Value = exc.ConditionEnabled;
+                            ws.Cell(r, 14).Value = exc.SourceEnabled;
+                            ws.Cell(r, 15).Value = exc.DestinationEnabled;
+                            ws.Cell(r, 16).Value = exc.PartsCountType;
+                            ws.Cell(r, 17).Value = exc.ConditionRelationType;
+
+                            var excSev = exc.SeverityActions.FirstOrDefault();
+                            if (excSev != null)
+                            {
+                                ws.Cell(r, 24).Value = excSev.Selected;
+                                ws.Cell(r, 26).Value = excSev.SeverityType;
+                                ws.Cell(r, 27).Value = excSev.DupSeverityType;
+                                ws.Cell(r, 28).Value = excSev.ActionPlan;
+                            }
+
+                            var excSrc = exc.Sources.FirstOrDefault();
+                            if (excSrc != null)
+                            {
+                                ws.Cell(r, 29).Value = excSrc.ResourceName;
+                                ws.Cell(r, 30).Value = excSrc.ResourceType;
+                                ws.Cell(r, 31).Value = excSrc.Include;
+                            }
+
+                            var excDest = exc.Destinations.FirstOrDefault();
+                            if (excDest != null)
+                            {
+                                ws.Cell(r, 32).Value = excDest.EmailMonitorDirections;
+                                ws.Cell(r, 33).Value = excDest.ChannelType;
+                                ws.Cell(r, 34).Value = excDest.ChannelEnabled;
+                            }
+                            r++;
+                        }
+                    }
+                    else
+                    {
+                        ws.Cell(r, 1).Value = "policy";
+                        ws.Cell(r, 2).Value = policy.PolicyName;
+                        ws.Cell(r, 3).Value = rule.RuleName;
+                        ws.Cell(r, 4).Value = rule.PartsCountType;
+                        ws.Cell(r, 5).Value = rule.ConditionRelationType;
+                        r++;
+                    }
+
+                    // 2. Rule Severity Actions Satırları
+                    foreach (var sev in rule.SeverityActions)
+                    {
+                        ws.Cell(r, 1).Value = "severity_action";
+                        ws.Cell(r, 2).Value = policy.PolicyName;
+                        ws.Cell(r, 3).Value = rule.RuleName;
+                        
+                        ws.Cell(r, 38).Value = sev.Type;
+                        ws.Cell(r, 39).Value = sev.MaxMatches;
+                        ws.Cell(r, 40).Value = sev.Selected;
+                        ws.Cell(r, 42).Value = sev.SeverityType;
+                        ws.Cell(r, 43).Value = sev.DupSeverityType;
+                        ws.Cell(r, 44).Value = sev.ActionPlan;
+                        r++;
+                    }
+
+                    // 3. Rule Source Destination Satırları (Birleştirilmiş gösterim)
+                    int maxSrcDest = Math.Max(rule.Sources.Count, rule.Destinations.Count);
+                    var srcList = rule.Sources.ToList();
+                    var destList = rule.Destinations.ToList();
+
+                    for (int i = 0; i < maxSrcDest; i++)
+                    {
+                        ws.Cell(r, 1).Value = "source_destination";
+                        ws.Cell(r, 2).Value = policy.PolicyName;
+                        ws.Cell(r, 3).Value = rule.RuleName;
+
+                        if (i < srcList.Count)
+                        {
+                            ws.Cell(r, 45).Value = srcList[i].ResourceName;
+                            ws.Cell(r, 46).Value = srcList[i].ResourceType;
+                            ws.Cell(r, 47).Value = srcList[i].Include;
+                        }
+
+                        if (i < destList.Count)
+                        {
+                            ws.Cell(r, 48).Value = destList[i].EmailMonitorDirections;
+                            ws.Cell(r, 49).Value = destList[i].ChannelType;
+                            ws.Cell(r, 50).Value = destList[i].ChannelEnabled;
+                        }
+                        r++;
+                    }
+                }
+            }
+
+            ws.Columns().AdjustToContents();
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms.ToArray();
         }
     }
 }
