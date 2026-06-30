@@ -31,7 +31,7 @@ export default function ImportExport({ onImportSuccess }: ImportExportProps) {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       if (res.data.success) {
-        alert(`${t('policyInventory.import')} Başarılı! (${res.data.parsedPolicies} politika eklendi)`)
+        alert(`${t('policyInventory.import')} Başarılı! (${res.data.stats?.policies || 0} politika eklendi)`)
         onImportSuccess()
       }
     } catch (err) {

@@ -57,7 +57,12 @@ export default function PolicyInventoryPage() {
         setPolicies(policiesRes.data.data)
       }
       if (statsRes.data) {
-        setStats(statsRes.data)
+        setStats({
+          totalPolicies: statsRes.data.totalPolicies ?? statsRes.data.total_policies ?? 0,
+          totalRules: statsRes.data.totalRules ?? statsRes.data.total_rules ?? 0,
+          totalExceptions: statsRes.data.totalExceptions ?? statsRes.data.total_exceptions ?? 0,
+          activeExceptionsPercentage: statsRes.data.activeExceptionsPercentage ?? statsRes.data.active_exceptions_percentage ?? 0
+        })
       }
     } catch (error) {
       console.error('Failed to load policy inventory data', error)
