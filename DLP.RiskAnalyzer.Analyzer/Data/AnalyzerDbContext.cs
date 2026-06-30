@@ -33,6 +33,20 @@ public class AnalyzerDbContext : DbContext
     public DbSet<IsolationForestScore> IsolationForestScores { get; set; }
     public DbSet<MailTemplate> MailTemplates { get; set; }
 
+    // Policy Inventory
+    public DbSet<PIPolicy> PIPolicies { get; set; }
+    public DbSet<PIRule> PIRules { get; set; }
+    public DbSet<PIRuleClassifier> PIRuleClassifiers { get; set; }
+    public DbSet<PIRuleSeverityAction> PIRuleSeverityActions { get; set; }
+    public DbSet<PIRuleSource> PIRuleSources { get; set; }
+    public DbSet<PIRuleDestination> PIRuleDestinations { get; set; }
+    public DbSet<PIRuleChannelResource> PIRuleChannelResources { get; set; }
+    public DbSet<PIException> PIExceptions { get; set; }
+    public DbSet<PIExceptionClassifier> PIExceptionClassifiers { get; set; }
+    public DbSet<PIExceptionSeverityAction> PIExceptionSeverityActions { get; set; }
+    public DbSet<PIExceptionSource> PIExceptionSources { get; set; }
+    public DbSet<PIExceptionDestination> PIExceptionDestinations { get; set; }
+    public DbSet<PIExceptionChannelResource> PIExceptionChannelResources { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -543,5 +557,81 @@ public class AnalyzerDbContext : DbContext
 
             entity.HasIndex(e => e.Name);
         });
+
+        // Policy Inventory Configuration
+        modelBuilder.Entity<PIRule>()
+            .HasIndex(r => new { r.PolicyId, r.RuleName }).IsUnique();
+
+        modelBuilder.Entity<PIRule>()
+            .HasOne(r => r.Policy)
+            .WithMany(p => p.Rules)
+            .HasForeignKey(r => r.PolicyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIRuleClassifier>()
+            .HasOne(c => c.Rule)
+            .WithMany(r => r.Classifiers)
+            .HasForeignKey(c => c.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIRuleSeverityAction>()
+            .HasOne(s => s.Rule)
+            .WithMany(r => r.SeverityActions)
+            .HasForeignKey(s => s.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIRuleSource>()
+            .HasOne(s => s.Rule)
+            .WithMany(r => r.Sources)
+            .HasForeignKey(s => s.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIRuleDestination>()
+            .HasOne(d => d.Rule)
+            .WithMany(r => r.Destinations)
+            .HasForeignKey(d => d.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIRuleChannelResource>()
+            .HasOne(cr => cr.Destination)
+            .WithMany(d => d.ChannelResources)
+            .HasForeignKey(cr => cr.DestinationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIException>()
+            .HasOne(e => e.Rule)
+            .WithMany(r => r.Exceptions)
+            .HasForeignKey(e => e.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIExceptionClassifier>()
+            .HasOne(c => c.Exception)
+            .WithMany(e => e.Classifiers)
+            .HasForeignKey(c => c.ExceptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIExceptionSeverityAction>()
+            .HasOne(s => s.Exception)
+            .WithMany(e => e.SeverityActions)
+            .HasForeignKey(s => s.ExceptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIExceptionSource>()
+            .HasOne(s => s.Exception)
+            .WithMany(e => e.Sources)
+            .HasForeignKey(s => s.ExceptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIExceptionDestination>()
+            .HasOne(d => d.Exception)
+            .WithMany(e => e.Destinations)
+            .HasForeignKey(d => d.ExceptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PIExceptionChannelResource>()
+            .HasOne(cr => cr.Destination)
+            .WithMany(d => d.ChannelResources)
+            .HasForeignKey(cr => cr.DestinationId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

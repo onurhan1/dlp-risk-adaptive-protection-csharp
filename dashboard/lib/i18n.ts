@@ -68,6 +68,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.domainFeatures': 'Domain Features',
         'nav.mercekAnaliz': 'Mercek Analiz',
         'nav.exceptionList': 'Exception Listesi',
+        'nav.policyInventory': 'Politika Envanteri',
         'nav.userManagement': 'Kullanıcı Yönetimi',
         'nav.settings': 'Ayarlar',
         'nav.faq': 'S.S.S.',
@@ -156,6 +157,20 @@ export const translations: Record<Locale, Record<string, string>> = {
         'analytics.clearFilters': 'Filtreleri Temizle',
         'analytics.recommend': 'Öner',
         'analytics.releasedIncidents': 'Serbest Bırakılan Olaylar',
+
+        // Policy Inventory
+        'policyInventory.title': 'Politika Envanteri',
+        'policyInventory.subtitle': 'DLP politikaları, kurallar ve istisnaların merkezi envanteri',
+        'policyInventory.totalPolicies': 'Toplam Politika',
+        'policyInventory.totalRules': 'Toplam Kural',
+        'policyInventory.totalExceptions': 'Toplam Exception',
+        'policyInventory.activeExceptions': 'Aktif Exception Oranı',
+        'policyInventory.newPolicy': 'Yeni Politika',
+        'policyInventory.import': 'İçe Aktar',
+        'policyInventory.export': 'Dışa Aktar',
+        'policyInventory.search': 'Ara...',
+        'policyInventory.deleteConfirm': 'Silmek istediğinize emin misiniz?',
+        'policyInventory.deleteCascadeWarning': 'Bu işlem, altındaki tüm kural ve exception kayıtlarını da silecektir.',
 
         // Exception List
         'exceptionList.title': 'Exception Listesi',
@@ -964,6 +979,7 @@ export const translations: Record<Locale, Record<string, string>> = {
         'nav.domainFeatures': 'Domain Features',
         'nav.mercekAnaliz': 'Mercek Analysis',
         'nav.exceptionList': 'Exception List',
+        'nav.policyInventory': 'Policy Inventory',
         'nav.userManagement': 'User Management',
         'nav.settings': 'Settings',
         'nav.faq': 'F.A.Q.',
@@ -1052,6 +1068,20 @@ export const translations: Record<Locale, Record<string, string>> = {
         'analytics.clearFilters': 'Clear Filters',
         'analytics.recommend': 'Recommend',
         'analytics.releasedIncidents': 'Released Incidents',
+
+        // Policy Inventory
+        'policyInventory.title': 'Policy Inventory',
+        'policyInventory.subtitle': 'Central inventory of DLP policies, rules and exceptions',
+        'policyInventory.totalPolicies': 'Total Policies',
+        'policyInventory.totalRules': 'Total Rules',
+        'policyInventory.totalExceptions': 'Total Exceptions',
+        'policyInventory.activeExceptions': 'Active Exceptions Rate',
+        'policyInventory.newPolicy': 'New Policy',
+        'policyInventory.import': 'Import',
+        'policyInventory.export': 'Export',
+        'policyInventory.search': 'Search...',
+        'policyInventory.deleteConfirm': 'Are you sure you want to delete?',
+        'policyInventory.deleteCascadeWarning': 'This action will also delete all associated rules and exceptions.',
 
         // Exception List
         'exceptionList.title': 'Exception List',

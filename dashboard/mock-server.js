@@ -661,6 +661,53 @@ function handleRequest(pathname, query, method, body) {
         return { success: true, message: 'Sync completed: 12 exceptions saved', syncedCount: 12, syncedAt: new Date().toISOString() }
     }
 
+    // Policy Inventory
+    if (pathname === '/api/policy-inventory/stats') {
+        return { totalPolicies: 12, totalRules: 28, totalExceptions: 156, activeExceptionsPercentage: 87 };
+    }
+    if (pathname === '/api/policy-inventory/export/excel' || pathname === '/api/policy-inventory/export/json') {
+        return { success: true, url: '/dummy-download-url' };
+    }
+    if (pathname === '/api/policy-inventory/import') {
+        return { success: true, message: 'Import completed', parsedPolicies: 45, parsedRules: 128, parsedExceptions: 6179 };
+    }
+    if (pathname.startsWith('/api/policy-inventory')) {
+        if (method === 'GET') {
+            return {
+                success: true,
+                data: [
+                    {
+                        id: 1,
+                        policy_name: 'Örnek Politika 1',
+                        rules: [
+                            {
+                                id: 10,
+                                rule_name: 'Rule-1',
+                                parts_count_type: 'CROSS_COUNT',
+                                condition_relation_type: 'AND',
+                                classifiers: [{ id: 101, classifier_name: 'XXX', threshold_type: 'CHECK_GREATER_THAN', threshold_value_from: 10, threshold_calculate_type: 'UNIQUE' }],
+                                severity_actions: [{ id: 201, selected: 'true', number_of_matches: 0, severity_type: 'MEDIUM', action_plan: 'Audit Only' }],
+                                sources: [{ id: 301, resource_name: 'AD Group-1', resource_type: 'DIRECTORY_ENTRY_GROUP', include: 'true' }],
+                                destinations: [{ id: 401, channel_type: 'EMAIL', channel_enabled: 'true', resources: [] }],
+                                exceptions: [
+                                    {
+                                        id: 100,
+                                        exception_rule_name: 'Exception-A',
+                                        enabled: 'true',
+                                        description: 'Test exception',
+                                        severity_actions: [{ id: 501, severity_type: 'MEDIUM', action_plan: 'Audit Only' }]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
+        } else {
+            return { success: true, id: Math.floor(Math.random() * 1000) };
+        }
+    }
+
     // Fallback
     return { message: 'Mock endpoint not found', path: pathname }
 }
@@ -723,5 +770,6 @@ server.listen(PORT, () => {
     console.log('  /api/domain-features/*   - Domain features')
     console.log('  /api/mercek/*            - Mercek analysis')
     console.log('  /api/policy-exceptions   - Policy exceptions')
+    console.log('  /api/policy-inventory    - Policy inventory')
     console.log('')
 })

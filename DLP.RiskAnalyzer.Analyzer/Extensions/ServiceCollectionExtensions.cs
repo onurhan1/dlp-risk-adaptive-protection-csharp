@@ -61,6 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IReportGeneratorService, ReportGeneratorService>();
         services.AddScoped<IClassificationService, ClassificationService>();
+        services.AddScoped<IPolicyInventoryService, PolicyInventoryService>();
 
         // Sync services
         services.AddScoped<IPolicyExceptionSyncService, PolicyExceptionSyncService>();

@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   BrainCircuit,
   Mail,
-  CalendarClock
+  CalendarClock,
+  ClipboardList
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -236,6 +237,13 @@ export default function Sidebar() {
                   >
                     <ListChecks size={16} />
                     <span>{t('nav.exceptionList')}</span>
+                  </Link>
+                  <Link
+                    href="/exceptions/policy-inventory"
+                    className={`sidebar-subitem ${pathname === '/exceptions/policy-inventory' ? 'active' : ''}`}
+                  >
+                    <ClipboardList size={16} />
+                    <span>{t('nav.policyInventory')}</span>
                   </Link>
                   <Link
                     href="/exceptions/exception-list/permanent"

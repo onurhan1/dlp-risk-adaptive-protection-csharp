@@ -1,0 +1,413 @@
+{
+  "policy": {
+    "dlp_version": "10.2.0",
+    "policy_name": "xxxxxxx",
+    "enabled": "true",
+    "predefined_policy": "false",
+    "description": "",
+    "policy_level": {
+      "level": 2,
+      "data_type": "NETWORKING"
+    },
+    "rules": [
+      {
+        "rule_name": "xxxxx",
+        "enabled": "true",
+        "description": "",
+        "display_description": "",
+        "parts_count_type": "CROSS_COUNT",
+        "condition_relation_type": "AND",
+        "classifiers": [
+          {
+            "classifier_name": "xxxx",
+            "predefined": "true",
+            "position": 1,
+            "threshold_type": "CHECK_GREATER_THAN",
+            "threshold_value_from": 10,
+            "threshold_calculate_type": "UNIQUE"
+          }
+        ],
+        "exception_rules": {
+          "parent_policy_name": "xxxxx",
+          "parent_rule_name": "xxxx",
+          "policy_type": "DLP",
+          "exception_rules": [
+            {
+              "exception_rule_name": "xxxxx",
+              "enabled": "true",
+              "description": "",
+              "display_description": "",
+              "condition_enabled": "false",
+              "source_enabled": "true",
+              "destination_enabled": "true",
+              "parts_count_type": "CROSS_COUNT",
+              "condition_relation_type": "AND",
+              "classifiers": [],
+              "severity_action": {
+                "max_matches": "GREATEST_NUMBER",
+                "classifier_details": [
+                  {
+                    "selected": "true",
+                    "number_of_matches": 0,
+                    "severity_type": "MEDIUM",
+                    "dup_severity_type": "MEDIUM",
+                    "action_plan": "Audit Only"
+                  },
+                  {
+                    "selected": "false",
+                    "number_of_matches": 2,
+                    "severity_type": "MEDIUM",
+                    "dup_severity_type": "MEDIUM",
+                    "action_plan": "Audit Only"
+                  },
+                  {
+                    "selected": "false",
+                    "number_of_matches": 3,
+                    "severity_type": "MEDIUM",
+                    "dup_severity_type": "MEDIUM",
+                    "action_plan": "Audit Only"
+                  }
+                ]
+              },
+              "rule_source": {
+                "endpoint_channel_machine_type": "ALL_MACHINES",
+                "endpoint_connection_type": "ANYWARE"
+              },
+              "rule_destination": {
+                "email_monitor_directions": [
+                  "INTERNAL",
+                  "OUTGOING"
+                ],
+                "channels": [
+                  {
+                    "channel_type": "IM",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "FONE_ZTNA",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "FTP",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "ENDPOINT_APPLICATION",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "HTTP",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "CASB_NEAR_REAL_TIME",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "ENDPOINT_LAN",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "HTTPS",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "ENDPOINT_HTTP",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "ENDPOINT_HTTPS",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "EMAIL",
+                    "enabled": "true",
+                    "resources": [
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "Istirak Firmalar",
+                        "type": "BUSINESS_UNIT",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "Approved External Web Domains",
+                        "type": "BUSINESS_UNIT",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "-*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "**xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "ENDPOINT_REMOVABLE_MEDIA",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "CASB_REAL_TIME",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "ENDPOINT_EMAIL",
+                    "enabled": "true",
+                    "resources": [
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      },
+                      {
+                        "resource_name": "*xxxxxx.com",
+                        "type": "DOMAIN",
+                        "include": "true"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "EFSS",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "GENERIC_TEXT",
+                    "enabled": "false",
+                    "resources": [
+                      {
+                        "resource_name": "Excluded Resources",
+                        "type": "BUSINESS_UNIT",
+                        "include": "false"
+                      }
+                    ]
+                  },
+                  {
+                    "channel_type": "MOBILE_AIRSYNC",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "NETWORK_PRINTING",
+                    "enabled": "false"
+                  },
+                  {
+                    "channel_type": "ENDPOINT_PRINTING",
+                    "enabled": "false"
+                  }
+                ]
+              }
+            },
