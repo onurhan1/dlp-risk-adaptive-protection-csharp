@@ -45,14 +45,68 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
         private async Task<(bool, string, int, int, int)> ImportJsonAsync(IFormFile file)
         {
             using var stream = file.OpenReadStream();
-            using var reader = new StreamReader(stream);
-            var content = await reader.ReadToEndAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var importedPolicies = await JsonSerializer.DeserializeAsync<List<PIPolicy>>(stream, options);
 
-            // Sadece bizim modellere denk gelen kısımları deserialize etmeye çalışıyoruz.
-            // Gerçek dünyada kompleks JSON yapısına özel bir DTO yaratmak gerekir.
-            // Bu kısım şimdilik örneklenmiştir.
-            
-            return (true, "JSON içe aktarma başarılı (taslak).", 0, 0, 0);
+            if (importedPolicies == null || !importedPolicies.Any())
+            {
+                return (false, "Geçersiz veya boş JSON dosyası.", 0, 0, 0);
+            }
+
+            // Temizlik ve Kayıt İşlemi
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var existingPolicies = await _context.PIPolicies.ToListAsync();
+                _context.PIPolicies.RemoveRange(existingPolicies);
+                await _context.SaveChangesAsync();
+
+                // Id'leri sıfırla ki yeni insert olarak algılansın
+                foreach (var p in importedPolicies)
+                {
+                    p.Id = 0;
+                    foreach (var r in p.Rules)
+                    {
+                        r.Id = 0;
+                        r.PolicyId = 0;
+                        foreach (var c in r.Classifiers) { c.Id = 0; c.RuleId = 0; }
+                        foreach (var s in r.SeverityActions) { s.Id = 0; s.RuleId = 0; }
+                        foreach (var src in r.Sources) { src.Id = 0; src.RuleId = 0; }
+                        foreach (var d in r.Destinations)
+                        {
+                            d.Id = 0; d.RuleId = 0;
+                            foreach (var cr in d.ChannelResources) { cr.Id = 0; cr.DestinationId = 0; }
+                        }
+                        foreach (var e in r.Exceptions)
+                        {
+                            e.Id = 0; e.RuleId = 0;
+                            foreach (var ec in e.Classifiers) { ec.Id = 0; ec.ExceptionId = 0; }
+                            foreach (var es in e.SeverityActions) { es.Id = 0; es.ExceptionId = 0; }
+                            foreach (var esrc in e.Sources) { esrc.Id = 0; esrc.ExceptionId = 0; }
+                            foreach (var ed in e.Destinations)
+                            {
+                                ed.Id = 0; ed.ExceptionId = 0;
+                                foreach (var ecr in ed.ChannelResources) { ecr.Id = 0; ecr.DestinationId = 0; }
+                            }
+                        }
+                    }
+                }
+
+                _context.PIPolicies.AddRange(importedPolicies);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                int polCount = importedPolicies.Count;
+                int ruleCount = importedPolicies.SelectMany(p => p.Rules).Count();
+                int excCount = importedPolicies.SelectMany(p => p.Rules).SelectMany(r => r.Exceptions).Count();
+
+                return (true, "JSON içe aktarma başarılı.", polCount, ruleCount, excCount);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return (false, $"Hata oluştu: {ex.Message}", 0, 0, 0);
+            }
         }
 
         private async Task<(bool, string, int, int, int)> ImportExcelAsync(IFormFile file)
