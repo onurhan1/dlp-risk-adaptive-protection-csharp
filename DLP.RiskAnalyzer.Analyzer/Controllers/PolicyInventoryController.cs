@@ -115,5 +115,79 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             var bytes = await _inventoryService.ExportJsonAsync();
             return File(bytes, "application/json", "Politika_Envanteri.json");
         }
+        // CRUD Endpoints for Policies
+        [HttpPost("policies")]
+        public async Task<IActionResult> CreatePolicy([FromBody] PIPolicy policy)
+        {
+            var result = await _inventoryService.CreatePolicyAsync(policy);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpPut("policies/{id}")]
+        public async Task<IActionResult> UpdatePolicy(int id, [FromBody] PIPolicy policy)
+        {
+            var result = await _inventoryService.UpdatePolicyAsync(id, policy);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpDelete("policies/{id}")]
+        public async Task<IActionResult> DeletePolicy(int id)
+        {
+            var result = await _inventoryService.DeletePolicyAsync(id);
+            if (result.Success) return Ok(new { success = true, message = result.Message });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        // CRUD Endpoints for Rules
+        [HttpPost("rules")]
+        public async Task<IActionResult> CreateRule([FromBody] PIRule rule)
+        {
+            var result = await _inventoryService.CreateRuleAsync(rule);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpPut("rules/{id}")]
+        public async Task<IActionResult> UpdateRule(int id, [FromBody] PIRule rule)
+        {
+            var result = await _inventoryService.UpdateRuleAsync(id, rule);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpDelete("rules/{id}")]
+        public async Task<IActionResult> DeleteRule(int id)
+        {
+            var result = await _inventoryService.DeleteRuleAsync(id);
+            if (result.Success) return Ok(new { success = true, message = result.Message });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        // CRUD Endpoints for Exceptions
+        [HttpPost("exceptions")]
+        public async Task<IActionResult> CreateException([FromBody] PIException exc)
+        {
+            var result = await _inventoryService.CreateExceptionAsync(exc);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpPut("exceptions/{id}")]
+        public async Task<IActionResult> UpdateException(int id, [FromBody] PIException exc)
+        {
+            var result = await _inventoryService.UpdateExceptionAsync(id, exc);
+            if (result.Success) return Ok(new { success = true, message = result.Message, data = result.Data });
+            return BadRequest(new { success = false, message = result.Message });
+        }
+
+        [HttpDelete("exceptions/{id}")]
+        public async Task<IActionResult> DeleteException(int id)
+        {
+            var result = await _inventoryService.DeleteExceptionAsync(id);
+            if (result.Success) return Ok(new { success = true, message = result.Message });
+            return BadRequest(new { success = false, message = result.Message });
+        }
     }
 }

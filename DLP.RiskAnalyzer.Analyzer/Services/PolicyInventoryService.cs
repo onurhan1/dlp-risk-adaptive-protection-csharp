@@ -17,6 +17,19 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
         Task<(bool Success, string Message, int Policies, int Rules, int Exceptions)> ImportFileAsync(IFormFile file);
         Task<byte[]> ExportJsonAsync();
         Task<byte[]> ExportExcelAsync();
+
+        // Single CRUD
+        Task<(bool Success, string Message, PIPolicy Data)> CreatePolicyAsync(PIPolicy policy);
+        Task<(bool Success, string Message, PIPolicy Data)> UpdatePolicyAsync(int id, PIPolicy policy);
+        Task<(bool Success, string Message)> DeletePolicyAsync(int id);
+
+        Task<(bool Success, string Message, PIRule Data)> CreateRuleAsync(PIRule rule);
+        Task<(bool Success, string Message, PIRule Data)> UpdateRuleAsync(int id, PIRule rule);
+        Task<(bool Success, string Message)> DeleteRuleAsync(int id);
+
+        Task<(bool Success, string Message, PIException Data)> CreateExceptionAsync(PIException exc);
+        Task<(bool Success, string Message, PIException Data)> UpdateExceptionAsync(int id, PIException exc);
+        Task<(bool Success, string Message)> DeleteExceptionAsync(int id);
     }
 
     public class PolicyInventoryService : IPolicyInventoryService
@@ -668,6 +681,113 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
             using var ms = new MemoryStream();
             workbook.SaveAs(ms);
             return ms.ToArray();
+        }
+        public async Task<(bool Success, string Message, PIPolicy Data)> CreatePolicyAsync(PIPolicy policy)
+        {
+            policy.CreatedAt = DateTime.UtcNow;
+            policy.UpdatedAt = DateTime.UtcNow;
+            _context.PIPolicies.Add(policy);
+            await _context.SaveChangesAsync();
+            return (true, "Policy created successfully.", policy);
+        }
+
+        public async Task<(bool Success, string Message, PIPolicy Data)> UpdatePolicyAsync(int id, PIPolicy policy)
+        {
+            var existing = await _context.PIPolicies.FindAsync(id);
+            if (existing == null) return (false, "Policy not found.", null);
+
+            existing.PolicyName = policy.PolicyName;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return (true, "Policy updated successfully.", existing);
+        }
+
+        public async Task<(bool Success, string Message)> DeletePolicyAsync(int id)
+        {
+            var existing = await _context.PIPolicies.FindAsync(id);
+            if (existing == null) return (false, "Policy not found.");
+
+            _context.PIPolicies.Remove(existing);
+            await _context.SaveChangesAsync();
+            return (true, "Policy deleted successfully.");
+        }
+
+        public async Task<(bool Success, string Message, PIRule Data)> CreateRuleAsync(PIRule rule)
+        {
+            var policy = await _context.PIPolicies.FindAsync(rule.PolicyId);
+            if (policy == null) return (false, "Parent policy not found.", null);
+
+            rule.CreatedAt = DateTime.UtcNow;
+            rule.UpdatedAt = DateTime.UtcNow;
+            _context.PIRules.Add(rule);
+            await _context.SaveChangesAsync();
+            return (true, "Rule created successfully.", rule);
+        }
+
+        public async Task<(bool Success, string Message, PIRule Data)> UpdateRuleAsync(int id, PIRule rule)
+        {
+            var existing = await _context.PIRules.FindAsync(id);
+            if (existing == null) return (false, "Rule not found.", null);
+
+            existing.RuleName = rule.RuleName;
+            existing.PartsCountType = rule.PartsCountType;
+            existing.ConditionRelationType = rule.ConditionRelationType;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return (true, "Rule updated successfully.", existing);
+        }
+
+        public async Task<(bool Success, string Message)> DeleteRuleAsync(int id)
+        {
+            var existing = await _context.PIRules.FindAsync(id);
+            if (existing == null) return (false, "Rule not found.");
+
+            _context.PIRules.Remove(existing);
+            await _context.SaveChangesAsync();
+            return (true, "Rule deleted successfully.");
+        }
+
+        public async Task<(bool Success, string Message, PIException Data)> CreateExceptionAsync(PIException exc)
+        {
+            var rule = await _context.PIRules.FindAsync(exc.RuleId);
+            if (rule == null) return (false, "Parent rule not found.", null);
+
+            exc.CreatedAt = DateTime.UtcNow;
+            exc.UpdatedAt = DateTime.UtcNow;
+            _context.PIExceptions.Add(exc);
+            await _context.SaveChangesAsync();
+            return (true, "Exception created successfully.", exc);
+        }
+
+        public async Task<(bool Success, string Message, PIException Data)> UpdateExceptionAsync(int id, PIException exc)
+        {
+            var existing = await _context.PIExceptions.FindAsync(id);
+            if (existing == null) return (false, "Exception not found.", null);
+
+            existing.ExceptionRuleName = exc.ExceptionRuleName;
+            existing.Enabled = exc.Enabled;
+            existing.Description = exc.Description;
+            existing.ConditionEnabled = exc.ConditionEnabled;
+            existing.SourceEnabled = exc.SourceEnabled;
+            existing.DestinationEnabled = exc.DestinationEnabled;
+            existing.PartsCountType = exc.PartsCountType;
+            existing.ConditionRelationType = exc.ConditionRelationType;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return (true, "Exception updated successfully.", existing);
+        }
+
+        public async Task<(bool Success, string Message)> DeleteExceptionAsync(int id)
+        {
+            var existing = await _context.PIExceptions.FindAsync(id);
+            if (existing == null) return (false, "Exception not found.");
+
+            _context.PIExceptions.Remove(existing);
+            await _context.SaveChangesAsync();
+            return (true, "Exception deleted successfully.");
         }
     }
 }

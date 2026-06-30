@@ -5,9 +5,23 @@ import { ChevronDown, ChevronRight, Edit2, Trash2, Plus, ShieldAlert, Globe, Fil
 interface TableProps {
   policies: PolicyInventoryItem[]
   onRefresh: () => void
+  onAddPolicy: () => void
+  onEditPolicy: (policy: PolicyInventoryItem) => void
+  onDeletePolicy: (id: number, name: string) => void
+  onAddRule: (policyId: number) => void
+  onEditRule: (rule: PolicyRule, policyId: number) => void
+  onDeleteRule: (id: number, name: string) => void
+  onAddException: (ruleId: number) => void
+  onEditException: (exc: PolicyException, ruleId: number) => void
+  onDeleteException: (id: number, name: string) => void
 }
 
-export default function Table({ policies, onRefresh }: TableProps) {
+export default function Table({ 
+  policies, onRefresh,
+  onAddPolicy, onEditPolicy, onDeletePolicy,
+  onAddRule, onEditRule, onDeleteRule,
+  onAddException, onEditException, onDeleteException
+}: TableProps) {
   const [expandedPolicies, setExpandedPolicies] = useState<Record<number, boolean>>({})
   const [expandedRules, setExpandedRules] = useState<Record<number, boolean>>({})
 
@@ -54,9 +68,9 @@ export default function Table({ policies, onRefresh }: TableProps) {
                   <span>{policy.rules.length} Kural</span>
                   <span>{policy.rules.reduce((acc, r) => acc + (r.exceptions?.length || 0), 0)} Exception</span>
                   <div style={{ display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                    <button className="icon-button"><Plus size={16} /></button>
-                    <button className="icon-button"><Edit2 size={16} /></button>
-                    <button className="icon-button delete"><Trash2 size={16} /></button>
+                    <button className="icon-button" onClick={() => onAddRule(policy.id)} title="Kural Ekle"><Plus size={16} /></button>
+                    <button className="icon-button" onClick={() => onEditPolicy(policy)} title="Politikayı Düzenle"><Edit2 size={16} /></button>
+                    <button className="icon-button delete" onClick={() => onDeletePolicy(policy.id, policy.policy_name)} title="Politikayı Sil"><Trash2 size={16} /></button>
                   </div>
                 </div>
               </div>
@@ -87,9 +101,9 @@ export default function Table({ policies, onRefresh }: TableProps) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
                           <span>{rule.exceptions?.length || 0} Exc</span>
                           <div style={{ display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                            <button className="icon-button"><Plus size={14} /></button>
-                            <button className="icon-button"><Edit2 size={14} /></button>
-                            <button className="icon-button delete"><Trash2 size={14} /></button>
+                            <button className="icon-button" onClick={() => onAddException(rule.id)} title="Exception Ekle"><Plus size={14} /></button>
+                            <button className="icon-button" onClick={() => onEditRule(rule, policy.id)} title="Kuralı Düzenle"><Edit2 size={14} /></button>
+                            <button className="icon-button delete" onClick={() => onDeleteRule(rule.id, rule.rule_name)} title="Kuralı Sil"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       </div>
@@ -161,8 +175,8 @@ export default function Table({ policies, onRefresh }: TableProps) {
                                     <td style={{ padding: '8px 12px' }}>{exc.severity_actions?.[0]?.action_plan || '-'}</td>
                                     <td style={{ padding: '8px 12px' }}>
                                       <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="icon-button" style={{ padding: '4px' }}><Edit2 size={14} /></button>
-                                        <button className="icon-button delete" style={{ padding: '4px' }}><Trash2 size={14} /></button>
+                                        <button className="icon-button" style={{ padding: '4px' }} onClick={() => onEditException(exc, rule.id)} title="Exception Düzenle"><Edit2 size={14} /></button>
+                                        <button className="icon-button delete" style={{ padding: '4px' }} onClick={() => onDeleteException(exc.id, exc.exception_rule_name)} title="Exception Sil"><Trash2 size={14} /></button>
                                       </div>
                                     </td>
                                   </tr>
