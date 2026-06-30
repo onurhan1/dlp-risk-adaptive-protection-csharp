@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { X, Save, Plus, Trash2 } from 'lucide-react'
-import { PolicyRule } from '../_lib/types'
+import { PolicyRule, Classifier, SeverityAction, Source, Destination } from '../_lib/types'
 
 interface RuleFormModalProps {
   isOpen: boolean
@@ -14,25 +14,65 @@ const TABS = ['Genel', 'Classifiers', 'Severity', 'Source', 'Destination']
 
 export default function RuleFormModal({ isOpen, onClose, onSave, initialData, policyName }: RuleFormModalProps) {
   const [activeTab, setActiveTab] = useState(0)
+  
+  // Genel tab
   const [ruleName, setRuleName] = useState('')
   const [partsCountType, setPartsCountType] = useState('CROSS_COUNT')
   const [conditionRelType, setConditionRelType] = useState('AND')
+
+  // Array tabs
+  const [classifiers, setClassifiers] = useState<Classifier[]>([])
+  const [severityActions, setSeverityActions] = useState<SeverityAction[]>([])
+  const [sources, setSources] = useState<Source[]>([])
+  const [destinations, setDestinations] = useState<Destination[]>([])
   
-  // Minimal state management just for the mockup
   useEffect(() => {
     if (initialData) {
       setRuleName(initialData.rule_name || '')
       setPartsCountType(initialData.parts_count_type || 'CROSS_COUNT')
       setConditionRelType(initialData.condition_relation_type || 'AND')
+      setClassifiers(initialData.classifiers || [])
+      setSeverityActions(initialData.severity_actions || [])
+      setSources(initialData.sources || [])
+      setDestinations(initialData.destinations || [])
     } else {
       setRuleName('')
       setPartsCountType('CROSS_COUNT')
       setConditionRelType('AND')
+      setClassifiers([])
+      setSeverityActions([])
+      setSources([])
+      setDestinations([])
     }
     setActiveTab(0)
   }, [initialData, isOpen])
 
   if (!isOpen) return null
+
+  const handleSave = () => {
+    onSave({
+      rule_name: ruleName,
+      parts_count_type: partsCountType,
+      condition_relation_type: conditionRelType,
+      classifiers,
+      severity_actions: severityActions,
+      sources,
+      destinations
+    })
+    onClose()
+  }
+
+  const updateArray = <T,>(arr: T[], setArr: React.Dispatch<React.SetStateAction<T[]>>, idx: number, key: keyof T, val: any) => {
+    const newArr = [...arr]
+    newArr[idx] = { ...newArr[idx], [key]: val }
+    setArr(newArr)
+  }
+
+  const removeArray = <T,>(arr: T[], setArr: React.Dispatch<React.SetStateAction<T[]>>, idx: number) => {
+    const newArr = [...arr]
+    newArr.splice(idx, 1)
+    setArr(newArr)
+  }
 
   return (
     <div style={{
@@ -42,7 +82,7 @@ export default function RuleFormModal({ isOpen, onClose, onSave, initialData, po
     }}>
       <div style={{
         background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px',
-        width: '700px', maxWidth: '95%', height: '80vh', maxHeight: '700px',
+        width: '800px', maxWidth: '95%', height: '85vh', maxHeight: '750px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column'
       }}>
         {/* Header */}
@@ -78,6 +118,7 @@ export default function RuleFormModal({ isOpen, onClose, onSave, initialData, po
         
         {/* Body Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          
           {activeTab === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -107,27 +148,87 @@ export default function RuleFormModal({ isOpen, onClose, onSave, initialData, po
           )}
           
           {activeTab === 1 && (
-             <div style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
-               Classifier listesi eklenecek. (Örn: CHECK_GREATER_THAN, vb.)
-             </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Classifiers</h4>
+                <button onClick={() => setClassifiers([...classifiers, { classifier_name: '' }])} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Plus size={14} /> Yeni Ekle</button>
+              </div>
+              {classifiers.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'flex-start', background: 'var(--bg-color)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <input placeholder="Classifier Name" value={c.classifier_name || ''} onChange={(e) => updateArray(classifiers, setClassifiers, i, 'classifier_name', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                    <input placeholder="Threshold Type" value={c.threshold_type || ''} onChange={(e) => updateArray(classifiers, setClassifiers, i, 'threshold_type', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <input placeholder="Threshold Value From" type="number" value={c.threshold_value_from || ''} onChange={(e) => updateArray(classifiers, setClassifiers, i, 'threshold_value_from', parseInt(e.target.value) || 0)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                    <input placeholder="Threshold Calculate Type" value={c.threshold_calculate_type || ''} onChange={(e) => updateArray(classifiers, setClassifiers, i, 'threshold_calculate_type', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <button onClick={() => removeArray(classifiers, setClassifiers, i)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 2 && (
-             <div style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
-               Severity Actions tablosu eklenecek. (Örn: # Matche'a göre MEDIUM, HIGH, Audit/Block)
-             </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Severity Actions</h4>
+                <button onClick={() => setSeverityActions([...severityActions, { selected: 'true', number_of_matches: 1, severity_type: 'LOW', action_plan: '' }])} style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Plus size={14} /> Yeni Ekle</button>
+              </div>
+              {severityActions.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', background: 'var(--bg-color)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <select value={s.selected} onChange={(e) => updateArray(severityActions, setSeverityActions, i, 'selected', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </select>
+                  <input placeholder="# Matches" type="number" value={s.number_of_matches} onChange={(e) => updateArray(severityActions, setSeverityActions, i, 'number_of_matches', parseInt(e.target.value) || 0)} style={{ width: '80px', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  <select value={s.severity_type} onChange={(e) => updateArray(severityActions, setSeverityActions, i, 'severity_type', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}>
+                    <option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="CRITICAL">CRITICAL</option>
+                  </select>
+                  <input placeholder="Action Plan" value={s.action_plan} onChange={(e) => updateArray(severityActions, setSeverityActions, i, 'action_plan', e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  <button onClick={() => removeArray(severityActions, setSeverityActions, i)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 3 && (
-             <div style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
-               Source listesi eklenecek. (Örn: AD Groups, Users)
-             </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Sources</h4>
+                <button onClick={() => setSources([...sources, { resource_name: '', resource_type: '', include: 'true' }])} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Plus size={14} /> Yeni Ekle</button>
+              </div>
+              {sources.map((src, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', background: 'var(--bg-color)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <input placeholder="Resource Name" value={src.resource_name} onChange={(e) => updateArray(sources, setSources, i, 'resource_name', e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  <input placeholder="Resource Type (ör: DIR_GROUP)" value={src.resource_type} onChange={(e) => updateArray(sources, setSources, i, 'resource_type', e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  <select value={src.include} onChange={(e) => updateArray(sources, setSources, i, 'include', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}>
+                    <option value="true">Include</option>
+                    <option value="false">Exclude</option>
+                  </select>
+                  <button onClick={() => removeArray(sources, setSources, i)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 4 && (
-             <div style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
-               Destination listesi eklenecek. (Örn: EMAIL, IM, HTTPS kanalları)
-             </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>Destinations</h4>
+                <button onClick={() => setDestinations([...destinations, { channel_type: '', channel_enabled: 'true' }])} style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}><Plus size={14} /> Yeni Ekle</button>
+              </div>
+              {destinations.map((dst, i) => (
+                <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', background: 'var(--bg-color)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <input placeholder="Channel Type (ör: EMAIL, HTTP)" value={dst.channel_type} onChange={(e) => updateArray(destinations, setDestinations, i, 'channel_type', e.target.value)} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }} />
+                  <select value={dst.channel_enabled} onChange={(e) => updateArray(destinations, setDestinations, i, 'channel_enabled', e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-primary)' }}>
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                  <button onClick={() => removeArray(destinations, setDestinations, i)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -138,7 +239,7 @@ export default function RuleFormModal({ isOpen, onClose, onSave, initialData, po
             background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '14px'
           }}>İptal</button>
           <button 
-            onClick={() => { onSave({ rule_name: ruleName, parts_count_type: partsCountType, condition_relation_type: conditionRelType }); onClose() }}
+            onClick={handleSave}
             disabled={!ruleName.trim()}
             style={{
               padding: '8px 16px', borderRadius: '6px', border: 'none',
