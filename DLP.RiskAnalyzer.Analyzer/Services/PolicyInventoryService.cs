@@ -139,26 +139,33 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                 }
                                             }
 
-                                            if (eElement.TryGetProperty("source", out var srcObj) && srcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            if (eElement.TryGetProperty("rule_source", out var srcObj) && srcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                             {
-                                                if (srcObj.TryGetProperty("network_details", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                if (srcObj.TryGetProperty("resources", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                                 {
                                                     foreach (var ndElement in ndArr.EnumerateArray())
                                                     {
                                                         exc.Sources.Add(new PIExceptionSource
                                                         {
                                                             ResourceName = ndElement.TryGetProperty("resource_name", out var srn) ? srn.GetString() : null,
-                                                            ResourceType = ndElement.TryGetProperty("resource_type", out var srt) ? srt.GetString() : null,
+                                                            ResourceType = ndElement.TryGetProperty("type", out var srt) ? srt.GetString() : null,
                                                             Include = ndElement.TryGetProperty("include", out var inc) ? inc.GetString() : null
                                                         });
                                                     }
                                                 }
                                             }
 
-                                            if (eElement.TryGetProperty("destination", out var destObj) && destObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            if (eElement.TryGetProperty("rule_destination", out var destObj) && destObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                             {
-                                                var emailDir = destObj.TryGetProperty("email_monitor_directions", out var emd) ? emd.GetString() : null;
-                                                if (destObj.TryGetProperty("channel_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                var emailDir = "";
+                                                if (destObj.TryGetProperty("email_monitor_directions", out var emdArr) && emdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                {
+                                                    var dirs = new List<string>();
+                                                    foreach (var d in emdArr.EnumerateArray()) dirs.Add(d.GetString());
+                                                    emailDir = string.Join(",", dirs);
+                                                }
+
+                                                if (destObj.TryGetProperty("channels", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                                 {
                                                     foreach (var cdElement in cdArr.EnumerateArray())
                                                     {
@@ -177,62 +184,96 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                     }
                                 }
 
-                                if (rElement.TryGetProperty("severity_action", out var rSevObj) && rSevObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                                {
-                                    var maxMatches = rSevObj.TryGetProperty("max_matches", out var mm) ? mm.GetString() : null;
-                                    if (rSevObj.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
-                                    {
-                                        foreach (var cdElement in cdArr.EnumerateArray())
-                                        {
-                                            rule.SeverityActions.Add(new PIRuleSeverityAction
-                                            {
-                                                MaxMatches = maxMatches,
-                                                Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
-                                                SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
-                                                DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
-                                                ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
-                                            });
-                                        }
-                                    }
-                                }
-
-                                if (rElement.TryGetProperty("source", out var rSrcObj) && rSrcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                                {
-                                    if (rSrcObj.TryGetProperty("network_details", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
-                                    {
-                                        foreach (var ndElement in ndArr.EnumerateArray())
-                                        {
-                                            rule.Sources.Add(new PIRuleSource
-                                            {
-                                                ResourceName = ndElement.TryGetProperty("resource_name", out var rn2) ? rn2.GetString() : null,
-                                                ResourceType = ndElement.TryGetProperty("resource_type", out var rt) ? rt.GetString() : null,
-                                                Include = ndElement.TryGetProperty("include", out var inc) ? inc.GetString() : null
-                                            });
-                                        }
-                                    }
-                                }
-
-                                if (rElement.TryGetProperty("destination", out var rDestObj) && rDestObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                                {
-                                    var emailDir = rDestObj.TryGetProperty("email_monitor_directions", out var emd) ? emd.GetString() : null;
-                                    if (rDestObj.TryGetProperty("channel_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
-                                    {
-                                        foreach (var cdElement in cdArr.EnumerateArray())
-                                        {
-                                            rule.Destinations.Add(new PIRuleDestination
-                                            {
-                                                EmailMonitorDirections = emailDir,
-                                                ChannelType = cdElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
-                                                ChannelEnabled = cdElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
-                                            });
-                                        }
-                                    }
-                                }
-
                                 policy.Rules.Add(rule);
                             }
                         }
                         importedPolicies.Add(policy);
+                    }
+                }
+
+                // Parse Root-level severity_action
+                if (document.RootElement.TryGetProperty("severity_action", out var rootSevElement) && rootSevElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (rootSevElement.TryGetProperty("rules", out var sevRules) && sevRules.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var sevRule in sevRules.EnumerateArray())
+                        {
+                            var rName = sevRule.TryGetProperty("rule_name", out var rn) ? rn.GetString() : null;
+                            var targetRule = importedPolicies.SelectMany(p => p.Rules).FirstOrDefault(r => r.RuleName == rName);
+                            if (targetRule != null)
+                            {
+                                var maxMatches = sevRule.TryGetProperty("max_matches", out var mm) ? mm.GetString() : null;
+                                if (sevRule.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    foreach (var cdElement in cdArr.EnumerateArray())
+                                    {
+                                        targetRule.SeverityActions.Add(new PIRuleSeverityAction
+                                        {
+                                            MaxMatches = maxMatches,
+                                            Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
+                                            SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
+                                            DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
+                                            ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Parse Root-level source_destination
+                if (document.RootElement.TryGetProperty("source_destination", out var rootSrcDestElement) && rootSrcDestElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (rootSrcDestElement.TryGetProperty("rules", out var sdRules) && sdRules.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var sdRule in sdRules.EnumerateArray())
+                        {
+                            var rName = sdRule.TryGetProperty("rule_name", out var rn) ? rn.GetString() : null;
+                            var targetRule = importedPolicies.SelectMany(p => p.Rules).FirstOrDefault(r => r.RuleName == rName);
+                            if (targetRule != null)
+                            {
+                                if (sdRule.TryGetProperty("rule_source", out var rSrcObj) && rSrcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    if (rSrcObj.TryGetProperty("resources", out var resArr) && resArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var resElement in resArr.EnumerateArray())
+                                        {
+                                            targetRule.Sources.Add(new PIRuleSource
+                                            {
+                                                ResourceName = resElement.TryGetProperty("resource_name", out var rsName) ? rsName.GetString() : null,
+                                                ResourceType = resElement.TryGetProperty("type", out var rsType) ? rsType.GetString() : null,
+                                                Include = resElement.TryGetProperty("include", out var inc) ? inc.GetString() : null
+                                            });
+                                        }
+                                    }
+                                }
+
+                                if (sdRule.TryGetProperty("rule_destination", out var rDestObj) && rDestObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    var emailDir = "";
+                                    if (rDestObj.TryGetProperty("email_monitor_directions", out var emdArr) && emdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        var dirs = new List<string>();
+                                        foreach (var d in emdArr.EnumerateArray()) dirs.Add(d.GetString());
+                                        emailDir = string.Join(",", dirs);
+                                    }
+
+                                    if (rDestObj.TryGetProperty("channels", out var chanArr) && chanArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var cElement in chanArr.EnumerateArray())
+                                        {
+                                            targetRule.Destinations.Add(new PIRuleDestination
+                                            {
+                                                EmailMonitorDirections = emailDir,
+                                                ChannelType = cElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
+                                                ChannelEnabled = cElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
