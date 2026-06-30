@@ -482,7 +482,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                 .AsNoTracking()
                 .ToListAsync();
 
-            var options = new JsonSerializerOptions { WriteIndented = true, ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles };
+            var options = new JsonSerializerOptions { WriteIndented = true, ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
             return System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(policies, options));
         }
 

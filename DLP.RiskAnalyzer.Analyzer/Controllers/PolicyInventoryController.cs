@@ -55,7 +55,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             var options = new System.Text.Json.JsonSerializerOptions 
             { 
                 ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
             };
             return Content(System.Text.Json.JsonSerializer.Serialize(new { success = true, data = policies }, options), "application/json");
         }
