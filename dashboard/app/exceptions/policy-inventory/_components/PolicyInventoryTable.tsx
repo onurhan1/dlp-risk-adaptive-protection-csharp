@@ -240,9 +240,9 @@ function SourceDestinationBlock({ sources, destinations }: { sources?: any[]; de
             {destinations!.map((d, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <ChannelBadge channelType={d.channel_type} enabled={d.channel_enabled} />
-                {d.resources && d.resources.length > 0 && (
+                {d.channel_resources && d.channel_resources.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', paddingLeft: '8px', borderLeft: '2px solid rgba(59,130,246,0.2)' }}>
-                    {d.resources.map((r: any, ri: number) => (
+                    {d.channel_resources.map((r: any, ri: number) => (
                       <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <ArrowRight size={9} style={{ color: 'var(--text-secondary)', opacity: 0.6, flexShrink: 0 }} />
                         <ResourceChip name={r.resource_name} type={r.resource_type} include={r.include} />

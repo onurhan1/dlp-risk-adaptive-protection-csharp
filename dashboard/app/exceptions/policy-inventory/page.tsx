@@ -97,8 +97,8 @@ export default function PolicyInventoryPage() {
     }
     if (searchFilter === 'destination') {
       return p.rules.some(r => 
-        r.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
-        r.exceptions?.some(e => e.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.resources?.some(res => res.resource_name.toLowerCase().includes(q))))
+        r.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
+        r.exceptions?.some(e => e.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))))
       )
     }
 
@@ -108,9 +108,9 @@ export default function PolicyInventoryPage() {
              r.rule_name.toLowerCase().includes(q) || 
              (r.exceptions && r.exceptions.some(e => e.exception_rule_name.toLowerCase().includes(q))) ||
              r.sources?.some(s => s.resource_name.toLowerCase().includes(q)) ||
-             r.destinations?.some(d => d.resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
+             r.destinations?.some(d => d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
              r.exceptions?.some(e => e.sources?.some(s => s.resource_name.toLowerCase().includes(q))) ||
-             r.exceptions?.some(e => e.destinations?.some(d => d.resources?.some(res => res.resource_name.toLowerCase().includes(q))))
+             r.exceptions?.some(e => e.destinations?.some(d => d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))))
            )
   })
 

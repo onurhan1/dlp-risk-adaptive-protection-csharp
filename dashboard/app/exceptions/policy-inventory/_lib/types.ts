@@ -38,7 +38,7 @@ export interface Destination {
     email_monitor_directions?: string;
     channel_type: string;
     channel_enabled: string;
-    resources?: DestinationChannelResource[];
+    channel_resources?: DestinationChannelResource[];
 }
 
 export interface PolicyException {
