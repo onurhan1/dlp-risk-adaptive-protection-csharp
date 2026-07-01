@@ -368,9 +368,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
-                    var existingPolicies = await _context.PIPolicies.ToListAsync();
-                    _context.PIPolicies.RemoveRange(existingPolicies);
-                    await _context.SaveChangesAsync();
+                    // var existingPolicies = await _context.PIPolicies.ToListAsync();
+                    // _context.PIPolicies.RemoveRange(existingPolicies);
+                    // await _context.SaveChangesAsync();
 
                     // Id'leri sıfırla ki yeni insert olarak algılansın
                     foreach (var p in importedPolicies)
@@ -696,9 +696,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
-                    var existingPolicies = await _context.PIPolicies.ToListAsync();
-                    _context.PIPolicies.RemoveRange(existingPolicies);
-                    await _context.SaveChangesAsync();
+                    // var existingPolicies = await _context.PIPolicies.ToListAsync();
+                    // _context.PIPolicies.RemoveRange(existingPolicies);
+                    // await _context.SaveChangesAsync();
 
                     _context.PIPolicies.AddRange(policiesMap.Values);
                     await _context.SaveChangesAsync();
