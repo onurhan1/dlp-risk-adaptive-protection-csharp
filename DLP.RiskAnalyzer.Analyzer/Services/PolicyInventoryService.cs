@@ -255,6 +255,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                             var targetRule = importedPolicies.SelectMany(p => p.Rules).FirstOrDefault(r => r.RuleName == rName);
                             if (targetRule != null)
                             {
+                                // FIX: "type" alanı (Excel'de C38 / "Value.rules.type") JSON'da rule seviyesinde
+                                // (classifier_details'in dışında, kardeşi) geliyor ama önceden hiç okunmuyordu.
+                                // Bu, veritabanındaki 'type' kolonunun NULL kalmasına ve liste sorgusunun
+                                // InvalidCastException ile çökmesine sebep oluyordu.
+                                var sevType = sevRule.TryGetProperty("type", out var styp) ? styp.GetString() : null;
                                 var maxMatches = sevRule.TryGetProperty("max_matches", out var mm) ? mm.GetString() : null;
                                 if (sevRule.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                 {
@@ -265,6 +270,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                             nom = nomEl.GetInt32();
                                         targetRule.SeverityActions.Add(new PIRuleSeverityAction
                                         {
+                                            Type = sevType ?? "",
                                             MaxMatches = maxMatches,
                                             Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
                                             NumberOfMatches = nom,

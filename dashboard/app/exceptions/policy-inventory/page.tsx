@@ -27,6 +27,7 @@ export default function PolicyInventoryPage() {
 
   // Filters and Search
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchFilter, setSearchFilter] = useState('all')
 
   // Modals state
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false)
@@ -75,12 +76,43 @@ export default function PolicyInventoryPage() {
     loadData()
   }, [])
 
-  const filteredPolicies = policies.filter(p => 
-    p.policy_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.rules.some(r => r.rule_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (r.exceptions && r.exceptions.some(e => e.exception_rule_name.toLowerCase().includes(searchQuery.toLowerCase())))
-    )
-  )
+  const filteredPolicies = policies.filter(p => {
+    const q = searchQuery.toLowerCase()
+    if (!q) return true
+
+    if (searchFilter === 'policy') {
+      return p.policy_name.toLowerCase().includes(q)
+    }
+    if (searchFilter === 'rule') {
+      return p.rules.some(r => r.rule_name.toLowerCase().includes(q))
+    }
+    if (searchFilter === 'exception') {
+      return p.rules.some(r => r.exceptions?.some(e => e.exception_rule_name.toLowerCase().includes(q)))
+    }
+    if (searchFilter === 'source') {
+      return p.rules.some(r => 
+        r.sources?.some(s => s.resource_name.toLowerCase().includes(q)) ||
+        r.exceptions?.some(e => e.sources?.some(s => s.resource_name.toLowerCase().includes(q)))
+      )
+    }
+    if (searchFilter === 'destination') {
+      return p.rules.some(r => 
+        r.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
+        r.exceptions?.some(e => e.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.resources?.some(res => res.resource_name.toLowerCase().includes(q))))
+      )
+    }
+
+    // Default 'all'
+    return p.policy_name.toLowerCase().includes(q) ||
+           p.rules.some(r => 
+             r.rule_name.toLowerCase().includes(q) || 
+             (r.exceptions && r.exceptions.some(e => e.exception_rule_name.toLowerCase().includes(q))) ||
+             r.sources?.some(s => s.resource_name.toLowerCase().includes(q)) ||
+             r.destinations?.some(d => d.resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
+             r.exceptions?.some(e => e.sources?.some(s => s.resource_name.toLowerCase().includes(q))) ||
+             r.exceptions?.some(e => e.destinations?.some(d => d.resources?.some(res => res.resource_name.toLowerCase().includes(q))))
+           )
+  })
 
   const handleSavePolicy = async (data: Partial<PolicyInventoryItem>) => {
     try {
@@ -175,6 +207,8 @@ export default function PolicyInventoryPage() {
           <Toolbar 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            searchFilter={searchFilter}
+            setSearchFilter={setSearchFilter}
             onNewPolicy={() => { setCurrentPolicy(null); setIsPolicyModalOpen(true); }}
           />
 

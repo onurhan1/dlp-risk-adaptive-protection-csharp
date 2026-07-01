@@ -5,10 +5,12 @@ import { useTranslation } from '@/components/LanguageProvider'
 interface ToolbarProps {
   searchQuery: string
   setSearchQuery: (val: string) => void
+  searchFilter: string
+  setSearchFilter: (val: string) => void
   onNewPolicy: () => void
 }
 
-export default function Toolbar({ searchQuery, setSearchQuery, onNewPolicy }: ToolbarProps) {
+export default function Toolbar({ searchQuery, setSearchQuery, searchFilter, setSearchFilter, onNewPolicy }: ToolbarProps) {
   const { t } = useTranslation()
 
   return (
@@ -21,25 +23,49 @@ export default function Toolbar({ searchQuery, setSearchQuery, onNewPolicy }: To
       gap: '16px',
       flexWrap: 'wrap'
     }}>
-      <div style={{ position: 'relative', width: '300px', maxWidth: '100%' }}>
-        <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-        <input
-          type="text"
-          placeholder={t('policyInventory.search')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flex: 1, maxWidth: '600px' }}>
+        <select
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
           style={{
-            width: '100%',
-            padding: '10px 12px 10px 36px',
+            padding: '10px 12px',
             borderRadius: '8px',
             border: '1px solid var(--border-color)',
             background: 'var(--bg-color)',
             color: 'var(--text-primary)',
-            fontSize: '14px',
+            fontSize: '13px',
             outline: 'none',
-            transition: 'border-color 0.2s'
+            cursor: 'pointer',
+            minWidth: '140px'
           }}
-        />
+        >
+          <option value="all">{t('policyInventory.searchAll') || 'Tümü'}</option>
+          <option value="policy">{t('policyInventory.searchPolicy') || 'Politika Adı'}</option>
+          <option value="rule">{t('policyInventory.searchRule') || 'Kural Adı'}</option>
+          <option value="exception">{t('policyInventory.searchException') || 'Exception Adı'}</option>
+          <option value="source">{t('policyInventory.searchSource') || 'Kaynak (Source)'}</option>
+          <option value="destination">{t('policyInventory.searchDestination') || 'Hedef (Destination)'}</option>
+        </select>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            placeholder={t('policyInventory.search')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 12px 10px 36px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-color)',
+              color: 'var(--text-primary)',
+              fontSize: '14px',
+              outline: 'none',
+              transition: 'border-color 0.2s'
+            }}
+          />
+        </div>
       </div>
 
       <button
