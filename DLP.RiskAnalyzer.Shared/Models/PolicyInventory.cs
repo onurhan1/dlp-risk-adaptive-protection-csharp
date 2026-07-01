@@ -15,7 +15,7 @@ namespace DLP.RiskAnalyzer.Shared.Models
 
         [Required]
         [Column("policy_name")]
-        public string PolicyName { get; set; }
+        public string? PolicyName { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -40,13 +40,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
 
         [Required]
         [Column("rule_name")]
-        public string RuleName { get; set; }
+        public string? RuleName { get; set; }
 
         [Column("parts_count_type")]
-        public string PartsCountType { get; set; }
+        public string? PartsCountType { get; set; }
 
         [Column("condition_relation_type")]
-        public string ConditionRelationType { get; set; }
+        public string? ConditionRelationType { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -76,16 +76,16 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int RuleId { get; set; }
 
         [Column("classifier_name")]
-        public string ClassifierName { get; set; }
+        public string? ClassifierName { get; set; }
 
         [Column("threshold_type")]
-        public string ThresholdType { get; set; }
+        public string? ThresholdType { get; set; }
 
         [Column("threshold_value_from")]
         public int? ThresholdValueFrom { get; set; }
 
         [Column("threshold_calculate_type")]
-        public string ThresholdCalculateType { get; set; }
+        public string? ThresholdCalculateType { get; set; }
 
         [ForeignKey("RuleId")]
         public PIRule Rule { get; set; }
@@ -102,25 +102,25 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int RuleId { get; set; }
 
         [Column("type")]
-        public string Type { get; set; }
+        public string? Type { get; set; }
 
         [Column("max_matches")]
-        public string MaxMatches { get; set; }
+        public string? MaxMatches { get; set; }
 
         [Column("selected")]
-        public string Selected { get; set; }
+        public string? Selected { get; set; }
 
         [Column("number_of_matches")]
         public int? NumberOfMatches { get; set; }
 
         [Column("severity_type")]
-        public string SeverityType { get; set; }
+        public string? SeverityType { get; set; }
 
         [Column("dup_severity_type")]
-        public string DupSeverityType { get; set; }
+        public string? DupSeverityType { get; set; }
 
         [Column("action_plan")]
-        public string ActionPlan { get; set; }
+        public string? ActionPlan { get; set; }
 
         [ForeignKey("RuleId")]
         public PIRule Rule { get; set; }
@@ -137,13 +137,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int RuleId { get; set; }
 
         [Column("resource_name")]
-        public string ResourceName { get; set; }
+        public string? ResourceName { get; set; }
 
         [Column("resource_type")]
-        public string ResourceType { get; set; }
+        public string? ResourceType { get; set; }
 
         [Column("include")]
-        public string Include { get; set; }
+        public string? Include { get; set; }
 
         [ForeignKey("RuleId")]
         public PIRule Rule { get; set; }
@@ -160,13 +160,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int RuleId { get; set; }
 
         [Column("email_monitor_directions")]
-        public string EmailMonitorDirections { get; set; }
+        public string? EmailMonitorDirections { get; set; }
 
         [Column("channel_type")]
-        public string ChannelType { get; set; }
+        public string? ChannelType { get; set; }
 
         [Column("channel_enabled")]
-        public string ChannelEnabled { get; set; }
+        public string? ChannelEnabled { get; set; }
 
         [ForeignKey("RuleId")]
         public PIRule Rule { get; set; }
@@ -185,13 +185,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int DestinationId { get; set; }
 
         [Column("resource_name")]
-        public string ResourceName { get; set; }
+        public string? ResourceName { get; set; }
 
         [Column("resource_type")]
-        public string ResourceType { get; set; }
+        public string? ResourceType { get; set; }
 
         [Column("include")]
-        public string Include { get; set; }
+        public string? Include { get; set; }
 
         [ForeignKey("DestinationId")]
         public PIRuleDestination Destination { get; set; }
@@ -210,28 +210,28 @@ namespace DLP.RiskAnalyzer.Shared.Models
 
         [Required]
         [Column("exception_rule_name")]
-        public string ExceptionRuleName { get; set; }
+        public string? ExceptionRuleName { get; set; }
 
         [Column("enabled")]
-        public string Enabled { get; set; } = "true";
+        public string? Enabled { get; set; } = "true";
 
         [Column("description")]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         [Column("condition_enabled")]
-        public string ConditionEnabled { get; set; } = "false";
+        public string? ConditionEnabled { get; set; } = "false";
 
         [Column("source_enabled")]
-        public string SourceEnabled { get; set; } = "false";
+        public string? SourceEnabled { get; set; } = "false";
 
         [Column("destination_enabled")]
-        public string DestinationEnabled { get; set; } = "false";
+        public string? DestinationEnabled { get; set; } = "false";
 
         [Column("parts_count_type")]
-        public string PartsCountType { get; set; }
+        public string? PartsCountType { get; set; }
 
         [Column("condition_relation_type")]
-        public string ConditionRelationType { get; set; }
+        public string? ConditionRelationType { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -259,22 +259,22 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int ExceptionId { get; set; }
 
         [Column("classifier_name")]
-        public string ClassifierName { get; set; }
+        public string? ClassifierName { get; set; }
 
         [Column("position")]
         public int? Position { get; set; }
 
         [Column("threshold_type")]
-        public string ThresholdType { get; set; }
+        public string? ThresholdType { get; set; }
 
         [Column("threshold_value_from")]
         public int? ThresholdValueFrom { get; set; }
 
         [Column("threshold_calculate_type")]
-        public string ThresholdCalculateType { get; set; }
+        public string? ThresholdCalculateType { get; set; }
 
         [Column("analyzed_specific_fields")]
-        public string AnalyzedSpecificFields { get; set; }
+        public string? AnalyzedSpecificFields { get; set; }
 
         [ForeignKey("ExceptionId")]
         public PIException Exception { get; set; }
@@ -291,19 +291,19 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int ExceptionId { get; set; }
 
         [Column("selected")]
-        public string Selected { get; set; }
+        public string? Selected { get; set; }
 
         [Column("number_of_matches")]
         public int? NumberOfMatches { get; set; }
 
         [Column("severity_type")]
-        public string SeverityType { get; set; }
+        public string? SeverityType { get; set; }
 
         [Column("dup_severity_type")]
-        public string DupSeverityType { get; set; }
+        public string? DupSeverityType { get; set; }
 
         [Column("action_plan")]
-        public string ActionPlan { get; set; }
+        public string? ActionPlan { get; set; }
 
         [ForeignKey("ExceptionId")]
         public PIException Exception { get; set; }
@@ -320,13 +320,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int ExceptionId { get; set; }
 
         [Column("resource_name")]
-        public string ResourceName { get; set; }
+        public string? ResourceName { get; set; }
 
         [Column("resource_type")]
-        public string ResourceType { get; set; }
+        public string? ResourceType { get; set; }
 
         [Column("include")]
-        public string Include { get; set; }
+        public string? Include { get; set; }
 
         [ForeignKey("ExceptionId")]
         public PIException Exception { get; set; }
@@ -343,13 +343,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int ExceptionId { get; set; }
 
         [Column("email_monitor_directions")]
-        public string EmailMonitorDirections { get; set; }
+        public string? EmailMonitorDirections { get; set; }
 
         [Column("channel_type")]
-        public string ChannelType { get; set; }
+        public string? ChannelType { get; set; }
 
         [Column("channel_enabled")]
-        public string ChannelEnabled { get; set; }
+        public string? ChannelEnabled { get; set; }
 
         [ForeignKey("ExceptionId")]
         public PIException Exception { get; set; }
@@ -368,13 +368,13 @@ namespace DLP.RiskAnalyzer.Shared.Models
         public int DestinationId { get; set; }
 
         [Column("resource_name")]
-        public string ResourceName { get; set; }
+        public string? ResourceName { get; set; }
 
         [Column("resource_type")]
-        public string ResourceType { get; set; }
+        public string? ResourceType { get; set; }
 
         [Column("include")]
-        public string Include { get; set; }
+        public string? Include { get; set; }
 
         [ForeignKey("DestinationId")]
         public PIExceptionDestination Destination { get; set; }
