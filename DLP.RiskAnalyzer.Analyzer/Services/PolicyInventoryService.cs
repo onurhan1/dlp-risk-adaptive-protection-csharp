@@ -148,7 +148,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                         ThresholdType = ecEl.TryGetProperty("threshold_type", out var ett) ? ett.GetString() : null,
                                                         ThresholdValueFrom = etvf,
                                                         ThresholdCalculateType = ecEl.TryGetProperty("threshold_calculate_type", out var etct) ? etct.GetString() : null,
-                                                        AnalyzedSpecificFields = ecEl.TryGetProperty("analyzed_specific_fields", out var easf) ? easf.GetString() : null
+                                                        AnalyzedSpecificFields = ecEl.TryGetProperty("analyzed_specific_fields", out var easf) ? 
+                                                            (easf.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(", ", easf.EnumerateArray().Select(x => x.GetString())) : easf.GetString()) : null
                                                     });
                                                 }
                                             }
