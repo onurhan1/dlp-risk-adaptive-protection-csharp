@@ -26,43 +26,35 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPolicies()
         {
-            var strategy = _context.Database.CreateExecutionStrategy();
-            var policies = await strategy.ExecuteAsync(async () =>
-            {
-                using var transaction = await _context.Database.BeginTransactionAsync();
-                var result = await _context.PIPolicies
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Classifiers)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.SeverityActions)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Sources)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Destinations)
+            var policies = await _context.PIPolicies
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Classifiers)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.SeverityActions)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Sources)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Destinations)
+                        .ThenInclude(d => d.ChannelResources)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Exceptions)
+                        .ThenInclude(e => e.Classifiers)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Exceptions)
+                        .ThenInclude(e => e.SeverityActions)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Exceptions)
+                        .ThenInclude(e => e.Sources)
+                .Include(p => p.Rules)
+                    .ThenInclude(r => r.Exceptions)
+                        .ThenInclude(e => e.Destinations)
                             .ThenInclude(d => d.ChannelResources)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Exceptions)
-                            .ThenInclude(e => e.Classifiers)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Exceptions)
-                            .ThenInclude(e => e.SeverityActions)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Exceptions)
-                            .ThenInclude(e => e.Sources)
-                    .Include(p => p.Rules)
-                        .ThenInclude(r => r.Exceptions)
-                            .ThenInclude(e => e.Destinations)
-                                .ThenInclude(d => d.ChannelResources)
-                    .AsNoTracking()
-                    .AsSplitQuery()
-                    .ToListAsync();
-                
-                await transaction.CommitAsync();
-                return result;
-            });
+                .AsNoTracking()
+                .AsSplitQuery()
+                .ToListAsync();
 
-            var options = new System.Text.Json.JsonSerializerOptions 
-            { 
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
                 ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
             };

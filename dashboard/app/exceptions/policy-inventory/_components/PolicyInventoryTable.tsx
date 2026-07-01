@@ -1,12 +1,18 @@
+'use client'
 import React, { useState } from 'react'
+import {
+  ChevronDown, ChevronRight, Plus, Edit2, Trash2,
+  ShieldAlert, Globe, FileWarning, Cpu, Mail,
+  Network, HardDrive, Monitor, Wifi, Server,
+  AlertTriangle, CheckCircle, XCircle, Info
+} from 'lucide-react'
 import { PolicyInventoryItem, PolicyRule, PolicyException } from '../_lib/types'
-import { ChevronDown, ChevronRight, Edit2, Trash2, Plus, ShieldAlert, Globe, FileWarning } from 'lucide-react'
 
-interface TableProps {
+interface Props {
   policies: PolicyInventoryItem[]
   onRefresh: () => void
   onAddPolicy: () => void
-  onEditPolicy: (policy: PolicyInventoryItem) => void
+  onEditPolicy: (p: PolicyInventoryItem) => void
   onDeletePolicy: (id: number, name: string) => void
   onAddRule: (policyId: number) => void
   onEditRule: (rule: PolicyRule, policyId: number) => void
@@ -16,194 +22,438 @@ interface TableProps {
   onDeleteException: (id: number, name: string) => void
 }
 
-export default function Table({ 
-  policies, onRefresh,
-  onAddPolicy, onEditPolicy, onDeletePolicy,
-  onAddRule, onEditRule, onDeleteRule,
-  onAddException, onEditException, onDeleteException
-}: TableProps) {
-  const [expandedPolicies, setExpandedPolicies] = useState<Record<number, boolean>>({})
-  const [expandedRules, setExpandedRules] = useState<Record<number, boolean>>({})
+const CHANNEL_ICONS: Record<string, React.ReactNode> = {
+  EMAIL: <Mail size={12} />,
+  HTTP: <Globe size={12} />,
+  HTTPS: <Globe size={12} />,
+  FTP: <HardDrive size={12} />,
+  IM: <Network size={12} />,
+  ENDPOINT_HTTP: <Monitor size={12} />,
+  ENDPOINT_HTTPS: <Monitor size={12} />,
+  ENDPOINT_APPLICATION: <Monitor size={12} />,
+  ENDPOINT_LAN: <Wifi size={12} />,
+  CASB_NEAR_REAL_TIME: <Server size={12} />,
+}
 
-  const togglePolicy = (id: number) => {
-    setExpandedPolicies(prev => ({ ...prev, [id]: !prev[id] }))
-  }
+const SEVERITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  LOW:      { bg: 'rgba(34, 197, 94, 0.12)',  text: '#22c55e', border: 'rgba(34, 197, 94, 0.3)' },
+  MEDIUM:   { bg: 'rgba(245, 158, 11, 0.12)', text: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)' },
+  HIGH:     { bg: 'rgba(239, 68, 68, 0.12)',  text: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' },
+  CRITICAL: { bg: 'rgba(168, 85, 247, 0.12)', text: '#a855f7', border: 'rgba(168, 85, 247, 0.3)' },
+}
 
-  const toggleRule = (id: number) => {
-    setExpandedRules(prev => ({ ...prev, [id]: !prev[id] }))
-  }
-
+function SeverityBadge({ severity, selected }: { severity?: string; selected?: string }) {
+  const s = (severity || '').toUpperCase()
+  const colors = SEVERITY_COLORS[s] || { bg: 'rgba(100,100,100,0.1)', text: 'var(--text-secondary)', border: 'rgba(100,100,100,0.2)' }
+  const icon = selected === 'true'
+    ? <CheckCircle size={11} />
+    : selected === 'false'
+    ? <XCircle size={11} />
+    : null
   return (
-    <div style={{ padding: '20px' }}>
-      {policies.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-          Kayıt bulunamadı.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {policies.map(policy => (
-            <div key={policy.id} style={{ 
-              border: '1px solid var(--border-color)', 
-              borderRadius: '8px', 
-              background: 'var(--bg-color)',
-              overflow: 'hidden'
-            }}>
-              {/* Policy Header */}
-              <div 
-                style={{ 
-                  padding: '16px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  background: expandedPolicies[policy.id] ? 'rgba(0,0,0,0.02)' : 'transparent'
-                }}
-                onClick={() => togglePolicy(policy.id)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {expandedPolicies[policy.id] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                  <span style={{ fontWeight: '600', fontSize: '15px', color: 'var(--text-primary)' }}>{policy.policy_name}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                  <span>{policy.rules.length} Kural</span>
-                  <span>{policy.rules.reduce((acc, r) => acc + (r.exceptions?.length || 0), 0)} Exception</span>
-                  <div style={{ display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                    <button className="icon-button" onClick={() => onAddRule(policy.id)} title="Kural Ekle"><Plus size={16} /></button>
-                    <button className="icon-button" onClick={() => onEditPolicy(policy)} title="Politikayı Düzenle"><Edit2 size={16} /></button>
-                    <button className="icon-button delete" onClick={() => onDeletePolicy(policy.id, policy.policy_name)} title="Politikayı Sil"><Trash2 size={16} /></button>
-                  </div>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
+      padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600,
+      background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`
+    }}>
+      {icon}{s || '-'}
+    </span>
+  )
+}
+
+function ChannelBadge({ channelType, enabled }: { channelType: string; enabled?: string }) {
+  const isActive = enabled === 'true'
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
+      padding: '2px 7px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
+      background: isActive ? 'rgba(59,130,246,0.12)' : 'rgba(100,100,100,0.08)',
+      color: isActive ? '#60a5fa' : 'var(--text-secondary)',
+      border: `1px solid ${isActive ? 'rgba(59,130,246,0.25)' : 'rgba(100,100,100,0.15)'}`,
+      textDecoration: isActive ? 'none' : 'line-through',
+      opacity: isActive ? 1 : 0.65
+    }}>
+      {CHANNEL_ICONS[channelType] || <Network size={12} />}
+      {channelType}
+    </span>
+  )
+}
+
+function SectionHeader({ icon, label, color, count }: { icon: React.ReactNode; label: string; color: string; count?: number }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '9px 14px',
+      background: `${color}18`,
+      borderBottom: `1px solid ${color}25`,
+    }}>
+      <span style={{ color, display: 'flex' }}>{icon}</span>
+      <span style={{ fontSize: '12px', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      {count !== undefined && (
+        <span style={{
+          marginLeft: 'auto', fontSize: '11px', padding: '1px 7px', borderRadius: '999px',
+          background: `${color}22`, color, border: `1px solid ${color}30`
+        }}>{count}</span>
+      )}
+    </div>
+  )
+}
+
+function RuleDetailPanel({ rule }: { rule: PolicyRule }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px 20px 20px 48px' }}>
+
+      {/* Classifiers */}
+      {(rule.classifiers?.length ?? 0) > 0 && (
+        <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+          <SectionHeader icon={<Cpu size={14} />} label="Classifiers" color="#8b5cf6" count={rule.classifiers!.length} />
+          <div style={{ padding: '10px 14px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {rule.classifiers!.map((c, i) => (
+              <div key={i} style={{
+                background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
+                borderRadius: '8px', padding: '6px 12px', fontSize: '12px'
+              }}>
+                <div style={{ fontWeight: 600, color: '#a78bfa' }}>{c.classifier_name}</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '11px', marginTop: '2px' }}>
+                  {c.threshold_type} {c.threshold_value_from !== undefined && c.threshold_value_from !== null ? `≥ ${c.threshold_value_from}` : ''} {c.threshold_calculate_type}
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-              {/* Rules List */}
-              {expandedPolicies[policy.id] && (
-                <div style={{ padding: '0 0 0 32px', borderTop: '1px solid var(--border-color)' }}>
-                  {policy.rules.map(rule => (
-                    <div key={rule.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <div 
-                        style={{ 
-                          padding: '12px 16px', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between',
-                          cursor: 'pointer',
-                          background: expandedRules[rule.id] ? 'rgba(0,0,0,0.01)' : 'transparent'
-                        }}
-                        onClick={() => toggleRule(rule.id)}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {expandedRules[rule.id] ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                          <span style={{ fontWeight: '500', fontSize: '14px', color: 'var(--text-primary)' }}>{rule.rule_name}</span>
-                          <span style={{ fontSize: '12px', padding: '2px 8px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                            {rule.parts_count_type} | {rule.condition_relation_type}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                          <span>{rule.exceptions?.length || 0} Exc</span>
-                          <div style={{ display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
-                            <button className="icon-button" onClick={() => onAddException(rule.id)} title="Exception Ekle"><Plus size={14} /></button>
-                            <button className="icon-button" onClick={() => onEditRule(rule, policy.id)} title="Kuralı Düzenle"><Edit2 size={14} /></button>
-                            <button className="icon-button delete" onClick={() => onDeleteRule(rule.id, rule.rule_name)} title="Kuralı Sil"><Trash2 size={14} /></button>
-                          </div>
-                        </div>
-                      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        {/* Severity Actions */}
+        <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+          <SectionHeader icon={<ShieldAlert size={14} />} label="Severity Actions" color="#f59e0b" count={rule.severity_actions?.length} />
+          <div style={{ padding: '10px 14px' }}>
+            {rule.severity_actions?.length ? rule.severity_actions.map((sa, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '5px 0', borderBottom: i < rule.severity_actions!.length - 1 ? '1px dashed var(--border-color)' : 'none',
+                fontSize: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <SeverityBadge severity={sa.severity_type} selected={sa.selected} />
+                  {sa.number_of_matches !== undefined && sa.number_of_matches !== null && (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>#{sa.number_of_matches}</span>
+                  )}
+                </div>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{sa.action_plan || '-'}</span>
+              </div>
+            )) : <div style={{ fontSize: '12px', color: 'var(--text-secondary)', padding: '4px 0' }}>Kayıt yok</div>}
+          </div>
+        </div>
 
-                      {/* Rule Details */}
-                      {expandedRules[rule.id] && (
-                        <div style={{ padding: '16px 20px 24px 44px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                          
-                          {/* Severity & Sources */}
-                          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                            
-                            {/* Severity Actions Box */}
-                            <div style={{ flex: 1, minWidth: '300px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                              <div style={{ padding: '10px 12px', background: 'rgba(245, 158, 11, 0.1)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontWeight: '600', fontSize: '13px' }}>
-                                <ShieldAlert size={16} />
-                                SEVERITY ACTIONS
-                              </div>
-                              <div style={{ padding: '12px' }}>
-                                {rule.severity_actions?.map(sa => (
-                                  <div key={sa.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '4px 0', borderBottom: '1px dashed var(--border-color)' }}>
-                                    <span>#{sa.number_of_matches} Match ({sa.selected === 'true' ? 'Active' : 'Inactive'})</span>
-                                    <span style={{ fontWeight: 500 }}>{sa.severity_type} → {sa.action_plan}</span>
-                                  </div>
-                                ))}
-                                {!rule.severity_actions?.length && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Kayıt yok.</div>}
-                              </div>
-                            </div>
-
-                            {/* Source/Dest Box */}
-                            <div style={{ flex: 1, minWidth: '300px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                              <div style={{ padding: '10px 12px', background: 'rgba(59, 130, 246, 0.1)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
-                                <Globe size={16} />
-                                SOURCE / DESTINATION
-                              </div>
-                              <div style={{ padding: '12px', fontSize: '13px' }}>
-                                <div style={{ marginBottom: '8px' }}>
-                                  <strong>Source:</strong> {rule.sources?.map(s => s.resource_name).join(', ') || '-'}
-                                </div>
-                                <div>
-                                  <strong>Dest:</strong> {rule.destinations?.map(d => d.channel_type + (d.channel_enabled==='true'?'(Active)':'(Inactive)')).join(', ') || '-'}
-                                </div>
-                              </div>
-                            </div>
-
-                          </div>
-
-                          {/* Exceptions List */}
-                          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-                            <div style={{ padding: '10px 12px', background: 'rgba(16, 185, 129, 0.1)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#10b981', fontWeight: '600', fontSize: '13px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FileWarning size={16} /> EXCEPTIONS</div>
-                              <button style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer' }}><Plus size={16} /></button>
-                            </div>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                              <thead>
-                                <tr style={{ background: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
-                                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>Name</th>
-                                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>Enabled</th>
-                                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>Severity</th>
-                                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>Action Plan</th>
-                                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rule.exceptions?.map(exc => (
-                                  <tr key={exc.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                    <td style={{ padding: '8px 12px' }}>{exc.exception_rule_name}</td>
-                                    <td style={{ padding: '8px 12px' }}>{exc.enabled === 'true' ? '✅' : '❌'}</td>
-                                    <td style={{ padding: '8px 12px' }}>{exc.severity_actions?.[0]?.severity_type || '-'}</td>
-                                    <td style={{ padding: '8px 12px' }}>{exc.severity_actions?.[0]?.action_plan || '-'}</td>
-                                    <td style={{ padding: '8px 12px' }}>
-                                      <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="icon-button" style={{ padding: '4px' }} onClick={() => onEditException(exc, rule.id)} title="Exception Düzenle"><Edit2 size={14} /></button>
-                                        <button className="icon-button delete" style={{ padding: '4px' }} onClick={() => onDeleteException(exc.id, exc.exception_rule_name)} title="Exception Sil"><Trash2 size={14} /></button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                                {!rule.exceptions?.length && (
-                                  <tr><td colSpan={5} style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)' }}>Exception bulunamadı.</td></tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-
+        {/* Source & Destination */}
+        <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+          <SectionHeader icon={<Globe size={14} />} label="Source / Destination" color="#3b82f6" />
+          <div style={{ padding: '10px 14px', fontSize: '12px' }}>
+            {/* Sources */}
+            {(rule.sources?.length ?? 0) > 0 && (
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sources</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {rule.sources!.map((s, i) => (
+                    <span key={i} style={{
+                      padding: '2px 8px', borderRadius: '6px', fontSize: '11px',
+                      background: 'rgba(59,130,246,0.1)', color: '#60a5fa',
+                      border: '1px solid rgba(59,130,246,0.2)'
+                    }}>{s.resource_name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Destinations */}
+            {(rule.destinations?.length ?? 0) > 0 && (
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Channels</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {rule.destinations!.map((d, i) => (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <ChannelBadge channelType={d.channel_type} enabled={d.channel_enabled} />
+                      {d.resources && d.resources.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '8px', borderLeft: '2px solid rgba(59,130,246,0.2)' }}>
+                          {d.resources.map((r, ri) => (
+                            <span key={ri} style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                              ↳ {r.resource_name} ({r.include === 'true' ? 'Inc' : 'Exc'})
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>
                   ))}
-                  {!policy.rules.length && <div style={{ padding: '16px', color: 'var(--text-secondary)' }}>Kural bulunamadı.</div>}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            )}
+            {!(rule.sources?.length) && !(rule.destinations?.length) && (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Kayıt yok</div>
+            )}
+          </div>
         </div>
-      )}
-      <style dangerouslySetInnerHTML={{__html: `
-        .icon-button { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px; border-radius: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
-        .icon-button:hover { background: var(--border-color); color: var(--text-primary); }
-        .icon-button.delete:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-      `}} />
+      </div>
+
+      {/* Exceptions */}
+      <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+        <SectionHeader icon={<FileWarning size={14} />} label="Exceptions" color="#10b981" count={rule.exceptions?.length} />
+        {rule.exceptions?.length ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <thead>
+              <tr style={{ background: 'rgba(16,185,129,0.05)' }}>
+                {['İsim', 'Aktif', 'Src', 'Dst', 'Severity', 'Action Plan', 'İşlemler'].map(h => (
+                  <th key={h} style={{ padding: '7px 12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rule.exceptions!.map(exc => (
+                <tr key={exc.id} style={{ borderBottom: '1px solid var(--border-color)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(16,185,129,0.04)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                  <td style={{ padding: '8px 12px', fontWeight: 500 }}>
+                    {exc.exception_rule_name}
+                    {exc.description && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{exc.description}</div>}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    {exc.enabled === 'true'
+                      ? <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '3px' }}><CheckCircle size={13} /> Aktif</span>
+                      : <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '3px' }}><XCircle size={13} /> Pasif</span>}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    {exc.source_enabled === 'true'
+                      ? <span title="Source Aktif" style={{ color: '#60a5fa' }}><CheckCircle size={13} /></span>
+                      : <span style={{ color: 'var(--border-color)' }}><XCircle size={13} /></span>}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {exc.destination_enabled === 'true'
+                        ? <span title="Destination Aktif" style={{ color: '#60a5fa', display: 'flex', alignItems: 'center' }}><CheckCircle size={13} /></span>
+                        : <span style={{ color: 'var(--border-color)', display: 'flex', alignItems: 'center' }}><XCircle size={13} /></span>}
+                      {exc.destinations?.map((d, i) => (
+                         <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                           <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 500 }}>{d.channel_type}</span>
+                           {d.resources?.map((r, ri) => (
+                             <span key={ri} style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>
+                               ↳ {r.resource_name}
+                             </span>
+                           ))}
+                         </div>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <SeverityBadge severity={exc.severity_actions?.[0]?.severity_type} selected={exc.severity_actions?.[0]?.selected} />
+                  </td>
+                  <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{exc.severity_actions?.[0]?.action_plan || '-'}</td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button className="pi-icon-btn" onClick={() => {}} title="Düzenle"><Edit2 size={13} /></button>
+                      <button className="pi-icon-btn pi-delete" onClick={() => {}} title="Sil"><Trash2 size={13} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+            Exception bulunamadı.
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
+export default function PolicyInventoryTable({
+  policies, onAddPolicy, onEditPolicy, onDeletePolicy,
+  onAddRule, onEditRule, onDeleteRule,
+  onAddException, onEditException, onDeleteException
+}: Props) {
+  const [expandedPolicies, setExpandedPolicies] = useState<Record<number, boolean>>({})
+  const [expandedRules, setExpandedRules] = useState<Record<number, boolean>>({})
+
+  const togglePolicy = (id: number) => setExpandedPolicies(p => ({ ...p, [id]: !p[id] }))
+  const toggleRule   = (id: number) => setExpandedRules(p => ({ ...p, [id]: !p[id] }))
+
+  if (!policies.length) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: '16px' }}>
+        <div style={{
+          width: '64px', height: '64px', borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(59,130,246,0.15))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <AlertTriangle size={28} color="#10b981" />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>Politika bulunamadı</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>JSON veya Excel dosyası yükleyerek başlayın</div>
+        </div>
+        <button onClick={onAddPolicy} style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '10px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
+          fontSize: '13px', fontWeight: 600
+        }}>
+          <Plus size={16} /> Yeni Politika Ekle
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {policies.map((policy, pi) => {
+        const isPolicyOpen = !!expandedPolicies[policy.id]
+        const totalExc = policy.rules?.reduce((a, r) => a + (r.exceptions?.length || 0), 0) ?? 0
+
+        return (
+          <div key={policy.id} style={{
+            borderBottom: pi < policies.length - 1 ? '1px solid var(--border-color)' : 'none'
+          }}>
+            {/* Policy Header */}
+            <div
+              onClick={() => togglePolicy(policy.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '14px 20px', cursor: 'pointer',
+                background: isPolicyOpen
+                  ? 'linear-gradient(135deg, rgba(16,185,129,0.07), rgba(59,130,246,0.04))'
+                  : 'transparent',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => { if (!isPolicyOpen) (e.currentTarget as HTMLDivElement).style.background = 'rgba(16,185,129,0.04)' }}
+              onMouseLeave={e => { if (!isPolicyOpen) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+            >
+              {/* Chevron */}
+              <div style={{ color: isPolicyOpen ? '#10b981' : 'var(--text-secondary)', transition: 'transform 0.2s, color 0.2s', transform: isPolicyOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+                <ChevronDown size={18} />
+              </div>
+
+              {/* Policy Icon */}
+              <div style={{
+                width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 3px 8px rgba(16,185,129,0.25)'
+              }}>
+                <ShieldAlert size={16} color="#fff" />
+              </div>
+
+              {/* Policy Name */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {policy.policy_name}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  {policy.rules?.length || 0} Kural · {totalExc} Exception
+                </div>
+              </div>
+
+              {/* Stats Chips */}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  {policy.rules?.length || 0} Kural
+                </span>
+                <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
+                  {totalExc} Exc
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                <button className="pi-icon-btn" onClick={() => onAddRule(policy.id)} title="Kural Ekle"><Plus size={15} /></button>
+                <button className="pi-icon-btn" onClick={() => onEditPolicy(policy)} title="Düzenle"><Edit2 size={15} /></button>
+                <button className="pi-icon-btn pi-delete" onClick={() => onDeletePolicy(policy.id, policy.policy_name)} title="Sil"><Trash2 size={15} /></button>
+              </div>
+            </div>
+
+            {/* Rules */}
+            {isPolicyOpen && (
+              <div style={{ borderTop: '1px solid var(--border-color)' }}>
+                {policy.rules?.map((rule, ri) => {
+                  const isRuleOpen = !!expandedRules[rule.id]
+                  const maxSev = rule.severity_actions?.find(s => s.selected === 'true')?.severity_type
+                  const activeChan = rule.destinations?.filter(d => d.channel_enabled === 'true').length || 0
+
+                  return (
+                    <div key={rule.id} style={{
+                      borderBottom: ri < (policy.rules?.length ?? 1) - 1 ? '1px solid var(--border-color)' : 'none'
+                    }}>
+                      {/* Rule Header */}
+                      <div
+                        onClick={() => toggleRule(rule.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          padding: '10px 20px 10px 44px', cursor: 'pointer',
+                          background: isRuleOpen ? 'rgba(59,130,246,0.05)' : 'rgba(0,0,0,0.01)',
+                          transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={e => { if (!isRuleOpen) (e.currentTarget as HTMLDivElement).style.background = 'rgba(59,130,246,0.04)' }}
+                        onMouseLeave={e => { if (!isRuleOpen) (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.01)' }}
+                      >
+                        <div style={{ color: isRuleOpen ? '#3b82f6' : 'var(--text-secondary)', transition: 'transform 0.15s, color 0.15s', transform: isRuleOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}>
+                          <ChevronDown size={15} />
+                        </div>
+
+                        <div style={{
+                          width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0,
+                          background: isRuleOpen ? '#3b82f6' : 'var(--text-secondary)'
+                        }} />
+
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                          {rule.rule_name}
+                        </span>
+
+                        {/* Rule Mini-Stats */}
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          {maxSev && <SeverityBadge severity={maxSev} />}
+                          {activeChan > 0 && (
+                            <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
+                              {activeChan} kanal aktif
+                            </span>
+                          )}
+                          <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '11px', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.04)' }}>
+                            {rule.exceptions?.length || 0} exc
+                          </span>
+                        </div>
+
+                        {/* Rule Actions */}
+                        <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                          <button className="pi-icon-btn" onClick={() => onAddException(rule.id)} title="Exception Ekle"><Plus size={13} /></button>
+                          <button className="pi-icon-btn" onClick={() => onEditRule(rule, policy.id)} title="Kuralı Düzenle"><Edit2 size={13} /></button>
+                          <button className="pi-icon-btn pi-delete" onClick={() => onDeleteRule(rule.id, rule.rule_name)} title="Kuralı Sil"><Trash2 size={13} /></button>
+                        </div>
+                      </div>
+
+                      {/* Rule Detail Panel */}
+                      {isRuleOpen && <RuleDetailPanel rule={rule} />}
+                    </div>
+                  )
+                })}
+                {!policy.rules?.length && (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                    Kural bulunamadı. <button onClick={() => onAddRule(policy.id)} style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontWeight: 600 }}>Kural Ekle →</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      <style>{`
+        .pi-icon-btn {
+          background: none; border: none; color: var(--text-secondary); cursor: pointer;
+          padding: 5px; border-radius: 6px; transition: all 0.15s;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .pi-icon-btn:hover { background: var(--border-color); color: var(--text-primary); }
+        .pi-icon-btn.pi-delete:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+      `}</style>
     </div>
   )
 }

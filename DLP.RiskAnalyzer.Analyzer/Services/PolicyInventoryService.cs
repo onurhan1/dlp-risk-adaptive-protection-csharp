@@ -64,8 +64,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
             if (document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
-                var options = new System.Text.Json.JsonSerializerOptions 
-                { 
+                // Legacy format: direct array
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
                     PropertyNameCaseInsensitive = true,
                     PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
                 };
@@ -79,7 +80,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                     if (!string.IsNullOrEmpty(policyName))
                     {
                         var policy = new PIPolicy { PolicyName = policyName };
-                        
+
                         if (policyElement.TryGetProperty("rules", out var rulesElement) && rulesElement.ValueKind == System.Text.Json.JsonValueKind.Array)
                         {
                             foreach (var rElement in rulesElement.EnumerateArray())
@@ -90,20 +91,26 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                     PartsCountType = rElement.TryGetProperty("parts_count_type", out var pct) ? pct.GetString() : null,
                                     ConditionRelationType = rElement.TryGetProperty("condition_relation_type", out var crt) ? crt.GetString() : null
                                 };
-                                
+
+                                // Rule Classifiers — FIX: now reads threshold_value_from
                                 if (rElement.TryGetProperty("classifiers", out var classElement) && classElement.ValueKind == System.Text.Json.JsonValueKind.Array)
                                 {
                                     foreach (var cElement in classElement.EnumerateArray())
                                     {
+                                        int? tvf = null;
+                                        if (cElement.TryGetProperty("threshold_value_from", out var tvfEl) && tvfEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                            tvf = tvfEl.GetInt32();
                                         rule.Classifiers.Add(new PIRuleClassifier
                                         {
                                             ClassifierName = cElement.TryGetProperty("classifier_name", out var cn) ? cn.GetString() : null,
                                             ThresholdType = cElement.TryGetProperty("threshold_type", out var tt) ? tt.GetString() : null,
+                                            ThresholdValueFrom = tvf,
                                             ThresholdCalculateType = cElement.TryGetProperty("threshold_calculate_type", out var tct) ? tct.GetString() : null
                                         });
                                     }
                                 }
 
+                                // Exceptions
                                 if (rElement.TryGetProperty("exception_rules", out var excObj) && excObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                 {
                                     if (excObj.TryGetProperty("exception_rules", out var excArr) && excArr.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -122,15 +129,44 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                 ConditionRelationType = eElement.TryGetProperty("condition_relation_type", out var ecrt) ? ecrt.GetString() : null
                                             };
 
+                                            // FIX: Exception Classifiers (was never parsed before)
+                                            if (eElement.TryGetProperty("classifiers", out var excClassArr) && excClassArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                            {
+                                                int autoPos = 0;
+                                                foreach (var ecEl in excClassArr.EnumerateArray())
+                                                {
+                                                    autoPos++;
+                                                    int? epos = null, etvf = null;
+                                                    if (ecEl.TryGetProperty("position", out var eposEl) && eposEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                                        epos = eposEl.GetInt32();
+                                                    if (ecEl.TryGetProperty("threshold_value_from", out var etvfEl) && etvfEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                                        etvf = etvfEl.GetInt32();
+                                                    exc.Classifiers.Add(new PIExceptionClassifier
+                                                    {
+                                                        ClassifierName = ecEl.TryGetProperty("classifier_name", out var ecn) ? ecn.GetString() : null,
+                                                        Position = epos ?? autoPos,
+                                                        ThresholdType = ecEl.TryGetProperty("threshold_type", out var ett) ? ett.GetString() : null,
+                                                        ThresholdValueFrom = etvf,
+                                                        ThresholdCalculateType = ecEl.TryGetProperty("threshold_calculate_type", out var etct) ? etct.GetString() : null,
+                                                        AnalyzedSpecificFields = ecEl.TryGetProperty("analyzed_specific_fields", out var easf) ? easf.GetString() : null
+                                                    });
+                                                }
+                                            }
+
+                                            // Exception Severity Action
                                             if (eElement.TryGetProperty("severity_action", out var sevObj) && sevObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                             {
                                                 if (sevObj.TryGetProperty("classifier_details", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                                 {
                                                     foreach (var cdElement in cdArr.EnumerateArray())
                                                     {
+                                                        int? nom = null;
+                                                        if (cdElement.TryGetProperty("number_of_matches", out var nomEl) && nomEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                                            nom = nomEl.GetInt32();
                                                         exc.SeverityActions.Add(new PIExceptionSeverityAction
                                                         {
                                                             Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
+                                                            NumberOfMatches = nom,
                                                             SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
                                                             DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
                                                             ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
@@ -139,6 +175,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                 }
                                             }
 
+                                            // FIX: Exception Source — field is "type" not "resource_type"
                                             if (eElement.TryGetProperty("rule_source", out var srcObj) && srcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                             {
                                                 if (srcObj.TryGetProperty("resources", out var ndArr) && ndArr.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -155,6 +192,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                 }
                                             }
 
+                                            // FIX: Exception Destination — now saves channel resources too
                                             if (eElement.TryGetProperty("rule_destination", out var destObj) && destObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                             {
                                                 var emailDir = "";
@@ -165,16 +203,30 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                                     emailDir = string.Join(",", dirs);
                                                 }
 
-                                                if (destObj.TryGetProperty("channels", out var cdArr) && cdArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                if (destObj.TryGetProperty("channels", out var chanArr) && chanArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                                 {
-                                                    foreach (var cdElement in cdArr.EnumerateArray())
+                                                    foreach (var chanElement in chanArr.EnumerateArray())
                                                     {
-                                                        exc.Destinations.Add(new PIExceptionDestination
+                                                        var excDest = new PIExceptionDestination
                                                         {
                                                             EmailMonitorDirections = emailDir,
-                                                            ChannelType = cdElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
-                                                            ChannelEnabled = cdElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
-                                                        });
+                                                            ChannelType = chanElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
+                                                            ChannelEnabled = chanElement.TryGetProperty("enabled", out var cen) ? cen.GetString() : null
+                                                        };
+                                                        // FIX: save channel resources within each channel
+                                                        if (chanElement.TryGetProperty("resources", out var chanResArr) && chanResArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                                        {
+                                                            foreach (var crEl in chanResArr.EnumerateArray())
+                                                            {
+                                                                excDest.ChannelResources.Add(new PIExceptionChannelResource
+                                                                {
+                                                                    ResourceName = crEl.TryGetProperty("resource_name", out var crn) ? crn.GetString() : null,
+                                                                    ResourceType = crEl.TryGetProperty("type", out var crt2) ? crt2.GetString() : null,
+                                                                    Include = crEl.TryGetProperty("include", out var crinc) ? crinc.GetString() : null
+                                                                });
+                                                            }
+                                                        }
+                                                        exc.Destinations.Add(excDest);
                                                     }
                                                 }
                                             }
@@ -191,7 +243,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                     }
                 }
 
-                // Parse Root-level severity_action
+                // Root-level severity_action — Rule Severity Actions
                 if (document.RootElement.TryGetProperty("severity_action", out var rootSevElement) && rootSevElement.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
                     if (rootSevElement.TryGetProperty("rules", out var sevRules) && sevRules.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -207,10 +259,14 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                 {
                                     foreach (var cdElement in cdArr.EnumerateArray())
                                     {
+                                        int? nom = null;
+                                        if (cdElement.TryGetProperty("number_of_matches", out var nomEl) && nomEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                            nom = nomEl.GetInt32();
                                         targetRule.SeverityActions.Add(new PIRuleSeverityAction
                                         {
                                             MaxMatches = maxMatches,
                                             Selected = cdElement.TryGetProperty("selected", out var sel) ? sel.GetString() : null,
+                                            NumberOfMatches = nom,
                                             SeverityType = cdElement.TryGetProperty("severity_type", out var st) ? st.GetString() : null,
                                             DupSeverityType = cdElement.TryGetProperty("dup_severity_type", out var dst) ? dst.GetString() : null,
                                             ActionPlan = cdElement.TryGetProperty("action_plan", out var ap) ? ap.GetString() : null
@@ -222,7 +278,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                     }
                 }
 
-                // Parse Root-level source_destination
+                // Root-level source_destination — Rule Sources and Destinations
                 if (document.RootElement.TryGetProperty("source_destination", out var rootSrcDestElement) && rootSrcDestElement.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
                     if (rootSrcDestElement.TryGetProperty("rules", out var sdRules) && sdRules.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -233,6 +289,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                             var targetRule = importedPolicies.SelectMany(p => p.Rules).FirstOrDefault(r => r.RuleName == rName);
                             if (targetRule != null)
                             {
+                                // FIX: Rule Source — field is "type" not "resource_type"
                                 if (sdRule.TryGetProperty("rule_source", out var rSrcObj) && rSrcObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                 {
                                     if (rSrcObj.TryGetProperty("resources", out var resArr) && resArr.ValueKind == System.Text.Json.JsonValueKind.Array)
@@ -249,6 +306,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                                     }
                                 }
 
+                                // FIX: Rule Destination — now saves channel resources too
                                 if (sdRule.TryGetProperty("rule_destination", out var rDestObj) && rDestObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                                 {
                                     var emailDir = "";
@@ -261,14 +319,28 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
                                     if (rDestObj.TryGetProperty("channels", out var chanArr) && chanArr.ValueKind == System.Text.Json.JsonValueKind.Array)
                                     {
-                                        foreach (var cElement in chanArr.EnumerateArray())
+                                        foreach (var chanElement in chanArr.EnumerateArray())
                                         {
-                                            targetRule.Destinations.Add(new PIRuleDestination
+                                            var ruleDest = new PIRuleDestination
                                             {
                                                 EmailMonitorDirections = emailDir,
-                                                ChannelType = cElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
-                                                ChannelEnabled = cElement.TryGetProperty("enabled", out var ce2) ? ce2.GetString() : null
-                                            });
+                                                ChannelType = chanElement.TryGetProperty("channel_type", out var ct) ? ct.GetString() : null,
+                                                ChannelEnabled = chanElement.TryGetProperty("enabled", out var cen) ? cen.GetString() : null
+                                            };
+                                            // FIX: save channel resources within each rule destination channel
+                                            if (chanElement.TryGetProperty("resources", out var chanResArr) && chanResArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                            {
+                                                foreach (var crEl in chanResArr.EnumerateArray())
+                                                {
+                                                    ruleDest.ChannelResources.Add(new PIRuleChannelResource
+                                                    {
+                                                        ResourceName = crEl.TryGetProperty("resource_name", out var crn) ? crn.GetString() : null,
+                                                        ResourceType = crEl.TryGetProperty("type", out var crt2) ? crt2.GetString() : null,
+                                                        Include = crEl.TryGetProperty("include", out var crinc) ? crinc.GetString() : null
+                                                    });
+                                                }
+                                            }
+                                            targetRule.Destinations.Add(ruleDest);
                                         }
                                     }
                                 }
@@ -344,8 +416,18 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
         private async Task<(bool, string, int, int, int)> ImportExcelAsync(IFormFile file)
         {
-            var policiesMap = new Dictionary<string, PIPolicy>();
-            var rulesMap = new Dictionary<string, PIRule>();
+            // Dictionaries for deduplication
+            var policiesMap = new Dictionary<string, PIPolicy>(StringComparer.OrdinalIgnoreCase);
+            var rulesMap = new Dictionary<string, PIRule>(StringComparer.OrdinalIgnoreCase);
+            var exceptionsMap = new Dictionary<string, PIException>(StringComparer.OrdinalIgnoreCase);
+            var addedRuleClassifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedExcClassifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedExcSeverities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedExcSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedExcDests = new Dictionary<string, PIExceptionDestination>(StringComparer.OrdinalIgnoreCase);
+            var addedRuleSeverities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedRuleSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var addedRuleDests = new Dictionary<string, PIRuleDestination>(StringComparer.OrdinalIgnoreCase);
 
             using var stream = file.OpenReadStream();
             using var workbook = new XLWorkbook(stream);
@@ -354,146 +436,249 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
 
             for (int r = 2; r <= rowCount; r++)
             {
-                var type = worksheet.Cell(r, 1).GetString().Trim();
+                // C1: Name column (formerly Type) — currently all values are "policy"
                 var policyName = worksheet.Cell(r, 2).GetString().Trim();
-                var ruleName = worksheet.Cell(r, 3).GetString().Trim();
-
+                var ruleName   = worksheet.Cell(r, 3).GetString().Trim();
                 if (string.IsNullOrEmpty(policyName)) continue;
 
-                // Ensure Policy exists in memory
+                var ruleKey = $"{policyName}|{ruleName}";
+                var excName = worksheet.Cell(r, 10).GetString().Trim();
+                var excKey  = $"{ruleKey}|{excName}";
+
+                // ── Policy ──────────────────────────────────────────────
                 if (!policiesMap.TryGetValue(policyName, out var currentPolicy))
                 {
                     currentPolicy = new PIPolicy { PolicyName = policyName };
                     policiesMap[policyName] = currentPolicy;
                 }
 
-                // Ensure Rule exists in memory
-                var ruleKey = $"{policyName}_{ruleName}";
+                // ── Rule ────────────────────────────────────────────────
                 PIRule currentRule = null;
                 if (!string.IsNullOrEmpty(ruleName))
                 {
                     if (!rulesMap.TryGetValue(ruleKey, out currentRule))
                     {
-                        currentRule = new PIRule { RuleName = ruleName };
+                        currentRule = new PIRule
+                        {
+                            RuleName = ruleName,
+                            PartsCountType = worksheet.Cell(r, 4).GetString(),
+                            ConditionRelationType = worksheet.Cell(r, 5).GetString()
+                        };
                         currentPolicy.Rules.Add(currentRule);
                         rulesMap[ruleKey] = currentRule;
                     }
-                }
 
-                if (type == "policy")
-                {
-                    // Rule ana bilgileri (Col 4-5)
-                    if (currentRule != null)
+                    // C6–C9: Rule Classifier (deduplicated by name)
+                    var rClassName = worksheet.Cell(r, 6).GetString().Trim();
+                    if (!string.IsNullOrEmpty(rClassName))
                     {
-                        currentRule.PartsCountType = worksheet.Cell(r, 4).GetString();
-                        currentRule.ConditionRelationType = worksheet.Cell(r, 5).GetString();
-
-                        // Kural Classifier (Col 6-9)
-                        var rClass = worksheet.Cell(r, 6).GetString();
-                        if (!string.IsNullOrEmpty(rClass))
+                        var rClassKey = $"{ruleKey}|{rClassName}";
+                        if (!addedRuleClassifiers.Contains(rClassKey))
                         {
+                            addedRuleClassifiers.Add(rClassKey);
+                            int? tvf = null;
+                            if (int.TryParse(worksheet.Cell(r, 8).GetString().Trim(), out var tvfParsed)) tvf = tvfParsed;
                             currentRule.Classifiers.Add(new PIRuleClassifier
                             {
-                                ClassifierName = rClass,
+                                ClassifierName = rClassName,
                                 ThresholdType = worksheet.Cell(r, 7).GetString(),
+                                ThresholdValueFrom = tvf,
                                 ThresholdCalculateType = worksheet.Cell(r, 9).GetString()
                             });
                         }
                     }
 
-                    // Exception bilgileri (Col 10-17)
-                    var excName = worksheet.Cell(r, 10).GetString();
-                    if (!string.IsNullOrEmpty(excName) && currentRule != null)
+                    // C38–C44: Rule Severity Action (deduplicated by number_of_matches)
+                    var ruleSevNomStr = worksheet.Cell(r, 41).GetString().Trim();
+                    var ruleSevType   = worksheet.Cell(r, 42).GetString().Trim();
+                    if (!string.IsNullOrEmpty(ruleSevType))
                     {
-                        var exc = new PIException
+                        var ruleSevKey = $"{ruleKey}|{ruleSevNomStr}|{ruleSevType}";
+                        if (!addedRuleSeverities.Contains(ruleSevKey))
                         {
-                            ExceptionRuleName = excName,
-                            Enabled = worksheet.Cell(r, 11).GetString(),
-                            Description = worksheet.Cell(r, 12).GetString(),
-                            ConditionEnabled = worksheet.Cell(r, 13).GetString(),
-                            SourceEnabled = worksheet.Cell(r, 14).GetString(),
-                            DestinationEnabled = worksheet.Cell(r, 15).GetString(),
-                            PartsCountType = worksheet.Cell(r, 16).GetString(),
-                            ConditionRelationType = worksheet.Cell(r, 17).GetString()
-                        };
-
-                        // Exception Severity Action (Col 24-28)
-                        var excSevType = worksheet.Cell(r, 26).GetString();
-                        if (!string.IsNullOrEmpty(excSevType))
-                        {
-                            exc.SeverityActions.Add(new PIExceptionSeverityAction
+                            addedRuleSeverities.Add(ruleSevKey);
+                            int? nom = null;
+                            if (int.TryParse(ruleSevNomStr, out var nomParsed)) nom = nomParsed;
+                            currentRule.SeverityActions.Add(new PIRuleSeverityAction
                             {
-                                Selected = worksheet.Cell(r, 24).GetString(),
-                                SeverityType = excSevType,
-                                DupSeverityType = worksheet.Cell(r, 27).GetString(),
-                                ActionPlan = worksheet.Cell(r, 28).GetString()
+                                Type        = worksheet.Cell(r, 38).GetString(),
+                                MaxMatches  = worksheet.Cell(r, 39).GetString(),
+                                Selected    = worksheet.Cell(r, 40).GetString(),
+                                NumberOfMatches = nom,
+                                SeverityType    = ruleSevType,
+                                DupSeverityType = worksheet.Cell(r, 43).GetString(),
+                                ActionPlan      = worksheet.Cell(r, 44).GetString()
                             });
                         }
+                    }
 
-                        // Exception Source (Col 29-31)
-                        var excSrcName = worksheet.Cell(r, 29).GetString();
-                        if (!string.IsNullOrEmpty(excSrcName))
+                    // C45–C47: Rule Source (deduplicated by resource_name)
+                    var ruleSrcName = worksheet.Cell(r, 45).GetString().Trim();
+                    if (!string.IsNullOrEmpty(ruleSrcName))
+                    {
+                        var ruleSrcKey = $"{ruleKey}|{ruleSrcName}";
+                        if (!addedRuleSources.Contains(ruleSrcKey))
                         {
-                            exc.Sources.Add(new PIExceptionSource
+                            addedRuleSources.Add(ruleSrcKey);
+                            currentRule.Sources.Add(new PIRuleSource
+                            {
+                                ResourceName = ruleSrcName,
+                                ResourceType = worksheet.Cell(r, 46).GetString(),
+                                Include      = worksheet.Cell(r, 47).GetString()
+                            });
+                        }
+                    }
+
+                    // C48–C53: Rule Destination (grouped by channel_type, resources as sub-entries)
+                    var ruleDestChanType = worksheet.Cell(r, 49).GetString().Trim();
+                    if (!string.IsNullOrEmpty(ruleDestChanType))
+                    {
+                        var ruleDestKey = $"{ruleKey}|{ruleDestChanType}";
+                        if (!addedRuleDests.TryGetValue(ruleDestKey, out var ruleDest))
+                        {
+                            ruleDest = new PIRuleDestination
+                            {
+                                EmailMonitorDirections = worksheet.Cell(r, 48).GetString(),
+                                ChannelType    = ruleDestChanType,
+                                ChannelEnabled = worksheet.Cell(r, 50).GetString()
+                            };
+                            currentRule.Destinations.Add(ruleDest);
+                            addedRuleDests[ruleDestKey] = ruleDest;
+                        }
+                        // C51–C53: channel resource within rule destination
+                        var ruleDestResName = worksheet.Cell(r, 51).GetString().Trim();
+                        if (!string.IsNullOrEmpty(ruleDestResName))
+                        {
+                            if (!ruleDest.ChannelResources.Any(cr => string.Equals(cr.ResourceName, ruleDestResName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                ruleDest.ChannelResources.Add(new PIRuleChannelResource
+                                {
+                                    ResourceName = ruleDestResName,
+                                    ResourceType = worksheet.Cell(r, 52).GetString(),
+                                    Include      = worksheet.Cell(r, 53).GetString()
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // ── Exception ────────────────────────────────────────────
+                if (!string.IsNullOrEmpty(excName) && currentRule != null)
+                {
+                    if (!exceptionsMap.TryGetValue(excKey, out var currentExc))
+                    {
+                        var enStr  = worksheet.Cell(r, 11).GetString(); if (string.IsNullOrEmpty(enStr)) enStr = "true";
+                        var ceStr  = worksheet.Cell(r, 13).GetString(); if (string.IsNullOrEmpty(ceStr)) ceStr = "false";
+                        var seStr  = worksheet.Cell(r, 14).GetString(); if (string.IsNullOrEmpty(seStr)) seStr = "false";
+                        var deStr  = worksheet.Cell(r, 15).GetString(); if (string.IsNullOrEmpty(deStr)) deStr = "false";
+                        currentExc = new PIException
+                        {
+                            ExceptionRuleName     = excName,
+                            Enabled               = enStr,
+                            Description           = worksheet.Cell(r, 12).GetString(),
+                            ConditionEnabled      = ceStr,
+                            SourceEnabled         = seStr,
+                            DestinationEnabled    = deStr,
+                            PartsCountType        = worksheet.Cell(r, 16).GetString(),
+                            ConditionRelationType = worksheet.Cell(r, 17).GetString()
+                        };
+                        currentRule.Exceptions.Add(currentExc);
+                        exceptionsMap[excKey] = currentExc;
+                    }
+
+                    // C18–C23: Exception Classifier (deduplicated by position+name)
+                    var excClassName = worksheet.Cell(r, 18).GetString().Trim();
+                    if (!string.IsNullOrEmpty(excClassName))
+                    {
+                        var excClassPos = worksheet.Cell(r, 19).GetString().Trim();
+                        var excClassKey = $"{excKey}|{excClassPos}|{excClassName}";
+                        if (!addedExcClassifiers.Contains(excClassKey))
+                        {
+                            addedExcClassifiers.Add(excClassKey);
+                            int? pos = null, etvf = null;
+                            if (int.TryParse(excClassPos, out var posParsed)) pos = posParsed;
+                            if (int.TryParse(worksheet.Cell(r, 21).GetString().Trim(), out var tvfParsed)) etvf = tvfParsed;
+                            currentExc.Classifiers.Add(new PIExceptionClassifier
+                            {
+                                ClassifierName       = excClassName,
+                                Position             = pos,
+                                ThresholdType        = worksheet.Cell(r, 20).GetString(),
+                                ThresholdValueFrom   = etvf,
+                                ThresholdCalculateType  = worksheet.Cell(r, 22).GetString(),
+                                AnalyzedSpecificFields  = worksheet.Cell(r, 23).GetString()
+                            });
+                        }
+                    }
+
+                    // C24–C28: Exception Severity Action (deduplicated by number_of_matches+severity_type)
+                    var excSevNomStr = worksheet.Cell(r, 25).GetString().Trim();
+                    var excSevType   = worksheet.Cell(r, 26).GetString().Trim();
+                    if (!string.IsNullOrEmpty(excSevType))
+                    {
+                        var excSevKey = $"{excKey}|{excSevNomStr}|{excSevType}";
+                        if (!addedExcSeverities.Contains(excSevKey))
+                        {
+                            addedExcSeverities.Add(excSevKey);
+                            int? nom = null;
+                            if (int.TryParse(excSevNomStr, out var nomParsed)) nom = nomParsed;
+                            currentExc.SeverityActions.Add(new PIExceptionSeverityAction
+                            {
+                                Selected        = worksheet.Cell(r, 24).GetString(),
+                                NumberOfMatches = nom,
+                                SeverityType    = excSevType,
+                                DupSeverityType = worksheet.Cell(r, 27).GetString(),
+                                ActionPlan      = worksheet.Cell(r, 28).GetString()
+                            });
+                        }
+                    }
+
+                    // C29–C31: Exception Source (deduplicated by resource_name)
+                    var excSrcName = worksheet.Cell(r, 29).GetString().Trim();
+                    if (!string.IsNullOrEmpty(excSrcName))
+                    {
+                        var excSrcKey = $"{excKey}|{excSrcName}";
+                        if (!addedExcSources.Contains(excSrcKey))
+                        {
+                            addedExcSources.Add(excSrcKey);
+                            currentExc.Sources.Add(new PIExceptionSource
                             {
                                 ResourceName = excSrcName,
                                 ResourceType = worksheet.Cell(r, 30).GetString(),
-                                Include = worksheet.Cell(r, 31).GetString()
+                                Include      = worksheet.Cell(r, 31).GetString()
                             });
                         }
+                    }
 
-                        // Exception Destination (Col 32-34)
-                        var excDestChannel = worksheet.Cell(r, 33).GetString();
-                        if (!string.IsNullOrEmpty(excDestChannel))
+                    // C32–C37: Exception Destination (grouped by channel_type, resources as sub-entries)
+                    var excDestChanType = worksheet.Cell(r, 33).GetString().Trim();
+                    if (!string.IsNullOrEmpty(excDestChanType))
+                    {
+                        var excDestKey = $"{excKey}|{excDestChanType}";
+                        if (!addedExcDests.TryGetValue(excDestKey, out var excDest))
                         {
-                            exc.Destinations.Add(new PIExceptionDestination
+                            excDest = new PIExceptionDestination
                             {
-                                ChannelType = excDestChannel,
-                                ChannelEnabled = worksheet.Cell(r, 34).GetString(),
-                                EmailMonitorDirections = worksheet.Cell(r, 32).GetString()
-                            });
+                                EmailMonitorDirections = worksheet.Cell(r, 32).GetString(),
+                                ChannelType    = excDestChanType,
+                                ChannelEnabled = worksheet.Cell(r, 34).GetString()
+                            };
+                            currentExc.Destinations.Add(excDest);
+                            addedExcDests[excDestKey] = excDest;
                         }
-
-                        currentRule.Exceptions.Add(exc);
-                    }
-                }
-                else if (type == "severity_action" && currentRule != null)
-                {
-                    // Rule Severity Actions (Col 38-44)
-                    currentRule.SeverityActions.Add(new PIRuleSeverityAction
-                    {
-                        Type = worksheet.Cell(r, 38).GetString(),
-                        MaxMatches = worksheet.Cell(r, 39).GetString(),
-                        Selected = worksheet.Cell(r, 40).GetString(),
-                        SeverityType = worksheet.Cell(r, 42).GetString(),
-                        DupSeverityType = worksheet.Cell(r, 43).GetString(),
-                        ActionPlan = worksheet.Cell(r, 44).GetString()
-                    });
-                }
-                else if (type == "source_destination" && currentRule != null)
-                {
-                    // Rule Source (Col 45-47)
-                    var srcName = worksheet.Cell(r, 45).GetString();
-                    if (!string.IsNullOrEmpty(srcName))
-                    {
-                        currentRule.Sources.Add(new PIRuleSource
+                        // C35–C37: channel resource within exception destination
+                        var excDestResName = worksheet.Cell(r, 35).GetString().Trim();
+                        if (!string.IsNullOrEmpty(excDestResName))
                         {
-                            ResourceName = srcName,
-                            ResourceType = worksheet.Cell(r, 46).GetString(),
-                            Include = worksheet.Cell(r, 47).GetString()
-                        });
-                    }
-
-                    // Rule Destination (Col 48-50)
-                    var destChannel = worksheet.Cell(r, 49).GetString();
-                    if (!string.IsNullOrEmpty(destChannel))
-                    {
-                        currentRule.Destinations.Add(new PIRuleDestination
-                        {
-                            ChannelType = destChannel,
-                            ChannelEnabled = worksheet.Cell(r, 50).GetString(),
-                            EmailMonitorDirections = worksheet.Cell(r, 48).GetString()
-                        });
+                            if (!excDest.ChannelResources.Any(cr => string.Equals(cr.ResourceName, excDestResName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                excDest.ChannelResources.Add(new PIExceptionChannelResource
+                                {
+                                    ResourceName = excDestResName,
+                                    ResourceType = worksheet.Cell(r, 36).GetString(),
+                                    Include      = worksheet.Cell(r, 37).GetString()
+                                });
+                            }
+                        }
                     }
                 }
             }
@@ -577,62 +762,125 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("Politika Envanteri");
 
-            // Başlıklar
-            ws.Cell(1, 1).Value = "Type";
-            ws.Cell(1, 2).Value = "policy_name";
-            ws.Cell(1, 3).Value = "rule_name";
-            ws.Cell(1, 4).Value = "parts_count_type";
-            ws.Cell(1, 5).Value = "condition_relation_type";
-            ws.Cell(1, 6).Value = "classifier_name";
-            ws.Cell(1, 7).Value = "threshold_type";
-            ws.Cell(1, 9).Value = "threshold_calculate_type";
-            ws.Cell(1, 10).Value = "exception_rule_name";
-            ws.Cell(1, 11).Value = "enabled";
-            ws.Cell(1, 12).Value = "description";
-            ws.Cell(1, 13).Value = "condition_enabled";
-            ws.Cell(1, 14).Value = "source_enabled";
-            ws.Cell(1, 15).Value = "destination_enabled";
-            ws.Cell(1, 16).Value = "exc_parts_count_type";
-            ws.Cell(1, 17).Value = "exc_condition_relation_type";
-            ws.Cell(1, 24).Value = "exc_selected";
-            ws.Cell(1, 26).Value = "exc_severity_type";
-            ws.Cell(1, 27).Value = "exc_dup_severity_type";
-            ws.Cell(1, 28).Value = "exc_action_plan";
-            ws.Cell(1, 29).Value = "exc_resource_name";
-            ws.Cell(1, 30).Value = "exc_resource_type";
-            ws.Cell(1, 31).Value = "exc_include";
-            ws.Cell(1, 32).Value = "exc_email_monitor_directions";
-            ws.Cell(1, 33).Value = "exc_channel_type";
-            ws.Cell(1, 34).Value = "exc_channel_enabled";
-            
-            // Rule Severity & Source Dest Başlıkları
-            ws.Cell(1, 38).Value = "rule_sev_type";
-            ws.Cell(1, 39).Value = "rule_sev_max_matches";
-            ws.Cell(1, 40).Value = "rule_sev_selected";
-            ws.Cell(1, 42).Value = "rule_sev_severity_type";
-            ws.Cell(1, 43).Value = "rule_sev_dup_severity";
-            ws.Cell(1, 44).Value = "rule_sev_action_plan";
-            
-            ws.Cell(1, 45).Value = "rule_src_resource_name";
-            ws.Cell(1, 46).Value = "rule_src_resource_type";
-            ws.Cell(1, 47).Value = "rule_src_include";
-            
-            ws.Cell(1, 48).Value = "rule_dest_email_monitor_directions";
-            ws.Cell(1, 49).Value = "rule_dest_channel_type";
-            ws.Cell(1, 50).Value = "rule_dest_channel_enabled";
+            // ── Başlıklar (53 sütun) ────────────────────────────────────────
+            ws.Cell(1, 1).Value  = "Name";                              // C1
+            ws.Cell(1, 2).Value  = "Value.policy_name";                 // C2
+            ws.Cell(1, 3).Value  = "Value.rules.rule_name";             // C3
+            ws.Cell(1, 4).Value  = "Value.rules.parts_count_type";      // C4
+            ws.Cell(1, 5).Value  = "Value.rules.condition_relation_type"; // C5
+            // Rule Classifier
+            ws.Cell(1, 6).Value  = "Value.rules.classifiers.classifier_name";         // C6
+            ws.Cell(1, 7).Value  = "Value.rules.classifiers.threshold_type";          // C7
+            ws.Cell(1, 8).Value  = "Value.rules.classifiers.threshold_value_from";    // C8
+            ws.Cell(1, 9).Value  = "Value.rules.classifiers.threshold_calculate_type"; // C9
+            // Exception
+            ws.Cell(1, 10).Value = "Value.rules.exception_rules.exception_rules.exception_rule_name"; // C10
+            ws.Cell(1, 11).Value = "Value.rules.exception_rules.exception_rules.enabled";             // C11
+            ws.Cell(1, 12).Value = "Value.rules.exception_rules.exception_rules.description";         // C12
+            ws.Cell(1, 13).Value = "Value.rules.exception_rules.exception_rules.condition_enabled";   // C13
+            ws.Cell(1, 14).Value = "Value.rules.exception_rules.exception_rules.source_enabled";      // C14
+            ws.Cell(1, 15).Value = "Value.rules.exception_rules.exception_rules.destination_enabled"; // C15
+            ws.Cell(1, 16).Value = "Value.rules.exception_rules.exception_rules.parts_count_type";    // C16
+            ws.Cell(1, 17).Value = "Value.rules.exception_rules.exception_rules.condition_relation_type"; // C17
+            // Exception Classifiers
+            ws.Cell(1, 18).Value = "Value.rules.exception_rules.exception_rules.classifiers.classifier_name";        // C18
+            ws.Cell(1, 19).Value = "Value.rules.exception_rules.exception_rules.classifiers.position";               // C19
+            ws.Cell(1, 20).Value = "Value.rules.exception_rules.exception_rules.classifiers.threshold_type";         // C20
+            ws.Cell(1, 21).Value = "Value.rules.exception_rules.exception_rules.classifiers.threshold_value_from";   // C21
+            ws.Cell(1, 22).Value = "Value.rules.exception_rules.exception_rules.classifiers.threshold_calculate_type"; // C22
+            ws.Cell(1, 23).Value = "Value.rules.exception_rules.exception_rules.classifiers.analyzed_specific_fields"; // C23
+            // Exception Severity
+            ws.Cell(1, 24).Value = "Value.rules.exception_rules.exception_rules.severity_action.classifier_details.selected";          // C24
+            ws.Cell(1, 25).Value = "Value.rules.exception_rules.exception_rules.severity_action.classifier_details.number_of_matches"; // C25
+            ws.Cell(1, 26).Value = "Value.rules.exception_rules.exception_rules.severity_action.classifier_details.severity_type";     // C26
+            ws.Cell(1, 27).Value = "Value.rules.exception_rules.exception_rules.severity_action.classifier_details.dup_severity_type"; // C27
+            ws.Cell(1, 28).Value = "Value.rules.exception_rules.exception_rules.severity_action.classifier_details.action_plan";       // C28
+            // Exception Source
+            ws.Cell(1, 29).Value = "Value.rules.exception_rules.exception_rules.rule_source.resources.resource_name"; // C29
+            ws.Cell(1, 30).Value = "Value.rules.exception_rules.exception_rules.rule_source.resources.type";          // C30
+            ws.Cell(1, 31).Value = "Value.rules.exception_rules.exception_rules.rule_source.resources.include";       // C31
+            // Exception Destination
+            ws.Cell(1, 32).Value = "Value.rules.exception_rules.exception_rules.rule_destination.email_monitor_directions"; // C32
+            ws.Cell(1, 33).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.channel_type";   // C33
+            ws.Cell(1, 34).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.enabled";        // C34
+            ws.Cell(1, 35).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resources.resource_name"; // C35
+            ws.Cell(1, 36).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resource.type";          // C36
+            ws.Cell(1, 37).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resource.include";       // C37
+            // Rule Severity Action
+            ws.Cell(1, 38).Value = "Value.rules.type";                              // C38
+            ws.Cell(1, 39).Value = "Value.rules.max_matches";                       // C39
+            ws.Cell(1, 40).Value = "Value.rules.classifier_details.selected";       // C40
+            ws.Cell(1, 41).Value = "Value.rules.classifier_details.number_of_matches"; // C41
+            ws.Cell(1, 42).Value = "Value.rules.classifier_details.severity_type";  // C42
+            ws.Cell(1, 43).Value = "Value.rules.classifier_details.dup_severity_type"; // C43
+            ws.Cell(1, 44).Value = "Value.rules.classifier_details.action_plan";    // C44
+            // Rule Source
+            ws.Cell(1, 45).Value = "Value.rules.rule_source.resources.resource_name"; // C45
+            ws.Cell(1, 46).Value = "Value.rules.rule_source.resources.type";          // C46
+            ws.Cell(1, 47).Value = "Value.rules.rule_source.resources.include";       // C47
+            // Rule Destination
+            ws.Cell(1, 48).Value = "Value.rules.rule_destination.email_monitor_directions";  // C48
+            ws.Cell(1, 49).Value = "Value.rules.rule_destination.channels.channel_type";     // C49
+            ws.Cell(1, 50).Value = "Value.rules.rule_destination.channels.enabled";          // C50
+            ws.Cell(1, 51).Value = "Value.rules.rule_destination.channels.resources.resource_name"; // C51
+            ws.Cell(1, 52).Value = "Value.rules.rule_destination.channels.resources.type";          // C52
+            ws.Cell(1, 53).Value = "Value.rules.rule_destination.channels.resources.include";        // C53
 
-            ws.Range("A1:AX1").Style.Font.Bold = true;
-            ws.Range("A1:AX1").Style.Fill.BackgroundColor = XLColor.LightGray;
+            ws.Range(ws.Cell(1,1), ws.Cell(1,53)).Style.Font.Bold = true;
+            ws.Range(ws.Cell(1,1), ws.Cell(1,53)).Style.Fill.BackgroundColor = XLColor.LightGray;
 
             int r = 2;
             foreach (var policy in policies)
             {
                 foreach (var rule in policy.Rules)
                 {
-                    // 1. Policy Satırı ve Exceptions
-                    if (rule.Exceptions.Any())
+                    var ruleClassifier = rule.Classifiers.FirstOrDefault();
+
+                    // Each exception × each severity action × each destination channel = one row
+                    // Build a cross-product of severity actions, sources, destinations per exception
+                    var excList  = rule.Exceptions.Any() ? rule.Exceptions.ToList() : new List<PIException> { null };
+                    var ruleSevs = rule.SeverityActions.ToList();
+                    var ruleSrcs = rule.Sources.ToList();
+
+                    // For rule-level severity+dest we flatten per destination channel row
+                    // Collect all dest channels across rule destinations (one row per channel per resource)
+                    var ruleDestRows = new List<(PIRuleDestination dest, PIRuleChannelResource? res)>();
+                    foreach (var d in rule.Destinations)
                     {
-                        foreach (var exc in rule.Exceptions)
+                        if (d.ChannelResources.Any())
+                            foreach (var cr in d.ChannelResources) ruleDestRows.Add((d, cr));
+                        else
+                            ruleDestRows.Add((d, null));
+                    }
+
+                    foreach (var exc in excList)
+                    {
+                        // Build rows for this exception (severity × destination channel × source)
+                        var excSevs  = exc?.SeverityActions.ToList() ?? new List<PIExceptionSeverityAction> { null };
+                        var excSrcs  = exc?.Sources.ToList() ?? new List<PIExceptionSource> { null };
+                        var excDestRows = new List<(PIExceptionDestination dest, PIExceptionChannelResource? res)>();
+                        if (exc != null)
+                        {
+                            foreach (var d in exc.Destinations)
+                            {
+                                if (d.ChannelResources.Any())
+                                    foreach (var cr in d.ChannelResources) excDestRows.Add((d, cr));
+                                else
+                                    excDestRows.Add((d, null));
+                            }
+                        }
+                        if (!excDestRows.Any()) excDestRows.Add((null, null));
+
+                        // Max rows for this exception (severity or destination, whichever is larger)
+                        int excRowCount = Math.Max(Math.Max(excSevs.Count, excSrcs.Count), excDestRows.Count);
+                        // Also factor in rule-level rows
+                        int ruleRowCount = Math.Max(Math.Max(ruleSevs.Count, ruleSrcs.Count), ruleDestRows.Count > 0 ? ruleDestRows.Count : 1);
+                        int rowsToWrite  = Math.Max(excRowCount, ruleRowCount);
+
+                        // Exception classifiers
+                        var excClassList = exc?.Classifiers.ToList() ?? new List<PIExceptionClassifier>();
+
+                        for (int i = 0; i < rowsToWrite; i++)
                         {
                             ws.Cell(r, 1).Value = "policy";
                             ws.Cell(r, 2).Value = policy.PolicyName;
@@ -640,101 +888,120 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                             ws.Cell(r, 4).Value = rule.PartsCountType;
                             ws.Cell(r, 5).Value = rule.ConditionRelationType;
 
-                            var ruleClassifier = rule.Classifiers.FirstOrDefault();
+                            // C6–C9: Rule Classifier (repeat on every row)
                             if (ruleClassifier != null)
                             {
                                 ws.Cell(r, 6).Value = ruleClassifier.ClassifierName;
                                 ws.Cell(r, 7).Value = ruleClassifier.ThresholdType;
+                                ws.Cell(r, 8).Value = ruleClassifier.ThresholdValueFrom.HasValue ? ruleClassifier.ThresholdValueFrom.Value.ToString() : "";
                                 ws.Cell(r, 9).Value = ruleClassifier.ThresholdCalculateType;
                             }
 
-                            ws.Cell(r, 10).Value = exc.ExceptionRuleName;
-                            ws.Cell(r, 11).Value = exc.Enabled;
-                            ws.Cell(r, 12).Value = exc.Description;
-                            ws.Cell(r, 13).Value = exc.ConditionEnabled;
-                            ws.Cell(r, 14).Value = exc.SourceEnabled;
-                            ws.Cell(r, 15).Value = exc.DestinationEnabled;
-                            ws.Cell(r, 16).Value = exc.PartsCountType;
-                            ws.Cell(r, 17).Value = exc.ConditionRelationType;
-
-                            var excSev = exc.SeverityActions.FirstOrDefault();
-                            if (excSev != null)
+                            // C10–C17: Exception base info (repeat on every row of this exception)
+                            if (exc != null)
                             {
-                                ws.Cell(r, 24).Value = excSev.Selected;
-                                ws.Cell(r, 26).Value = excSev.SeverityType;
-                                ws.Cell(r, 27).Value = excSev.DupSeverityType;
-                                ws.Cell(r, 28).Value = excSev.ActionPlan;
+                                ws.Cell(r, 10).Value = exc.ExceptionRuleName;
+                                ws.Cell(r, 11).Value = exc.Enabled;
+                                ws.Cell(r, 12).Value = exc.Description;
+                                ws.Cell(r, 13).Value = exc.ConditionEnabled;
+                                ws.Cell(r, 14).Value = exc.SourceEnabled;
+                                ws.Cell(r, 15).Value = exc.DestinationEnabled;
+                                ws.Cell(r, 16).Value = exc.PartsCountType;
+                                ws.Cell(r, 17).Value = exc.ConditionRelationType;
+
+                                // C18–C23: Exception Classifier (once per row index)
+                                if (i < excClassList.Count)
+                                {
+                                    var ec = excClassList[i];
+                                    ws.Cell(r, 18).Value = ec.ClassifierName;
+                                    ws.Cell(r, 19).Value = ec.Position.HasValue ? ec.Position.Value.ToString() : "";
+                                    ws.Cell(r, 20).Value = ec.ThresholdType;
+                                    ws.Cell(r, 21).Value = ec.ThresholdValueFrom.HasValue ? ec.ThresholdValueFrom.Value.ToString() : "";
+                                    ws.Cell(r, 22).Value = ec.ThresholdCalculateType;
+                                    ws.Cell(r, 23).Value = ec.AnalyzedSpecificFields;
+                                }
+
+                                // C24–C28: Exception Severity
+                                if (i < excSevs.Count && excSevs[i] != null)
+                                {
+                                    var es = excSevs[i];
+                                    ws.Cell(r, 24).Value = es.Selected;
+                                    ws.Cell(r, 25).Value = es.NumberOfMatches.HasValue ? es.NumberOfMatches.Value.ToString() : "";
+                                    ws.Cell(r, 26).Value = es.SeverityType;
+                                    ws.Cell(r, 27).Value = es.DupSeverityType;
+                                    ws.Cell(r, 28).Value = es.ActionPlan;
+                                }
+
+                                // C29–C31: Exception Source
+                                if (i < excSrcs.Count && excSrcs[i] != null)
+                                {
+                                    var esrc = excSrcs[i];
+                                    ws.Cell(r, 29).Value = esrc.ResourceName;
+                                    ws.Cell(r, 30).Value = esrc.ResourceType;
+                                    ws.Cell(r, 31).Value = esrc.Include;
+                                }
+
+                                // C32–C37: Exception Destination + Channel Resource
+                                if (i < excDestRows.Count)
+                                {
+                                    var (ed, ecr) = excDestRows[i];
+                                    if (ed != null)
+                                    {
+                                        ws.Cell(r, 32).Value = ed.EmailMonitorDirections;
+                                        ws.Cell(r, 33).Value = ed.ChannelType;
+                                        ws.Cell(r, 34).Value = ed.ChannelEnabled;
+                                        if (ecr != null)
+                                        {
+                                            ws.Cell(r, 35).Value = ecr.ResourceName;
+                                            ws.Cell(r, 36).Value = ecr.ResourceType;
+                                            ws.Cell(r, 37).Value = ecr.Include;
+                                        }
+                                    }
+                                }
                             }
 
-                            var excSrc = exc.Sources.FirstOrDefault();
-                            if (excSrc != null)
+                            // C38–C44: Rule Severity Action
+                            if (i < ruleSevs.Count)
                             {
-                                ws.Cell(r, 29).Value = excSrc.ResourceName;
-                                ws.Cell(r, 30).Value = excSrc.ResourceType;
-                                ws.Cell(r, 31).Value = excSrc.Include;
+                                var rs = ruleSevs[i];
+                                ws.Cell(r, 38).Value = rs.Type;
+                                ws.Cell(r, 39).Value = rs.MaxMatches;
+                                ws.Cell(r, 40).Value = rs.Selected;
+                                ws.Cell(r, 41).Value = rs.NumberOfMatches.HasValue ? rs.NumberOfMatches.Value.ToString() : "";
+                                ws.Cell(r, 42).Value = rs.SeverityType;
+                                ws.Cell(r, 43).Value = rs.DupSeverityType;
+                                ws.Cell(r, 44).Value = rs.ActionPlan;
                             }
 
-                            var excDest = exc.Destinations.FirstOrDefault();
-                            if (excDest != null)
+                            // C45–C47: Rule Source
+                            if (i < ruleSrcs.Count)
                             {
-                                ws.Cell(r, 32).Value = excDest.EmailMonitorDirections;
-                                ws.Cell(r, 33).Value = excDest.ChannelType;
-                                ws.Cell(r, 34).Value = excDest.ChannelEnabled;
+                                var rsrc = ruleSrcs[i];
+                                ws.Cell(r, 45).Value = rsrc.ResourceName;
+                                ws.Cell(r, 46).Value = rsrc.ResourceType;
+                                ws.Cell(r, 47).Value = rsrc.Include;
                             }
+
+                            // C48–C53: Rule Destination + Channel Resource
+                            if (i < ruleDestRows.Count)
+                            {
+                                var (rd, rcr) = ruleDestRows[i];
+                                if (rd != null)
+                                {
+                                    ws.Cell(r, 48).Value = rd.EmailMonitorDirections;
+                                    ws.Cell(r, 49).Value = rd.ChannelType;
+                                    ws.Cell(r, 50).Value = rd.ChannelEnabled;
+                                    if (rcr != null)
+                                    {
+                                        ws.Cell(r, 51).Value = rcr.ResourceName;
+                                        ws.Cell(r, 52).Value = rcr.ResourceType;
+                                        ws.Cell(r, 53).Value = rcr.Include;
+                                    }
+                                }
+                            }
+
                             r++;
                         }
-                    }
-                    else
-                    {
-                        ws.Cell(r, 1).Value = "policy";
-                        ws.Cell(r, 2).Value = policy.PolicyName;
-                        ws.Cell(r, 3).Value = rule.RuleName;
-                        ws.Cell(r, 4).Value = rule.PartsCountType;
-                        ws.Cell(r, 5).Value = rule.ConditionRelationType;
-                        r++;
-                    }
-
-                    // 2. Rule Severity Actions Satırları
-                    foreach (var sev in rule.SeverityActions)
-                    {
-                        ws.Cell(r, 1).Value = "severity_action";
-                        ws.Cell(r, 2).Value = policy.PolicyName;
-                        ws.Cell(r, 3).Value = rule.RuleName;
-                        
-                        ws.Cell(r, 38).Value = sev.Type;
-                        ws.Cell(r, 39).Value = sev.MaxMatches;
-                        ws.Cell(r, 40).Value = sev.Selected;
-                        ws.Cell(r, 42).Value = sev.SeverityType;
-                        ws.Cell(r, 43).Value = sev.DupSeverityType;
-                        ws.Cell(r, 44).Value = sev.ActionPlan;
-                        r++;
-                    }
-
-                    // 3. Rule Source Destination Satırları (Birleştirilmiş gösterim)
-                    int maxSrcDest = Math.Max(rule.Sources.Count, rule.Destinations.Count);
-                    var srcList = rule.Sources.ToList();
-                    var destList = rule.Destinations.ToList();
-
-                    for (int i = 0; i < maxSrcDest; i++)
-                    {
-                        ws.Cell(r, 1).Value = "source_destination";
-                        ws.Cell(r, 2).Value = policy.PolicyName;
-                        ws.Cell(r, 3).Value = rule.RuleName;
-
-                        if (i < srcList.Count)
-                        {
-                            ws.Cell(r, 45).Value = srcList[i].ResourceName;
-                            ws.Cell(r, 46).Value = srcList[i].ResourceType;
-                            ws.Cell(r, 47).Value = srcList[i].Include;
-                        }
-
-                        if (i < destList.Count)
-                        {
-                            ws.Cell(r, 48).Value = destList[i].EmailMonitorDirections;
-                            ws.Cell(r, 49).Value = destList[i].ChannelType;
-                            ws.Cell(r, 50).Value = destList[i].ChannelEnabled;
-                        }
-                        r++;
                     }
                 }
             }
