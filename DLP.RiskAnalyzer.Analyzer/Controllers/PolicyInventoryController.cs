@@ -15,11 +15,16 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
     {
         private readonly AnalyzerDbContext _context;
         private readonly IPolicyInventoryService _inventoryService;
+        private readonly IBulkPolicyInventoryImportService _bulkImportService;
 
-        public PolicyInventoryController(AnalyzerDbContext context, IPolicyInventoryService inventoryService)
+        public PolicyInventoryController(
+            AnalyzerDbContext context,
+            IPolicyInventoryService inventoryService,
+            IBulkPolicyInventoryImportService bulkImportService)
         {
             _context = context;
             _inventoryService = inventoryService;
+            _bulkImportService = bulkImportService;
         }
 
         // GET: api/policy-inventory
@@ -99,6 +104,42 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             }
 
             return BadRequest(new { success = false, message = result.Message });
+        }
+
+        // POST: api/policy-inventory/import/bulk
+        [HttpPost("import/bulk")]
+        [DisableRequestSizeLimit]
+        [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
+        public async Task<IActionResult> StartBulkImport(CancellationToken cancellationToken)
+        {
+            var files = Request.Form.Files;
+            if (files == null || files.Count == 0)
+            {
+                return BadRequest(new { success = false, message = "No files uploaded." });
+            }
+
+            try
+            {
+                var status = await _bulkImportService.StartAsync(files, cancellationToken);
+                return Accepted(new { success = true, data = status });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        // GET: api/policy-inventory/import/bulk/{jobId}
+        [HttpGet("import/bulk/{jobId}")]
+        public IActionResult GetBulkImportStatus(string jobId)
+        {
+            var status = _bulkImportService.GetStatus(jobId);
+            if (status == null)
+            {
+                return NotFound(new { success = false, message = "Import job not found." });
+            }
+
+            return Ok(new { success = true, data = status });
         }
 
         // GET: api/policy-inventory/export/excel

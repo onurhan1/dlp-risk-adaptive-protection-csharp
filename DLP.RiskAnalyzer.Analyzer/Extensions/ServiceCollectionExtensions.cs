@@ -62,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReportGeneratorService, ReportGeneratorService>();
         services.AddScoped<IClassificationService, ClassificationService>();
         services.AddScoped<IPolicyInventoryService, PolicyInventoryService>();
+        services.AddSingleton<IBulkPolicyInventoryImportService, BulkPolicyInventoryImportService>();
 
         // Sync services
         services.AddScoped<IPolicyExceptionSyncService, PolicyExceptionSyncService>();

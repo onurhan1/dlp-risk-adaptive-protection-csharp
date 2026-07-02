@@ -11,32 +11,75 @@ interface ImportExportProps {
   searchFilter?: string
 }
 
-export default function ImportExport({ onImportSuccess, searchResults = [], searchQuery = '', searchFilter = 'all' }: ImportExportProps) {
+interface BulkImportStatus {
+  job_id: string
+  status: 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed'
+  total_files: number
+  processed_files: number
+  success_files: number
+  failed_files: number
+  policies: number
+  rules: number
+  exceptions: number
+  current_file?: string
+  message?: string
+  errors?: string[]
+}
+
+export default function ImportExport({
+  onImportSuccess,
+  searchResults = [],
+  searchQuery = '',
+  searchFilter = 'all'
+}: ImportExportProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [bulkStatus, setBulkStatus] = useState<BulkImportStatus | null>(null)
 
   const handleImportClick = () => {
     fileInputRef.current?.click()
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
 
     setIsUploading(true)
+    setBulkStatus(null)
     const formData = new FormData()
-    formData.append('file', file)
+    files.forEach((file) => formData.append('files', file))
 
     try {
-      // Endpoint to handle the intelligent matching and insertion
-      const res = await apiClient.post('/api/policy-inventory/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const res = await apiClient.post('/api/policy-inventory/import/bulk', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 0
       })
-      if (res.data.success) {
-        alert(`${t('policyInventory.import')} Başarılı! (${res.data.stats?.policies || 0} politika eklendi)`)
-        onImportSuccess()
+
+      const startedStatus = res.data?.data as BulkImportStatus | undefined
+      if (!res.data?.success || !startedStatus?.job_id) {
+        throw new Error(res.data?.message || 'Bulk import could not be started.')
+      }
+
+      setBulkStatus(startedStatus)
+
+      let latestStatus = startedStatus
+      while (['queued', 'running'].includes(latestStatus.status)) {
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        const statusRes = await apiClient.get(`/api/policy-inventory/import/bulk/${latestStatus.job_id}`, { timeout: 0 })
+        latestStatus = statusRes.data?.data as BulkImportStatus
+        setBulkStatus(latestStatus)
+      }
+
+      onImportSuccess()
+
+      if (latestStatus.status === 'completed') {
+        alert(`Toplu import tamamlandi. ${latestStatus.success_files}/${latestStatus.total_files} dosya basarili, ${latestStatus.policies} politika eklendi.`)
+      } else if (latestStatus.status === 'completed_with_errors') {
+        alert(`Toplu import bazi hatalarla tamamlandi. Basarili: ${latestStatus.success_files}, Hatali: ${latestStatus.failed_files}`)
+      } else {
+        alert(`Toplu import basarisiz: ${latestStatus.message || 'Bilinmeyen hata'}`)
       }
     } catch (err) {
       console.error('Import failed', err)
@@ -58,6 +101,7 @@ export default function ImportExport({ onImportSuccess, searchResults = [], sear
       document.body.appendChild(link)
       link.click()
       link.remove()
+      window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Export failed', err)
       alert('Export failed!')
@@ -143,16 +187,21 @@ export default function ImportExport({ onImportSuccess, searchResults = [], sear
     }
   }
 
+  const progressPercent = bulkStatus?.total_files
+    ? Math.round((bulkStatus.processed_files / bulkStatus.total_files) * 100)
+    : 0
+
   return (
-    <div style={{ display: 'flex', gap: '12px' }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
       <input
         type="file"
         ref={fileInputRef}
         style={{ display: 'none' }}
         accept=".xlsx,.xls,.json"
+        multiple
         onChange={handleFileChange}
       />
-      
+
       <button
         onClick={handleImportClick}
         disabled={isUploading}
@@ -173,8 +222,39 @@ export default function ImportExport({ onImportSuccess, searchResults = [], sear
         }}
       >
         <Upload size={16} />
-        {isUploading ? '...' : t('policyInventory.import')}
+        {isUploading ? 'Import...' : t('policyInventory.import')}
       </button>
+
+      {bulkStatus && (
+        <div style={{
+          minWidth: '260px',
+          maxWidth: '360px',
+          padding: '8px 10px',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)',
+          background: 'var(--card-bg)',
+          color: 'var(--text-primary)',
+          fontSize: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+            <span style={{ fontWeight: 700 }}>
+              {bulkStatus.processed_files}/{bulkStatus.total_files} dosya
+            </span>
+            <span style={{ color: bulkStatus.failed_files > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>
+              {bulkStatus.status}
+            </span>
+          </div>
+          <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(100,100,100,0.14)', overflow: 'hidden' }}>
+            <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(135deg, #10b981, #8b5cf6)' }} />
+          </div>
+          <div style={{ marginTop: '6px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {bulkStatus.current_file || bulkStatus.message || 'Sirada bekliyor'}
+          </div>
+          <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>
+            Basarili {bulkStatus.success_files} - Hatali {bulkStatus.failed_files} - Policy {bulkStatus.policies}
+          </div>
+        </div>
+      )}
 
       <div style={{ position: 'relative' }}>
         <button
@@ -210,7 +290,7 @@ export default function ImportExport({ onImportSuccess, searchResults = [], sear
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
             padding: '8px',
             zIndex: 50,
-            minWidth: '160px'
+            minWidth: '180px'
           }}>
             <div
               onClick={() => handleExport('excel')}
