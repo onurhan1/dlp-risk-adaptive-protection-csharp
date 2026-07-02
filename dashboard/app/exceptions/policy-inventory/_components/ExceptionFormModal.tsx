@@ -89,13 +89,15 @@ export default function ExceptionFormModal({ isOpen, onClose, onSave, initialDat
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.5)', zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
+      background: 'rgba(15, 23, 42, 0.18)', zIndex: 9999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px'
     }}>
       <div style={{
-        background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px',
-        width: '800px', maxWidth: '95%', height: '85vh', maxHeight: '750px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column'
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px',
+        width: '800px', maxWidth: '100%', height: '85vh', maxHeight: '750px',
+        boxShadow: '0 24px 70px rgba(15, 23, 42, 0.22)', display: 'flex', flexDirection: 'column',
+        overflow: 'hidden'
       }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

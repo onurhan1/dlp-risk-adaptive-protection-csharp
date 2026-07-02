@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Upload, Download, FileJson, FileSpreadsheet, ChevronDown } from 'lucide-react'
 import { useTranslation } from '@/components/LanguageProvider'
 import apiClient from '@/lib/axios'
@@ -26,6 +26,37 @@ interface BulkImportStatus {
   errors?: string[]
 }
 
+type SearchExportColumnKey =
+  | 'policy'
+  | 'rule'
+  | 'scope'
+  | 'exception'
+  | 'match_area'
+  | 'match_field'
+  | 'matched_value'
+  | 'destination_type'
+  | 'resource_type'
+  | 'include'
+  | 'enabled'
+  | 'search_query'
+  | 'search_filter'
+
+const SEARCH_EXPORT_COLUMNS: Array<{ key: SearchExportColumnKey; label: string; width: number }> = [
+  { key: 'policy', label: 'Policy', width: 34 },
+  { key: 'rule', label: 'Rule', width: 34 },
+  { key: 'scope', label: 'Entity Group', width: 16 },
+  { key: 'exception', label: 'Exception', width: 34 },
+  { key: 'match_area', label: 'Match Area', width: 18 },
+  { key: 'match_field', label: 'Match Field', width: 28 },
+  { key: 'matched_value', label: 'Matched Value', width: 42 },
+  { key: 'destination_type', label: 'Destination Type', width: 24 },
+  { key: 'resource_type', label: 'Resource Type', width: 22 },
+  { key: 'include', label: 'Include', width: 12 },
+  { key: 'enabled', label: 'Enabled', width: 12 },
+  { key: 'search_query', label: 'Search Query', width: 24 },
+  { key: 'search_filter', label: 'Search Filter', width: 18 },
+]
+
 export default function ImportExport({
   onImportSuccess,
   searchResults = [],
@@ -34,13 +65,46 @@ export default function ImportExport({
 }: ImportExportProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const exportButtonRef = useRef<HTMLButtonElement>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [exportMenuPosition, setExportMenuPosition] = useState({ top: 0, right: 24 })
   const [isUploading, setIsUploading] = useState(false)
   const [bulkStatus, setBulkStatus] = useState<BulkImportStatus | null>(null)
+  const [selectedExportColumns, setSelectedExportColumns] = useState<SearchExportColumnKey[]>(
+    SEARCH_EXPORT_COLUMNS.map(column => column.key)
+  )
 
   const handleImportClick = () => {
     fileInputRef.current?.click()
   }
+
+  const updateExportMenuPosition = () => {
+    const button = exportButtonRef.current
+    if (!button) return
+
+    const rect = button.getBoundingClientRect()
+    setExportMenuPosition({
+      top: Math.min(rect.bottom + 8, window.innerHeight - 24),
+      right: Math.max(16, window.innerWidth - rect.right)
+    })
+  }
+
+  const toggleExportMenu = () => {
+    if (!exportOpen) updateExportMenuPosition()
+    setExportOpen(open => !open)
+  }
+
+  useEffect(() => {
+    if (!exportOpen) return
+
+    const handleLayoutChange = () => updateExportMenuPosition()
+    window.addEventListener('resize', handleLayoutChange)
+    window.addEventListener('scroll', handleLayoutChange, true)
+    return () => {
+      window.removeEventListener('resize', handleLayoutChange)
+      window.removeEventListener('scroll', handleLayoutChange, true)
+    }
+  }, [exportOpen])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -118,7 +182,13 @@ export default function ImportExport({
 
     const safeQuery = searchQuery.trim().replace(/[^a-z0-9-_]+/gi, '_').slice(0, 40) || 'filtered'
 
-    const rows = searchResults.map((result) => ({
+    const activeColumns = SEARCH_EXPORT_COLUMNS.filter(column => selectedExportColumns.includes(column.key))
+    if (!activeColumns.length) {
+      alert('Export icin en az bir kolon secin.')
+      return
+    }
+
+    const allRows = searchResults.map((result) => ({
       policy: result.policy_name,
       rule: result.rule_name || '',
       scope: result.scope,
@@ -133,6 +203,14 @@ export default function ImportExport({
       search_query: searchQuery,
       search_filter: searchFilter,
     }))
+
+    const rows = allRows.map(row => {
+      const selectedRow: Partial<Record<SearchExportColumnKey, string>> = {}
+      activeColumns.forEach(column => {
+        selectedRow[column.key] = row[column.key]
+      })
+      return selectedRow
+    })
 
     try {
       if (format === 'json') {
@@ -152,21 +230,11 @@ export default function ImportExport({
       const workbook = new Workbook()
       const worksheet = workbook.addWorksheet('Filtre Sonucu')
 
-      worksheet.columns = [
-        { header: 'Policy', key: 'policy', width: 34 },
-        { header: 'Rule', key: 'rule', width: 34 },
-        { header: 'Scope', key: 'scope', width: 14 },
-        { header: 'Exception', key: 'exception', width: 34 },
-        { header: 'Match Area', key: 'match_area', width: 18 },
-        { header: 'Match Field', key: 'match_field', width: 28 },
-        { header: 'Matched Value', key: 'matched_value', width: 42 },
-        { header: 'Destination Type', key: 'destination_type', width: 24 },
-        { header: 'Resource Type', key: 'resource_type', width: 22 },
-        { header: 'Include', key: 'include', width: 12 },
-        { header: 'Enabled', key: 'enabled', width: 12 },
-        { header: 'Search Query', key: 'search_query', width: 24 },
-        { header: 'Search Filter', key: 'search_filter', width: 18 },
-      ]
+      worksheet.columns = activeColumns.map(column => ({
+        header: column.label,
+        key: column.key,
+        width: column.width,
+      }))
       rows.forEach((row) => worksheet.addRow(row))
       worksheet.getRow(1).font = { bold: true }
       worksheet.views = [{ state: 'frozen', ySplit: 1 }]
@@ -190,6 +258,14 @@ export default function ImportExport({
   const progressPercent = bulkStatus?.total_files
     ? Math.round((bulkStatus.processed_files / bulkStatus.total_files) * 100)
     : 0
+
+  const toggleExportColumn = (key: SearchExportColumnKey) => {
+    setSelectedExportColumns(columns =>
+      columns.includes(key)
+        ? columns.filter(column => column !== key)
+        : [...columns, key]
+    )
+  }
 
   return (
     <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -258,7 +334,8 @@ export default function ImportExport({
 
       <div style={{ position: 'relative' }}>
         <button
-          onClick={() => setExportOpen(!exportOpen)}
+          ref={exportButtonRef}
+          onClick={toggleExportMenu}
           className="glass-button"
           style={{
             background: 'var(--card-bg)',
@@ -271,7 +348,9 @@ export default function ImportExport({
             gap: '8px',
             cursor: 'pointer',
             fontWeight: '500',
-            fontSize: '14px'
+            fontSize: '14px',
+            position: 'relative',
+            zIndex: exportOpen ? 9992 : 'auto'
           }}
         >
           <Download size={16} />
@@ -280,17 +359,29 @@ export default function ImportExport({
         </button>
 
         {exportOpen && (
+          <>
+          <div
+            onClick={() => setExportOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9990,
+              background: 'transparent'
+            }}
+          />
           <div style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
-            background: 'var(--card-bg)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '8px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            position: 'fixed',
+            top: `${exportMenuPosition.top}px`,
+            right: `${exportMenuPosition.right}px`,
+            width: 'min(380px, calc(100vw - 32px))',
+            maxHeight: `calc(100vh - ${exportMenuPosition.top + 16}px)`,
+            overflowY: 'auto',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
             padding: '8px',
-            zIndex: 50,
-            minWidth: '180px'
+            zIndex: 9991
           }}>
             <div
               onClick={() => handleExport('excel')}
@@ -311,6 +402,46 @@ export default function ImportExport({
             {searchQuery.trim().length > 0 && (
               <>
                 <div style={{ height: '1px', background: 'var(--border-color)', margin: '6px 0' }} />
+                <div style={{ padding: '6px 8px 4px 8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Export kolonlari
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedExportColumns(
+                          selectedExportColumns.length === SEARCH_EXPORT_COLUMNS.length
+                            ? []
+                            : SEARCH_EXPORT_COLUMNS.map(column => column.key)
+                        )
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#8b5cf6',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      {selectedExportColumns.length === SEARCH_EXPORT_COLUMNS.length ? 'Temizle' : 'Tumunu sec'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
+                    {SEARCH_EXPORT_COLUMNS.map(column => (
+                      <label key={column.key} style={{ display: 'flex', alignItems: 'center', gap: '7px', color: 'var(--text-primary)', fontSize: '12px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedExportColumns.includes(column.key)}
+                          onChange={() => toggleExportColumn(column.key)}
+                        />
+                        {column.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ height: '1px', background: 'var(--border-color)', margin: '6px 0' }} />
                 <div
                   onClick={() => handleFilteredExport('excel')}
                   style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px' }}
@@ -330,6 +461,7 @@ export default function ImportExport({
               </>
             )}
           </div>
+          </>
         )}
       </div>
       <style dangerouslySetInnerHTML={{__html: `

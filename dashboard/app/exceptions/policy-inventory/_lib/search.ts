@@ -1,30 +1,24 @@
 import { PolicyInventoryItem, PolicyInventorySearchResult } from './types'
 
-type SearchArea = PolicyInventorySearchResult['match_area']
+export type SearchArea = PolicyInventorySearchResult['match_area']
+export type SearchScope = PolicyInventorySearchResult['scope']
+
+export interface PolicyInventorySearchIndexEntry extends PolicyInventorySearchResult {
+  searchable_text: string
+}
 
 function normalize(value?: string | number | null) {
   return String(value ?? '').trim()
-}
-
-function includesQuery(value: string | undefined | null, query: string) {
-  return normalize(value).toLowerCase().includes(query)
 }
 
 function areaAllowed(area: SearchArea, filter: string) {
   return filter === 'all' || filter === area
 }
 
-export function buildPolicyInventorySearchResults(
-  policies: PolicyInventoryItem[],
-  searchQuery: string,
-  searchFilter: string
-): PolicyInventorySearchResult[] {
-  const query = searchQuery.trim().toLowerCase()
-  if (!query) return []
+export function buildPolicyInventorySearchIndex(policies: PolicyInventoryItem[]): PolicyInventorySearchIndexEntry[] {
+  const entries: PolicyInventorySearchIndexEntry[] = []
 
-  const results: PolicyInventorySearchResult[] = []
-
-  const pushResult = (
+  const pushEntry = (
     policy: PolicyInventoryItem,
     area: SearchArea,
     field: string,
@@ -32,9 +26,9 @@ export function buildPolicyInventorySearchResults(
     context?: Partial<PolicyInventorySearchResult>
   ) => {
     const matchedValue = normalize(value)
-    if (!matchedValue || !areaAllowed(area, searchFilter) || !includesQuery(matchedValue, query)) return
+    if (!matchedValue) return
 
-    results.push({
+    entries.push({
       ...context,
       id: [
         policy.id,
@@ -42,7 +36,7 @@ export function buildPolicyInventorySearchResults(
         context?.exception_id ?? context?.scope ?? 'none',
         area,
         field,
-        results.length
+        entries.length
       ].join('-'),
       policy_id: policy.id,
       policy_name: policy.policy_name,
@@ -50,11 +44,12 @@ export function buildPolicyInventorySearchResults(
       match_area: area,
       match_field: field,
       matched_value: matchedValue,
+      searchable_text: matchedValue.toLowerCase(),
     })
   }
 
   policies.forEach((policy) => {
-    pushResult(policy, 'policy', 'policy_name', policy.policy_name)
+    pushEntry(policy, 'policy', 'policy_name', policy.policy_name)
 
     policy.rules?.forEach((rule) => {
       const ruleContext: Partial<PolicyInventorySearchResult> = {
@@ -63,20 +58,20 @@ export function buildPolicyInventorySearchResults(
         rule_name: rule.rule_name,
       }
 
-      pushResult(policy, 'rule', 'rule_name', rule.rule_name, ruleContext)
+      pushEntry(policy, 'rule', 'rule_name', rule.rule_name, ruleContext)
 
       rule.classifiers?.forEach((classifier) => {
-        pushResult(policy, 'classifier', 'classifier_name', classifier.classifier_name, ruleContext)
-        pushResult(policy, 'classifier', 'threshold_type', classifier.threshold_type, ruleContext)
-        pushResult(policy, 'classifier', 'threshold_calculate_type', classifier.threshold_calculate_type, ruleContext)
-        pushResult(policy, 'classifier', 'analyzed_specific_fields', classifier.analyzed_specific_fields, ruleContext)
+        pushEntry(policy, 'classifier', 'classifier_name', classifier.classifier_name, ruleContext)
+        pushEntry(policy, 'classifier', 'threshold_type', classifier.threshold_type, ruleContext)
+        pushEntry(policy, 'classifier', 'threshold_calculate_type', classifier.threshold_calculate_type, ruleContext)
+        pushEntry(policy, 'classifier', 'analyzed_specific_fields', classifier.analyzed_specific_fields, ruleContext)
       })
 
       rule.severity_actions?.forEach((severityAction) => {
-        pushResult(policy, 'severity', 'severity_type', severityAction.severity_type, ruleContext)
-        pushResult(policy, 'severity', 'action_plan', severityAction.action_plan, ruleContext)
-        pushResult(policy, 'severity', 'type', severityAction.type, ruleContext)
-        pushResult(policy, 'severity', 'max_matches', severityAction.max_matches, ruleContext)
+        pushEntry(policy, 'severity', 'severity_type', severityAction.severity_type, ruleContext)
+        pushEntry(policy, 'severity', 'action_plan', severityAction.action_plan, ruleContext)
+        pushEntry(policy, 'severity', 'type', severityAction.type, ruleContext)
+        pushEntry(policy, 'severity', 'max_matches', severityAction.max_matches, ruleContext)
       })
 
       rule.sources?.forEach((source) => {
@@ -85,9 +80,9 @@ export function buildPolicyInventorySearchResults(
           resource_type: source.resource_type,
           include: source.include,
         }
-        pushResult(policy, 'source', 'resource_name', source.resource_name, sourceContext)
-        pushResult(policy, 'source', 'resource_type', source.resource_type, sourceContext)
-        pushResult(policy, 'source', 'include', source.include, sourceContext)
+        pushEntry(policy, 'source', 'resource_name', source.resource_name, sourceContext)
+        pushEntry(policy, 'source', 'resource_type', source.resource_type, sourceContext)
+        pushEntry(policy, 'source', 'include', source.include, sourceContext)
       })
 
       rule.destinations?.forEach((destination) => {
@@ -96,9 +91,9 @@ export function buildPolicyInventorySearchResults(
           destination_type: destination.channel_type,
           enabled: destination.channel_enabled,
         }
-        pushResult(policy, 'destination', 'channel_type', destination.channel_type, destinationContext)
-        pushResult(policy, 'destination', 'channel_enabled', destination.channel_enabled, destinationContext)
-        pushResult(policy, 'destination', 'email_monitor_directions', destination.email_monitor_directions, destinationContext)
+        pushEntry(policy, 'destination', 'channel_type', destination.channel_type, destinationContext)
+        pushEntry(policy, 'destination', 'channel_enabled', destination.channel_enabled, destinationContext)
+        pushEntry(policy, 'destination', 'email_monitor_directions', destination.email_monitor_directions, destinationContext)
 
         destination.channel_resources?.forEach((resource) => {
           const resourceContext = {
@@ -106,9 +101,9 @@ export function buildPolicyInventorySearchResults(
             resource_type: resource.resource_type,
             include: resource.include,
           }
-          pushResult(policy, 'destination', 'resource_name', resource.resource_name, resourceContext)
-          pushResult(policy, 'destination', 'resource_type', resource.resource_type, resourceContext)
-          pushResult(policy, 'destination', 'include', resource.include, resourceContext)
+          pushEntry(policy, 'destination', 'resource_name', resource.resource_name, resourceContext)
+          pushEntry(policy, 'destination', 'resource_type', resource.resource_type, resourceContext)
+          pushEntry(policy, 'destination', 'include', resource.include, resourceContext)
         })
       })
 
@@ -122,21 +117,21 @@ export function buildPolicyInventorySearchResults(
           enabled: exception.enabled,
         }
 
-        pushResult(policy, 'exception', 'exception_rule_name', exception.exception_rule_name, exceptionContext)
-        pushResult(policy, 'exception', 'description', exception.description, exceptionContext)
-        pushResult(policy, 'exception', 'enabled', exception.enabled, exceptionContext)
+        pushEntry(policy, 'exception', 'exception_rule_name', exception.exception_rule_name, exceptionContext)
+        pushEntry(policy, 'exception', 'description', exception.description, exceptionContext)
+        pushEntry(policy, 'exception', 'enabled', exception.enabled, exceptionContext)
 
         exception.classifiers?.forEach((classifier) => {
-          pushResult(policy, 'classifier', 'classifier_name', classifier.classifier_name, exceptionContext)
-          pushResult(policy, 'classifier', 'threshold_type', classifier.threshold_type, exceptionContext)
-          pushResult(policy, 'classifier', 'threshold_calculate_type', classifier.threshold_calculate_type, exceptionContext)
-          pushResult(policy, 'classifier', 'analyzed_specific_fields', classifier.analyzed_specific_fields, exceptionContext)
+          pushEntry(policy, 'classifier', 'classifier_name', classifier.classifier_name, exceptionContext)
+          pushEntry(policy, 'classifier', 'threshold_type', classifier.threshold_type, exceptionContext)
+          pushEntry(policy, 'classifier', 'threshold_calculate_type', classifier.threshold_calculate_type, exceptionContext)
+          pushEntry(policy, 'classifier', 'analyzed_specific_fields', classifier.analyzed_specific_fields, exceptionContext)
         })
 
         exception.severity_actions?.forEach((severityAction) => {
-          pushResult(policy, 'severity', 'severity_type', severityAction.severity_type, exceptionContext)
-          pushResult(policy, 'severity', 'action_plan', severityAction.action_plan, exceptionContext)
-          pushResult(policy, 'severity', 'dup_severity_type', severityAction.dup_severity_type, exceptionContext)
+          pushEntry(policy, 'severity', 'severity_type', severityAction.severity_type, exceptionContext)
+          pushEntry(policy, 'severity', 'action_plan', severityAction.action_plan, exceptionContext)
+          pushEntry(policy, 'severity', 'dup_severity_type', severityAction.dup_severity_type, exceptionContext)
         })
 
         exception.sources?.forEach((source) => {
@@ -145,9 +140,9 @@ export function buildPolicyInventorySearchResults(
             resource_type: source.resource_type,
             include: source.include,
           }
-          pushResult(policy, 'source', 'resource_name', source.resource_name, sourceContext)
-          pushResult(policy, 'source', 'resource_type', source.resource_type, sourceContext)
-          pushResult(policy, 'source', 'include', source.include, sourceContext)
+          pushEntry(policy, 'source', 'resource_name', source.resource_name, sourceContext)
+          pushEntry(policy, 'source', 'resource_type', source.resource_type, sourceContext)
+          pushEntry(policy, 'source', 'include', source.include, sourceContext)
         })
 
         exception.destinations?.forEach((destination) => {
@@ -156,9 +151,9 @@ export function buildPolicyInventorySearchResults(
             destination_type: destination.channel_type,
             enabled: destination.channel_enabled,
           }
-          pushResult(policy, 'destination', 'channel_type', destination.channel_type, destinationContext)
-          pushResult(policy, 'destination', 'channel_enabled', destination.channel_enabled, destinationContext)
-          pushResult(policy, 'destination', 'email_monitor_directions', destination.email_monitor_directions, destinationContext)
+          pushEntry(policy, 'destination', 'channel_type', destination.channel_type, destinationContext)
+          pushEntry(policy, 'destination', 'channel_enabled', destination.channel_enabled, destinationContext)
+          pushEntry(policy, 'destination', 'email_monitor_directions', destination.email_monitor_directions, destinationContext)
 
           destination.channel_resources?.forEach((resource) => {
             const resourceContext = {
@@ -166,14 +161,27 @@ export function buildPolicyInventorySearchResults(
               resource_type: resource.resource_type,
               include: resource.include,
             }
-            pushResult(policy, 'destination', 'resource_name', resource.resource_name, resourceContext)
-            pushResult(policy, 'destination', 'resource_type', resource.resource_type, resourceContext)
-            pushResult(policy, 'destination', 'include', resource.include, resourceContext)
+            pushEntry(policy, 'destination', 'resource_name', resource.resource_name, resourceContext)
+            pushEntry(policy, 'destination', 'resource_type', resource.resource_type, resourceContext)
+            pushEntry(policy, 'destination', 'include', resource.include, resourceContext)
           })
         })
       })
     })
   })
 
-  return results
+  return entries
+}
+
+export function searchPolicyInventoryIndex(
+  index: PolicyInventorySearchIndexEntry[],
+  searchQuery: string,
+  searchFilter: string
+): PolicyInventorySearchResult[] {
+  const query = searchQuery.trim().toLowerCase()
+  if (!query) return []
+
+  return index
+    .filter(entry => areaAllowed(entry.match_area, searchFilter) && entry.searchable_text.includes(query))
+    .map(({ searchable_text, ...result }) => result)
 }

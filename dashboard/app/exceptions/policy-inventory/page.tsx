@@ -6,7 +6,7 @@ import { useTranslation } from '@/components/LanguageProvider'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import apiClient from '@/lib/axios'
 import { PolicyInventoryItem, PolicyRule, PolicyException, PolicyInventoryStats } from './_lib/types'
-import { buildPolicyInventorySearchResults } from './_lib/search'
+import { buildPolicyInventorySearchIndex, searchPolicyInventoryIndex } from './_lib/search'
 
 // Placeholders for sub-components
 import Stats from './_components/PolicyInventoryStats'
@@ -29,7 +29,13 @@ export default function PolicyInventoryPage() {
 
   // Filters and Search
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [searchFilter, setSearchFilter] = useState('all')
+  const [resultAreaFilter, setResultAreaFilter] = useState('all')
+  const [resultScopeFilter, setResultScopeFilter] = useState('all')
+  const [resultDestinationTypeFilter, setResultDestinationTypeFilter] = useState('all')
+  const [resultResourceTypeFilter, setResultResourceTypeFilter] = useState('all')
+  const [resultIncludeFilter, setResultIncludeFilter] = useState('all')
 
   // Modals state
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false)
@@ -78,49 +84,69 @@ export default function PolicyInventoryPage() {
     loadData()
   }, [])
 
-  const filteredPolicies = policies.filter(p => {
-    const q = searchQuery.toLowerCase()
-    if (!q) return true
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
 
-    if (searchFilter === 'policy') {
-      return p.policy_name.toLowerCase().includes(q)
-    }
-    if (searchFilter === 'rule') {
-      return p.rules.some(r => r.rule_name.toLowerCase().includes(q))
-    }
-    if (searchFilter === 'exception') {
-      return p.rules.some(r => r.exceptions?.some(e => e.exception_rule_name.toLowerCase().includes(q)))
-    }
-    if (searchFilter === 'source') {
-      return p.rules.some(r => 
-        r.sources?.some(s => s.resource_name.toLowerCase().includes(q)) ||
-        r.exceptions?.some(e => e.sources?.some(s => s.resource_name.toLowerCase().includes(q)))
-      )
-    }
-    if (searchFilter === 'destination') {
-      return p.rules.some(r => 
-        r.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
-        r.exceptions?.some(e => e.destinations?.some(d => d.channel_type.toLowerCase().includes(q) || d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))))
-      )
-    }
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
 
-    // Default 'all'
-    return p.policy_name.toLowerCase().includes(q) ||
-           p.rules.some(r => 
-             r.rule_name.toLowerCase().includes(q) || 
-             (r.exceptions && r.exceptions.some(e => e.exception_rule_name.toLowerCase().includes(q))) ||
-             r.sources?.some(s => s.resource_name.toLowerCase().includes(q)) ||
-             r.destinations?.some(d => d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))) ||
-             r.exceptions?.some(e => e.sources?.some(s => s.resource_name.toLowerCase().includes(q))) ||
-             r.exceptions?.some(e => e.destinations?.some(d => d.channel_resources?.some(res => res.resource_name.toLowerCase().includes(q))))
-           )
-  })
+  useEffect(() => {
+    setResultAreaFilter('all')
+    setResultScopeFilter('all')
+    setResultDestinationTypeFilter('all')
+    setResultResourceTypeFilter('all')
+    setResultIncludeFilter('all')
+  }, [debouncedSearchQuery, searchFilter])
+
+  const searchIndex = useMemo(
+    () => buildPolicyInventorySearchIndex(policies),
+    [policies]
+  )
+
+  const rawSearchResults = useMemo(
+    () => {
+      const query = debouncedSearchQuery.trim()
+      if (query.length < 2) return []
+      return searchPolicyInventoryIndex(searchIndex, query, searchFilter)
+    },
+    [searchIndex, debouncedSearchQuery, searchFilter]
+  )
+
+  const resultFilterOptions = useMemo(() => {
+    const unique = (values: Array<string | undefined>) =>
+      Array.from(new Set(values.filter((value): value is string => !!value))).sort((a, b) => a.localeCompare(b))
+
+    return {
+      areas: unique(rawSearchResults.map(r => r.match_area)),
+      scopes: unique(rawSearchResults.map(r => r.scope)),
+      destinationTypes: unique(rawSearchResults.map(r => r.destination_type)),
+      resourceTypes: unique(rawSearchResults.map(r => r.resource_type)),
+      includes: unique(rawSearchResults.map(r => r.include)),
+    }
+  }, [rawSearchResults])
 
   const searchResults = useMemo(
-    () => buildPolicyInventorySearchResults(policies, searchQuery, searchFilter),
-    [policies, searchQuery, searchFilter]
+    () => rawSearchResults.filter(result =>
+      (resultAreaFilter === 'all' || result.match_area === resultAreaFilter) &&
+      (resultScopeFilter === 'all' || result.scope === resultScopeFilter) &&
+      (resultDestinationTypeFilter === 'all' || result.destination_type === resultDestinationTypeFilter) &&
+      (resultResourceTypeFilter === 'all' || result.resource_type === resultResourceTypeFilter) &&
+      (resultIncludeFilter === 'all' || result.include === resultIncludeFilter)
+    ),
+    [
+      rawSearchResults,
+      resultAreaFilter,
+      resultScopeFilter,
+      resultDestinationTypeFilter,
+      resultResourceTypeFilter,
+      resultIncludeFilter
+    ]
   )
   const isSearchMode = searchQuery.trim().length > 0
+  const isSearchPending = searchQuery.trim() !== debouncedSearchQuery.trim()
+  const isSearchTooShort = isSearchMode && debouncedSearchQuery.trim().length < 2
 
   const handleSavePolicy = async (data: Partial<PolicyInventoryItem>) => {
     try {
@@ -199,7 +225,7 @@ export default function PolicyInventoryPage() {
           <ImportExport
             onImportSuccess={loadData}
             searchResults={searchResults}
-            searchQuery={searchQuery}
+            searchQuery={debouncedSearchQuery}
             searchFilter={searchFilter}
           />
         </div>
@@ -230,10 +256,31 @@ export default function PolicyInventoryPage() {
               <LoadingOverlay isLoading={true} message="Yükleniyor..." />
             ) : (
               isSearchMode ? (
-                <SearchResults results={searchResults} query={searchQuery} />
+                <SearchResults
+                  results={searchResults}
+                  query={debouncedSearchQuery || searchQuery}
+                  isPending={isSearchPending}
+                  isTooShort={isSearchTooShort}
+                  totalBeforeFilters={rawSearchResults.length}
+                  filters={{
+                    area: resultAreaFilter,
+                    scope: resultScopeFilter,
+                    destinationType: resultDestinationTypeFilter,
+                    resourceType: resultResourceTypeFilter,
+                    include: resultIncludeFilter,
+                  }}
+                  filterOptions={resultFilterOptions}
+                  onFiltersChange={{
+                    setArea: setResultAreaFilter,
+                    setScope: setResultScopeFilter,
+                    setDestinationType: setResultDestinationTypeFilter,
+                    setResourceType: setResultResourceTypeFilter,
+                    setInclude: setResultIncludeFilter,
+                  }}
+                />
               ) : (
                 <Table
-                  policies={filteredPolicies}
+                  policies={policies}
                   onRefresh={loadData}
                   onAddPolicy={() => { setCurrentPolicy(null); setIsPolicyModalOpen(true); }}
                   onEditPolicy={(p) => { setCurrentPolicy(p); setIsPolicyModalOpen(true); }}
