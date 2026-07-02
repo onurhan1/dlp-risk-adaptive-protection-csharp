@@ -259,6 +259,186 @@ function SourceDestinationBlock({ sources, destinations }: { sources?: any[]; de
   )
 }
 
+function SourcePanel({ sources }: { sources?: any[] }) {
+  if (!sources?.length) {
+    return <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Kayit yok</div>
+  }
+
+  const groupedSources = sources.reduce<Record<string, any[]>>((acc, source) => {
+    const key = source.resource_type || 'UNKNOWN'
+    acc[key] = acc[key] || []
+    acc[key].push(source)
+    return acc
+  }, {})
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {Object.entries(groupedSources).map(([type, items]) => (
+        <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase' }}>{type}</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{items.length} kaynak</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            {items.map((s, i) => (
+              <ResourceChip key={`${type}-${i}`} name={s.resource_name} type={s.resource_type} include={s.include} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DestinationPanel({ destinations }: { destinations?: any[] }) {
+  const [selectedType, setSelectedType] = useState('ALL')
+  const [resourceQuery, setResourceQuery] = useState('')
+  const [includeFilter, setIncludeFilter] = useState('all')
+
+  if (!destinations?.length) {
+    return <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Kayit yok</div>
+  }
+
+  const emailDirs = destinations.find(d => d.email_monitor_directions)?.email_monitor_directions
+  const channelTypes = Array.from(new Set(destinations.map(d => d.channel_type || 'UNKNOWN')))
+  const visibleDestinations = selectedType === 'ALL'
+    ? destinations
+    : destinations.filter(d => (d.channel_type || 'UNKNOWN') === selectedType)
+
+  const resourceRows = visibleDestinations.flatMap((destination) => {
+    const resources = destination.channel_resources?.length
+      ? destination.channel_resources
+      : [{ resource_name: '', resource_type: '', include: '' }]
+
+    return resources.map((resource: any, index: number) => ({
+      key: `${destination.id || destination.channel_type}-${index}-${resource.id || resource.resource_name || 'empty'}`,
+      channelType: destination.channel_type || 'UNKNOWN',
+      channelEnabled: destination.channel_enabled,
+      resourceName: resource.resource_name || '',
+      resourceType: resource.resource_type || '',
+      include: resource.include || '',
+    }))
+  }).filter((row) => {
+    const q = resourceQuery.trim().toLowerCase()
+    const matchesQuery = !q ||
+      row.resourceName.toLowerCase().includes(q) ||
+      row.resourceType.toLowerCase().includes(q) ||
+      row.channelType.toLowerCase().includes(q)
+    const matchesInclude = includeFilter === 'all' || row.include === includeFilter
+    return matchesQuery && matchesInclude
+  })
+
+  const totalResources = destinations.reduce((sum, d) => sum + (d.channel_resources?.length || 0), 0)
+  const activeChannels = destinations.filter(d => d.channel_enabled === 'true').length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+        <MetaChip label="Channel" value={`${destinations.length}`} />
+        <MetaChip label="Resource" value={`${totalResources}`} />
+        <MetaChip label="Active" value={`${activeChannels}`} />
+        {emailDirs && emailDirs.length > 0 && (
+          <MetaChip label="Mail" value={Array.isArray(emailDirs) ? emailDirs.join(', ') : emailDirs} />
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+        {['ALL', ...channelTypes].map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setSelectedType(type)}
+            style={{
+              border: `1px solid ${selectedType === type ? 'rgba(139,92,246,0.45)' : 'var(--border-color)'}`,
+              background: selectedType === type ? 'rgba(139,92,246,0.14)' : 'var(--bg-color)',
+              color: selectedType === type ? '#a78bfa' : 'var(--text-secondary)',
+              borderRadius: '999px',
+              padding: '4px 9px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            {type === 'ALL' ? 'All' : type}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 120px', gap: '8px' }}>
+        <input
+          value={resourceQuery}
+          onChange={(e) => setResourceQuery(e.target.value)}
+          placeholder="Resource ara..."
+          style={{
+            minWidth: 0,
+            padding: '7px 9px',
+            borderRadius: '7px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-color)',
+            color: 'var(--text-primary)',
+            fontSize: '12px',
+            outline: 'none'
+          }}
+        />
+        <select
+          value={includeFilter}
+          onChange={(e) => setIncludeFilter(e.target.value)}
+          style={{
+            padding: '7px 8px',
+            borderRadius: '7px',
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-color)',
+            color: 'var(--text-primary)',
+            fontSize: '12px',
+            outline: 'none'
+          }}
+        >
+          <option value="all">All</option>
+          <option value="true">Include</option>
+          <option value="false">Exclude</option>
+        </select>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        maxHeight: '260px',
+        overflowY: 'auto',
+        paddingRight: '4px'
+      }}>
+        {resourceRows.length ? resourceRows.map((row) => (
+          <div key={row.key} style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(110px, 0.8fr) minmax(160px, 1.3fr)',
+            gap: '8px',
+            alignItems: 'center',
+            padding: '7px 9px',
+            borderRadius: '8px',
+            border: '1px solid rgba(139,92,246,0.16)',
+            background: 'rgba(139,92,246,0.06)'
+          }}>
+            <ChannelBadge channelType={row.channelType} enabled={row.channelEnabled} />
+            {row.resourceName || row.resourceType || row.include ? (
+              <ResourceChip name={row.resourceName || '-'} type={row.resourceType} include={row.include} />
+            ) : (
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Resource yok</span>
+            )}
+          </div>
+        )) : (
+          <div style={{ color: 'var(--text-secondary)', fontSize: '12px', padding: '8px 0' }}>Sonuc yok</div>
+        )}
+      </div>
+
+      {visibleDestinations.some(d => !d.channel_resources?.length) && (
+        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+          Resource olmayan channel kayitlari da listelenir.
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RuleDetailPanel({
   rule, onAddException, onEditException, onDeleteException
 }: {
@@ -291,7 +471,7 @@ function RuleDetailPanel({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
         {/* Severity Actions */}
         <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
           <SectionHeader icon={<ShieldAlert size={14} />} label="Severity Actions" color="#f59e0b" count={rule.severity_actions?.length} />
@@ -304,11 +484,19 @@ function RuleDetailPanel({
           </div>
         </div>
 
-        {/* Source & Destination */}
+        {/* Source */}
         <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-          <SectionHeader icon={<Globe size={14} />} label="Source / Destination" color="#3b82f6" />
+          <SectionHeader icon={<Globe size={14} />} label="Source" color="#3b82f6" count={rule.sources?.length} />
           <div style={{ padding: '10px 14px' }}>
-            <SourceDestinationBlock sources={rule.sources} destinations={rule.destinations} />
+            <SourcePanel sources={rule.sources} />
+          </div>
+        </div>
+
+        {/* Destination */}
+        <div style={{ borderRadius: '10px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+          <SectionHeader icon={<Network size={14} />} label="Destination" color="#8b5cf6" count={rule.destinations?.length} />
+          <div style={{ padding: '10px 14px' }}>
+            <DestinationPanel destinations={rule.destinations} />
           </div>
         </div>
       </div>
@@ -402,7 +590,7 @@ function RuleDetailPanel({
                         </div>
                       )}
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                         {/* Severity Actions — full list, not just the first */}
                         <div style={{ borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
                           <SectionHeader icon={<ShieldAlert size={12} />} label="Severity Actions" color="#f59e0b" count={exc.severity_actions?.length} />
@@ -417,9 +605,16 @@ function RuleDetailPanel({
 
                         {/* Source & Destination — this is the part that was previously missing */}
                         <div style={{ borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                          <SectionHeader icon={<Globe size={12} />} label="Source / Destination" color="#3b82f6" />
+                          <SectionHeader icon={<Globe size={12} />} label="Source" color="#3b82f6" count={exc.sources?.length} />
                           <div style={{ padding: '8px 12px' }}>
-                            <SourceDestinationBlock sources={exc.sources} destinations={exc.destinations} />
+                            <SourcePanel sources={exc.sources} />
+                          </div>
+                        </div>
+
+                        <div style={{ borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                          <SectionHeader icon={<Network size={12} />} label="Destination" color="#8b5cf6" count={exc.destinations?.length} />
+                          <div style={{ padding: '8px 12px' }}>
+                            <DestinationPanel destinations={exc.destinations} />
                           </div>
                         </div>
                       </div>

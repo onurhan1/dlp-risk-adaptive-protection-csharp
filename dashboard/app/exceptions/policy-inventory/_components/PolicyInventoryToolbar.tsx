@@ -45,6 +45,8 @@ export default function Toolbar({ searchQuery, setSearchQuery, searchFilter, set
           <option value="exception">{t('policyInventory.searchException') || 'Exception Adı'}</option>
           <option value="source">{t('policyInventory.searchSource') || 'Kaynak (Source)'}</option>
           <option value="destination">{t('policyInventory.searchDestination') || 'Hedef (Destination)'}</option>
+          <option value="classifier">Classifier</option>
+          <option value="severity">Severity</option>
         </select>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />

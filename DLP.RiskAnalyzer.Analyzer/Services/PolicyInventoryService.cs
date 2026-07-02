@@ -728,10 +728,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                     .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
                     .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
                     .Include(p => p.Rules).ThenInclude(r => r.Sources)
-                    .Include(p => p.Rules).ThenInclude(r => r.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Destinations).ThenInclude(d => d.ChannelResources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Classifiers)
                     .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
                     .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
-                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations).ThenInclude(d => d.ChannelResources)
                     .AsNoTracking()
                     .AsSplitQuery()
                     .ToListAsync();
@@ -754,10 +755,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
                     .Include(p => p.Rules).ThenInclude(r => r.Classifiers)
                     .Include(p => p.Rules).ThenInclude(r => r.SeverityActions)
                     .Include(p => p.Rules).ThenInclude(r => r.Sources)
-                    .Include(p => p.Rules).ThenInclude(r => r.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Destinations).ThenInclude(d => d.ChannelResources)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Classifiers)
                     .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.SeverityActions)
                     .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Sources)
-                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations)
+                    .Include(p => p.Rules).ThenInclude(r => r.Exceptions).ThenInclude(e => e.Destinations).ThenInclude(d => d.ChannelResources)
                     .AsNoTracking()
                     .AsSplitQuery()
                     .ToListAsync();
@@ -811,8 +813,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services
             ws.Cell(1, 33).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.channel_type";   // C33
             ws.Cell(1, 34).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.enabled";        // C34
             ws.Cell(1, 35).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resources.resource_name"; // C35
-            ws.Cell(1, 36).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resource.type";          // C36
-            ws.Cell(1, 37).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resource.include";       // C37
+            ws.Cell(1, 36).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resources.type";          // C36
+            ws.Cell(1, 37).Value = "Value.rules.exception_rules.exception_rules.rule_destination.channels.resources.include";       // C37
             // Rule Severity Action
             ws.Cell(1, 38).Value = "Value.rules.type";                              // C38
             ws.Cell(1, 39).Value = "Value.rules.max_matches";                       // C39

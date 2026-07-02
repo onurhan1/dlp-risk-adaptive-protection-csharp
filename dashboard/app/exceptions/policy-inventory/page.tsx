@@ -1,17 +1,19 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { ClipboardList } from 'lucide-react'
 import { useTranslation } from '@/components/LanguageProvider'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import apiClient from '@/lib/axios'
 import { PolicyInventoryItem, PolicyRule, PolicyException, PolicyInventoryStats } from './_lib/types'
+import { buildPolicyInventorySearchResults } from './_lib/search'
 
 // Placeholders for sub-components
 import Stats from './_components/PolicyInventoryStats'
 import Toolbar from './_components/PolicyInventoryToolbar'
 import Table from './_components/PolicyInventoryTable'
 import ImportExport from './_components/PolicyInventoryImportExport'
+import SearchResults from './_components/PolicyInventorySearchResults'
 import DeleteConfirmModal from './_components/DeleteConfirmModal'
 import PolicyFormModal from './_components/PolicyFormModal'
 import RuleFormModal from './_components/RuleFormModal'
@@ -114,6 +116,12 @@ export default function PolicyInventoryPage() {
            )
   })
 
+  const searchResults = useMemo(
+    () => buildPolicyInventorySearchResults(policies, searchQuery, searchFilter),
+    [policies, searchQuery, searchFilter]
+  )
+  const isSearchMode = searchQuery.trim().length > 0
+
   const handleSavePolicy = async (data: Partial<PolicyInventoryItem>) => {
     try {
       if (currentPolicy) {
@@ -188,7 +196,12 @@ export default function PolicyInventoryPage() {
             </div>
           </div>
           
-          <ImportExport onImportSuccess={loadData} />
+          <ImportExport
+            onImportSuccess={loadData}
+            searchResults={searchResults}
+            searchQuery={searchQuery}
+            searchFilter={searchFilter}
+          />
         </div>
 
         {/* Stats */}
@@ -216,21 +229,25 @@ export default function PolicyInventoryPage() {
             {loading ? (
               <LoadingOverlay isLoading={true} message="Yükleniyor..." />
             ) : (
-              <Table 
-                policies={filteredPolicies} 
-                onRefresh={loadData}
-                onAddPolicy={() => { setCurrentPolicy(null); setIsPolicyModalOpen(true); }}
-                onEditPolicy={(p) => { setCurrentPolicy(p); setIsPolicyModalOpen(true); }}
-                onDeletePolicy={(id, name) => { setDeleteContext({type:'policy', id, name}); setIsDeleteModalOpen(true); }}
-                
-                onAddRule={(pId) => { setParentPolicyId(pId); setCurrentRule(null); setIsRuleModalOpen(true); }}
-                onEditRule={(r, pId) => { setParentPolicyId(pId); setCurrentRule(r); setIsRuleModalOpen(true); }}
-                onDeleteRule={(id, name) => { setDeleteContext({type:'rule', id, name}); setIsDeleteModalOpen(true); }}
+              isSearchMode ? (
+                <SearchResults results={searchResults} query={searchQuery} />
+              ) : (
+                <Table
+                  policies={filteredPolicies}
+                  onRefresh={loadData}
+                  onAddPolicy={() => { setCurrentPolicy(null); setIsPolicyModalOpen(true); }}
+                  onEditPolicy={(p) => { setCurrentPolicy(p); setIsPolicyModalOpen(true); }}
+                  onDeletePolicy={(id, name) => { setDeleteContext({type:'policy', id, name}); setIsDeleteModalOpen(true); }}
 
-                onAddException={(rId) => { setParentRuleId(rId); setCurrentException(null); setIsExceptionModalOpen(true); }}
-                onEditException={(e, rId) => { setParentRuleId(rId); setCurrentException(e); setIsExceptionModalOpen(true); }}
-                onDeleteException={(id, name) => { setDeleteContext({type:'exception', id, name}); setIsDeleteModalOpen(true); }}
-              />
+                  onAddRule={(pId) => { setParentPolicyId(pId); setCurrentRule(null); setIsRuleModalOpen(true); }}
+                  onEditRule={(r, pId) => { setParentPolicyId(pId); setCurrentRule(r); setIsRuleModalOpen(true); }}
+                  onDeleteRule={(id, name) => { setDeleteContext({type:'rule', id, name}); setIsDeleteModalOpen(true); }}
+
+                  onAddException={(rId) => { setParentRuleId(rId); setCurrentException(null); setIsExceptionModalOpen(true); }}
+                  onEditException={(e, rId) => { setParentRuleId(rId); setCurrentException(e); setIsExceptionModalOpen(true); }}
+                  onDeleteException={(id, name) => { setDeleteContext({type:'exception', id, name}); setIsDeleteModalOpen(true); }}
+                />
+              )
             )}
           </div>
         </div>

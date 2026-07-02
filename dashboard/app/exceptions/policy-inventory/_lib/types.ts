@@ -81,3 +81,21 @@ export interface PolicyInventoryStats {
     totalExceptions: number;
     activeExceptionsPercentage: number;
 }
+
+export interface PolicyInventorySearchResult {
+    id: string;
+    policy_id: number;
+    policy_name: string;
+    rule_id?: number;
+    rule_name?: string;
+    scope: 'policy' | 'rule' | 'exception';
+    exception_id?: number;
+    exception_rule_name?: string;
+    match_area: 'policy' | 'rule' | 'exception' | 'source' | 'destination' | 'classifier' | 'severity';
+    match_field: string;
+    matched_value: string;
+    destination_type?: string;
+    resource_type?: string;
+    include?: string;
+    enabled?: string;
+}
