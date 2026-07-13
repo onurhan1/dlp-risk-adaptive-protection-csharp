@@ -32,13 +32,19 @@ public class IsolationForestEngine
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Runs the full pipeline: feature engineering → isolation forest → contributions
+    /// Runs the full pipeline for the scoring window. Incidents before the scoring
+    /// window are used only as the user's personal baseline and are never scored.
     /// </summary>
-    public List<IsolationForestScoreDto> Run(List<Incident> incidents)
+    public List<IsolationForestScoreDto> Run(
+        List<Incident> scoringIncidents,
+        List<Incident> historicalIncidents)
     {
-        _logger.LogInformation("IsolationForestEngine: running on {Count} incidents", incidents.Count);
+        _logger.LogInformation(
+            "IsolationForestEngine: scoring {ScoringCount} incidents against {HistoricalCount} historical incidents",
+            scoringIncidents.Count,
+            historicalIncidents.Count);
 
-        var users = BuildUserFeatures(incidents);
+        var users = BuildUserFeatures(scoringIncidents, historicalIncidents);
         if (users.Count == 0)
         {
             _logger.LogWarning("IsolationForestEngine: no users after feature engineering");
@@ -51,11 +57,21 @@ public class IsolationForestEngine
         // Normalize to 0-100
         var minS = scores.Min();
         var maxS = scores.Max();
+        var hasScoreVariation = maxS - minS > 1e-9;
         var range = Math.Max(maxS - minS, 1e-9);
         var normalized = scores.Select(s => (s - minS) / range * 100.0).ToArray();
 
-        // Anomaly threshold: top Contamination%
-        var threshold = normalized.OrderDescending().ElementAt((int)(normalized.Length * Contamination));
+        // Flag exactly the highest-scoring contamination slice. If all scores are
+        // equal, there is no evidence for ranking one user as more anomalous.
+        var anomalyTargetCount = Math.Max(1, (int)Math.Ceiling(normalized.Length * Contamination));
+        var anomalyIndexes = hasScoreVariation
+            ? normalized
+                .Select((score, index) => new { score, index })
+                .OrderByDescending(x => x.score)
+                .Take(anomalyTargetCount)
+                .Select(x => x.index)
+                .ToHashSet()
+            : new HashSet<int>();
 
         // Permutation contributions
         var contributions = ComputeContributions(featureNames, matrix, scores);
@@ -80,8 +96,9 @@ public class IsolationForestEngine
                 Department = u.Department,
                 CalculatedAt = DateTime.UtcNow,
                 IFScore = Math.Round(normalized[i], 1),
-                IsAnomaly = normalized[i] >= threshold,
+                IsAnomaly = users.Count > 1 && anomalyIndexes.Contains(i),
                 IncidentCount = u.IncidentCount,
+                BaselineIncidentCount = u.BaselineIncidentCount,
                 TopFeatures = topFeatures,
                 GroupBreakdown = groupBreakdown
             });
@@ -93,25 +110,39 @@ public class IsolationForestEngine
 
     // ── Feature Engineering (mirrors notebook sections 3-7) ──────────────────
 
-    private List<UserFeatures> BuildUserFeatures(List<Incident> incidents)
+    private List<UserFeatures> BuildUserFeatures(
+        List<Incident> scoringIncidents,
+        List<Incident> historicalIncidents)
     {
         // ── Step 3: incident-level enrichment ──────────────────────────────
-        var enriched = incidents.Select(inc => new EnrichedIncident(inc)).ToList();
+        var enriched = scoringIncidents.Select(inc => new EnrichedIncident(inc)).ToList();
+        var historical = historicalIncidents.Select(inc => new EnrichedIncident(inc)).ToList();
 
-        // Channel rarity (log-based)
-        var chFreq = enriched.GroupBy(e => e.Channel).ToDictionary(g => g.Key, g => (double)g.Count() / enriched.Count);
+        // Channel rarity is learned from prior history. For a brand-new population,
+        // the current cohort is used as a safe fallback.
+        var rarityReference = historical.Count > 0 ? historical : enriched;
+        var chFreq = rarityReference
+            .GroupBy(e => e.Channel)
+            .ToDictionary(g => g.Key, g => (double)g.Count() / rarityReference.Count);
+        var unseenChannelFrequency = 1.0 / (rarityReference.Count + 1.0);
+
+        foreach (var e in historical)
+            e.ChannelRarity = -Math.Log(Math.Max(chFreq.GetValueOrDefault(e.Channel, unseenChannelFrequency), 1e-6));
         foreach (var e in enriched)
-            e.ChannelRarity = -Math.Log(Math.Max(chFreq.GetValueOrDefault(e.Channel, 1e-6), 1e-6));
+            e.ChannelRarity = -Math.Log(Math.Max(chFreq.GetValueOrDefault(e.Channel, unseenChannelFrequency), 1e-6));
 
-        // ── Step 4: per-incident self-baseline ─────────────────────────────
+        // ── Step 4: compare current incidents with the user's entire prior history ──
         var selfBaseCols = new[] { "tx_size", "max_matches", "channel_rarity", "severity", "action_risk", "hour" };
-        var userStats = enriched
+        var userStats = historical
             .GroupBy(e => e.Source)
             .ToDictionary(g => g.Key, g => new UserStats(g.ToList(), MinUserIncidents));
+        var historicalCounts = historical
+            .GroupBy(e => e.Source)
+            .ToDictionary(g => g.Key, g => g.Count());
 
         foreach (var e in enriched)
         {
-            var stats = userStats[e.Source];
+            var stats = userStats.GetValueOrDefault(e.Source) ?? UserStats.Empty;
             e.SelfZ["tx_size"] = stats.SelfZ(e.TxSize, "tx_size");
             e.SelfZ["max_matches"] = stats.SelfZ(e.MaxMatches, "max_matches");
             e.SelfZ["channel_rarity"] = stats.SelfZ(e.ChannelRarity, "channel_rarity");
@@ -130,6 +161,7 @@ public class IsolationForestEngine
         foreach (var u in users)
         {
             var incs = userGroups[u.Source];
+            u.BaselineIncidentCount = historicalCounts.GetValueOrDefault(u.Source);
             foreach (var col in selfBaseCols)
             {
                 u.SelfAgg[$"max_self_z_{col}"] = incs.Max(e => Math.Abs(e.SelfZ.GetValueOrDefault(col, 0)));
@@ -365,6 +397,9 @@ public class IsolationForestEngine
     private double[] FitAndScore(double[][] matrix)
     {
         int n = matrix.Length;
+        if (n == 1)
+            return new[] { 0.0 };
+
         int d = matrix[0].Length;
         int actualMaxSamples = Math.Min(MaxSamples, n);
         var maxDepth = (int)Math.Ceiling(Math.Log2(actualMaxSamples));
@@ -573,6 +608,8 @@ public class IsolationForestEngine
     {
         private readonly Dictionary<string, (double Mean, double Std)> _stats = new();
 
+        public static UserStats Empty { get; } = new(new List<EnrichedIncident>(), MinUserIncidents);
+
         public UserStats(List<EnrichedIncident> incs, int minCount)
         {
             if (incs.Count < minCount) return;
@@ -595,7 +632,15 @@ public class IsolationForestEngine
 
         public double SelfZ(double value, string col)
         {
-            if (!_stats.TryGetValue(col, out var s) || s.Std < 1e-9) return 0;
+            if (!_stats.TryGetValue(col, out var s)) return 0;
+
+            if (s.Std < 1e-9)
+            {
+                var difference = value - s.Mean;
+                var tolerance = Math.Max(Math.Abs(s.Mean) * 0.05, 1e-6);
+                return Math.Abs(difference) <= tolerance ? 0 : Math.Sign(difference) * 5;
+            }
+
             return (value - s.Mean) / s.Std;
         }
 
@@ -613,6 +658,7 @@ public class IsolationForestEngine
         public string Source { get; set; } = "";
         public string Department { get; set; } = "Unknown";
         public int IncidentCount { get; set; }
+        public int BaselineIncidentCount { get; set; }
         public int UniquePolicies { get; set; }
         public int UniqueChannels { get; set; }
         public int UniqueDestinations { get; set; }

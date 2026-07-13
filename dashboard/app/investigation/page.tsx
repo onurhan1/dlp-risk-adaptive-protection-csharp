@@ -9,8 +9,10 @@ import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
 import EntityDetailModal from '@/components/EntityDetailModal'
+import SendMailModal from '@/components/investigation/SendMailModal'
+import type { WeeklyFlagUser } from '@/components/investigation/types'
 import { useTranslation } from '@/components/LanguageProvider'
-import { Zap, Brain } from 'lucide-react'
+import { Zap, Brain, Mail } from 'lucide-react'
 
 interface TimelineEvent {
   id: number
@@ -63,6 +65,8 @@ function InvestigationPageContent() {
   const [loadingAI, setLoadingAI] = useState(false)
   const [userInsightsOpen, setUserInsightsOpen] = useState(false)
   const [aiDetailModalOpen, setAiDetailModalOpen] = useState(false)
+  const [mailModalOpen, setMailModalOpen] = useState(false)
+  const [selectedUserEvents, setSelectedUserEvents] = useState<TimelineEvent[]>([])
 
   // Alerts tab state
   const [alerts, setAlerts] = useState<TimelineEvent[]>([])
@@ -170,6 +174,7 @@ function InvestigationPageContent() {
 
   // Handle automatic selection of first event when timeline loads
   const handleEventsLoaded = (events: TimelineEvent[]) => {
+    setSelectedUserEvents(events)
     // Only auto-select if no event is currently selected
     if (!selectedEvent && events.length > 0) {
       handleEventSelect(events[0])
@@ -179,7 +184,30 @@ function InvestigationPageContent() {
   // Reset selected event when user changes
   useEffect(() => {
     setSelectedEvent(undefined)
+    setSelectedUserEvents([])
+    setMailModalOpen(false)
   }, [selectedUser])
+
+  const selectedUserMailData: WeeklyFlagUser | null = selectedUser ? {
+    user_email: selectedUser,
+    full_name: aiAnalysis?.full_name || aiAnalysis?.fullName || null,
+    team: aiAnalysis?.team || aiAnalysis?.department || null,
+    contact_email: selectedUser,
+    trigger_count: selectedUserEvents.length,
+    first_seen: selectedUserEvents.length > 0
+      ? selectedUserEvents.reduce((earliest, event) => event.timestamp < earliest ? event.timestamp : earliest, selectedUserEvents[0].timestamp)
+      : new Date().toISOString(),
+    last_seen: selectedUserEvents.length > 0
+      ? selectedUserEvents.reduce((latest, event) => event.timestamp > latest ? event.timestamp : latest, selectedUserEvents[0].timestamp)
+      : new Date().toISOString(),
+    sample_incidents: selectedUserEvents.slice(0, 10).map(event => ({
+      timestamp: event.timestamp,
+      policy: event.policy || event.matched_rules?.[0] || null,
+      max_matches: (event as any).max_matches || (event as any).maxMatches || 0,
+      destination: event.destination || null,
+      channel: event.channel || null,
+    })),
+  } : null
 
   // Fetch alerts when Alerts tab is active
   useEffect(() => {
@@ -665,37 +693,45 @@ function InvestigationPageContent() {
                 <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
                   {t('investigation.aiBehavioral')}
                 </h3>
-                <button
-                  onClick={() => {
-                    if (selectedUser) {
-                      setAiDetailModalOpen(true)
-                    }
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--primary)',
-                    color: 'white',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.opacity = '0.9'
-                    e.currentTarget.style.transform = 'scale(1.02)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.opacity = '1'
-                    e.currentTarget.style.transform = 'scale(1)'
-                  }}
-                >
-                  <Brain size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> {t('investigation.viewAIAnalysis')}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setMailModalOpen(true)}
+                    style={{
+                      padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--primary)',
+                      background: 'transparent', color: 'var(--primary)', fontSize: '12px', fontWeight: '600',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                    }}
+                  >
+                    <Mail size={14} /> {t('investigation.sendMail')}
+                  </button>
+                  <button
+                    onClick={() => setAiDetailModalOpen(true)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = '0.9'
+                      e.currentTarget.style.transform = 'scale(1.02)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = '1'
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                  >
+                    <Brain size={14} /> {t('investigation.viewAIAnalysis')}
+                  </button>
+                </div>
               </div>
               {loadingAI ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -930,6 +966,13 @@ function InvestigationPageContent() {
           onClose={() => setAiDetailModalOpen(false)}
           entityType="user"
           entityId={selectedUser}
+        />
+      )}
+
+      {mailModalOpen && selectedUserMailData && (
+        <SendMailModal
+          user={selectedUserMailData}
+          onClose={() => setMailModalOpen(false)}
         />
       )}
     </div>

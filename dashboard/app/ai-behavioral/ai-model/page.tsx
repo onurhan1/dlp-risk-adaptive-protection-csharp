@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import apiClient from '@/lib/axios'
-import EntityDetailModal from '@/components/EntityDetailModal'
-import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
+import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, TrendingUp, ChevronDown, ChevronUp, History } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -24,6 +23,7 @@ interface IFScore {
   if_score: number
   is_anomaly: boolean
   incident_count: number
+  baseline_incident_count: number
   top_features: FeatureContribution[]
   group_breakdown: Record<string, number>
 }
@@ -32,6 +32,10 @@ interface DeptIFRisk {
   department: string
   user_count: number
   anomaly_count: number
+  score_window_days: number
+  score_window_start?: string
+  score_window_end?: string
+  baseline_strategy: string
   mean_score: number
   max_score: number
 }
@@ -55,10 +59,10 @@ interface IFOverview {
 // ── Group metadata ─────────────────────────────────────────────────────────────
 
 const GROUP_META: Record<string, { color: string; bg: string; label: string; desc: string }> = {
-  raw:      { color: '#4C78A8', bg: 'rgba(76,120,168,0.15)',  label: 'Davranış',             desc: 'Genel davranış metrikleri' },
-  peer:     { color: '#54A24B', bg: 'rgba(84,162,75,0.15)',   label: 'Ekip Karşılaştırması', desc: 'Departman ortalamasından sapma' },
-  self:     { color: '#F58518', bg: 'rgba(245,133,24,0.15)',  label: 'Kişisel Norm',         desc: 'Kişinin kendi geçmişine göre sapma' },
-  dept_ctx: { color: '#B279A2', bg: 'rgba(178,121,162,0.15)', label: 'Departman Bağlamı',    desc: 'Departman geneli bağlam özellikleri' },
+  raw:      { color: '#4C78A8', bg: 'rgba(76,120,168,0.15)',  label: 'Son 7 Gün',       desc: 'Güncel haftalık davranış' },
+  peer:     { color: '#54A24B', bg: 'rgba(84,162,75,0.15)',   label: 'Ekip',             desc: 'Aynı dönemdeki ekipten sapma' },
+  self:     { color: '#F58518', bg: 'rgba(245,133,24,0.15)',  label: 'Kendi Geçmişi',   desc: 'Tüm kişisel geçmişten sapma' },
+  dept_ctx: { color: '#B279A2', bg: 'rgba(178,121,162,0.15)', label: 'Ekip Bağlamı',     desc: 'Aynı dönemdeki ekip özeti' },
 }
 
 // ── Feature display names ─────────────────────────────────────────────────────
@@ -81,13 +85,18 @@ const FEATURE_DISPLAY_NAMES: Record<string, string> = {
   dept_mean_off_hours_ratio: 'Departman Ort. İş Dışı Oranı', dept_mean_allowed_ratio: 'Departman Ort. İzin Oranı',
   dept_mean_high_sev_ratio: 'Departman Ort. Yüksek Risk Oranı', dept_mean_tx_size: 'Departman Ort. Transfer Boyutu',
   incident_count_peer_z: 'Ekibine Göre Olay Sapması', unique_policies_peer_z: 'Ekibine Göre Politika Sapması',
-  off_hours_ratio_peer_z: 'Ekibine Göre İş Dışı Oran Sapması', off_hours_count_peer_z: 'Ekibine Göre İş Dışı Sayı Sapması',
-  high_sev_ratio_peer_z: 'Ekibine Göre Yüksek Risk Oranı Sapması', mean_severity_peer_z: 'Ekibine Göre Risk Seviyesi Sapması',
-  total_tx_size_peer_z: 'Ekibine Göre Transfer Hacmi Sapması', mean_tx_size_peer_z: 'Ekibine Göre Transfer Boyutu Sapması',
+  unique_channels_peer_z: 'Ekibine Göre Kanal Çeşitliliği', unique_destinations_peer_z: 'Ekibine Göre Hedef Çeşitliliği',
+  off_hours_ratio_peer_z: 'Ekibine Göre İş Dışı Oran Sapması', weekend_ratio_peer_z: 'Ekibine Göre Hafta Sonu Sapması',
+  night_ratio_peer_z: 'Ekibine Göre Gece Aktivitesi Sapması', high_sev_ratio_peer_z: 'Ekibine Göre Yüksek Risk Oranı Sapması',
+  allowed_ratio_peer_z: 'Ekibine Göre İzin Verilen Eylem Sapması', mean_tx_size_peer_z: 'Ekibine Göre Transfer Boyutu Sapması',
+  max_tx_size_peer_z: 'Ekibine Göre En Büyük Transfer Sapması', mean_max_matches_peer_z: 'Ekibine Göre Eşleşme Sapması',
+  incidents_per_day_peer_z: 'Ekibine Göre Günlük Olay Sapması',
   max_self_z_tx_size: 'Kendi Normuna Göre Maks. Transfer Sapması', mean_self_z_tx_size: 'Kendi Normuna Göre Ort. Transfer Sapması',
   max_self_z_severity: 'Kendi Normuna Göre Maks. Risk Seviyesi Sapması', mean_self_z_severity: 'Kendi Normuna Göre Ort. Risk Seviyesi Sapması',
   max_self_z_channel_rarity: 'Kendi Normuna Göre Maks. Kanal Nadirliği Sapması', mean_self_z_channel_rarity: 'Kendi Normuna Göre Ort. Kanal Nadirliği Sapması',
-  max_self_z_off_hours_ratio: 'Kendi Normuna Göre Maks. İş Dışı Oran Sapması', mean_self_z_off_hours_ratio: 'Kendi Normuna Göre Ort. İş Dışı Oran Sapması',
+  max_self_z_max_matches: 'Kendi Normuna Göre Maks. Eşleşme Sapması', mean_self_z_max_matches: 'Kendi Normuna Göre Ort. Eşleşme Sapması',
+  max_self_z_action_risk: 'Kendi Normuna Göre Maks. Eylem Sapması', mean_self_z_action_risk: 'Kendi Normuna Göre Ort. Eylem Sapması',
+  max_self_z_hour: 'Kendi Normuna Göre Maks. Saat Sapması', mean_self_z_hour: 'Kendi Normuna Göre Ort. Saat Sapması',
   self_outlier_count: 'Kişisel Anomali Sayısı', strong_self_outlier_count: 'Güçlü Kişisel Anomali Sayısı',
   self_outlier_ratio: 'Kişisel Anomali Oranı', strong_self_outlier_ratio: 'Güçlü Kişisel Anomali Oranı',
 }
@@ -113,7 +122,7 @@ function getFriendlyFeatureName(feature: FeatureContribution): string {
 // ── SHAP bar chart ────────────────────────────────────────────────────────────
 
 function ShapBarChart({ features }: { features: FeatureContribution[] }) {
-  const top = features.slice(0, 5)
+  const top = features.slice(0, 3)
   const maxAbs = Math.max(...top.map(f => Math.abs(f.shap_value)), 1e-9)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
@@ -151,14 +160,10 @@ const getIFColor = (score: number) => {
 export default function AIModelPage() {
   const [ifOverview, setIfOverview] = useState<IFOverview | null>(null)
   const [ifLoading, setIfLoading] = useState(false)
-  const [ifLookback, setIfLookback] = useState(30)
   const [triggering, setTriggering] = useState(false)
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [ifFilter, setIfFilter] = useState('')
-  const [deptPage, setDeptPage] = useState(1)
   const [userPage, setUserPage] = useState(1)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [detailEntity, setDetailEntity] = useState<{ type: string; id: string } | null>(null)
   const IF_PAGE_SIZE = 10
 
   const fetchIFOverview = async () => {
@@ -177,7 +182,7 @@ export default function AIModelPage() {
     if (triggering) return
     setTriggering(true)
     try {
-      await apiClient.post('/api/isolation-forest/trigger', null, { params: { lookbackDays: ifLookback } })
+      await apiClient.post('/api/isolation-forest/trigger')
       let tries = 0
       const poll = setInterval(async () => {
         tries++
@@ -217,27 +222,14 @@ export default function AIModelPage() {
         <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              🤖 AI Risk Model Skoru
+              Günlük AI Davranış Risk Skoru
             </h1>
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Makine öğrenmesi tabanlı davranışsal anomali tespiti (Isolation Forest)
+              Her kullanıcı için son 7 günlük davranışı, kullanıcının tüm geçmişi ve ekip davranışıyla karşılaştırır.
             </p>
           </div>
           {/* Controls */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 500 }}>
-              Süre:
-              <select
-                value={ifLookback}
-                onChange={e => setIfLookback(Number(e.target.value))}
-                style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px' }}
-              >
-                <option value={14}>14 Gün</option>
-                <option value={30}>30 Gün</option>
-                <option value={60}>60 Gün</option>
-                <option value={90}>90 Gün</option>
-              </select>
-            </label>
             <button
               onClick={triggerIFRun}
               disabled={triggering}
@@ -255,6 +247,23 @@ export default function AIModelPage() {
           </div>
         </div>
 
+        {/* Simple model contract */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+          {[
+            { icon: <Clock size={18} />, title: 'Her gün çalışır', text: 'Skorlar günlük batch ile otomatik yenilenir.', color: '#7c3aed' },
+            { icon: <BarChart3 size={18} />, title: 'Son 7 günü skorlar', text: 'Kullanıcının güncel haftalık davranışı değerlendirilir.', color: '#2563eb' },
+            { icon: <History size={18} />, title: 'Tüm geçmişle karşılaştırır', text: '7 günden eski tüm davranışlar kişisel normu oluşturur.', color: '#059669' },
+          ].map(item => (
+            <div key={item.title} style={{ padding: '16px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', display: 'flex', gap: '12px' }}>
+              <span style={{ color: item.color, marginTop: '2px' }}>{item.icon}</span>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>{item.title}</div>
+                <div style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>{item.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Loading */}
         {ifLoading && (
           <div style={{ position: 'relative', minHeight: '300px' }}>
@@ -268,7 +277,7 @@ export default function AIModelPage() {
             <div style={{ fontSize: '52px', marginBottom: '16px' }}>🤖</div>
             <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Henüz AI Risk Model skoru hesaplanmamış</div>
             <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '28px', lineHeight: 1.6 }}>
-              "Şimdi Çalıştır" ile ilk AI risk skorlamasını başlatın.<br />Günlük analiz her gece otomatik çalışacak.
+              "Şimdi Çalıştır" ile ilk 7 günlük risk skorlamasını başlatın.<br />Sonraki skorlar her gün otomatik güncellenecek.
             </div>
             <button
               onClick={triggerIFRun}
@@ -288,9 +297,13 @@ export default function AIModelPage() {
               <Clock size={14} />
               <span>Son analiz: <strong style={{ color: 'var(--text-primary)' }}>{ifOverview.status?.last_run_at ? new Date(ifOverview.status.last_run_at).toLocaleString('tr-TR') : '—'}</strong></span>
               <span>•</span>
+              <span><strong style={{ color: 'var(--text-primary)' }}>{ifOverview.score_window_days || 7} günlük</strong> davranış penceresi</span>
+              <span>•</span>
+              <span>Baseline: <strong style={{ color: 'var(--text-primary)' }}>tüm geçmiş</strong></span>
+              <span>•</span>
               <span><strong style={{ color: 'var(--text-primary)' }}>{ifOverview.total_users}</strong> kullanıcı analiz edildi</span>
               <span>•</span>
-              <span style={{ color: '#dc2626', fontWeight: 700 }}>{ifOverview.anomaly_count} anormal davranış tespit edildi</span>
+              <span style={{ color: '#dc2626', fontWeight: 700 }}>{ifOverview.anomaly_count} kullanıcı inceleme adayı</span>
               {triggering && (
                 <><span>•</span><span style={{ color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={12} className="if-spin" /> Yeni analiz devam ediyor...</span></>
               )}
@@ -300,9 +313,9 @@ export default function AIModelPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               {[
                 { label: 'Toplam Kullanıcı',  value: ifOverview.total_users,    color: 'var(--text-primary)', icon: <Users size={16} /> },
-                { label: 'Anormal Davranış',  value: ifOverview.anomaly_count,  color: '#dc2626',             icon: <AlertTriangle size={16} /> },
+                { label: 'İnceleme Adayı',    value: ifOverview.anomaly_count,  color: '#dc2626',             icon: <AlertTriangle size={16} /> },
                 { label: 'Risk Oranı',        value: `${Math.round(ifOverview.anomaly_count / Math.max(ifOverview.total_users, 1) * 100)}%`, color: '#f59e0b', icon: <TrendingUp size={16} /> },
-                { label: 'Departman Sayısı',  value: ifOverview.department_risks.length, color: '#7c3aed',   icon: <BarChart3 size={16} /> },
+                { label: 'Skor Penceresi',    value: `${ifOverview.score_window_days || 7} gün`, color: '#7c3aed', icon: <Clock size={16} /> },
               ].map((s, i) => (
                 <div key={i} style={{ background: 'var(--surface)', padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -314,113 +327,11 @@ export default function AIModelPage() {
               ))}
             </div>
 
-            {/* 2-col grid: dept table + top features */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
-
-              {/* Department risk table */}
-              {ifOverview.department_risks.length > 0 && (() => {
-                const deptTotal = Math.ceil(ifOverview.department_risks.length / IF_PAGE_SIZE)
-                const deptSlice = ifOverview.department_risks.slice((deptPage - 1) * IF_PAGE_SIZE, deptPage * IF_PAGE_SIZE)
-                return (
-                  <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>🏢 Departman Risk Özeti</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {(deptPage - 1) * IF_PAGE_SIZE + 1}–{Math.min(deptPage * IF_PAGE_SIZE, ifOverview.department_risks.length)} / {ifOverview.department_risks.length}
-                      </span>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                        <thead>
-                          <tr style={{ background: 'var(--background)' }}>
-                            {['Departman', 'Kullanıcı', 'Risk Altında', 'Risk Oranı', 'Ort. Skor'].map(h => (
-                              <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {deptSlice.map((dept, i) => {
-                            const anomalyRate = dept.anomaly_count / Math.max(dept.user_count, 1)
-                            return (
-                              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}
-                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--background)')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--text-primary)' }}>{dept.department}</td>
-                                <td style={{ padding: '10px 16px', color: 'var(--text-secondary)' }}>{dept.user_count}</td>
-                                <td style={{ padding: '10px 16px', color: '#dc2626', fontWeight: 700 }}>{dept.anomaly_count}</td>
-                                <td style={{ padding: '10px 16px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: '60px', height: '6px', background: 'var(--border)', borderRadius: '3px' }}>
-                                      <div style={{ height: '100%', width: `${anomalyRate * 100}%`, background: anomalyRate > 0.3 ? '#dc2626' : anomalyRate > 0.1 ? '#f59e0b' : '#10b981', borderRadius: '3px' }} />
-                                    </div>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{Math.round(anomalyRate * 100)}%</span>
-                                  </div>
-                                </td>
-                                <td style={{ padding: '10px 16px', fontWeight: 600, color: getIFColor(dept.mean_score) }}>{dept.mean_score.toFixed(1)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {deptTotal > 1 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px 16px', justifyContent: 'flex-end' }}>
-                        <button onClick={() => setDeptPage(p => Math.max(1, p - 1))} disabled={deptPage === 1}
-                          style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: deptPage === 1 ? 'not-allowed' : 'pointer', background: deptPage === 1 ? 'var(--border)' : 'var(--primary)', color: deptPage === 1 ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>‹ Önceki</button>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{deptPage} / {deptTotal}</span>
-                        <button onClick={() => setDeptPage(p => Math.min(deptTotal, p + 1))} disabled={deptPage === deptTotal}
-                          style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: deptPage === deptTotal ? 'not-allowed' : 'pointer', background: deptPage === deptTotal ? 'var(--border)' : 'var(--primary)', color: deptPage === deptTotal ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>Sonraki ›</button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {/* Top global risk features */}
-              <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>🔥 En Yüksek Riskli Davranış Göstergeleri</span>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Tüm kullanıcılarda en çok anomaliye neden olan faktörler</div>
-                </div>
-                <div style={{ padding: '16px 20px' }}>
-                  {(() => {
-                    const featureMap: Record<string, { totalShap: number; count: number; feature: FeatureContribution }> = {}
-                    ifOverview.user_scores.forEach(u => {
-                      u.top_features.forEach(f => {
-                        const key = f.name || f.display_name
-                        if (!featureMap[key]) featureMap[key] = { totalShap: 0, count: 0, feature: f }
-                        featureMap[key].totalShap += Math.abs(f.shap_value)
-                        featureMap[key].count++
-                      })
-                    })
-                    const topGlobal = Object.values(featureMap).sort((a, b) => b.totalShap - a.totalShap).slice(0, 6)
-                    const maxShap = Math.max(...topGlobal.map(x => x.totalShap), 1)
-                    return topGlobal.map((item, i) => {
-                      const pct = item.totalShap / maxShap * 100
-                      const fname = getFriendlyFeatureName(item.feature)
-                      const meta = GROUP_META[item.feature.group] ?? GROUP_META['raw']
-                      return (
-                        <div key={i} style={{ marginBottom: '14px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{fname}</span>
-                            <span style={{ fontSize: '11px', color: meta.color, background: meta.bg, padding: '2px 8px', borderRadius: '10px', border: `1px solid ${meta.color}40`, fontWeight: 700 }}>{meta.label}</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ flex: 1, height: '8px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${meta.color}, #ef4444)`, borderRadius: '4px', transition: 'width 0.4s ease' }} />
-                            </div>
-                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flexShrink: 0 }}>{item.count} kişide görüldü</span>
-                          </div>
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              </div>
-            </div>
-
             {/* User list filter */}
-            <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Kullanıcı riskleri</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>Her kullanıcı için skor ve skoru en çok etkileyen davranış tek yerde gösterilir.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 placeholder="Kullanıcı adı veya departman ara..."
@@ -429,36 +340,34 @@ export default function AIModelPage() {
                 style={{ padding: '9px 14px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px', width: '320px' }}
               />
               <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                {filteredIFUsers.filter(u => u.is_anomaly).length} anormal davranış · {filteredIFUsers.length} kullanıcı
+                {filteredIFUsers.filter(u => u.is_anomaly).length} incelenmeli · {filteredIFUsers.length} kullanıcı
               </span>
+              </div>
             </div>
 
             {/* User score cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {filteredIFUsers.slice((userPage - 1) * IF_PAGE_SIZE, userPage * IF_PAGE_SIZE).map((user, idx) => {
                 const isExpanded = expandedUser === user.user_email
-                const topFeatures = [...user.top_features].sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value)).slice(0, 5)
+                const topFeatures = [...user.top_features].sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value)).slice(0, 3)
                 return (
                   <div key={idx} style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', borderLeft: `4px solid ${user.is_anomaly ? '#dc2626' : '#10b981'}`, overflow: 'hidden' }}>
                     {/* Collapsed row */}
                     <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedUser(isExpanded ? null : user.user_email)}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.user_email}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{user.department ?? '—'} &nbsp;·&nbsp; {user.incident_count} güvenlik olayı</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {user.department ?? '—'} &nbsp;·&nbsp; Son 7 günde {user.incident_count} olay
+                          {topFeatures[0] && <> &nbsp;·&nbsp; Ana etken: <strong>{getFriendlyFeatureName(topFeatures[0])}</strong></>}
+                        </div>
                       </div>
                       <div style={{ textAlign: 'center', flexShrink: 0 }}>
                         <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '1px' }}>AI Risk Skoru</div>
                         <div style={{ fontSize: '22px', fontWeight: 800, color: getIFColor(user.if_score) }}>{user.if_score.toFixed(1)}</div>
                       </div>
                       <div style={{ padding: '5px 14px', borderRadius: '12px', flexShrink: 0, background: user.is_anomaly ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', color: user.is_anomaly ? '#dc2626' : '#10b981', border: `1px solid ${user.is_anomaly ? '#dc262640' : '#10b98140'}`, fontSize: '12px', fontWeight: 700 }}>
-                        {user.is_anomaly ? '⚠️ Anormal Davranış' : '✓ Normal'}
+                        {user.is_anomaly ? '⚠️ İncelenmeli' : '✓ Normal'}
                       </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); setDetailEntity({ type: 'user', id: user.user_email }); setDetailOpen(true) }}
-                        style={{ padding: '6px 12px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                      >
-                        <BarChart3 size={12} /> Detay
-                      </button>
                       <div style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </div>
@@ -469,9 +378,9 @@ export default function AIModelPage() {
                       <div style={{ borderTop: '1px solid var(--border)', padding: '20px 20px 24px' }}>
                         {user.is_anomaly && (
                           <div style={{ padding: '14px 18px', borderRadius: '10px', marginBottom: '20px', background: 'rgba(220,38,38,0.05)', border: '1px solid rgba(220,38,38,0.2)' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>🔍 Neden anormal davranış gösteriyor?</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>Bu skor neden yükseldi?</div>
                             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                              Bu kullanıcının son dönem davranışları, <strong style={{ color: 'var(--text-primary)' }}>kendi geçmiş normundan</strong> ve <strong style={{ color: 'var(--text-primary)' }}>ekibinden beklenenden</strong> belirgin şekilde sapma gösteriyor.
+                              Kullanıcının son 7 günlük davranışı, <strong style={{ color: 'var(--text-primary)' }}>7 günden eski tüm kişisel geçmişinden</strong> ve <strong style={{ color: 'var(--text-primary)' }}>aynı dönemdeki ekip davranışından</strong> belirgin şekilde sapıyor.
                               {topFeatures.length > 0 && (
                                 <> Özellikle <strong style={{ color: '#dc2626' }}>{getFriendlyFeatureName(topFeatures[0])}</strong>{topFeatures[1] ? <> ve <strong style={{ color: '#dc2626' }}>{getFriendlyFeatureName(topFeatures[1])}</strong></> : ''} alanlarında alışılmışın dışında aktivite tespit edildi.</>
                               )}
@@ -480,7 +389,7 @@ export default function AIModelPage() {
                         )}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '24px' }}>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px' }}>📊 Risk Yaratan Başlıca Faktörler</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px' }}>Skoru etkileyen ilk 3 davranış</div>
                             {topFeatures.length > 0 ? <ShapBarChart features={topFeatures} /> : <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Veri yok</div>}
                           </div>
                           <div>
@@ -488,8 +397,9 @@ export default function AIModelPage() {
                               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', fontWeight: 600 }}>Kullanıcı Risk Özeti</div>
                               {[
                                 { label: 'AI Risk Skoru',  value: `${user.if_score.toFixed(1)} / 100`, color: getIFColor(user.if_score) },
-                                { label: 'Durum',          value: user.is_anomaly ? 'Anormal ⚠️' : 'Normal ✓', color: user.is_anomaly ? '#dc2626' : '#10b981' },
-                                { label: 'Güvenlik Olayı', value: String(user.incident_count), color: 'var(--text-primary)' },
+                                { label: 'Durum',          value: user.is_anomaly ? 'İncelenmeli ⚠️' : 'Normal ✓', color: user.is_anomaly ? '#dc2626' : '#10b981' },
+                                { label: 'Son 7 Gün',      value: `${user.incident_count} olay`, color: 'var(--text-primary)' },
+                                { label: 'Geçmiş Baseline', value: `${user.baseline_incident_count ?? 0} olay`, color: 'var(--text-primary)' },
                                 { label: 'Analiz Tarihi',  value: new Date(user.calculated_at).toLocaleDateString('tr-TR'), color: 'var(--text-secondary)' },
                               ].map(row => (
                                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '8px' }}>
@@ -520,15 +430,6 @@ export default function AIModelPage() {
           </>
         )}
       </div>
-
-      {detailEntity && (
-        <EntityDetailModal
-          isOpen={detailOpen}
-          onClose={() => setDetailOpen(false)}
-          entityType={detailEntity.type}
-          entityId={detailEntity.id}
-        />
-      )}
 
       <style>{`
         .if-spin { animation: ifSpin 1s linear infinite; }

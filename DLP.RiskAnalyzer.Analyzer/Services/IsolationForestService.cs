@@ -9,6 +9,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 public class IsolationForestService : IIsolationForestService
 {
+    public const int ScoreWindowDays = 7;
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IsolationForestService> _logger;
     private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -41,7 +43,7 @@ public class IsolationForestService : IIsolationForestService
         // Get the latest job's scores
         var latestJob = await db.IsolationForestScores
             .OrderByDescending(s => s.CalculatedAt)
-            .Select(s => s.JobId)
+            .Select(s => new { s.JobId, s.CalculatedAt, s.LookbackDays })
             .FirstOrDefaultAsync();
 
         if (latestJob == null)
@@ -56,19 +58,19 @@ public class IsolationForestService : IIsolationForestService
             };
         }        // Aggregate counts without loading all rows into memory
         var totalUsers = await db.IsolationForestScores
-            .CountAsync(s => s.JobId == latestJob);
+            .CountAsync(s => s.JobId == latestJob.JobId);
 
         var anomalyCount = await db.IsolationForestScores
-            .CountAsync(s => s.JobId == latestJob && s.IsAnomaly);
+            .CountAsync(s => s.JobId == latestJob.JobId && s.IsAnomaly);
 
         // Load only anomalies + top-scoring non-anomalies (max 200 rows)
         var anomalyScores = await db.IsolationForestScores
-            .Where(s => s.JobId == latestJob && s.IsAnomaly)
+            .Where(s => s.JobId == latestJob.JobId && s.IsAnomaly)
             .OrderByDescending(s => s.IFScore)
             .ToListAsync();
 
         var topNonAnomaly = await db.IsolationForestScores
-            .Where(s => s.JobId == latestJob && !s.IsAnomaly)
+            .Where(s => s.JobId == latestJob.JobId && !s.IsAnomaly)
             .OrderByDescending(s => s.IFScore)
             .Take(Math.Max(0, 200 - anomalyScores.Count))
             .ToListAsync();
@@ -81,7 +83,7 @@ public class IsolationForestService : IIsolationForestService
 
         // Department risks — load aggregates from all rows (not just display set)
         var allScores = await db.IsolationForestScores
-            .Where(s => s.JobId == latestJob)
+            .Where(s => s.JobId == latestJob.JobId)
             .Select(s => new { s.Department, s.IFScore, s.IsAnomaly })
             .ToListAsync();
 
@@ -99,32 +101,46 @@ public class IsolationForestService : IIsolationForestService
             .ThenByDescending(d => d.MeanScore)
             .ToList();
 
+        var persistedStatus = _status.IsRunning
+            ? _status
+            : new IsolationForestStatusDto
+            {
+                Status = "completed",
+                LastRunAt = latestJob.CalculatedAt,
+                LastUserCount = totalUsers,
+                IsRunning = false
+            };
+
         return new IsolationForestOverviewDto
         {
-            Status = _status,
+            Status = persistedStatus,
             UserScores = scoreDtos,
             TotalUsers = totalUsers,
             AnomalyCount = anomalyCount,
+            ScoreWindowDays = latestJob.LookbackDays,
+            ScoreWindowStart = latestJob.CalculatedAt.AddDays(-latestJob.LookbackDays),
+            ScoreWindowEnd = latestJob.CalculatedAt,
+            BaselineStrategy = "all_time_before_score_window",
             DepartmentRisks = deptRisks
         };
     }
 
     // ── Trigger ───────────────────────────────────────────────────────────────
 
-    public async Task<IsolationForestStatusDto> TriggerRunAsync(int lookbackDays = 30)
+    public async Task<IsolationForestStatusDto> TriggerRunAsync()
     {
         if (_status.IsRunning)
             return _status;
 
         // Fire & forget – return immediately
-        _ = Task.Run(() => RunAsync(lookbackDays));
+        _ = Task.Run(RunAsync);
         await Task.Delay(50); // let the task start
         return _status;
     }
 
     // ── Core run (called by trigger + background scheduler) ──────────────────
 
-    public async Task RunAsync(int lookbackDays = 30)
+    public async Task RunAsync()
     {
         if (!await _lock.WaitAsync(0))
         {
@@ -133,7 +149,9 @@ public class IsolationForestService : IIsolationForestService
         }
 
         _status = new IsolationForestStatusDto { Status = "running", IsRunning = true };
-        _logger.LogInformation("IsolationForestService: starting run (lookbackDays={Days})", lookbackDays);
+        _logger.LogInformation(
+            "IsolationForestService: starting run (scoreWindowDays={Days}, baseline=all-time)",
+            ScoreWindowDays);
 
         try
         {
@@ -141,25 +159,42 @@ public class IsolationForestService : IIsolationForestService
             var db = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
             var engine = scope.ServiceProvider.GetRequiredService<IsolationForestEngine>();
 
-            var since = DateTime.UtcNow.AddDays(-lookbackDays);
-            var incidents = await db.Incidents
-                .Where(i => i.Timestamp >= since)
+            var calculatedAt = DateTime.UtcNow;
+            var scoreWindowEnd = calculatedAt;
+            var scoreWindowStart = scoreWindowEnd.AddDays(-ScoreWindowDays);
+
+            var scoringIncidents = await db.Incidents
+                .AsNoTracking()
+                .Where(i => i.Timestamp >= scoreWindowStart && i.Timestamp <= scoreWindowEnd)
                 .ToListAsync();
 
-            if (incidents.Count == 0)
+            if (scoringIncidents.Count == 0)
             {
-                _logger.LogWarning("IsolationForestService: no incidents found for last {Days} days", lookbackDays);
+                _logger.LogWarning("IsolationForestService: no incidents found for last {Days} days", ScoreWindowDays);
                 _status = new IsolationForestStatusDto
                 {
                     Status = "completed",
-                    LastRunAt = DateTime.UtcNow,
+                    LastRunAt = calculatedAt,
                     LastUserCount = 0,
                     IsRunning = false
                 };
                 return;
             }
 
-            var results = engine.Run(incidents);
+            var scoredUsers = scoringIncidents
+                .Select(i => i.UserEmail)
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Only load the all-time history of users who are active in the score window.
+            // This keeps the baseline complete without pulling unrelated users into memory.
+            var historicalIncidents = await db.Incidents
+                .AsNoTracking()
+                .Where(i => scoredUsers.Contains(i.UserEmail) && i.Timestamp < scoreWindowStart)
+                .ToListAsync();
+
+            var results = engine.Run(scoringIncidents, historicalIncidents);
             var jobId = Guid.NewGuid().ToString("N")[..12];
 
             // Persist
@@ -167,12 +202,13 @@ public class IsolationForestService : IIsolationForestService
             {
                 UserEmail = r.UserEmail,
                 Department = r.Department,
-                CalculatedAt = DateTime.UtcNow,
-                LookbackDays = lookbackDays,
+                CalculatedAt = calculatedAt,
+                LookbackDays = ScoreWindowDays,
                 IFScore = r.IFScore,
                 AnomalyRaw = r.IFScore,
                 IsAnomaly = r.IsAnomaly,
                 IncidentCount = r.IncidentCount,
+                BaselineIncidentCount = r.BaselineIncidentCount,
                 FeatureContributions = JsonSerializer.Serialize(r.TopFeatures, JsonOpts),
                 GroupBreakdown = JsonSerializer.Serialize(r.GroupBreakdown, JsonOpts),
                 JobId = jobId
@@ -188,7 +224,7 @@ public class IsolationForestService : IIsolationForestService
             _status = new IsolationForestStatusDto
             {
                 Status = "completed",
-                LastRunAt = DateTime.UtcNow,
+                LastRunAt = calculatedAt,
                 LastUserCount = results.Count,
                 IsRunning = false
             };
@@ -230,6 +266,7 @@ public class IsolationForestService : IIsolationForestService
             IFScore = s.IFScore,
             IsAnomaly = s.IsAnomaly,
             IncidentCount = s.IncidentCount,
+            BaselineIncidentCount = s.BaselineIncidentCount,
             TopFeatures = features,
             GroupBreakdown = groups
         };

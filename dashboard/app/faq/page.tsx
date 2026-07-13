@@ -233,15 +233,15 @@ function TurkishContent() {
                 <Table
                     headers={['Bileşen', 'Açıklama']}
                     rows={[
-                        ['Genel Bakış Kartları', 'Toplam analiz edilen sayı, anomali seviyeleri dağılımı'],
-                        ['Entity Tabları', 'Users, Channels, Departments, Destinations, Rules bazında analiz'],
-                        ['Anomali Listesi', 'Risk skoru ve anomali seviyesi ile sıralı entity\'ler'],
-                        ['Entity Detail Modal', 'Tıklanan entity\'nin detaylı AI analizi'],
+                        ['Günlük AI Risk Skoru', 'Her kullanıcı için son 7 günlük davranış skoru'],
+                        ['Kişisel Baseline', '7 günlük pencerenin öncesindeki tüm kullanıcı geçmişi'],
+                        ['Kullanıcı Riskleri', 'Skor, durum ve skoru etkileyen ilk üç davranış'],
+                        ['Kural Tabanlı Analiz', 'Seçilebilir dönem için eşik ve Z-Score tabanlı ayrı değerlendirme'],
                     ]}
                 />
             </SubSection>
             <SubSection title="Sık Sorulan Sorular">
-                <QA q="Anomali seviyesi nasıl belirleniyor?" a="Z-Score algoritması kullanılır. Kullanıcının davranışı, tüm kullanıcıların ortalamasından ne kadar sapıyorsa o kadar yüksek anomali seviyesi atanır." />
+                <QA q="AI risk skoru nasıl belirleniyor?" a="Isolation Forest modeli her gün son 7 günlük davranışı skorlar; kişinin tüm önceki davranışını kişisel norm, aynı dönemdeki ekip davranışını ise akran karşılaştırması olarak kullanır." />
             </SubSection>
 
             {/* Analytics */}
@@ -390,15 +390,15 @@ function EnglishContent() {
                 <Table
                     headers={['Component', 'Description']}
                     rows={[
-                        ['Overview Cards', 'Total analyzed count, anomaly level distribution'],
-                        ['Entity Tabs', 'Analysis by Users, Channels, Departments, Destinations, Rules'],
-                        ['Anomaly List', 'Entities sorted by risk score and anomaly level'],
-                        ['Entity Detail Modal', 'Detailed AI analysis of the clicked entity'],
+                        ['Daily AI Risk Score', 'The latest seven-day behavior score for each user'],
+                        ['Personal Baseline', 'All user history before the seven-day scoring window'],
+                        ['User Risks', 'Score, status, and the top three contributing behaviors'],
+                        ['Rule-Based Analysis', 'A separate threshold and Z-Score assessment for a selectable period'],
                     ]}
                 />
             </SubSection>
             <SubSection title="Frequently Asked Questions">
-                <QAen q="How is the anomaly level determined?" a="Z-Score algorithm is used. The more a user's behavior deviates from the average, the higher the anomaly level assigned." />
+                <QAen q="How is the AI risk score determined?" a="Each day, the Isolation Forest model scores the latest seven days, using all earlier user activity as the personal baseline and the same-period team activity as the peer comparison." />
             </SubSection>
 
             {/* Analytics */}

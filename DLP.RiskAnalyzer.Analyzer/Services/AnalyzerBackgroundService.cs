@@ -89,14 +89,14 @@ public class AnalyzerBackgroundService : BackgroundService
                         }
                     }
 
-                    // Isolation Forest daily batch run (uses 180-day window for robust anomaly detection)
+                    // Daily Isolation Forest run: score the last 7 days against all prior user history.
                     if ((DateTime.UtcNow - _lastIFRun) >= _ifRunInterval)
                     {
                         try
                         {
                             var ifService = _serviceProvider.GetRequiredService<IIsolationForestService>();
-                            _logger.LogInformation("Starting daily Isolation Forest scoring run (lookbackDays=180)");
-                            await ((IsolationForestService)ifService).RunAsync(lookbackDays: 180);
+                            _logger.LogInformation("Starting daily Isolation Forest scoring run (scoreWindowDays=7, baseline=all-time)");
+                            await ifService.RunAsync();
                             _lastIFRun = DateTime.UtcNow;
                         }
                         catch (Exception ifEx)

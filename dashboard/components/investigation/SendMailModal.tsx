@@ -33,11 +33,13 @@ function PreviewRow({ label, value, last }: { label: string; value: string; last
 }
 
 export default function SendMailModal({ user, onClose }: Props) {
+  const defaultRecipient = user.contact_email || user.user_email
   const [templates, setTemplates] = useState<MailTemplate[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
+  const [recipient, setRecipient] = useState(defaultRecipient)
+  const [ccEmail, setCcEmail] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
-  const [ccAdmin, setCcAdmin] = useState(true)
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -46,9 +48,13 @@ export default function SendMailModal({ user, onClose }: Props) {
     apiClient.get('/api/mail-templates')
       .then(res => setTemplates(Array.isArray(res.data) ? res.data : []))
       .catch(() => setTemplates([]))
+
+    apiClient.get('/api/settings')
+      .then(res => setCcEmail(res.data?.admin_email || ''))
+      .catch(() => setCcEmail(''))
   }, [])
 
-  const recipient = user.contact_email || user.user_email
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
   const applyTemplate = (id: string) => {
     setSelectedId(id)
@@ -60,6 +66,10 @@ export default function SendMailModal({ user, onClose }: Props) {
   }
 
   const openPreview = () => {
+    if (!isValidEmail(recipient)) {
+      setMessage({ type: 'error', text: 'Geçerli bir alıcı e-posta adresi girin' })
+      return
+    }
     if (!subject.trim()) {
       setMessage({ type: 'error', text: 'Konu zorunludur' })
       return
@@ -69,13 +79,23 @@ export default function SendMailModal({ user, onClose }: Props) {
   }
 
   const send = async () => {
+    if (!isValidEmail(recipient)) {
+      setMessage({ type: 'error', text: 'Geçerli bir alıcı e-posta adresi girin' })
+      return
+    }
+    if (ccEmail.trim() && !isValidEmail(ccEmail)) {
+      setMessage({ type: 'error', text: 'Geçerli bir CC e-posta adresi girin' })
+      return
+    }
+
     setSending(true)
     setMessage(null)
     try {
       const res = await apiClient.post('/api/investigation/send-mail', {
-        to_email: recipient,
-        to_name: user.user_email,
-        cc_admin: ccAdmin,
+        to_email: recipient.trim(),
+        to_name: recipient.trim().toLowerCase() === defaultRecipient.toLowerCase() ? (user.full_name || user.user_email) : null,
+        cc_admin: false,
+        cc_email: ccEmail.trim() || null,
         subject,
         body_html: body,
       })
@@ -124,7 +144,7 @@ export default function SendMailModal({ user, onClose }: Props) {
             <>
               <div>
                 <label style={labelStyle}>Alıcı</label>
-                <input style={{ ...inputStyle, opacity: 0.8 }} value={recipient} readOnly />
+                <input type="email" style={inputStyle} value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="alici@firma.com" />
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{user.user_email}{user.team ? ` · ${user.team}` : ''}</div>
               </div>
 
@@ -146,17 +166,18 @@ export default function SendMailModal({ user, onClose }: Props) {
                 <textarea style={{ ...inputStyle, minHeight: '200px', resize: 'vertical' }} value={body} onChange={e => setBody(e.target.value)} placeholder="Mail içeriği (HTML)" />
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                <input type="checkbox" checked={ccAdmin} onChange={e => setCcAdmin(e.target.checked)} />
-                Admin / güvenlik adresini CC'ye ekle
-              </label>
             </>
           ) : (
             <>
               <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
                 <PreviewRow label="Alıcı" value={`${recipient}${user.user_email !== recipient ? ` (${user.user_email}${user.team ? ` · ${user.team}` : ''})` : (user.team ? ` (${user.team})` : '')}`} />
-                <PreviewRow label="CC" value={ccAdmin ? 'Admin / güvenlik adresi eklenecek' : '—'} />
                 <PreviewRow label="Konu" value={subject} last />
+              </div>
+
+              <div>
+                <label style={labelStyle}>CC <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(opsiyonel)</span></label>
+                <input type="email" style={inputStyle} value={ccEmail} onChange={e => setCcEmail(e.target.value)} placeholder="cc@firma.com" />
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Bu adres yalnızca bu gönderim için kullanılacaktır.</div>
               </div>
 
               <div>
@@ -168,7 +189,7 @@ export default function SendMailModal({ user, onClose }: Props) {
               </div>
 
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Mail yukarıdaki haliyle gönderilecektir. Düzenlemek için "Geri Dön"e basın.
+                Alıcı, konu veya içeriği düzenlemek için "Geri Dön"e basın. CC adresini bu ekranda değiştirebilirsiniz.
               </div>
             </>
           )}

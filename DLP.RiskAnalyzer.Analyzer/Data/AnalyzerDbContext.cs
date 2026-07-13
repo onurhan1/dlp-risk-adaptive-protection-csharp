@@ -531,6 +531,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.AnomalyRaw).HasColumnName("anomaly_raw").IsRequired();
             entity.Property(e => e.IsAnomaly).HasColumnName("is_anomaly").IsRequired();
             entity.Property(e => e.IncidentCount).HasColumnName("incident_count").IsRequired();
+            entity.Property(e => e.BaselineIncidentCount).HasColumnName("baseline_incident_count").IsRequired();
             entity.Property(e => e.FeatureContributions).HasColumnName("feature_contributions").HasDefaultValue("[]");
             entity.Property(e => e.GroupBreakdown).HasColumnName("group_breakdown").HasDefaultValue("{}");
             entity.Property(e => e.JobId).HasColumnName("job_id").HasMaxLength(50);

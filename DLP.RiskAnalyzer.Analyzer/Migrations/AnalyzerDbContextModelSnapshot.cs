@@ -1164,6 +1164,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
                         .HasColumnType("double precision")
                         .HasColumnName("anomaly_raw");
 
+                    b.Property<int>("BaselineIncidentCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("baseline_incident_count");
+
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("calculated_at");

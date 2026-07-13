@@ -46,14 +46,12 @@ public class IsolationForestController : ControllerBase
     }
 
     /// <summary>
-    /// Manually trigger a scoring run
-    /// </summary>    [HttpPost("trigger")]
-    public async Task<ActionResult<IsolationForestStatusDto>> Trigger([FromQuery] int lookbackDays = 180)
+    /// Manually trigger the fixed seven-day scoring run.
+    /// </summary>
+    [HttpPost("trigger")]
+    public async Task<ActionResult<IsolationForestStatusDto>> Trigger()
     {
-        if (lookbackDays < 7 || lookbackDays > 365)
-            return BadRequest(new { detail = "lookbackDays must be between 7 and 365" });
-
-        var status = await _service.TriggerRunAsync(lookbackDays);
+        var status = await _service.TriggerRunAsync();
         return Ok(status);
     }
 }

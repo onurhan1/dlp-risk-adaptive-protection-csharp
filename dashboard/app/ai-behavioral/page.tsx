@@ -35,6 +35,7 @@ interface IFOverview {
   user_scores: IFScore[]
   total_users: number
   anomaly_count: number
+  score_window_days?: number
   status?: {
     last_run_at?: string
     last_user_count?: number
@@ -85,7 +86,7 @@ function getLevelBg(level: string) {
 
 export default function AIBehavioralOverviewPage() {
   const router = useRouter()
-  const [lookbackDays, setLookbackDays] = useState(30)
+  const [lookbackDays, setLookbackDays] = useState(7)
   const [ruleOverview, setRuleOverview] = useState<RuleBasedOverview | null>(null)
   const [ifOverview, setIfOverview]     = useState<IFOverview | null>(null)
   const [ruleLoading, setRuleLoading]   = useState(true)
@@ -153,7 +154,7 @@ export default function AIBehavioralOverviewPage() {
     { label: 'Toplam Analiz Edilen', value: ruleOverview?.total_analyzed ?? '—',       color: 'var(--text-primary)', icon: <Users size={18} />,        note: `Son ${lookbackDays} gün`,     loading: ruleLoading },
     { label: 'Yüksek Riskli',        value: ruleOverview?.high_anomaly_count ?? '—',   color: '#dc2626',             icon: <AlertTriangle size={18} />, note: 'Kural tabanlı',               loading: ruleLoading },
     { label: 'Orta Riskli',          value: ruleOverview?.medium_anomaly_count ?? '—', color: '#f59e0b',             icon: <TrendingUp size={18} />,    note: 'Kural tabanlı',               loading: ruleLoading },
-    { label: 'AI Anormal Davranış',  value: ifOverview?.anomaly_count ?? '—',          color: '#7c3aed',             icon: <BrainCircuit size={18} />,  note: 'Son 6 ay (IF modeli)',        loading: aiLoading },
+    { label: 'AI İnceleme Adayı',    value: ifOverview?.anomaly_count ?? '—',          color: '#7c3aed',             icon: <BrainCircuit size={18} />,  note: 'Son 7 gün / tüm geçmiş',     loading: aiLoading },
   ]
 
   const ifLastRun = ifOverview?.status?.last_run_at
@@ -172,7 +173,7 @@ export default function AIBehavioralOverviewPage() {
             </h1>
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
               Kural tabanlı skor seçilen zaman penceresine göre hesaplanır.
-              AI (Isolation Forest) skoru gece çalışan batch ile son <strong>6 aylık</strong> veriye göre otomatik güncellenir.
+               AI skoru her gün son <strong>7 günlük</strong> davranış için yenilenir ve kişinin 7 günden eski tüm geçmişiyle karşılaştırılır.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
@@ -246,7 +247,7 @@ export default function AIBehavioralOverviewPage() {
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#7c3aed', marginBottom: '3px' }}>🤖 AI Risk Skoru (Isolation Forest)</div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                Son <strong>6 aylık</strong> veriyle her gece otomatik yeniden eğitilir. Kısa dönem (30 gün) veriyle yeterli anomali tespiti yapılamadığından 6 aylık pencere kullanılır.
+                Her gün son <strong>7 günlük</strong> davranışı skorlar. Kişinin bu pencerenin öncesindeki <strong>tüm geçmişi</strong> kişisel norm, aynı dönemdeki ekip davranışı ise akran karşılaştırması olarak kullanılır.
               </div>
             </div>
           </div>
@@ -272,7 +273,7 @@ export default function AIBehavioralOverviewPage() {
             <div>
               <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>🏆 En Riskli 20 Kullanıcı</span>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px' }}>
-                Kural tabanlı skora göre sıralanmış (son {lookbackDays} gün) — AI risk skoru son 6 aylık batch sonucu
+                Kural tabanlı skora göre sıralanmış (son {lookbackDays} gün) — AI skoru son 7 günün günlük batch sonucudur
               </div>
             </div>
             {ruleLoading && <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--text-secondary)' }} />}
@@ -299,7 +300,7 @@ export default function AIBehavioralOverviewPage() {
                       { h: 'Departman' },
                       { h: `Kural Skoru (${lookbackDays}g)`, info: '#3b82f6' },
                       { h: 'Risk Seviyesi' },
-                      { h: 'AI Skoru (6 ay)', info: '#7c3aed' },
+                      { h: 'AI Skoru (7 gün)', info: '#7c3aed' },
                       { h: 'AI Durumu' },
                       { h: 'Detay' },
                     ].map((col, ci) => (
@@ -327,7 +328,7 @@ export default function AIBehavioralOverviewPage() {
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.user_id}>{u.user_id}</div>
-                          {u.incident_count > 0 && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{u.incident_count} güvenlik olayı</div>}
+                          {u.incident_count > 0 && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Son 7 günde {u.incident_count} olay</div>}
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{u.department ?? '—'}</td>
                         <td style={{ padding: '12px 16px' }}>
