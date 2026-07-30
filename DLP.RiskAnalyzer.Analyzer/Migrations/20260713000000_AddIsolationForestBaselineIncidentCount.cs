@@ -1,3 +1,5 @@
+using DLP.RiskAnalyzer.Analyzer.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DLP.RiskAnalyzer.Analyzer.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(AnalyzerDbContext))]
+    [Migration("20260713000000_AddIsolationForestBaselineIncidentCount")]
     public partial class AddIsolationForestBaselineIncidentCount : Migration
     {
         /// <inheritdoc />
