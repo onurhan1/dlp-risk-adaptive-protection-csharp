@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw, Workflow } from 'lucide-react'
 import apiClient from '@/lib/axios'
 import MailTemplateManager from '@/components/investigation/MailTemplateManager'
 import SendMailModal from '@/components/investigation/SendMailModal'
@@ -66,6 +67,7 @@ export default function WeeklyReviewPage() {
         loading={loading}
         triggerLabel="olay"
         onSend={setMailUser}
+        criterion="personal_email_senders"
       />
 
       <FlagSection
@@ -77,6 +79,7 @@ export default function WeeklyReviewPage() {
         loading={loading}
         triggerLabel="olay/pencere"
         onSend={setMailUser}
+        criterion="high_volume"
       />
 
       <FlagSection
@@ -88,6 +91,7 @@ export default function WeeklyReviewPage() {
         loading={loading}
         triggerLabel="olay"
         onSend={setMailUser}
+        criterion="massive_matches"
       />
 
       <MailTemplateManager />
@@ -108,11 +112,14 @@ interface SectionProps {
   loading: boolean
   triggerLabel: string
   onSend: (u: WeeklyFlagUser) => void
+  /** Weekly-flag criterion key, used to pre-fill a playbook built from this section. */
+  criterion: string
 }
 
 const PAGE_SIZE = 10
 
-function FlagSection({ title, subtitle, icon, color, users, loading, triggerLabel, onSend }: SectionProps) {
+function FlagSection({ title, subtitle, icon, color, users, loading, triggerLabel, onSend, criterion }: SectionProps) {
+  const router = useRouter()
   const [page, setPage] = useState(1)
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -135,9 +142,18 @@ function FlagSection({ title, subtitle, icon, color, users, loading, triggerLabe
             <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>{subtitle}</p>
           </div>
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '4px 12px', borderRadius: '20px' }}>
-          {users.length} kullanıcı
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <button
+            onClick={() => router.push(`/investigation/playbooks?from_criterion=${criterion}`)}
+            title="Bu kriteri zamanlanmış bir playbook akışına dönüştür"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}
+          >
+            <Workflow size={14} /> Playbook'a Dönüştür
+          </button>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '4px 12px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
+            {users.length} kullanıcı
+          </span>
+        </div>
       </div>
 
       {loading ? (

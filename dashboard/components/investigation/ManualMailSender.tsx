@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { MailPlus, RefreshCw, Send } from 'lucide-react'
 import apiClient from '@/lib/axios'
-import { MailTemplate } from './types'
+import { MailTemplate, toEmailHtml } from './types'
 
 const inputStyle: CSSProperties = {
   width: '100%',
@@ -106,7 +106,7 @@ export default function ManualMailSender() {
         cc_admin: false,
         cc_email: ccEmail.trim() || null,
         subject: applyManualPlaceholders(subject, normalizedRecipient),
-        body_html: applyManualPlaceholders(body, normalizedRecipient),
+        body_html: toEmailHtml(applyManualPlaceholders(body, normalizedRecipient)),
       })
       setMessage({ type: 'success', text: res.data?.message || 'Mail gönderildi' })
       setRecipient('')

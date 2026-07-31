@@ -1,0 +1,517 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { RefreshCw, Send, Ban, Eye, X, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import apiClient from '@/lib/axios'
+import GridExport, { type ExportColumn } from '@/components/ui/GridExport'
+import Pagination from '@/components/ui/Pagination'
+import type { PlaybookMailRow, PlaybookMailStatus } from './types'
+import { secondaryButtonStyle } from './formStyles'
+
+interface Props {
+  playbookId: number
+  playbookName: string
+  /** Bumped by the parent after a run so the report refetches. */
+  refreshKey: number
+  onPendingCountChange?: (count: number) => void
+}
+
+const PAGE_SIZE = 20
+
+const STATUS_META: Record<PlaybookMailStatus, { label: string; color: string; bg: string }> = {
+  sent: { label: 'Gönderildi', color: '#059669', bg: 'rgba(5,150,105,0.12)' },
+  pending: { label: 'Onay Bekliyor', color: '#d97706', bg: 'rgba(217,119,6,0.14)' },
+  failed: { label: 'Hata', color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+  skipped: { label: 'Atlandı', color: '#64748b', bg: 'rgba(100,116,139,0.14)' },
+}
+
+/** Columns for the exported file — the "who was queried, when, with what subject" record. */
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'created_at', header: 'Tarih', width: 20, formatter: v => (v ? new Date(v).toLocaleString('tr-TR') : '') },
+  { key: 'user_email', header: 'Kullanıcı', width: 30 },
+  { key: 'full_name', header: 'Ad', width: 24 },
+  { key: 'team', header: 'Takım', width: 22 },
+  { key: 'to_email', header: 'Alıcı', width: 30 },
+  { key: 'cc_email', header: 'CC', width: 26 },
+  { key: 'subject', header: 'Mail Konusu', width: 44 },
+  { key: 'source_criterion_label', header: 'Kriter', width: 32 },
+  { key: 'trigger_count', header: 'Olay Sayısı', width: 12 },
+  { key: 'status_label', header: 'Durum', width: 14 },
+  { key: 'sent_at', header: 'Gönderim Zamanı', width: 20, formatter: v => (v ? new Date(v).toLocaleString('tr-TR') : '') },
+  { key: 'error_message', header: 'Not', width: 36 },
+]
+
+export default function PlaybookReport({ playbookId, playbookName, refreshKey, onPendingCountChange }: Props) {
+  const [rows, setRows] = useState<PlaybookMailRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState<'all' | PlaybookMailStatus>('all')
+  const [page, setPage] = useState(1)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [previewRow, setPreviewRow] = useState<PlaybookMailRow | null>(null)
+
+  const fetchReport = async () => {
+    setLoading(true)
+    try {
+      const res = await apiClient.get(`/api/playbooks/${playbookId}/report`, {
+        params: { status: statusFilter },
+      })
+      const fetched: PlaybookMailRow[] = res.data?.rows ?? []
+      setRows(fetched)
+      onPendingCountChange?.(res.data?.pending ?? 0)
+    } catch (e: any) {
+      setRows([])
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Rapor alınamadı' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchReport()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbookId, statusFilter, refreshKey])
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, refreshKey])
+
+  const pendingRuns = useMemo(
+    () => Array.from(new Set(rows.filter(r => r.status === 'pending').map(r => r.run_id))),
+    [rows]
+  )
+
+  // GridExport writes raw field values, so flatten the label columns it needs.
+  const exportRows = useMemo(
+    () => rows.map(r => ({ ...r, status_label: STATUS_META[r.status]?.label ?? r.status })),
+    [rows]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pagedRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const approveRun = async (runId: number) => {
+    setBusyId(-runId)
+    setMessage(null)
+    try {
+      const res = await apiClient.post(`/api/playbooks/runs/${runId}/approve`)
+      setMessage({ type: res.data?.success ? 'success' : 'error', text: res.data?.message || 'Gönderim tamamlandı' })
+      await fetchReport()
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Mailler gönderilemedi' })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const approveOne = async (row: PlaybookMailRow) => {
+    setBusyId(row.id)
+    setMessage(null)
+    try {
+      const res = await apiClient.post(`/api/playbooks/mail-log/${row.id}/approve`)
+      setMessage({ type: res.data?.success ? 'success' : 'error', text: res.data?.message || 'Mail gönderildi' })
+      await fetchReport()
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Mail gönderilemedi' })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const skipOne = async (row: PlaybookMailRow) => {
+    setBusyId(row.id)
+    setMessage(null)
+    try {
+      await apiClient.post(`/api/playbooks/mail-log/${row.id}/skip`)
+      await fetchReport()
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Kayıt atlanamadı' })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const counts = useMemo(() => ({
+    sent: rows.filter(r => r.status === 'sent').length,
+    pending: rows.filter(r => r.status === 'pending').length,
+    failed: rows.filter(r => r.status === 'failed').length,
+    skipped: rows.filter(r => r.status === 'skipped').length,
+  }), [rows])
+
+  return (
+    <div>
+      {/* Pending approval banner */}
+      {counts.pending > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+            padding: '11px 14px',
+            borderRadius: '8px',
+            background: 'rgba(217,119,6,0.12)',
+            border: '1px solid rgba(217,119,6,0.35)',
+            marginBottom: '14px',
+          }}
+        >
+          <Clock size={16} style={{ color: '#d97706', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: '200px', fontSize: '13px', color: 'var(--text-primary)' }}>
+            <strong>{counts.pending} mail onay bekliyor.</strong> Prova çalıştırması alıcıları hesapladı, gönderim
+            sizin onayınızı bekliyor.
+          </div>
+          {pendingRuns.map(runId => (
+            <button
+              key={runId}
+              onClick={() => approveRun(runId)}
+              disabled={busyId !== null}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                background: '#d97706',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: busyId !== null ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+                opacity: busyId !== null ? 0.6 : 1,
+              }}
+            >
+              <Send size={13} /> #{runId} Çalıştırmasını Onayla
+            </button>
+          ))}
+        </div>
+      )}
+
+      {message && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: '6px',
+            marginBottom: '14px',
+            fontSize: '13px',
+            background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+            color: message.type === 'success' ? '#166534' : '#991b1b',
+            border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`,
+          }}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as any)}
+          style={{
+            padding: '7px 11px',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            background: 'var(--surface)',
+            color: 'var(--text-primary)',
+            fontSize: '13px',
+          }}
+        >
+          <option value="all">Tüm durumlar</option>
+          <option value="sent">Gönderildi</option>
+          <option value="pending">Onay bekliyor</option>
+          <option value="failed">Hata</option>
+          <option value="skipped">Atlandı</option>
+        </select>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '12px', color: 'var(--text-muted)' }}>
+          <span><strong style={{ color: '#059669' }}>{counts.sent}</strong> gönderildi</span>
+          <span><strong style={{ color: '#d97706' }}>{counts.pending}</strong> bekliyor</span>
+          <span><strong style={{ color: '#dc2626' }}>{counts.failed}</strong> hata</span>
+          <span><strong style={{ color: '#64748b' }}>{counts.skipped}</strong> atlandı</span>
+        </div>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <button onClick={fetchReport} disabled={loading} style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: '12px' }}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : undefined }} /> Yenile
+          </button>
+          <GridExport
+            data={exportRows}
+            columns={EXPORT_COLUMNS}
+            fileName={`${playbookName.replace(/[\\/:*?"<>|]/g, '-')} - Sorgu Raporu`}
+            disabled={rows.length === 0}
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px' }}>Yükleniyor...</div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
+          Bu playbook için henüz gönderim kaydı yok. "Prova Çalıştır" ile başlayın.
+        </div>
+      ) : (
+        <>
+          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' }}>
+              <thead>
+                <tr style={{ background: 'var(--surface-hover)' }}>
+                  <Th>Tarih</Th>
+                  <Th>Kullanıcı</Th>
+                  <Th>Alıcı</Th>
+                  <Th>Mail Konusu</Th>
+                  <Th>Kriter</Th>
+                  <Th align="right">Olay</Th>
+                  <Th>Durum</Th>
+                  <Th align="right">İşlem</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedRows.map(row => {
+                  const meta = STATUS_META[row.status] ?? STATUS_META.skipped
+                  const busy = busyId === row.id
+
+                  return (
+                    <tr key={row.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <Td nowrap>{new Date(row.created_at).toLocaleString('tr-TR')}</Td>
+                      <Td>
+                        <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{row.user_email}</div>
+                        {row.team && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.team}</div>}
+                      </Td>
+                      <Td>
+                        <div>{row.to_email}</div>
+                        {row.cc_email && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>CC: {row.cc_email}</div>}
+                      </Td>
+                      <Td>{row.subject}</Td>
+                      <Td>{row.source_criterion_label ?? '-'}</Td>
+                      <Td align="right">{row.trigger_count}</Td>
+                      <Td nowrap>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '20px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: meta.bg,
+                            color: meta.color,
+                          }}
+                          title={row.error_message ?? undefined}
+                        >
+                          {row.status === 'sent' ? <CheckCircle2 size={11} /> :
+                            row.status === 'failed' ? <XCircle size={11} /> :
+                              row.status === 'pending' ? <Clock size={11} /> : <Ban size={11} />}
+                          {meta.label}
+                        </span>
+                        {row.sent_at && (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>
+                            {new Date(row.sent_at).toLocaleString('tr-TR')}
+                          </div>
+                        )}
+                      </Td>
+                      <Td align="right" nowrap>
+                        <div style={{ display: 'inline-flex', gap: '5px' }}>
+                          <IconAction title="Mail içeriğini gör" onClick={() => setPreviewRow(row)}>
+                            <Eye size={13} />
+                          </IconAction>
+                          {row.status === 'pending' && (
+                            <>
+                              <IconAction title="Onayla ve gönder" disabled={busy} onClick={() => approveOne(row)} accent="#059669">
+                                <Send size={13} />
+                              </IconAction>
+                              <IconAction title="Atla" disabled={busy} onClick={() => skipOne(row)} accent="#dc2626">
+                                <Ban size={13} />
+                              </IconAction>
+                            </>
+                          )}
+                        </div>
+                      </Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div style={{ marginTop: '12px' }}>
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                totalItems={rows.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {previewRow && <MailPreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />}
+    </div>
+  )
+}
+
+function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          borderRadius: '14px',
+          width: '100%',
+          maxWidth: '620px',
+          maxHeight: '88vh',
+          overflowY: 'auto',
+          boxShadow: '0 12px 40px rgba(15,23,42,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Mail Kaydı</h2>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+            <X size={19} />
+          </button>
+        </div>
+
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <PreviewRow label="Kullanıcı" value={`${row.user_email}${row.team ? ` · ${row.team}` : ''}`} />
+            <PreviewRow label="Alıcı" value={row.to_email} />
+            {row.cc_email && <PreviewRow label="CC" value={row.cc_email} />}
+            <PreviewRow label="Konu" value={row.subject} />
+            <PreviewRow label="Kriter" value={row.source_criterion_label ?? '-'} />
+            <PreviewRow label="Oluşturma" value={new Date(row.created_at).toLocaleString('tr-TR')} />
+            <PreviewRow
+              label="Gönderim"
+              value={row.sent_at ? new Date(row.sent_at).toLocaleString('tr-TR') : 'Gönderilmedi'}
+              last={!row.error_message}
+            />
+            {row.error_message && <PreviewRow label="Not" value={row.error_message} last />}
+          </div>
+
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '5px' }}>İçerik</div>
+            <div
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '14px 16px',
+                background: 'white',
+                color: '#0f172a',
+                fontSize: '13px',
+                maxHeight: '340px',
+                overflowY: 'auto',
+                wordBreak: 'break-word',
+              }}
+              dangerouslySetInnerHTML={{ __html: row.body_html || '<em style="color:#94a3b8">İçerik boş</em>' }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PreviewRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <div style={{ display: 'flex', gap: '12px', padding: '9px 13px', borderBottom: last ? 'none' : '1px solid var(--border)', fontSize: '12px' }}>
+      <span style={{ width: '80px', flexShrink: 0, fontWeight: 600, color: 'var(--text-muted)' }}>{label}</span>
+      <span style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>{value}</span>
+    </div>
+  )
+}
+
+function Th({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'right' }) {
+  return (
+    <th
+      style={{
+        padding: '9px 11px',
+        textAlign: align,
+        fontSize: '11px',
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </th>
+  )
+}
+
+function Td({
+  children,
+  align = 'left',
+  nowrap,
+}: {
+  children: ReactNode
+  align?: 'left' | 'right'
+  nowrap?: boolean
+}) {
+  return (
+    <td
+      style={{
+        padding: '9px 11px',
+        textAlign: align,
+        color: 'var(--text-secondary)',
+        verticalAlign: 'top',
+        whiteSpace: nowrap ? 'nowrap' : undefined,
+      }}
+    >
+      {children}
+    </td>
+  )
+}
+
+function IconAction({
+  title,
+  onClick,
+  children,
+  disabled,
+  accent,
+}: {
+  title: string
+  onClick: () => void
+  children: ReactNode
+  disabled?: boolean
+  accent?: string
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '26px',
+        height: '26px',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: '5px',
+        color: accent ?? 'var(--text-muted)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {children}
+    </button>
+  )
+}

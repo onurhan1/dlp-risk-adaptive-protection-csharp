@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { X, Send, Eye, ArrowLeft } from 'lucide-react'
 import apiClient from '@/lib/axios'
-import { MailTemplate, WeeklyFlagUser, applyPlaceholders } from './types'
+import { MailTemplate, WeeklyFlagUser, applyPlaceholders, toEmailHtml } from './types'
 
 interface Props {
   user: WeeklyFlagUser
@@ -97,7 +97,7 @@ export default function SendMailModal({ user, onClose }: Props) {
         cc_admin: false,
         cc_email: ccEmail.trim() || null,
         subject,
-        body_html: body,
+        body_html: toEmailHtml(body),
       })
       setMessage({ type: 'success', text: res.data?.message || 'Mail gönderildi' })
       setTimeout(onClose, 1200)
@@ -184,7 +184,7 @@ export default function SendMailModal({ user, onClose }: Props) {
                 <label style={labelStyle}>İçerik Önizlemesi</label>
                 <div
                   style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', background: 'white', color: '#0f172a', fontSize: '14px', minHeight: '120px', maxHeight: '320px', overflowY: 'auto', wordBreak: 'break-word' }}
-                  dangerouslySetInnerHTML={{ __html: body || '<em style="color:#94a3b8">İçerik boş</em>' }}
+                  dangerouslySetInnerHTML={{ __html: toEmailHtml(body) || '<em style="color:#94a3b8">İçerik boş</em>' }}
                 />
               </div>
 

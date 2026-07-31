@@ -22,7 +22,8 @@ import {
   BrainCircuit,
   Mail,
   CalendarClock,
-  ClipboardList
+  ClipboardList,
+  Workflow
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -123,6 +124,13 @@ export default function Sidebar() {
                   >
                     <CalendarClock size={16} />
                     <span>{t('nav.investigationWeekly')}</span>
+                  </Link>
+                  <Link
+                    href="/investigation/playbooks"
+                    className={`sidebar-subitem ${pathname?.startsWith('/investigation/playbooks') ? 'active' : ''}`}
+                  >
+                    <Workflow size={16} />
+                    <span>{t('nav.investigationPlaybooks')}</span>
                   </Link>
                   <Link
                     href="/investigation/mail-templates"

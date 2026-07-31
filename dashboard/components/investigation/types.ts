@@ -54,3 +54,35 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
     .replaceAll('{{tarih}}', new Date().toLocaleDateString('tr-TR'))
     .replaceAll('{{olaylar}}', incidentsSummary || '-')
 }
+
+/** Şablon gövdesinde HTML kullanıldığını gösteren blok seviyesi etiketler. */
+const BLOCK_LEVEL_HTML = /<(p|div|br|table|tr|td|th|ul|ol|li|h[1-6]|html|body|blockquote|pre|section)\b[^>]*>/i
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+/**
+ * Şablonlar düz bir textarea'da yazıldığı için gövde çoğunlukla satır sonları olan
+ * düz metindir. Mail IsBodyHtml=true ile gönderildiğinden bu satır sonları alıcıda
+ * yok sayılır ve içerik tek bir blok halinde, biçimsiz gelir. Burada düz metni HTML'e
+ * çevirip okunabilir bir kapsayıcıya alıyoruz; böylece giden mail önizlemeyle birebir olur.
+ * Zaten HTML yazılmış şablonlar olduğu gibi korunur.
+ */
+export function toEmailHtml(body: string): string {
+  const content = (body || '').trim()
+  if (!content) return ''
+
+  // Tam bir HTML dokümanı verilmişse kendi <head>/<style> kurgusu bozulmasın.
+  if (/<html[\s>]/i.test(content)) return content
+
+  const inner = BLOCK_LEVEL_HTML.test(content)
+    ? content
+    : escapeHtml(content).replace(/\r\n|\r|\n/g, '<br />')
+
+  return `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #0f172a;">${inner}</div>`
+}

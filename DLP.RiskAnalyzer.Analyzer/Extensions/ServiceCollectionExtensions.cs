@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IWeeklyFlagService, WeeklyFlagService>();
+        services.AddScoped<IPlaybookEngine, PlaybookEngine>();
         services.AddScoped<IAuditLogService, AuditLogService>();
 
         // Dev-only seeder — harmless singleton when SeedData:Enabled = false

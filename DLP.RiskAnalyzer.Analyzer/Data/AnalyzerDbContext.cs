@@ -32,6 +32,9 @@ public class AnalyzerDbContext : DbContext
     public DbSet<UserActivityLog> UserActivityLogs { get; set; }
     public DbSet<IsolationForestScore> IsolationForestScores { get; set; }
     public DbSet<MailTemplate> MailTemplates { get; set; }
+    public DbSet<Playbook> Playbooks { get; set; }
+    public DbSet<PlaybookRun> PlaybookRuns { get; set; }
+    public DbSet<PlaybookMailLog> PlaybookMailLogs { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -557,6 +560,79 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.Name);
+        });
+
+        // Configure the playbook tables — same runtime-provisioned pattern as MailTemplate
+        // (see PlaybookSchema), so they are excluded from EF migrations. Schema: "dlp".
+        modelBuilder.Entity<Playbook>(entity =>
+        {
+            entity.ToTable("playbooks", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(1000);
+            entity.Property(e => e.GraphJson).HasColumnName("graph_json").IsRequired();
+            entity.Property(e => e.Enabled).HasColumnName("enabled").IsRequired();
+            entity.Property(e => e.AutoSend).HasColumnName("auto_send").IsRequired();
+            entity.Property(e => e.ScheduleCron).HasColumnName("schedule_cron").HasMaxLength(120);
+            entity.Property(e => e.LastRunAt).HasColumnName("last_run_at");
+            entity.Property(e => e.NextRunAt).HasColumnName("next_run_at");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.Enabled, e.NextRunAt });
+        });
+
+        modelBuilder.Entity<PlaybookRun>(entity =>
+        {
+            entity.ToTable("playbook_runs", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.PlaybookId).HasColumnName("playbook_id").IsRequired();
+            entity.Property(e => e.StartedAt).HasColumnName("started_at").IsRequired();
+            entity.Property(e => e.FinishedAt).HasColumnName("finished_at");
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(30);
+            entity.Property(e => e.TriggerType).HasColumnName("trigger_type").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.DryRun).HasColumnName("dry_run").IsRequired();
+            entity.Property(e => e.NodeLogJson).HasColumnName("node_log_json");
+            entity.Property(e => e.MailsSent).HasColumnName("mails_sent").IsRequired();
+            entity.Property(e => e.MailsPending).HasColumnName("mails_pending").IsRequired();
+            entity.Property(e => e.MailsFailed).HasColumnName("mails_failed").IsRequired();
+            entity.Property(e => e.MailsSkipped).HasColumnName("mails_skipped").IsRequired();
+            entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+
+            entity.HasIndex(e => new { e.PlaybookId, e.StartedAt });
+            entity.HasIndex(e => e.Status);
+        });
+
+        modelBuilder.Entity<PlaybookMailLog>(entity =>
+        {
+            entity.ToTable("playbook_mail_log", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.RunId).HasColumnName("run_id").IsRequired();
+            entity.Property(e => e.PlaybookId).HasColumnName("playbook_id").IsRequired();
+            entity.Property(e => e.NodeId).HasColumnName("node_id").IsRequired().HasMaxLength(64);
+            entity.Property(e => e.UserEmail).HasColumnName("user_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(255);
+            entity.Property(e => e.Team).HasColumnName("team").HasMaxLength(255);
+            entity.Property(e => e.ToEmail).HasColumnName("to_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.CcEmail).HasColumnName("cc_email").HasMaxLength(255);
+            entity.Property(e => e.Subject).HasColumnName("subject").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.BodyHtml).HasColumnName("body_html").IsRequired();
+            entity.Property(e => e.SourceCriterion).HasColumnName("source_criterion").HasMaxLength(60);
+            entity.Property(e => e.TriggerCount).HasColumnName("trigger_count").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.SentAt).HasColumnName("sent_at");
+            entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+
+            entity.HasIndex(e => e.RunId);
+            entity.HasIndex(e => new { e.PlaybookId, e.CreatedAt });
+            entity.HasIndex(e => e.Status);
         });
 
         // Policy Inventory Configuration
