@@ -46,6 +46,40 @@ public static class PlaybookMailRenderer
     }
 
     /// <summary>
+    /// Substitutes the placeholders available to a metric mail. A metric mail describes the whole
+    /// organisation rather than one person, so it gets its own token set — the per-user tokens
+    /// have no meaning here and are left untouched.
+    /// </summary>
+    public static string ApplyMetricPlaceholders(string? text, PlaybookMetric metric, DateTime nowUtc)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        var breakdown = metric.Breakdown.Count > 0
+            ? string.Join("\n", metric.Breakdown.Select(b => $"- {b.Label}: {b.Count}"))
+            : "-";
+
+        var period = $"{metric.WindowStart.ToString(DateFormat)} - {metric.WindowEnd.ToString(DateFormat)}";
+
+        return text
+            .Replace("{{metrik}}", metric.Label)
+            .Replace("{{deger}}", FormatNumber(metric.Value))
+            .Replace("{{esik}}", metric.Threshold.HasValue ? FormatNumber(metric.Threshold.Value) : "-")
+            .Replace("{{toplam_incident}}", metric.TotalIncidents.ToString())
+            .Replace("{{kullanici_sayisi}}", metric.UniqueUsers.ToString())
+            .Replace("{{gun}}", metric.Days.ToString())
+            .Replace("{{donem}}", period)
+            .Replace("{{filtreler}}", string.IsNullOrWhiteSpace(metric.FilterSummary) ? "-" : metric.FilterSummary)
+            .Replace("{{ozet}}", breakdown)
+            .Replace("{{tarih}}", nowUtc.ToString(DateFormat));
+    }
+
+    /// <summary>Whole numbers render without a decimal tail; averages keep one digit.</summary>
+    private static string FormatNumber(double value) =>
+        Math.Abs(value - Math.Round(value)) < 0.05
+            ? Math.Round(value).ToString("0")
+            : value.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
+
+    /// <summary>
     /// Wraps a template body for sending with IsBodyHtml=true. Plain-text bodies (the common
     /// case, since templates are authored in a textarea) get their newlines converted to
     /// &lt;br /&gt; so the recipient does not receive one unformatted block. Bodies that already

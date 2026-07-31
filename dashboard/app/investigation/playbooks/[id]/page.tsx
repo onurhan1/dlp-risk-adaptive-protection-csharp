@@ -29,6 +29,7 @@ import {
   isTriggerType,
   newId,
   nodeDefinition,
+  reachableFrom,
   validateGraph,
   wouldCreateCycle,
   type PlaybookDetail,
@@ -213,6 +214,18 @@ export default function PlaybookEditorPage() {
   }
 
   const selectedNode = graph.nodes.find(n => n.id === selectedNodeId) ?? null
+
+  /**
+   * Nodes downstream of an incident metric source carry a single organisation-wide number rather
+   * than a user list, so the inspector shows metric tokens and demands a fixed mail recipient.
+   */
+  const metricFlowNodeIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const source of graph.nodes.filter(n => n.type === 'source.incidentMetric')) {
+      for (const id of reachableFrom(source.id, graph)) ids.add(id)
+    }
+    return ids
+  }, [graph])
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -505,7 +518,12 @@ export default function PlaybookEditorPage() {
                 onDropConsumed={placeArmedNode}
               />
             </div>
-            <NodeInspector node={selectedNode} templates={templates} onChange={updateNode} />
+            <NodeInspector
+              node={selectedNode}
+              templates={templates}
+              inMetricFlow={selectedNode ? metricFlowNodeIds.has(selectedNode.id) : false}
+              onChange={updateNode}
+            />
           </>
         ) : (
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>

@@ -57,6 +57,8 @@ public class PlaybooksController : ControllerBase
         {
             node_types = types,
             criteria = WeeklyFlagCriterion.All.Select(c => new { value = c, label = WeeklyFlagCriterion.Label(c) }),
+            incident_metrics = IncidentMetricKind.All.Select(m => new { value = m, label = IncidentMetricKind.Label(m) }),
+            breakdown_dimensions = IncidentBreakdownDimension.All,
             max_recipients_per_run = PlaybookEngine.MaxRecipientsPerRun
         });
     }
@@ -463,6 +465,17 @@ public class PlaybooksController : ControllerBase
             : null
     };
 
+    /// <summary>
+    /// Report label for a mail row's origin. Metric mails record the node type rather than a
+    /// weekly-flag criterion, so they get their own wording instead of a raw identifier.
+    /// </summary>
+    private static string? CriterionLabel(string? criterion) => criterion switch
+    {
+        null => null,
+        PlaybookNodeType.SourceIncidentMetric => "Incident metriği (kurum toplamı)",
+        _ => WeeklyFlagCriterion.Label(criterion)
+    };
+
     private static object ToMailDto(PlaybookMailLog m) => new
     {
         id = m.Id,
@@ -477,7 +490,7 @@ public class PlaybooksController : ControllerBase
         subject = m.Subject,
         body_html = m.BodyHtml,
         source_criterion = m.SourceCriterion,
-        source_criterion_label = m.SourceCriterion == null ? null : WeeklyFlagCriterion.Label(m.SourceCriterion),
+        source_criterion_label = CriterionLabel(m.SourceCriterion),
         trigger_count = m.TriggerCount,
         status = m.Status,
         created_at = m.CreatedAt,

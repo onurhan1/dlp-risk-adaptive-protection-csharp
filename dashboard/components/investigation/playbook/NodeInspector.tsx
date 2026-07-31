@@ -7,7 +7,11 @@ import { MailTemplate, TEMPLATE_PLACEHOLDERS, applyPlaceholders, toEmailHtml } f
 import type { WeeklyFlagUser } from '../types'
 import {
   WEEKLY_FLAG_CRITERIA,
+  INCIDENT_METRICS,
+  BREAKDOWN_DIMENSIONS,
+  METRIC_PLACEHOLDERS,
   buildCron,
+  countMetricFilters,
   isValidCron,
   isValidEmail,
   nodeDefinition,
@@ -18,6 +22,11 @@ import { fieldGroupStyle, hintStyle, inputStyle, labelStyle } from './formStyles
 interface Props {
   node: PlaybookNode | null
   templates: MailTemplate[]
+  /**
+   * True when this node sits downstream of an incident metric source. A metric mail describes the
+   * whole organisation, so it uses a different token set and requires a fixed recipient.
+   */
+  inMetricFlow?: boolean
   onChange: (node: PlaybookNode) => void
 }
 
@@ -51,7 +60,7 @@ const DAYS = [
   { value: 0, label: 'Pazar' },
 ]
 
-export default function NodeInspector({ node, templates, onChange }: Props) {
+export default function NodeInspector({ node, templates, inMetricFlow = false, onChange }: Props) {
   const definition = node ? nodeDefinition(node.type) : undefined
 
   const setConfig = (patch: Record<string, any>) => {
@@ -127,10 +136,12 @@ export default function NodeInspector({ node, templates, onChange }: Props) {
           </p>
         )}
         {node.type === 'source.weeklyFlags' && <WeeklyFlagsForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.incidentMetric' && <IncidentMetricForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}
+        {node.type === 'logic.metricThreshold' && <MetricThresholdForm node={node} setConfig={setConfig} />}
         {node.type === 'action.sendMail' && (
-          <SendMailForm node={node} setConfig={setConfig} templates={templates} />
+          <SendMailForm node={node} setConfig={setConfig} templates={templates} inMetricFlow={inMetricFlow} />
         )}
         {node.type === 'output.report' && (
           <div>
@@ -322,6 +333,227 @@ function WeeklyFlagsForm({ node, setConfig }: { node: PlaybookNode; setConfig: (
   )
 }
 
+function IncidentMetricForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  const filterCount = countMetricFilters(node.config || {})
+
+  return (
+    <>
+      <div>
+        <label style={labelStyle}>Ölçülecek Metrik</label>
+        <select
+          style={inputStyle}
+          value={node.config.metric ?? 'total_incidents'}
+          onChange={e => setConfig({ metric: e.target.value })}
+        >
+          {INCIDENT_METRICS.map(m => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Geriye Dönük Gün Sayısı</label>
+        <input
+          type="number"
+          min={1}
+          max={365}
+          style={inputStyle}
+          value={node.config.days ?? 7}
+          onChange={e => setConfig({ days: Number(e.target.value) })}
+        />
+        <p style={hintStyle}>Haftalık kontrol için 7. Ölçüm her çalıştırmada bu pencereyi yeniden hesaplar.</p>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Kırılım</label>
+        <select
+          style={inputStyle}
+          value={node.config.breakdown_by ?? 'channel'}
+          onChange={e => setConfig({ breakdown_by: e.target.value })}
+        >
+          {BREAKDOWN_DIMENSIONS.map(d => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
+        </select>
+        <p style={hintStyle}>
+          Mail içeriğinde <code>{'{{ozet}}'}</code> ile bu kırılımın dökümünü basabilirsin.
+        </p>
+      </div>
+
+      <div
+        style={{
+          padding: '8px 11px',
+          borderRadius: '6px',
+          background: 'var(--surface-hover)',
+          border: '1px solid var(--border)',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+        }}
+      >
+        {filterCount === 0
+          ? 'Filtre yok — tüm incident\'lar sayılıyor.'
+          : `${filterCount} filtre aktif.`}
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Filtreler (opsiyonel)
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div>
+            <label style={labelStyle}>Kanal</label>
+            <input
+              style={inputStyle}
+              value={listToText(node.config.channels)}
+              onChange={e => setConfig({ channels: textToList(e.target.value) })}
+              placeholder="Email, Removable Storage, Print"
+            />
+            <p style={hintStyle}>Virgülle ayırın. Boşsa tüm kanallar sayılır.</p>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Veri Tipi</label>
+            <input
+              style={inputStyle}
+              value={listToText(node.config.data_types)}
+              onChange={e => setConfig({ data_types: textToList(e.target.value) })}
+              placeholder="PII, PCI, CCN"
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Aksiyon</label>
+            <input
+              style={inputStyle}
+              value={listToText(node.config.actions)}
+              onChange={e => setConfig({ actions: textToList(e.target.value) })}
+              placeholder="BLOCK, QUARANTINE, AUTHORIZED"
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={labelStyle}>Min Şiddet</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                style={inputStyle}
+                value={node.config.min_severity ?? ''}
+                onChange={e => setConfig({ min_severity: e.target.value === '' ? null : Number(e.target.value) })}
+                placeholder="1-5"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Min Risk Skoru</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                style={inputStyle}
+                value={node.config.min_risk_score ?? ''}
+                onChange={e => setConfig({ min_risk_score: e.target.value === '' ? null : Number(e.target.value) })}
+                placeholder="0-100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Min Eşleşme Sayısı</label>
+            <input
+              type="number"
+              min={0}
+              style={inputStyle}
+              value={node.config.min_matches ?? ''}
+              onChange={e => setConfig({ min_matches: e.target.value === '' ? null : Number(e.target.value) })}
+              placeholder="Örn. 500"
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Politika Adı İçerir</label>
+            <input
+              style={inputStyle}
+              value={node.config.policy_contains ?? ''}
+              onChange={e => setConfig({ policy_contains: e.target.value })}
+              placeholder="KT Şüpheli Kullanıcı Aktivitesi"
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Takım / Departman İçerir</label>
+            <input
+              style={inputStyle}
+              value={node.config.team_contains ?? ''}
+              onChange={e => setConfig({ team_contains: e.target.value })}
+              placeholder="Örn. Finans"
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Hedef İçerir</label>
+            <input
+              style={inputStyle}
+              value={node.config.destination_contains ?? ''}
+              onChange={e => setConfig({ destination_contains: e.target.value })}
+              placeholder="gmail.com"
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div>
+          <label style={labelStyle}>Koşul</label>
+          <select style={inputStyle} value={node.config.op ?? 'gt'} onChange={e => setConfig({ op: e.target.value })}>
+            <option value="gt">&gt; büyük</option>
+            <option value="gte">≥ büyük eşit</option>
+            <option value="lt">&lt; küçük</option>
+            <option value="lte">≤ küçük eşit</option>
+            <option value="eq">= eşit</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Eşik Değeri</label>
+          <input
+            type="number"
+            style={inputStyle}
+            value={node.config.value ?? 0}
+            onChange={e => setConfig({ value: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+
+      <p style={hintStyle}>
+        Ölçülen metrik bu koşulu sağlıyorsa akış <strong>Aşıldı</strong> kolundan devam eder ve mail gider.
+        Sağlamıyorsa <strong>Aşılmadı</strong> kolundan çıkar — o kola hiçbir şey bağlamazsan akış sessizce durur,
+        yani eşik aşılmadığında mail gönderilmez.
+      </p>
+
+      <div
+        style={{
+          padding: '9px 11px',
+          borderRadius: '6px',
+          background: 'var(--surface-hover)',
+          border: '1px solid var(--border)',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+        }}
+      >
+        Bu node yalnızca <strong>Incident Metriği</strong> girdisiyle çalışır; kullanıcı listesi taşıyan
+        bir kaynağa bağlanamaz. Kullanıcı bazlı eşik için <strong>Koşul</strong> node'unu kullan.
+      </div>
+    </>
+  )
+}
+
 function FilterForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
   return (
     <>
@@ -421,10 +653,12 @@ function SendMailForm({
   node,
   setConfig,
   templates,
+  inMetricFlow,
 }: {
   node: PlaybookNode
   setConfig: (p: Record<string, any>) => void
   templates: MailTemplate[]
+  inMetricFlow: boolean
 }) {
   const templateId = node.config.template_id ? String(node.config.template_id) : ''
   const template = templates.find(t => String(t.id) === templateId)
@@ -433,19 +667,53 @@ function SendMailForm({
   const effectiveSubject = node.config.subject_override?.trim() || template?.subject || ''
   const effectiveBody = node.config.body_override?.trim() || template?.body || ''
 
+  // Metric mails have no user to preview against, so their tokens are shown as-is.
   const previewSubject = useMemo(
-    () => applyPlaceholders(effectiveSubject, PREVIEW_USER),
-    [effectiveSubject]
+    () => (inMetricFlow ? effectiveSubject : applyPlaceholders(effectiveSubject, PREVIEW_USER)),
+    [effectiveSubject, inMetricFlow]
   )
   const previewBody = useMemo(
-    () => toEmailHtml(applyPlaceholders(effectiveBody, PREVIEW_USER)),
-    [effectiveBody]
+    () => toEmailHtml(inMetricFlow ? effectiveBody : applyPlaceholders(effectiveBody, PREVIEW_USER)),
+    [effectiveBody, inMetricFlow]
   )
 
   const ccEmail = String(node.config.cc_email ?? '').trim()
 
   return (
     <>
+      {inMetricFlow && (
+        <div
+          style={{
+            padding: '9px 11px',
+            borderRadius: '6px',
+            background: 'rgba(8,145,178,0.10)',
+            border: '1px solid rgba(8,145,178,0.35)',
+            fontSize: '12px',
+            color: 'var(--text-primary)',
+            lineHeight: 1.45,
+          }}
+        >
+          Bu mail bir <strong>Incident Metriği</strong> akışında. Kurum toplamı için tek bir özet maili
+          gönderilir; kişi başına mail yoktur. Bu yüzden <strong>Alıcı sabit bir adres olmalı</strong> ve
+          aşağıdaki metrik alanları kullanılır.
+        </div>
+      )}
+
+      {inMetricFlow && recipientMode !== 'fixed' && (
+        <div
+          style={{
+            padding: '9px 11px',
+            borderRadius: '6px',
+            background: '#fee2e2',
+            border: '1px solid #fca5a5',
+            fontSize: '12px',
+            color: '#991b1b',
+          }}
+        >
+          Alıcı'yı "Sabit bir adres" yapmadan bu akış kaydedilemez ve çalıştırılamaz.
+        </div>
+      )}
+
       <div>
         <label style={labelStyle}>Mail Şablonu</label>
         <select style={inputStyle} value={templateId} onChange={e => setConfig({ template_id: e.target.value ? Number(e.target.value) : null })}>
@@ -526,9 +794,12 @@ function SendMailForm({
       </div>
 
       <div>
-        <label style={labelStyle}>Kullanılabilir Alanlar</label>
+        <label style={labelStyle}>
+          Kullanılabilir Alanlar
+          {inMetricFlow && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> (metrik)</span>}
+        </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-          {TEMPLATE_PLACEHOLDERS.map(placeholder => (
+          {(inMetricFlow ? METRIC_PLACEHOLDERS : TEMPLATE_PLACEHOLDERS).map(placeholder => (
             <span
               key={placeholder.token}
               title={placeholder.desc}
@@ -550,7 +821,12 @@ function SendMailForm({
 
       {effectiveSubject && (
         <div>
-          <label style={labelStyle}>Önizleme <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(örnek kullanıcıyla)</span></label>
+          <label style={labelStyle}>
+            Önizleme{' '}
+            <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+              {inMetricFlow ? '(alanlar çalıştırmada dolar)' : '(örnek kullanıcıyla)'}
+            </span>
+          </label>
           <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
             <div
               style={{

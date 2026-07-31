@@ -6,6 +6,8 @@ import {
   GitBranch,
   Mail,
   FileText,
+  BarChart3,
+  Crosshair,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -20,8 +22,10 @@ export type PlaybookNodeType =
   | 'trigger.schedule'
   | 'trigger.manual'
   | 'source.weeklyFlags'
+  | 'source.incidentMetric'
   | 'transform.filter'
   | 'logic.condition'
+  | 'logic.metricThreshold'
   | 'action.sendMail'
   | 'output.report'
 
@@ -138,8 +142,45 @@ export const WEEKLY_FLAG_CRITERIA = [
 
 export function criterionLabel(value?: string | null): string {
   if (!value) return '-'
+  if (value === 'source.incidentMetric') return 'Incident metriği (kurum toplamı)'
   return WEEKLY_FLAG_CRITERIA.find(c => c.value === value)?.label ?? value
 }
+
+// ── Incident metric options (mirror IncidentMetricKind / IncidentBreakdownDimension) ──
+
+export const INCIDENT_METRICS = [
+  { value: 'total_incidents', label: 'Toplam incident sayısı' },
+  { value: 'unique_users', label: 'Etkilenen kullanıcı sayısı' },
+  { value: 'max_risk_score', label: 'En yüksek risk skoru' },
+  { value: 'avg_risk_score', label: 'Ortalama risk skoru' },
+] as const
+
+export const BREAKDOWN_DIMENSIONS = [
+  { value: 'channel', label: 'Kanal' },
+  { value: 'policy', label: 'Politika' },
+  { value: 'data_type', label: 'Veri tipi' },
+  { value: 'team', label: 'Takım' },
+  { value: 'severity', label: 'Şiddet' },
+  { value: 'none', label: 'Kırılım yok' },
+] as const
+
+export function metricLabel(value?: string | null): string {
+  return INCIDENT_METRICS.find(m => m.value === value)?.label ?? 'Toplam incident sayısı'
+}
+
+/** Placeholders a metric mail can use — the per-user tokens do not apply there. */
+export const METRIC_PLACEHOLDERS = [
+  { token: '{{metrik}}', desc: 'Metrik adı (ör. Toplam incident sayısı)' },
+  { token: '{{deger}}', desc: 'Ölçülen değer' },
+  { token: '{{esik}}', desc: 'Karşılaştırılan eşik' },
+  { token: '{{toplam_incident}}', desc: 'Filtreyi geçen incident sayısı' },
+  { token: '{{kullanici_sayisi}}', desc: 'Etkilenen kullanıcı sayısı' },
+  { token: '{{gun}}', desc: 'Geriye dönük gün sayısı' },
+  { token: '{{donem}}', desc: 'Ölçüm dönemi (tarih aralığı)' },
+  { token: '{{filtreler}}', desc: 'Uygulanan filtrelerin özeti' },
+  { token: '{{ozet}}', desc: 'Kırılım listesi (ör. kanal bazında sayılar)' },
+  { token: '{{tarih}}', desc: 'Bugünün tarihi' },
+]
 
 // ── Canvas geometry ────────────────────────────────────────────────────────
 
@@ -163,9 +204,16 @@ export function inputPortPosition(node: PlaybookNode): Point {
   return { x: node.x, y: node.y + PORT_MID_Y }
 }
 
+/**
+ * Output port position. Nodes that fork (condition, metric threshold) stack their two ports
+ * around the middle; everything else has a single centred port. Driven by the catalog rather
+ * than a node-type check so adding another branching node needs no geometry change.
+ */
 export function outputPortPosition(node: PlaybookNode, handle?: string | null): Point {
-  if (node.type === 'logic.condition') {
-    return { x: node.x + NODE_WIDTH, y: node.y + (handle === 'false' ? PORT_FALSE_Y : PORT_TRUE_Y) }
+  const outputs = nodeDefinition(node.type)?.outputs ?? []
+  if (outputs.length > 1) {
+    const index = Math.max(0, outputs.findIndex(p => p.handle === (handle ?? null)))
+    return { x: node.x + NODE_WIDTH, y: node.y + (index === 0 ? PORT_TRUE_Y : PORT_FALSE_Y) }
   }
   return { x: node.x + NODE_WIDTH, y: node.y + PORT_MID_Y }
 }
@@ -229,6 +277,45 @@ export const NODE_CATALOG: NodeDefinition[] = [
     inputs: 1,
     outputs: [{ handle: null }],
     defaultConfig: { days: 7, criteria: WEEKLY_FLAG_CRITERIA.map(c => c.value) },
+  },
+  {
+    type: 'source.incidentMetric',
+    label: 'Incident Metriği',
+    description: 'Son N gündeki incident sayısını kurum genelinde tek bir sayı olarak hesaplar.',
+    icon: BarChart3,
+    color: 'linear-gradient(135deg, #0891b2, #0e7490)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {
+      days: 7,
+      metric: 'total_incidents',
+      breakdown_by: 'channel',
+      channels: [],
+      data_types: [],
+      actions: [],
+      severities: [],
+      min_severity: null,
+      min_risk_score: null,
+      min_matches: null,
+      policy_contains: '',
+      team_contains: '',
+      destination_contains: '',
+    },
+  },
+  {
+    type: 'logic.metricThreshold',
+    label: 'Metrik Eşiği',
+    description: 'Metrik belirlediğin eşiği geçerse akışı sürdürür, geçmezse durdurur.',
+    icon: Crosshair,
+    color: 'linear-gradient(135deg, #f97316, #ea580c)',
+    category: 'İşlem',
+    inputs: 1,
+    outputs: [
+      { handle: 'true', label: 'Aşıldı' },
+      { handle: 'false', label: 'Aşılmadı' },
+    ],
+    defaultConfig: { op: 'gt', value: 100 },
   },
   {
     type: 'transform.filter',
@@ -380,6 +467,17 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
       return `Son ${config.days ?? 7} gün · ${suffix}`
     }
 
+    case 'source.incidentMetric': {
+      const filters = countMetricFilters(config)
+      const suffix = filters === 0 ? 'filtre yok' : `${filters} filtre`
+      return `${metricLabel(config.metric)} · son ${config.days ?? 7} gün · ${suffix}`
+    }
+
+    case 'logic.metricThreshold': {
+      const opLabel: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' }
+      return `Metrik ${opLabel[config.op] ?? '>'} ${config.value ?? 0} ise devam`
+    }
+
     case 'transform.filter': {
       const parts: string[] = []
       if (config.min_trigger_count) parts.push(`min ${config.min_trigger_count} olay`)
@@ -424,6 +522,17 @@ function toList(value: any): string[] {
   return []
 }
 
+/** How many of the incident metric node's optional filters are actually set. */
+export function countMetricFilters(config: Record<string, any>): number {
+  const lists = ['channels', 'data_types', 'actions', 'severities']
+  const numbers = ['min_severity', 'min_risk_score', 'min_matches']
+  const texts = ['policy_contains', 'team_contains', 'destination_contains']
+
+  return lists.filter(k => toList(config[k]).length > 0).length
+    + numbers.filter(k => config[k] !== null && config[k] !== undefined && config[k] !== '').length
+    + texts.filter(k => String(config[k] ?? '').trim() !== '').length
+}
+
 // ── Client-side validation (mirrors PlaybookEngine.ValidateAsync) ──────────
 
 export interface GraphValidation {
@@ -463,6 +572,20 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
       if (criteria.length === 0) errors.push(`'${node.label}' için en az bir kriter seçilmeli.`)
     }
 
+    if (node.type === 'source.incidentMetric') {
+      const days = Number(node.config?.days)
+      if (!Number.isFinite(days) || days <= 0) {
+        errors.push(`'${node.label}' gün sayısı 0'dan büyük olmalı.`)
+      }
+    }
+
+    if (node.type === 'logic.metricThreshold') {
+      const value = node.config?.value
+      if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) {
+        errors.push(`'${node.label}' için bir eşik değeri girin.`)
+      }
+    }
+
     if (node.type === 'action.sendMail') {
       const templateId = Number(node.config?.template_id)
       const hasTemplate = Number.isFinite(templateId) && templateId > 0
@@ -477,6 +600,38 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
     }
   }
 
+  // Metric path rules — a metric is one organisation-wide number, so nodes downstream of a
+  // metric source behave differently from the per-user path. Mirrors PlaybookEngine.ValidateAsync.
+  const metricSources = graph.nodes.filter(n => n.type === 'source.incidentMetric')
+  const metricReach = new Set<string>()
+  for (const source of metricSources) {
+    for (const id of reachableFrom(source.id, graph)) metricReach.add(id)
+  }
+
+  for (const node of graph.nodes) {
+    if (node.type === 'logic.metricThreshold' && !metricReach.has(node.id)) {
+      errors.push(
+        `'${node.label}' bir Incident Metriği node'una bağlı değil; metrik eşiği yalnızca metrik girdisiyle çalışır.`
+      )
+    }
+    if (node.type === 'action.sendMail' && metricReach.has(node.id) && node.config?.recipient_mode !== 'fixed') {
+      errors.push(
+        `'${node.label}' bir metrik akışında olduğu için Alıcı "Sabit bir adres" olmalı (kurum toplamının kişisel bir adresi yok).`
+      )
+    }
+  }
+
+  for (const source of metricSources) {
+    const hasThreshold = [...reachableFrom(source.id, graph)].some(
+      id => id !== source.id && graph.nodes.find(n => n.id === id)?.type === 'logic.metricThreshold'
+    )
+    if (!hasThreshold) {
+      warnings.push(
+        `'${source.label}' bir Metrik Eşiği node'una bağlı değil; mail eşik kontrolü olmadan her çalıştırmada gönderilir.`
+      )
+    }
+  }
+
   if (triggers.length === 1) {
     const reachable = reachableFrom(triggers[0].id, graph)
     const orphans = graph.nodes.filter(n => !reachable.has(n.id))
@@ -486,8 +641,8 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
         orphans.map(o => o.label).join(', ')
       )
     }
-    if (!graph.nodes.some(n => n.type === 'source.weeklyFlags')) {
-      warnings.push('Akışta veri kaynağı yok; hiçbir kullanıcı listelenmeyecek.')
+    if (!graph.nodes.some(n => n.type === 'source.weeklyFlags' || n.type === 'source.incidentMetric')) {
+      warnings.push('Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.')
     }
     if (!graph.nodes.some(n => n.type === 'action.sendMail')) {
       warnings.push('Akışta mail gönderme adımı yok.')
@@ -584,6 +739,49 @@ export function createStarterGraph(criteria?: string[]): PlaybookGraph {
       { id: newId('e'), source: trigger.id, target: source.id },
       { id: newId('e'), source: source.id, target: filter.id },
       { id: newId('e'), source: filter.id, target: mail.id },
+      { id: newId('e'), source: mail.id, target: report.id },
+    ],
+  }
+}
+
+/**
+ * Starter flow for the incident-volume alert: count incidents weekly, and mail a summary to a
+ * fixed address only when the count passes a threshold. The mail node is pre-set to a fixed
+ * recipient because a metric has no personal address.
+ */
+export function createIncidentMetricGraph(): PlaybookGraph {
+  const trigger = createNode('trigger.schedule', 80, 200)
+  const metric = createNode('source.incidentMetric', 380, 200)
+  const threshold = createNode('logic.metricThreshold', 680, 200)
+  const mail = createNode('action.sendMail', 980, 168)
+  const report = createNode('output.report', 1280, 168)
+
+  mail.config.recipient_mode = 'fixed'
+  mail.config.subject_override = 'DLP incident sayısı eşiği aşıldı: {{deger}}'
+  mail.config.body_override = [
+    'Merhaba,',
+    '',
+    '{{donem}} döneminde {{metrik}} değeri {{deger}} olarak ölçüldü ve {{esik}} eşiğini aştı.',
+    '',
+    'Toplam incident: {{toplam_incident}}',
+    'Etkilenen kullanıcı sayısı: {{kullanici_sayisi}}',
+    'Kapsam: {{filtreler}}',
+    '',
+    'Kırılım:',
+    '{{ozet}}',
+    '',
+    'Bu mail RADAR playbook tarafından otomatik üretildi.',
+  ].join('\n')
+
+  report.config.title = 'Incident Eşik Raporu'
+
+  return {
+    nodes: [trigger, metric, threshold, mail, report],
+    edges: [
+      { id: newId('e'), source: trigger.id, target: metric.id },
+      { id: newId('e'), source: metric.id, target: threshold.id },
+      // Only the "Aşıldı" branch continues to the mail node.
+      { id: newId('e'), source: threshold.id, target: mail.id, source_handle: 'true' },
       { id: newId('e'), source: mail.id, target: report.id },
     ],
   }

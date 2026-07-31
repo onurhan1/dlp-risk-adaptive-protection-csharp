@@ -12,10 +12,16 @@ import {
   Settings2,
   CalendarClock,
   MousePointerClick,
+  BarChart3,
 } from 'lucide-react'
 import apiClient from '@/lib/axios'
 import { RunStatusBadge } from '@/components/investigation/playbook/RunHistoryPanel'
-import { createStarterGraph, type PlaybookSummary } from '@/components/investigation/playbook/types'
+import {
+  createStarterGraph,
+  createIncidentMetricGraph,
+  type PlaybookGraph,
+  type PlaybookSummary,
+} from '@/components/investigation/playbook/types'
 import { primaryButtonStyle, secondaryButtonStyle, disabled as withDisabled } from '@/components/investigation/playbook/formStyles'
 
 export default function PlaybooksPage() {
@@ -47,14 +53,14 @@ function PlaybooksPageContent() {
     }
   }, [])
 
-  const createPlaybook = useCallback(async (name: string, criteria?: string[]) => {
+  const create = useCallback(async (name: string, description: string, graph: PlaybookGraph) => {
     setCreating(true)
     setMessage(null)
     try {
       const res = await apiClient.post('/api/playbooks', {
         name,
-        description: 'Haftalık Sorgu kullanıcılarını listeler, mail hazırlar ve raporlar.',
-        graph: createStarterGraph(criteria),
+        description,
+        graph,
         enabled: false,
         auto_send: false,
       })
@@ -64,6 +70,20 @@ function PlaybooksPageContent() {
       setCreating(false)
     }
   }, [router])
+
+  const createPlaybook = useCallback((name: string, criteria?: string[]) =>
+    create(
+      name,
+      'Haftalık Sorgu kullanıcılarını listeler, mail hazırlar ve raporlar.',
+      createStarterGraph(criteria)
+    ), [create])
+
+  const createMetricPlaybook = useCallback(() =>
+    create(
+      'Incident Sayısı Eşik Uyarısı',
+      'Haftalık incident sayısını ölçer, eşik aşılırsa özet mail gönderir ve raporlar.',
+      createIncidentMetricGraph()
+    ), [create])
 
   useEffect(() => {
     fetchPlaybooks()
@@ -112,6 +132,14 @@ function PlaybooksPageContent() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={fetchPlaybooks} disabled={loading} style={withDisabled(secondaryButtonStyle, loading)}>
             <RefreshCw size={15} style={{ animation: loading ? 'spin 1s linear infinite' : undefined }} /> Yenile
+          </button>
+          <button
+            onClick={createMetricPlaybook}
+            disabled={creating}
+            title="Haftalık incident sayısını ölçen, eşik aşılırsa mail atan hazır akış"
+            style={withDisabled(secondaryButtonStyle, creating)}
+          >
+            <BarChart3 size={15} /> Incident Eşik Akışı
           </button>
           <button
             onClick={() => createPlaybook('Haftalık Sorgu Akışı')}

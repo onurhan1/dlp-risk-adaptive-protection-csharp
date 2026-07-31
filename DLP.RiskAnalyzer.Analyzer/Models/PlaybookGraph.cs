@@ -53,15 +53,17 @@ public static class PlaybookNodeType
     public const string TriggerSchedule = "trigger.schedule";
     public const string TriggerManual = "trigger.manual";
     public const string SourceWeeklyFlags = "source.weeklyFlags";
+    public const string SourceIncidentMetric = "source.incidentMetric";
     public const string TransformFilter = "transform.filter";
     public const string LogicCondition = "logic.condition";
+    public const string LogicMetricThreshold = "logic.metricThreshold";
     public const string ActionSendMail = "action.sendMail";
     public const string OutputReport = "output.report";
 
     public static readonly string[] All =
     {
-        TriggerSchedule, TriggerManual, SourceWeeklyFlags,
-        TransformFilter, LogicCondition, ActionSendMail, OutputReport
+        TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric,
+        TransformFilter, LogicCondition, LogicMetricThreshold, ActionSendMail, OutputReport
     };
 
     public static bool IsTrigger(string type) =>
@@ -70,11 +72,14 @@ public static class PlaybookNodeType
     /// <summary>Number of input ports; triggers accept none.</summary>
     public static int InputCount(string type) => IsTrigger(type) ? 0 : 1;
 
-    /// <summary>Number of output ports; the report node terminates a branch, condition forks.</summary>
+    /// <summary>
+    /// Number of output ports. The report node terminates a branch; the two branching nodes
+    /// fork into a "true"/"false" pair.
+    /// </summary>
     public static int OutputCount(string type) => type switch
     {
         OutputReport => 0,
-        LogicCondition => 2,
+        LogicCondition or LogicMetricThreshold => 2,
         _ => 1
     };
 }
