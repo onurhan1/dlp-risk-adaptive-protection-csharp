@@ -55,6 +55,11 @@ builder.Services.AddExternalHttpClients();
 builder.Services.Configure<DLP.RiskAnalyzer.Analyzer.Options.InternalApiOptions>(
     builder.Configuration.GetSection("InternalApi"));
 
+// Behavioural surprisal model — estimator hyperparameters, tuned from the diagnostic report.
+builder.Services.Configure<DLP.RiskAnalyzer.Analyzer.Services.Surprisal.SurprisalOptions>(
+    builder.Configuration.GetSection(
+        DLP.RiskAnalyzer.Analyzer.Services.Surprisal.SurprisalOptions.SectionName));
+
 // Authentication (JWT) — settings loaded from the DB during the bootstrap above.
 builder.Services.AddJwtAuthentication(authBootstrap.Jwt);
 

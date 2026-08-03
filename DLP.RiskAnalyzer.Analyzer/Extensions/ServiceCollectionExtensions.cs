@@ -2,6 +2,7 @@ using DLP.RiskAnalyzer.Analyzer.Auth;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Options;
 using DLP.RiskAnalyzer.Analyzer.Services;
+using DLP.RiskAnalyzer.Analyzer.Services.Surprisal;
 using DLP.RiskAnalyzer.Shared.Helpers;
 using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -83,6 +84,9 @@ public static class ServiceCollectionExtensions
         // Isolation Forest
         services.AddScoped<IsolationForestEngine>();
         services.AddSingleton<IIsolationForestService, IsolationForestService>();
+
+        // Behavioural surprisal model (learned baselines; see Services/Surprisal)
+        services.AddSingleton<ISurprisalRiskService, SurprisalRiskService>();
 
         return services;
     }
