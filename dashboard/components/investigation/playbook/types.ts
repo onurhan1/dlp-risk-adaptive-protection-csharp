@@ -770,7 +770,7 @@ export function createIncidentMetricGraph(): PlaybookGraph {
     'Kırılım:',
     '{{ozet}}',
     '',
-    'Bu mail RADAR playbook tarafından otomatik üretildi.',
+    'Bu mail RADAR agentic workflow tarafından otomatik üretildi.',
   ].join('\n')
 
   report.config.title = 'Incident Eşik Raporu'

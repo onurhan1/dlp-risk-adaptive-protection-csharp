@@ -95,7 +95,7 @@ export default function PlaybookEditorPage() {
       const res = await apiClient.get(`/api/playbooks/${playbookId}`)
       applyDetail(res.data)
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Playbook yüklenemedi' })
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Agentic Workflow yüklenemedi' })
     } finally {
       setLoading(false)
     }
@@ -231,7 +231,7 @@ export default function PlaybookEditorPage() {
 
   const save = async (nextEnabled = enabled) => {
     if (!name.trim()) {
-      setMessage({ type: 'error', text: 'Playbook adı zorunludur' })
+      setMessage({ type: 'error', text: 'Workflow adı zorunludur' })
       return false
     }
     if (nextEnabled && validation.errors.length > 0) {
@@ -250,10 +250,10 @@ export default function PlaybookEditorPage() {
         auto_send: autoSend,
       })
       applyDetail(res.data)
-      setMessage({ type: 'success', text: 'Playbook kaydedildi' })
+      setMessage({ type: 'success', text: 'Agentic Workflow kaydedildi' })
       return true
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Playbook kaydedilemedi' })
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Agentic Workflow kaydedilemedi' })
       return false
     } finally {
       setSaving(false)
@@ -327,9 +327,9 @@ export default function PlaybookEditorPage() {
     return (
       <div className="dashboard-page">
         <div className="card">
-          <p style={{ margin: '0 0 14px', color: 'var(--text-primary)' }}>Playbook bulunamadı.</p>
-          <button onClick={() => router.push('/investigation/playbooks')} style={secondaryButtonStyle}>
-            <ArrowLeft size={15} /> Playbook Listesi
+          <p style={{ margin: '0 0 14px', color: 'var(--text-primary)' }}>Agentic Workflow bulunamadı.</p>
+          <button onClick={() => router.push('/investigation/agentic-workflows')} style={secondaryButtonStyle}>
+            <ArrowLeft size={15} /> Workflow Listesi
           </button>
         </div>
       </div>
@@ -342,8 +342,8 @@ export default function PlaybookEditorPage() {
       <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => router.push('/investigation/playbooks')}
-            title="Playbook listesi"
+            onClick={() => router.push('/investigation/agentic-workflows')}
+            title="Workflow listesi"
             style={{ ...secondaryButtonStyle, padding: '7px 10px' }}
           >
             <ArrowLeft size={15} />

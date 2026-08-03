@@ -79,7 +79,7 @@ export default function RunHistoryPanel({ runs, loading, expandedRun, onExpand, 
 
       {runs.length === 0 && !loading ? (
         <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
-          Bu playbook henüz çalıştırılmadı.
+          Bu workflow henüz çalıştırılmadı.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

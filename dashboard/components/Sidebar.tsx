@@ -126,8 +126,8 @@ export default function Sidebar() {
                     <span>{t('nav.investigationWeekly')}</span>
                   </Link>
                   <Link
-                    href="/investigation/playbooks"
-                    className={`sidebar-subitem ${pathname?.startsWith('/investigation/playbooks') ? 'active' : ''}`}
+                    href="/investigation/agentic-workflows"
+                    className={`sidebar-subitem ${pathname?.startsWith('/investigation/agentic-workflows') ? 'active' : ''}`}
                   >
                     <Workflow size={16} />
                     <span>{t('nav.investigationPlaybooks')}</span>

@@ -46,7 +46,7 @@ function PlaybooksPageContent() {
       const res = await apiClient.get('/api/playbooks')
       setPlaybooks(Array.isArray(res.data) ? res.data : [])
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Playbook listesi alınamadı' })
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Agentic Workflow listesi alınamadı' })
       setPlaybooks([])
     } finally {
       setLoading(false)
@@ -64,9 +64,9 @@ function PlaybooksPageContent() {
         enabled: false,
         auto_send: false,
       })
-      router.push(`/investigation/playbooks/${res.data.id}`)
+      router.push(`/investigation/agentic-workflows/${res.data.id}`)
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Playbook oluşturulamadı' })
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Agentic Workflow oluşturulamadı' })
       setCreating(false)
     }
   }, [router])
@@ -94,7 +94,7 @@ function PlaybooksPageContent() {
   useEffect(() => {
     const criterion = searchParams.get('from_criterion')
     if (!criterion) return
-    router.replace('/investigation/playbooks')
+    router.replace('/investigation/agentic-workflows')
     createPlaybook('Haftalık Sorgu Akışı', [criterion])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
@@ -110,13 +110,13 @@ function PlaybooksPageContent() {
   }
 
   const remove = async (playbook: PlaybookSummary) => {
-    if (!window.confirm(`"${playbook.name}" playbook'u silinsin mi? Gönderim kayıtları raporda kalmaya devam eder.`)) return
+    if (!window.confirm(`"${playbook.name}" agentic workflow silinsin mi? Gönderim kayıtları raporda kalmaya devam eder.`)) return
     setMessage(null)
     try {
       await apiClient.delete(`/api/playbooks/${playbook.id}`)
       await fetchPlaybooks()
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Playbook silinemedi' })
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Agentic Workflow silinemedi' })
     }
   }
 
@@ -124,7 +124,7 @@ function PlaybooksPageContent() {
     <div className="dashboard-page">
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
         <div>
-          <h1>Playbook</h1>
+          <h1>Agentic Workflow</h1>
           <p className="text-muted">
             Soruşturma akışlarını node'larla kurun, zamanlayın ve gönderim raporunu alın
           </p>
@@ -146,7 +146,7 @@ function PlaybooksPageContent() {
             disabled={creating}
             style={withDisabled(primaryButtonStyle, creating)}
           >
-            <Plus size={15} /> {creating ? 'Oluşturuluyor...' : 'Yeni Playbook'}
+            <Plus size={15} /> {creating ? 'Oluşturuluyor...' : 'Yeni Workflow'}
           </button>
         </div>
       </div>
@@ -186,10 +186,10 @@ function PlaybooksPageContent() {
             <Workflow size={26} />
           </div>
           <h2 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: 600, color: 'var(--text-primary)' }}>
-            Henüz playbook yok
+            Henüz agentic workflow yok
           </h2>
           <p className="text-muted" style={{ margin: '0 auto 18px', maxWidth: '460px', fontSize: '13px' }}>
-            Yeni bir playbook, Haftalık Sorgu zincirini hazır node'larla kurar:
+            Yeni bir workflow, Haftalık Sorgu zincirini hazır node'larla kurar:
             Zamanlama → Haftalık Sorgu Kaynağı → Filtre → Mail Gönder → Rapor Çıktısı.
           </p>
           <button
@@ -197,7 +197,7 @@ function PlaybooksPageContent() {
             disabled={creating}
             style={withDisabled(primaryButtonStyle, creating)}
           >
-            <Plus size={15} /> {creating ? 'Oluşturuluyor...' : 'İlk Playbook\'u Oluştur'}
+            <Plus size={15} /> {creating ? 'Oluşturuluyor...' : 'İlk Workflow\'u Oluştur'}
           </button>
         </div>
       ) : (
@@ -279,7 +279,7 @@ function PlaybooksPageContent() {
 
               <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => router.push(`/investigation/playbooks/${playbook.id}`)}
+                  onClick={() => router.push(`/investigation/agentic-workflows/${playbook.id}`)}
                   style={{ ...primaryButtonStyle, flex: 1, justifyContent: 'center' }}
                 >
                   <Settings2 size={14} /> Akışı Düzenle

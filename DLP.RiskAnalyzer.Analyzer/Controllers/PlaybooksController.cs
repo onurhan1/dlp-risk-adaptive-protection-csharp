@@ -108,7 +108,7 @@ public class PlaybooksController : ControllerBase
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, ct);
-        if (playbook == null) return NotFound(new { detail = "Playbook bulunamadı" });
+        if (playbook == null) return NotFound(new { detail = "Agentic Workflow bulunamadı" });
 
         return Ok(ToDetailDto(playbook));
     }
@@ -117,7 +117,7 @@ public class PlaybooksController : ControllerBase
     public async Task<IActionResult> Create([FromBody] PlaybookRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { detail = "Playbook adı zorunludur" });
+            return BadRequest(new { detail = "Workflow adı zorunludur" });
 
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
@@ -148,12 +148,12 @@ public class PlaybooksController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] PlaybookRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { detail = "Playbook adı zorunludur" });
+            return BadRequest(new { detail = "Workflow adı zorunludur" });
 
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.FirstOrDefaultAsync(p => p.Id == id, ct);
-        if (playbook == null) return NotFound(new { detail = "Playbook bulunamadı" });
+        if (playbook == null) return NotFound(new { detail = "Agentic Workflow bulunamadı" });
 
         var graph = request.Graph ?? new PlaybookGraph();
         var validation = await _engine.ValidateAsync(graph, ct);
@@ -180,7 +180,7 @@ public class PlaybooksController : ControllerBase
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.FirstOrDefaultAsync(p => p.Id == id, ct);
-        if (playbook == null) return NotFound(new { detail = "Playbook bulunamadı" });
+        if (playbook == null) return NotFound(new { detail = "Agentic Workflow bulunamadı" });
 
         // Keep the mail log — it is the audit trail — but drop the runs and the playbook itself.
         var runs = await _context.PlaybookRuns.Where(r => r.PlaybookId == id).ToListAsync(ct);
@@ -197,7 +197,7 @@ public class PlaybooksController : ControllerBase
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.FirstOrDefaultAsync(p => p.Id == id, ct);
-        if (playbook == null) return NotFound(new { detail = "Playbook bulunamadı" });
+        if (playbook == null) return NotFound(new { detail = "Agentic Workflow bulunamadı" });
 
         var graph = PlaybookJson.Deserialize<PlaybookGraph>(playbook.GraphJson) ?? new PlaybookGraph();
 

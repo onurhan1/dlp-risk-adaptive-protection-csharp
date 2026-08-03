@@ -112,7 +112,7 @@ interface SectionProps {
   loading: boolean
   triggerLabel: string
   onSend: (u: WeeklyFlagUser) => void
-  /** Weekly-flag criterion key, used to pre-fill a playbook built from this section. */
+  /** Weekly-flag criterion key, used to pre-fill an agentic workflow built from this section. */
   criterion: string
 }
 
@@ -144,11 +144,11 @@ function FlagSection({ title, subtitle, icon, color, users, loading, triggerLabe
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <button
-            onClick={() => router.push(`/investigation/playbooks?from_criterion=${criterion}`)}
-            title="Bu kriteri zamanlanmış bir playbook akışına dönüştür"
+            onClick={() => router.push(`/investigation/agentic-workflows?from_criterion=${criterion}`)}
+            title="Bu kriteri zamanlanmış bir agentic workflow'a dönüştür"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}
           >
-            <Workflow size={14} /> Playbook'a Dönüştür
+            <Workflow size={14} /> Agentic Workflow'a Dönüştür
           </button>
           <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-hover)', padding: '4px 12px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
             {users.length} kullanıcı

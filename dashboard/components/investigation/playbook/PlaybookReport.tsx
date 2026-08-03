@@ -250,7 +250,7 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
         <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px' }}>Yükleniyor...</div>
       ) : rows.length === 0 ? (
         <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
-          Bu playbook için henüz gönderim kaydı yok. "Prova Çalıştır" ile başlayın.
+          Bu workflow için henüz gönderim kaydı yok. "Prova Çalıştır" ile başlayın.
         </div>
       ) : (
         <>

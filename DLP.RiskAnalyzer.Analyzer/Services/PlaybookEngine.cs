@@ -63,12 +63,12 @@ public class PlaybookEngine : IPlaybookEngine
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.FirstOrDefaultAsync(p => p.Id == playbookId, ct)
-            ?? throw new KeyNotFoundException($"Playbook bulunamadı: {playbookId}");
+            ?? throw new KeyNotFoundException($"Agentic Workflow bulunamadı: {playbookId}");
 
         var alreadyRunning = await _context.PlaybookRuns
             .AnyAsync(r => r.PlaybookId == playbookId && r.Status == PlaybookRunStatus.Running, ct);
         if (alreadyRunning)
-            throw new InvalidOperationException("Bu playbook için hâlâ çalışan bir akış var. Bitmesini bekleyin.");
+            throw new InvalidOperationException("Bu workflow için hâlâ çalışan bir akış var. Bitmesini bekleyin.");
 
         // Dry run unless the playbook explicitly opted into automatic sending.
         var dryRun = forceDryRun ?? !playbook.AutoSend;
@@ -89,7 +89,7 @@ public class PlaybookEngine : IPlaybookEngine
         try
         {
             var graph = PlaybookJson.Deserialize<PlaybookGraph>(playbook.GraphJson)
-                        ?? throw new InvalidOperationException("Playbook akışı okunamadı (bozuk graph verisi).");
+                        ?? throw new InvalidOperationException("Workflow akışı okunamadı (bozuk graph verisi).");
 
             var validation = await ValidateAsync(graph, ct);
             if (!validation.IsValid)
