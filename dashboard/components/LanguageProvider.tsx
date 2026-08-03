@@ -3,10 +3,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { Locale, getTranslation, defaultLocale } from '@/lib/i18n'
 
+type TranslationVars = Record<string, string | number>
+
 interface LanguageContextType {
     locale: Locale
     setLocale: (locale: Locale) => void
-    t: (key: string) => string
+    t: (key: string, vars?: TranslationVars) => string
 }
 
 const LanguageContext = createContext<LanguageContextType>({
@@ -31,8 +33,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('dlp-locale', newLocale)
     }, [])
 
-    const t = useCallback((key: string) => {
-        return getTranslation(locale, key)
+    const t = useCallback((key: string, vars?: TranslationVars) => {
+        return getTranslation(locale, key, vars)
     }, [locale])
 
     return (

@@ -1825,8 +1825,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     },
 }
 
-export function getTranslation(locale: Locale, key: string): string {
-    return translations[locale]?.[key] || key
+/**
+ * Looks up a key and substitutes `{name}` placeholders. Interpolation is what lets the AI-model
+ * reason strings carry their numeric evidence ("son 7 günde {count} olay") instead of the server
+ * shipping pre-rendered Turkish prose.
+ */
+export function getTranslation(
+    locale: Locale,
+    key: string,
+    vars?: Record<string, string | number>,
+): string {
+    const raw = translations[locale]?.[key] ?? translations[defaultLocale]?.[key] ?? key
+    return vars
+        ? raw.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+        : raw
 }
 
 export const defaultLocale: Locale = 'tr'

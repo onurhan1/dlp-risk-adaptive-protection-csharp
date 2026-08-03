@@ -194,8 +194,11 @@ public class DevDataSeeder : IDevDataSeeder
                 UserEmail         = $"{Users[userIdx]}@company.com.tr",
                 LoginName         = Users[userIdx],
                 FullName          = FullNames[userIdx],
-                Team              = Teams[userIdx % Teams.Length],
-                Department        = Departments[userIdx % Departments.Length],
+                // Spread the 15 users over 5 departments (3 each) rather than 8 (1-2 each), so the
+                // isolation forest's MinDeptSize=3 peer z-scores engage instead of silently
+                // falling back to the whole population.
+                Team              = Teams[userIdx % 5],
+                Department        = Departments[userIdx % 5],
                 Severity          = severity,
                 DataType          = DataTypes[_rng.Next(DataTypes.Length)],
                 Timestamp         = ts,
@@ -230,7 +233,99 @@ public class DevDataSeeder : IDevDataSeeder
             await _context.SaveChangesAsync();
         }
 
-        _logger.LogInformation("  → Incidents seeded: {Count}", count);
+        var personas = BuildBehaviorPersonas(count + 1, usedTimestamps);
+        await _context.Incidents.AddRangeAsync(personas);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("  → Incidents seeded: {Count} (+{Personas} behavior personas)", count, personas.Count);
+    }
+
+    /// <summary>
+    /// Three deterministic personas that exercise the isolation-forest paths the uniform generator
+    /// above never reaches. Without them every seeded user has a thick, statistically identical
+    /// baseline, so the thin-baseline and quiet-user branches are dead in local testing.
+    /// </summary>
+    private List<Incident> BuildBehaviorPersonas(int firstId, HashSet<long> usedTimestamps)
+    {
+        var now = DateTime.UtcNow;
+        var incidents = new List<Incident>();
+        var id = firstId;
+
+        Incident Make(string login, string dept, string team, DateTime ts, string channel,
+                      string action, string destination, int severity, int sensitivity, int maxMatches)
+        {
+            // Preserve the composite-key invariant the main loop maintains.
+            var stamp = ts;
+            while (!usedTimestamps.Add(stamp.Ticks))
+                stamp = stamp.AddTicks(1);
+
+            var policy = Policies[maxMatches % Policies.Length];
+            var rule = Rules[severity % Rules.Length];
+
+            return new Incident
+            {
+                Id                = id++,
+                UserEmail         = $"{login}@company.com.tr",
+                LoginName         = login,
+                FullName          = login,
+                Team              = team,
+                Department        = dept,
+                Severity          = severity,
+                DataType          = DataTypes[maxMatches % DataTypes.Length],
+                Timestamp         = stamp,
+                Policy            = policy,
+                RuleName          = rule,
+                Channel           = channel,
+                Action            = action,
+                Destination       = destination,
+                MaxMatches        = maxMatches,
+                RepeatCount       = 1,
+                DataSensitivity   = sensitivity,
+                ViolationTriggers = BuildViolationTriggersJson(policy, rule, maxMatches),
+                HostName          = $"TRIST-L-{1000 + (id % 8999)}",
+                EmailAddress      = $"{login}@company.com.tr",
+                RiskScore         = CalculateDummyRiskScore(maxMatches, channel, action),
+                IsRemediated      = false
+            };
+        }
+
+        // 1) sizinti.test — 53 quiet days, then a hard break inside the scoring window:
+        //    top sensitivity, off-hours, and a channel nobody else in the org uses.
+        for (var d = 60; d > 7; d -= 2)
+            incidents.Add(Make("sizinti.test", "Treasury", "Hazine",
+                now.AddDays(-d).Date.AddHours(11), "Email", "BLOCK", "partner.com.tr",
+                severity: 2, sensitivity: 1, maxMatches: 20));
+
+        for (var d = 6; d >= 0; d--)
+        {
+            incidents.Add(Make("sizinti.test", "Treasury", "Hazine",
+                now.AddDays(-d).Date.AddHours(2), "SSH_SCP", "AUTHORIZED", "185.42.19.7",
+                severity: 5, sensitivity: 9, maxMatches: 480));
+            incidents.Add(Make("sizinti.test", "Treasury", "Hazine",
+                now.AddDays(-d).Date.AddHours(23), "Cloud", "AUTHORIZED", "Dropbox",
+                severity: 5, sensitivity: 9, maxMatches: 420));
+        }
+
+        // 2) yeni.calisan — no history at all. Every self feature is unavailable, which must
+        //    surface as low confidence rather than as a personal-baseline "reason".
+        for (var d = 6; d >= 0; d--)
+            incidents.Add(Make("yeni.calisan", "IT", "Bilgi Teknolojileri",
+                now.AddDays(-d).Date.AddHours(14), "USB", "AUTHORIZED", "USB Drive (16GB)",
+                severity: 4, sensitivity: 7, maxMatches: 260));
+
+        // 3) sessizlesen — heavy, stable history and then near-silence. An isolation forest
+        //    legitimately isolates this tail too; the explanation must say so without painting
+        //    it green.
+        for (var d = 60; d > 7; d--)
+            incidents.Add(Make("sessizlesen", "Finance", "Finans",
+                now.AddDays(-d).Date.AddHours(9 + d % 8), "Web", "AUTHORIZED", "onedrive.com",
+                severity: 3, sensitivity: 6, maxMatches: 300));
+
+        incidents.Add(Make("sessizlesen", "Finance", "Finans",
+            now.AddDays(-3).Date.AddHours(10), "Email", "BLOCK", "partner.com.tr",
+            severity: 1, sensitivity: 1, maxMatches: 5));
+
+        return incidents;
     }
 
     private async Task SeedUserDailyRiskScoresAsync(int daysBack)

@@ -11,6 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lets the test project reach the isolation-forest attribution seam (IsolationTree,
+         ForestAttributor) so contributions can be verified against the fitted forest directly. -->
+    <InternalsVisibleTo Include="DLP.RiskAnalyzer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="8.0.1" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="8.0.1" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />

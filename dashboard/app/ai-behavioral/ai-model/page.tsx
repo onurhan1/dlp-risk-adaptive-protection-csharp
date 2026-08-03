@@ -1,43 +1,37 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import apiClient from '@/lib/axios'
-import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, TrendingUp, ChevronDown, ChevronUp, History } from 'lucide-react'
+import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, Layers, ChevronDown, ChevronUp, ChevronRight, Info } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import { useTranslation } from '@/components/LanguageProvider'
+import {
+  fmt, num, familyLabel, dimensionLabel, evidenceLine, deviationLine, formatValue,
+  DIMENSION_COLOR,
+  type Reason, type DimensionConfidence, type ReasonEvidence, type ConfidenceLevel,
+} from '@/lib/aiModelCatalog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface FeatureContribution {
-  name: string
-  display_name: string
-  group: string
-  shap_value: number
-  direction: string
-  actual_value: number
-}
 
 interface IFScore {
   user_email: string
   department?: string
   calculated_at: string
   if_score: number
+  anomaly_raw: number
   is_anomaly: boolean
   incident_count: number
   baseline_incident_count: number
-  top_features: FeatureContribution[]
-  group_breakdown: Record<string, number>
-}
-
-interface DeptIFRisk {
-  department: string
-  user_count: number
-  anomaly_count: number
-  score_window_days: number
-  score_window_start?: string
-  score_window_end?: string
-  baseline_strategy: string
-  mean_score: number
-  max_score: number
+  reasons: Reason[]
+  secondary_signals: Reason[]
+  dimensions: DimensionConfidence[]
+  confidence_level: ConfidenceLevel
+  explained_share_pct: number
+  unexplained_share_pct: number
+  cohort_rank: number
+  cohort_size: number
+  caveats: string[]
+  team_context: Record<string, number>
 }
 
 interface IFStatus {
@@ -53,94 +47,51 @@ interface IFOverview {
   user_scores: IFScore[]
   total_users: number
   anomaly_count: number
-  department_risks: DeptIFRisk[]
+  score_window_days: number
+  department_risks: unknown[]
 }
 
-// ── Group metadata ─────────────────────────────────────────────────────────────
-
-const GROUP_META: Record<string, { color: string; bg: string; label: string; desc: string }> = {
-  raw:      { color: '#4C78A8', bg: 'rgba(76,120,168,0.15)',  label: 'Son 7 Gün',       desc: 'Güncel haftalık davranış' },
-  peer:     { color: '#54A24B', bg: 'rgba(84,162,75,0.15)',   label: 'Ekip',             desc: 'Aynı dönemdeki ekipten sapma' },
-  self:     { color: '#F58518', bg: 'rgba(245,133,24,0.15)',  label: 'Kendi Geçmişi',   desc: 'Tüm kişisel geçmişten sapma' },
-  dept_ctx: { color: '#B279A2', bg: 'rgba(178,121,162,0.15)', label: 'Ekip Bağlamı',     desc: 'Aynı dönemdeki ekip özeti' },
+const scoreColor = (score: number) => {
+  if (score >= 75) return '#dc2626'
+  if (score >= 50) return '#f59e0b'
+  if (score >= 25) return '#3b82f6'
+  return '#10b981'
 }
 
-// ── Feature display names ─────────────────────────────────────────────────────
-
-const FEATURE_DISPLAY_NAMES: Record<string, string> = {
-  incident_count: 'Toplam Olay Sayısı', unique_policies: 'Tetiklenen Politika Çeşitliliği',
-  unique_channels: 'Kullanılan Kanal Çeşitliliği', unique_destinations: 'Hedef Çeşitliliği',
-  mean_severity: 'Ortalama Risk Seviyesi', max_severity: 'Maksimum Risk Seviyesi',
-  high_sev_ratio: 'Yüksek Riskli Olay Oranı', high_sev_count: 'Yüksek Riskli Olay Sayısı',
-  mean_action_risk: 'Ortalama Eylem Riski', allowed_ratio: 'İzin Verilen Eylem Oranı',
-  allowed_count: 'İzin Verilen Eylem Sayısı', total_tx_size: 'Toplam Transfer Hacmi',
-  mean_tx_size: 'Ortalama Transfer Boyutu', max_tx_size: 'Maksimum Transfer Boyutu',
-  std_tx_size: 'Transfer Boyutu Değişkenliği', total_max_matches: 'Toplam Eşleşme Sayısı',
-  mean_max_matches: 'Ortalama Eşleşme Sayısı', max_max_matches: 'Maksimum Eşleşme Sayısı',
-  off_hours_ratio: 'İş Dışı Hareket Oranı', off_hours_count: 'İş Dışı Hareket Sayısı',
-  weekend_ratio: 'Hafta Sonu Hareket Oranı', night_ratio: 'Gece Hareket Oranı',
-  mean_channel_rarity: 'Ortalama Kanal Nadirliği', max_channel_rarity: 'Maksimum Kanal Nadirliği',
-  incidents_per_day: 'Günlük Ortalama Olay Sayısı',
-  dept_size: 'Departman Büyüklüğü', dept_mean_incident_count: 'Departman Ort. Olay Sayısı',
-  dept_mean_off_hours_ratio: 'Departman Ort. İş Dışı Oranı', dept_mean_allowed_ratio: 'Departman Ort. İzin Oranı',
-  dept_mean_high_sev_ratio: 'Departman Ort. Yüksek Risk Oranı', dept_mean_tx_size: 'Departman Ort. Transfer Boyutu',
-  incident_count_peer_z: 'Ekibine Göre Olay Sapması', unique_policies_peer_z: 'Ekibine Göre Politika Sapması',
-  unique_channels_peer_z: 'Ekibine Göre Kanal Çeşitliliği', unique_destinations_peer_z: 'Ekibine Göre Hedef Çeşitliliği',
-  off_hours_ratio_peer_z: 'Ekibine Göre İş Dışı Oran Sapması', weekend_ratio_peer_z: 'Ekibine Göre Hafta Sonu Sapması',
-  night_ratio_peer_z: 'Ekibine Göre Gece Aktivitesi Sapması', high_sev_ratio_peer_z: 'Ekibine Göre Yüksek Risk Oranı Sapması',
-  allowed_ratio_peer_z: 'Ekibine Göre İzin Verilen Eylem Sapması', mean_tx_size_peer_z: 'Ekibine Göre Transfer Boyutu Sapması',
-  max_tx_size_peer_z: 'Ekibine Göre En Büyük Transfer Sapması', mean_max_matches_peer_z: 'Ekibine Göre Eşleşme Sapması',
-  incidents_per_day_peer_z: 'Ekibine Göre Günlük Olay Sapması',
-  max_self_z_tx_size: 'Kendi Normuna Göre Maks. Transfer Sapması', mean_self_z_tx_size: 'Kendi Normuna Göre Ort. Transfer Sapması',
-  max_self_z_severity: 'Kendi Normuna Göre Maks. Risk Seviyesi Sapması', mean_self_z_severity: 'Kendi Normuna Göre Ort. Risk Seviyesi Sapması',
-  max_self_z_channel_rarity: 'Kendi Normuna Göre Maks. Kanal Nadirliği Sapması', mean_self_z_channel_rarity: 'Kendi Normuna Göre Ort. Kanal Nadirliği Sapması',
-  max_self_z_max_matches: 'Kendi Normuna Göre Maks. Eşleşme Sapması', mean_self_z_max_matches: 'Kendi Normuna Göre Ort. Eşleşme Sapması',
-  max_self_z_action_risk: 'Kendi Normuna Göre Maks. Eylem Sapması', mean_self_z_action_risk: 'Kendi Normuna Göre Ort. Eylem Sapması',
-  max_self_z_hour: 'Kendi Normuna Göre Maks. Saat Sapması', mean_self_z_hour: 'Kendi Normuna Göre Ort. Saat Sapması',
-  self_outlier_count: 'Kişisel Anomali Sayısı', strong_self_outlier_count: 'Güçlü Kişisel Anomali Sayısı',
-  self_outlier_ratio: 'Kişisel Anomali Oranı', strong_self_outlier_ratio: 'Güçlü Kişisel Anomali Oranı',
+const CONFIDENCE_ICON: Record<ConfidenceLevel, string> = {
+  high: '▲', medium: '◆', low: '◇', none: '╱',
 }
 
-function normalizeDisplayNameToKey(displayName: string): string {
-  return displayName.toLowerCase()
-    .replace(/\s*\(peer\)\s*$/i, '_peer_z').replace(/\s*\(self\)\s*$/i, '_self_z')
-    .replace(/\s*\(peer\)\s*/g, '_peer_z_').replace(/\s*\(self\)\s*/g, '_self_z_')
-    .replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').replace(/^_|_$/g, '')
+const CONFIDENCE_COLOR: Record<ConfidenceLevel, string> = {
+  high: '#10b981', medium: '#f59e0b', low: '#94a3b8', none: '#94a3b8',
 }
 
-function getFriendlyFeatureName(feature: FeatureContribution): string {
-  if (feature.name && FEATURE_DISPLAY_NAMES[feature.name]) return FEATURE_DISPLAY_NAMES[feature.name]
-  if (feature.display_name && FEATURE_DISPLAY_NAMES[feature.display_name]) return FEATURE_DISPLAY_NAMES[feature.display_name]
-  if (feature.display_name) {
-    const normalized = normalizeDisplayNameToKey(feature.display_name)
-    if (FEATURE_DISPLAY_NAMES[normalized]) return FEATURE_DISPLAY_NAMES[normalized]
-  }
-  if (feature.display_name && !feature.display_name.includes('_')) return feature.display_name
-  return feature.display_name || feature.name
-}
+// ── Evidence split bar (the three-dimension story, finally on screen) ─────────
 
-// ── SHAP bar chart ────────────────────────────────────────────────────────────
+function EvidenceSplit({ dimensions, locale }: { dimensions: DimensionConfidence[]; locale: 'tr' | 'en' }) {
+  const total = dimensions.reduce((sum, d) => sum + d.share_pct, 0)
+  if (total <= 0) return null
 
-function ShapBarChart({ features }: { features: FeatureContribution[] }) {
-  const top = features.slice(0, 3)
-  const maxAbs = Math.max(...top.map(f => Math.abs(f.shap_value)), 1e-9)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
-      {top.map((f, i) => {
-        const pct = Math.abs(f.shap_value) / maxAbs * 100
-        const meta = GROUP_META[f.group] ?? GROUP_META['raw']
-        const isRisk = f.shap_value > 0
+    <div style={{ display: 'flex', height: '26px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+      {dimensions.map(d => {
+        const width = d.share_pct / total * 100
+        if (width < 0.5) return null
+        const unavailable = !d.available
         return (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{getFriendlyFeatureName(f)}</span>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: isRisk ? '#ef4444' : '#10b981', background: isRisk ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
-                {isRisk ? '🔺 Riski artırıyor' : '🔻 Riski azaltıyor'}
-              </span>
-            </div>
-            <div style={{ height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${pct}%`, background: isRisk ? `linear-gradient(90deg, ${meta.color}, #ef4444)` : '#10b981', borderRadius: '5px', transition: 'width 0.4s ease' }} />
-            </div>
+          <div
+            key={d.dimension}
+            title={`${dimensionLabel(locale, d.dimension)} — ${num(locale, d.share_pct, 0)}%`}
+            style={{
+              width: `${width}%`,
+              background: unavailable ? 'var(--border)' : DIMENSION_COLOR[d.dimension],
+              color: unavailable ? 'var(--text-muted)' : '#fff',
+              fontSize: '11px', fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              whiteSpace: 'nowrap', overflow: 'hidden',
+            }}
+          >
+            {width > 14 ? `${dimensionLabel(locale, d.dimension)} ${num(locale, d.share_pct, 0)}%` : ''}
           </div>
         )
       })}
@@ -148,37 +99,168 @@ function ShapBarChart({ features }: { features: FeatureContribution[] }) {
   )
 }
 
-const getIFColor = (score: number) => {
-  if (score >= 75) return '#dc2626'
-  if (score >= 50) return '#f59e0b'
-  if (score >= 25) return '#3b82f6'
-  return '#10b981'
+// ── One reason card ──────────────────────────────────────────────────────────
+
+function ReasonCard({
+  reason, userEmail, locale, secondary,
+}: {
+  reason: Reason
+  userEmail: string
+  locale: 'tr' | 'en'
+  secondary?: boolean
+}) {
+  const [evidence, setEvidence] = useState<ReasonEvidence | null>(null)
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const color = DIMENSION_COLOR[reason.dimension] ?? '#4C78A8'
+  const raises = reason.effect === 'raises'
+  const accent = secondary ? 'var(--text-secondary)' : raises ? '#dc2626' : '#10b981'
+
+  const toggleEvidence = useCallback(async () => {
+    if (open) { setOpen(false); return }
+    setOpen(true)
+    if (evidence || loading) return
+    setLoading(true)
+    try {
+      const res = await apiClient.get(`/api/isolation-forest/user/${encodeURIComponent(userEmail)}/evidence`, {
+        params: { family: reason.family_key, dimension: reason.dimension },
+      })
+      setEvidence(res.data)
+    } catch {
+      setEvidence({ user_email: userEmail, family_key: reason.family_key, dimension: reason.dimension, total_count: 0, incidents: [] })
+    } finally {
+      setLoading(false)
+    }
+  }, [open, evidence, loading, userEmail, reason.family_key, reason.dimension])
+
+  const signedPoints = `${reason.impact_points > 0 ? '+' : ''}${num(locale, reason.impact_points, 1)}`
+
+  return (
+    <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          {familyLabel(locale, reason.family_key)}
+        </span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color, background: `${color}1f`, padding: '2px 8px', borderRadius: '10px' }}>
+          {dimensionLabel(locale, reason.dimension)}
+        </span>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Absolute points, not a bar renormalized to the local maximum — so #1 and #3 are
+              actually comparable, and comparable across users too. */}
+          <span style={{ fontSize: '14px', fontWeight: 800, color: accent }}>
+            {fmt(locale, 'effect.points', { points: signedPoints })}
+          </span>
+          {reason.impact_share_pct > 0 && (
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              {fmt(locale, 'effect.share', { share: `%${num(locale, reason.impact_share_pct, 0)}` })}
+            </span>
+          )}
+        </span>
+      </div>
+
+      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: '6px' }}>
+        {evidenceLine(locale, reason)}{' '}
+        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{deviationLine(locale, reason)}</span>
+        {reason.tail_pct > 0 && reason.tail_pct < 50 && (
+          <> · {fmt(locale, 'dev.tail', { tail: `%${num(locale, reason.tail_pct, 1)}` })}</>
+        )}
+      </div>
+
+      {reason.risk_reading === 'unusual_not_risky' && (
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>
+          {fmt(locale, 'reading.unusual_not_risky')}
+        </div>
+      )}
+
+      {reason.evidence_count > 0 && (
+        <button
+          onClick={toggleEvidence}
+          style={{
+            marginTop: '8px', padding: '4px 10px', fontSize: '12px', fontWeight: 600,
+            background: 'transparent', color, border: `1px solid ${color}66`, borderRadius: '6px',
+            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px',
+          }}
+        >
+          {open
+            ? fmt(locale, 'detail.hideEvidence')
+            : fmt(locale, 'detail.showEvidence', { n: num(locale, reason.evidence_count, 0) })}
+          <ChevronRight size={12} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+        </button>
+      )}
+
+      {open && (
+        <div style={{ marginTop: '10px', overflowX: 'auto' }}>
+          {loading && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{fmt(locale, 'detail.evidenceLoading')}</div>}
+          {!loading && evidence && evidence.incidents.length === 0 && (
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{fmt(locale, 'detail.evidenceEmpty')}</div>
+          )}
+          {!loading && evidence && evidence.incidents.length > 0 && (
+            <>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '640px' }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    {['ev.col.time', 'ev.col.channel', 'ev.col.destination', 'ev.col.action', 'ev.col.severity', 'ev.col.sensitivity', 'ev.col.matches'].map(k => (
+                      <th key={k} style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{fmt(locale, k)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {evidence.incidents.map(i => (
+                    <tr key={i.id} style={{ color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{new Date(i.timestamp).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}</td>
+                      <td style={{ padding: '5px 8px' }}>{i.channel ?? '—'}</td>
+                      <td style={{ padding: '5px 8px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.destination ?? '—'}</td>
+                      <td style={{ padding: '5px 8px' }}>{i.action ?? '—'}</td>
+                      <td style={{ padding: '5px 8px' }}>{i.severity}/5</td>
+                      <td style={{ padding: '5px 8px' }}>{i.data_sensitivity}/10</td>
+                      <td style={{ padding: '5px 8px' }}>{num(locale, i.max_matches, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {evidence.total_count > evidence.incidents.length && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  {fmt(locale, 'detail.evidenceTruncated', {
+                    shown: num(locale, evidence.incidents.length, 0),
+                    total: num(locale, evidence.total_count, 0),
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AIModelPage() {
-  const [ifOverview, setIfOverview] = useState<IFOverview | null>(null)
-  const [ifLoading, setIfLoading] = useState(false)
+  const { locale } = useTranslation()
+  const [overview, setOverview] = useState<IFOverview | null>(null)
+  const [loading, setLoading] = useState(false)
   const [triggering, setTriggering] = useState(false)
-  const [expandedUser, setExpandedUser] = useState<string | null>(null)
-  const [ifFilter, setIfFilter] = useState('')
-  const [userPage, setUserPage] = useState(1)
-  const IF_PAGE_SIZE = 10
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 10
 
-  const fetchIFOverview = async () => {
-    setIfLoading(true)
+  const fetchOverview = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await apiClient.get('/api/isolation-forest/overview')
-      setIfOverview(res.data)
-    } catch (err: any) {
+      setOverview(res.data)
+    } catch (err) {
       console.error('IF overview error:', err)
     } finally {
-      setIfLoading(false)
+      setLoading(false)
     }
-  }
+  }, [])
 
-  const triggerIFRun = async () => {
+  const triggerRun = useCallback(async () => {
     if (triggering) return
     setTriggering(true)
     try {
@@ -191,7 +273,7 @@ export default function AIModelPage() {
           if (!statusRes.data.is_running || tries > 180) {
             clearInterval(poll)
             setTriggering(false)
-            await fetchIFOverview()
+            await fetchOverview()
           }
         } catch {
           clearInterval(poll)
@@ -201,18 +283,26 @@ export default function AIModelPage() {
     } catch {
       setTriggering(false)
     }
-  }
+  }, [triggering, fetchOverview])
 
-  useEffect(() => { fetchIFOverview() }, [])
+  useEffect(() => { fetchOverview() }, [fetchOverview])
 
-  const filteredIFUsers = useMemo(() => {
-    if (!ifOverview) return []
-    if (!ifFilter.trim()) return ifOverview.user_scores
-    return ifOverview.user_scores.filter(u =>
-      u.user_email.toLowerCase().includes(ifFilter.toLowerCase()) ||
-      (u.department ?? '').toLowerCase().includes(ifFilter.toLowerCase())
-    )
-  }, [ifOverview, ifFilter])
+  const filtered = useMemo(() => {
+    if (!overview) return []
+    if (!filter.trim()) return overview.user_scores
+    const needle = filter.toLowerCase()
+    return overview.user_scores.filter(u =>
+      u.user_email.toLowerCase().includes(needle) ||
+      (u.department ?? '').toLowerCase().includes(needle))
+  }, [overview, filter])
+
+  const meanScore = useMemo(() => {
+    if (!overview || overview.user_scores.length === 0) return 0
+    return overview.user_scores.reduce((s, u) => s + u.if_score, 0) / overview.user_scores.length
+  }, [overview])
+
+  const windowDays = overview?.score_window_days || 7
+  const pageCount = Math.ceil(filtered.length / PAGE_SIZE)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '24px' }}>
@@ -222,104 +312,100 @@ export default function AIModelPage() {
         <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Günlük AI Davranış Risk Skoru
+              {fmt(locale, 'page.title')}
             </h1>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Her kullanıcı için son 7 günlük davranışı, kullanıcının tüm geçmişi ve ekip davranışıyla karşılaştırır.
-            </p>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{fmt(locale, 'page.subtitle')}</p>
           </div>
-          {/* Controls */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={triggerIFRun}
+              onClick={triggerRun}
               disabled={triggering}
               style={{ padding: '8px 18px', background: triggering ? '#6b7280' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: triggering ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '14px' }}
             >
-              {triggering ? <><RefreshCw size={14} className="if-spin" /> Hesaplanıyor...</> : <><Play size={14} /> Şimdi Çalıştır</>}
+              {triggering
+                ? <><RefreshCw size={14} className="if-spin" /> {fmt(locale, 'page.running')}</>
+                : <><Play size={14} /> {fmt(locale, 'page.runNow')}</>}
             </button>
             <button
-              onClick={fetchIFOverview}
-              disabled={ifLoading}
+              onClick={fetchOverview}
+              disabled={loading}
               style={{ padding: '8px 14px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}
             >
-              <RefreshCw size={14} /> Sonuçları Yükle
+              <RefreshCw size={14} /> {fmt(locale, 'page.reload')}
             </button>
           </div>
         </div>
 
-        {/* Simple model contract */}
+        {/* Model contract */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '24px' }}>
           {[
-            { icon: <Clock size={18} />, title: 'Her gün çalışır', text: 'Skorlar günlük batch ile otomatik yenilenir.', color: '#7c3aed' },
-            { icon: <BarChart3 size={18} />, title: 'Son 7 günü skorlar', text: 'Kullanıcının güncel haftalık davranışı değerlendirilir.', color: '#2563eb' },
-            { icon: <History size={18} />, title: 'Tüm geçmişle karşılaştırır', text: '7 günden eski tüm davranışlar kişisel normu oluşturur.', color: '#059669' },
+            { icon: <Clock size={18} />, title: 'card.daily', text: 'card.dailyBody', color: '#7c3aed' },
+            { icon: <BarChart3 size={18} />, title: 'card.window', text: 'card.windowBody', color: '#2563eb' },
+            { icon: <Layers size={18} />, title: 'card.baseline', text: 'card.baselineBody', color: '#059669' },
           ].map(item => (
             <div key={item.title} style={{ padding: '16px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', display: 'flex', gap: '12px' }}>
               <span style={{ color: item.color, marginTop: '2px' }}>{item.icon}</span>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>{item.title}</div>
-                <div style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>{item.text}</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '3px' }}>{fmt(locale, item.title)}</div>
+                <div style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>{fmt(locale, item.text)}</div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Loading */}
-        {ifLoading && (
+        {loading && (
           <div style={{ position: 'relative', minHeight: '300px' }}>
-            <LoadingOverlay isLoading message="AI Risk modeli sonuçları yükleniyor..." />
+            <LoadingOverlay isLoading message={fmt(locale, 'page.loading')} />
           </div>
         )}
 
-        {/* Empty state */}
-        {!ifLoading && (!ifOverview || ifOverview.total_users === 0) && (
+        {!loading && (!overview || overview.total_users === 0) && (
           <div style={{ padding: '64px 40px', background: 'var(--surface)', borderRadius: '12px', textAlign: 'center', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '52px', marginBottom: '16px' }}>🤖</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Henüz AI Risk Model skoru hesaplanmamış</div>
-            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '28px', lineHeight: 1.6 }}>
-              "Şimdi Çalıştır" ile ilk 7 günlük risk skorlamasını başlatın.<br />Sonraki skorlar her gün otomatik güncellenecek.
-            </div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>{fmt(locale, 'page.emptyTitle')}</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '28px', lineHeight: 1.6 }}>{fmt(locale, 'page.emptyBody')}</div>
             <button
-              onClick={triggerIFRun}
+              onClick={triggerRun}
               disabled={triggering}
               style={{ padding: '12px 32px', background: triggering ? '#6b7280' : '#7c3aed', color: 'white', border: 'none', borderRadius: '10px', cursor: triggering ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '16px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
             >
-              {triggering ? <><RefreshCw size={16} className="if-spin" /> Hesaplanıyor...</> : <><Play size={16} /> Şimdi Çalıştır</>}
+              {triggering
+                ? <><RefreshCw size={16} className="if-spin" /> {fmt(locale, 'page.running')}</>
+                : <><Play size={16} /> {fmt(locale, 'page.runNow')}</>}
             </button>
           </div>
         )}
 
-        {/* Results */}
-        {!ifLoading && ifOverview && ifOverview.total_users > 0 && (
+        {!loading && overview && overview.total_users > 0 && (
           <>
             {/* Status bar */}
             <div style={{ padding: '11px 16px', marginBottom: '20px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
               <Clock size={14} />
-              <span>Son analiz: <strong style={{ color: 'var(--text-primary)' }}>{ifOverview.status?.last_run_at ? new Date(ifOverview.status.last_run_at).toLocaleString('tr-TR') : '—'}</strong></span>
+              <span>{fmt(locale, 'page.lastRun')}: <strong style={{ color: 'var(--text-primary)' }}>{overview.status?.last_run_at ? new Date(overview.status.last_run_at).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US') : '—'}</strong></span>
               <span>•</span>
-              <span><strong style={{ color: 'var(--text-primary)' }}>{ifOverview.score_window_days || 7} günlük</strong> davranış penceresi</span>
+              <span><strong style={{ color: 'var(--text-primary)' }}>{fmt(locale, 'page.window', { days: windowDays })}</strong></span>
               <span>•</span>
-              <span>Baseline: <strong style={{ color: 'var(--text-primary)' }}>tüm geçmiş</strong></span>
+              <span>{fmt(locale, 'page.baseline')}</span>
               <span>•</span>
-              <span><strong style={{ color: 'var(--text-primary)' }}>{ifOverview.total_users}</strong> kullanıcı analiz edildi</span>
+              <span>{fmt(locale, 'page.analyzed', { n: num(locale, overview.total_users, 0) })}</span>
               <span>•</span>
-              <span style={{ color: '#dc2626', fontWeight: 700 }}>{ifOverview.anomaly_count} kullanıcı inceleme adayı</span>
+              <span style={{ color: '#dc2626', fontWeight: 700 }}>{fmt(locale, 'page.reviewQueue', { n: num(locale, overview.anomaly_count, 0) })}</span>
               {triggering && (
-                <><span>•</span><span style={{ color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={12} className="if-spin" /> Yeni analiz devam ediyor...</span></>
+                <><span>•</span><span style={{ color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={12} className="if-spin" /> {fmt(locale, 'page.rerunning')}</span></>
               )}
             </div>
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '16px', marginBottom: '10px' }}>
               {[
-                { label: 'Toplam Kullanıcı',  value: ifOverview.total_users,    color: 'var(--text-primary)', icon: <Users size={16} /> },
-                { label: 'İnceleme Adayı',    value: ifOverview.anomaly_count,  color: '#dc2626',             icon: <AlertTriangle size={16} /> },
-                { label: 'Risk Oranı',        value: `${Math.round(ifOverview.anomaly_count / Math.max(ifOverview.total_users, 1) * 100)}%`, color: '#f59e0b', icon: <TrendingUp size={16} /> },
-                { label: 'Skor Penceresi',    value: `${ifOverview.score_window_days || 7} gün`, color: '#7c3aed', icon: <Clock size={16} /> },
-              ].map((s, i) => (
-                <div key={i} style={{ background: 'var(--surface)', padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                { label: 'stat.totalUsers', value: num(locale, overview.total_users, 0), color: 'var(--text-primary)', icon: <Users size={16} /> },
+                { label: 'stat.reviewQueue', value: num(locale, overview.anomaly_count, 0), color: '#dc2626', icon: <AlertTriangle size={16} /> },
+                { label: 'stat.meanScore', value: num(locale, meanScore, 1), color: '#f59e0b', icon: <BarChart3 size={16} /> },
+                { label: 'stat.window', value: fmt(locale, 'stat.windowValue', { days: windowDays }), color: '#7c3aed', icon: <Clock size={16} /> },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--surface)', padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{s.label}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{fmt(locale, s.label)}</span>
                     <span style={{ color: s.color, opacity: 0.7 }}>{s.icon}</span>
                   </div>
                   <div style={{ fontSize: '28px', fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -327,104 +413,57 @@ export default function AIModelPage() {
               ))}
             </div>
 
-            {/* User list filter */}
+            {/* The review queue is a fixed top-5% slice, so say so rather than presenting it as a rate. */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              <Info size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>{fmt(locale, 'stat.reviewQueueNote')}</span>
+            </div>
+
+            {/* Filter */}
             <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Kullanıcı riskleri</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>Her kullanıcı için skor ve skoru en çok etkileyen davranış tek yerde gösterilir.</div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{fmt(locale, 'page.listTitle')}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>{fmt(locale, 'page.listSubtitle')}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder="Kullanıcı adı veya departman ara..."
-                value={ifFilter}
-                onChange={e => { setIfFilter(e.target.value); setUserPage(1) }}
-                style={{ padding: '9px 14px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px', width: '320px' }}
-              />
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                {filteredIFUsers.filter(u => u.is_anomaly).length} incelenmeli · {filteredIFUsers.length} kullanıcı
-              </span>
+                <input
+                  type="text"
+                  placeholder={fmt(locale, 'page.search')}
+                  value={filter}
+                  onChange={e => { setFilter(e.target.value); setPage(1) }}
+                  style={{ padding: '9px 14px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '14px', width: '320px' }}
+                />
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {fmt(locale, 'page.counts', {
+                    anomalies: num(locale, filtered.filter(u => u.is_anomaly).length, 0),
+                    total: num(locale, filtered.length, 0),
+                  })}
+                </span>
               </div>
             </div>
 
-            {/* User score cards */}
+            {/* User cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filteredIFUsers.slice((userPage - 1) * IF_PAGE_SIZE, userPage * IF_PAGE_SIZE).map((user, idx) => {
-                const isExpanded = expandedUser === user.user_email
-                const topFeatures = [...user.top_features].sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value)).slice(0, 3)
-                return (
-                  <div key={idx} style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', borderLeft: `4px solid ${user.is_anomaly ? '#dc2626' : '#10b981'}`, overflow: 'hidden' }}>
-                    {/* Collapsed row */}
-                    <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setExpandedUser(isExpanded ? null : user.user_email)}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.user_email}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {user.department ?? '—'} &nbsp;·&nbsp; Son 7 günde {user.incident_count} olay
-                          {topFeatures[0] && <> &nbsp;·&nbsp; Ana etken: <strong>{getFriendlyFeatureName(topFeatures[0])}</strong></>}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                        <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '1px' }}>AI Risk Skoru</div>
-                        <div style={{ fontSize: '22px', fontWeight: 800, color: getIFColor(user.if_score) }}>{user.if_score.toFixed(1)}</div>
-                      </div>
-                      <div style={{ padding: '5px 14px', borderRadius: '12px', flexShrink: 0, background: user.is_anomaly ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', color: user.is_anomaly ? '#dc2626' : '#10b981', border: `1px solid ${user.is_anomaly ? '#dc262640' : '#10b98140'}`, fontSize: '12px', fontWeight: 700 }}>
-                        {user.is_anomaly ? '⚠️ İncelenmeli' : '✓ Normal'}
-                      </div>
-                      <div style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </div>
-                    </div>
-
-                    {/* Expanded detail */}
-                    {isExpanded && (
-                      <div style={{ borderTop: '1px solid var(--border)', padding: '20px 20px 24px' }}>
-                        {user.is_anomaly && (
-                          <div style={{ padding: '14px 18px', borderRadius: '10px', marginBottom: '20px', background: 'rgba(220,38,38,0.05)', border: '1px solid rgba(220,38,38,0.2)' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>Bu skor neden yükseldi?</div>
-                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                              Kullanıcının son 7 günlük davranışı, <strong style={{ color: 'var(--text-primary)' }}>7 günden eski tüm kişisel geçmişinden</strong> ve <strong style={{ color: 'var(--text-primary)' }}>aynı dönemdeki ekip davranışından</strong> belirgin şekilde sapıyor.
-                              {topFeatures.length > 0 && (
-                                <> Özellikle <strong style={{ color: '#dc2626' }}>{getFriendlyFeatureName(topFeatures[0])}</strong>{topFeatures[1] ? <> ve <strong style={{ color: '#dc2626' }}>{getFriendlyFeatureName(topFeatures[1])}</strong></> : ''} alanlarında alışılmışın dışında aktivite tespit edildi.</>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '24px' }}>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px' }}>Skoru etkileyen ilk 3 davranış</div>
-                            {topFeatures.length > 0 ? <ShapBarChart features={topFeatures} /> : <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Veri yok</div>}
-                          </div>
-                          <div>
-                            <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', fontWeight: 600 }}>Kullanıcı Risk Özeti</div>
-                              {[
-                                { label: 'AI Risk Skoru',  value: `${user.if_score.toFixed(1)} / 100`, color: getIFColor(user.if_score) },
-                                { label: 'Durum',          value: user.is_anomaly ? 'İncelenmeli ⚠️' : 'Normal ✓', color: user.is_anomaly ? '#dc2626' : '#10b981' },
-                                { label: 'Son 7 Gün',      value: `${user.incident_count} olay`, color: 'var(--text-primary)' },
-                                { label: 'Geçmiş Baseline', value: `${user.baseline_incident_count ?? 0} olay`, color: 'var(--text-primary)' },
-                                { label: 'Analiz Tarihi',  value: new Date(user.calculated_at).toLocaleDateString('tr-TR'), color: 'var(--text-secondary)' },
-                              ].map(row => (
-                                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '8px' }}>
-                                  <span style={{ color: 'var(--text-secondary)' }}>{row.label}</span>
-                                  <span style={{ fontWeight: 700, color: row.color }}>{row.value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(user => (
+                <UserCard
+                  key={user.user_email}
+                  user={user}
+                  locale={locale}
+                  isExpanded={expanded === user.user_email}
+                  onToggle={() => setExpanded(expanded === user.user_email ? null : user.user_email)}
+                />
+              ))}
             </div>
 
-            {/* User pagination */}
-            {Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE) > 1 && (
+            {pageCount > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-                <button onClick={() => { setUserPage(p => Math.max(1, p - 1)); setExpandedUser(null) }} disabled={userPage === 1}
-                  style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: userPage === 1 ? 'not-allowed' : 'pointer', background: userPage === 1 ? 'var(--border)' : 'var(--primary)', color: userPage === 1 ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>‹ Önceki</button>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{userPage} / {Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE)}</span>
-                <button onClick={() => { setUserPage(p => Math.min(Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE), p + 1)); setExpandedUser(null) }} disabled={userPage === Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE)}
-                  style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: userPage === Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE) ? 'not-allowed' : 'pointer', background: userPage === Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE) ? 'var(--border)' : 'var(--primary)', color: userPage === Math.ceil(filteredIFUsers.length / IF_PAGE_SIZE) ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>Sonraki ›</button>
+                <button onClick={() => { setPage(p => Math.max(1, p - 1)); setExpanded(null) }} disabled={page === 1}
+                  style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: page === 1 ? 'not-allowed' : 'pointer', background: page === 1 ? 'var(--border)' : 'var(--primary)', color: page === 1 ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>
+                  {fmt(locale, 'page.prev')}
+                </button>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{page} / {pageCount}</span>
+                <button onClick={() => { setPage(p => Math.min(pageCount, p + 1)); setExpanded(null) }} disabled={page === pageCount}
+                  style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: page === pageCount ? 'not-allowed' : 'pointer', background: page === pageCount ? 'var(--border)' : 'var(--primary)', color: page === pageCount ? 'var(--text-muted)' : 'white', fontSize: '13px' }}>
+                  {fmt(locale, 'page.next')}
+                </button>
               </div>
             )}
           </>
@@ -435,6 +474,172 @@ export default function AIModelPage() {
         .if-spin { animation: ifSpin 1s linear infinite; }
         @keyframes ifSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
+    </div>
+  )
+}
+
+// ── User card ────────────────────────────────────────────────────────────────
+
+function UserCard({
+  user, locale, isExpanded, onToggle,
+}: {
+  user: IFScore
+  locale: 'tr' | 'en'
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const confidence = user.confidence_level || 'low'
+  const headline = user.reasons.slice(0, 2)
+  const hasExplanation = user.reasons.length > 0 || user.secondary_signals.length > 0 || user.dimensions.length > 0
+  const missingSelf = user.dimensions.find(d => d.dimension === 'self' && !d.available)
+  const topDimension = [...user.dimensions].sort((a, b) => b.share_pct - a.share_pct)[0]
+  const rankPct = user.cohort_size > 0 ? Math.max(1, Math.round(user.cohort_rank / user.cohort_size * 100)) : 0
+
+  return (
+    <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', borderLeft: `4px solid ${user.is_anomaly ? '#dc2626' : '#10b981'}`, overflow: 'hidden' }}>
+      {/* Collapsed row — carries the reason, not the feature name */}
+      <div style={{ padding: '13px 16px', cursor: 'pointer' }} onClick={onToggle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.user_email}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              {user.department ?? '—'} · {fmt(locale, 'detail.window', { n: num(locale, user.incident_count, 0) })}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '1px' }}>{fmt(locale, 'detail.score')}</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: scoreColor(user.if_score) }}>{num(locale, user.if_score, 1)}</div>
+          </div>
+          <div style={{ padding: '5px 14px', borderRadius: '12px', flexShrink: 0, background: user.is_anomaly ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', color: user.is_anomaly ? '#dc2626' : '#10b981', border: `1px solid ${user.is_anomaly ? '#dc262640' : '#10b98140'}`, fontSize: '12px', fontWeight: 700 }}>
+            {fmt(locale, user.is_anomaly ? 'detail.status.anomaly' : 'detail.status.normal')}
+          </div>
+          <div style={{ flexShrink: 0, fontSize: '12px', fontWeight: 600, color: CONFIDENCE_COLOR[confidence], whiteSpace: 'nowrap' }}>
+            {CONFIDENCE_ICON[confidence]} {fmt(locale, `conf.${confidence}`)}
+          </div>
+          <div style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </div>
+
+        {/* Top reasons, with the numbers, right on the collapsed row */}
+        {headline.map(r => (
+          <div key={`${r.family_key}:${r.dimension}`} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '6px', fontSize: '12px' }}>
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: DIMENSION_COLOR[r.dimension], flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{familyLabel(locale, r.family_key)}</span>
+            <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {evidenceLine(locale, r)} {deviationLine(locale, r)}
+            </span>
+          </div>
+        ))}
+
+        {missingSelf && (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <Info size={12} />
+            {fmt(locale, `conf.${missingSelf.reason_key ?? 'noBaseline'}`, { n: num(locale, missingSelf.reason_args?.n ?? 0, 0) })}
+          </div>
+        )}
+
+        {user.dimensions.length > 0 && (
+          <div style={{ marginTop: '8px' }}>
+            <EvidenceSplit dimensions={user.dimensions} locale={locale} />
+          </div>
+        )}
+      </div>
+
+      {/* Expanded detail */}
+      {isExpanded && (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          {!hasExplanation && (
+            <div style={{ padding: '20px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {fmt(locale, 'detail.noExplanation')}
+            </div>
+          )}
+
+          {hasExplanation && (
+            <>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {fmt(locale, 'detail.rank', {
+                    rank: num(locale, user.cohort_rank, 0),
+                    total: num(locale, user.cohort_size, 0),
+                    pct: `%${rankPct}`,
+                  })}
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {fmt(locale, 'detail.baselineCount', { n: num(locale, user.baseline_incident_count, 0) })}
+                </div>
+              </div>
+
+              {topDimension && (
+                <div style={{ padding: '8px 20px 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {fmt(locale, 'detail.evidenceSplitLead', { dimension: dimensionLabel(locale, topDimension.dimension) })}
+                </div>
+              )}
+
+              <div style={{ padding: '14px 20px 4px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '.04em' }}>
+                {fmt(locale, 'detail.reasons')}
+                <span style={{ fontWeight: 400, marginLeft: '8px' }}>
+                  ({fmt(locale, 'detail.explained', {
+                    explained: `%${num(locale, user.explained_share_pct, 0)}`,
+                    unexplained: `%${num(locale, user.unexplained_share_pct, 0)}`,
+                  })})
+                </span>
+              </div>
+
+              {user.reasons.length === 0 && (
+                <div style={{ padding: '8px 20px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {fmt(locale, 'detail.noReasons')}
+                </div>
+              )}
+              {user.reasons.map(r => (
+                <ReasonCard key={`${r.family_key}:${r.dimension}`} reason={r} userEmail={user.user_email} locale={locale} />
+              ))}
+
+              {user.secondary_signals.length > 0 && (
+                <>
+                  <div style={{ padding: '14px 20px 0', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em' }}>
+                    {fmt(locale, 'detail.secondary')}
+                  </div>
+                  {user.secondary_signals.map(r => (
+                    <ReasonCard key={`${r.family_key}:${r.dimension}`} reason={r} userEmail={user.user_email} locale={locale} secondary />
+                  ))}
+                </>
+              )}
+
+              {Object.keys(user.team_context).length > 0 && (
+                <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: '6px' }}>
+                    {fmt(locale, 'detail.teamContext')}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    {Object.entries(user.team_context).map(([key, value]) => (
+                      <span key={key}>
+                        {fmt(locale, `f.${key}`)}:{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                          {formatValue(locale, value, key.includes('ratio') ? 'ratio' : key === 'dept_size' ? 'head' : key.includes('tx_size') ? 'sens' : 'count')}
+                        </strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {user.caveats.length > 0 && (
+                <div style={{ padding: '12px 20px 16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {user.caveats.map(c => (
+                    <div key={c} style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '6px', alignItems: 'flex-start', lineHeight: 1.5 }}>
+                      <Info size={12} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span>{fmt(locale, `caveat.${c}`, { n: num(locale, user.cohort_size, 0) })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

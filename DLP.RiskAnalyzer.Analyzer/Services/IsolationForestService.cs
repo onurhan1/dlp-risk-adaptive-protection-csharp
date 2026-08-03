@@ -11,6 +11,14 @@ public class IsolationForestService : IIsolationForestService
 {
     public const int ScoreWindowDays = 7;
 
+    /// <summary>
+    /// Schema of the persisted <see cref="IsolationForestScore.Explanation"/> payload. Bumping this
+    /// is what stops a pre-reason-layer row from being deserialized into a chart of confident
+    /// zeroes: System.Text.Json would find no matching keys, throw nothing, and leave every number
+    /// at its default.
+    /// </summary>
+    public const int CurrentExplanationVersion = 2;
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<IsolationForestService> _logger;
     private static readonly SemaphoreSlim _lock = new(1, 1);
@@ -125,6 +133,74 @@ public class IsolationForestService : IIsolationForestService
         };
     }
 
+    // ── Reason evidence ───────────────────────────────────────────────────────
+
+    public async Task<ReasonEvidenceDto> GetReasonEvidenceAsync(string userEmail, string familyKey, string? dimension)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
+
+        var latestJobId = await db.IsolationForestScores
+            .OrderByDescending(s => s.CalculatedAt)
+            .Select(s => s.JobId)
+            .FirstOrDefaultAsync();
+
+        var empty = new ReasonEvidenceDto
+        {
+            UserEmail = userEmail,
+            FamilyKey = familyKey,
+            Dimension = dimension ?? string.Empty
+        };
+
+        if (string.IsNullOrEmpty(latestJobId)) return empty;
+
+        var row = await db.IsolationForestScores
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.JobId == latestJobId && s.UserEmail == userEmail);
+
+        if (row is null || row.ExplanationVersion != CurrentExplanationVersion) return empty;
+
+        UserExplanationDto explanation;
+        try { explanation = JsonSerializer.Deserialize<UserExplanationDto>(row.Explanation, JsonOpts) ?? new(); }
+        catch { return empty; }
+
+        var reason = explanation.Reasons.Concat(explanation.SecondarySignals)
+            .FirstOrDefault(r => r.FamilyKey == familyKey &&
+                                 (string.IsNullOrEmpty(dimension) || r.Dimension == dimension));
+
+        if (reason is null || reason.EvidenceIncidentIds.Count == 0) return empty;
+
+        var ids = reason.EvidenceIncidentIds;
+        var incidents = await db.Incidents
+            .AsNoTracking()
+            .Where(i => ids.Contains(i.Id))
+            .OrderByDescending(i => i.Timestamp)
+            .Select(i => new ReasonEvidenceIncidentDto
+            {
+                Id = i.Id,
+                Timestamp = i.Timestamp,
+                Channel = i.Channel,
+                Destination = i.Destination,
+                Action = i.Action,
+                Policy = i.Policy,
+                RuleName = i.RuleName,
+                Severity = i.Severity,
+                DataSensitivity = i.DataSensitivity,
+                MaxMatches = i.MaxMatches,
+                FileName = i.FileName
+            })
+            .ToListAsync();
+
+        return new ReasonEvidenceDto
+        {
+            UserEmail = userEmail,
+            FamilyKey = familyKey,
+            Dimension = reason.Dimension,
+            TotalCount = reason.EvidenceCount,
+            Incidents = incidents
+        };
+    }
+
     // ── Trigger ───────────────────────────────────────────────────────────────
 
     public async Task<IsolationForestStatusDto> TriggerRunAsync()
@@ -205,12 +281,26 @@ public class IsolationForestService : IIsolationForestService
                 CalculatedAt = calculatedAt,
                 LookbackDays = ScoreWindowDays,
                 IFScore = r.IFScore,
-                AnomalyRaw = r.IFScore,
+                AnomalyRaw = r.AnomalyRaw,
                 IsAnomaly = r.IsAnomaly,
                 IncidentCount = r.IncidentCount,
                 BaselineIncidentCount = r.BaselineIncidentCount,
                 FeatureContributions = JsonSerializer.Serialize(r.TopFeatures, JsonOpts),
                 GroupBreakdown = JsonSerializer.Serialize(r.GroupBreakdown, JsonOpts),
+                ExplanationVersion = CurrentExplanationVersion,
+                Explanation = JsonSerializer.Serialize(new UserExplanationDto
+                {
+                    Reasons = r.Reasons,
+                    SecondarySignals = r.SecondarySignals,
+                    Dimensions = r.Dimensions,
+                    ConfidenceLevel = r.ConfidenceLevel,
+                    ExplainedSharePct = r.ExplainedSharePct,
+                    UnexplainedSharePct = r.UnexplainedSharePct,
+                    CohortRank = r.CohortRank,
+                    CohortSize = r.CohortSize,
+                    Caveats = r.Caveats,
+                    TeamContext = r.TeamContext
+                }, JsonOpts),
                 JobId = jobId
             }).ToList();
 
@@ -258,17 +348,37 @@ public class IsolationForestService : IIsolationForestService
         try { groups = JsonSerializer.Deserialize<Dictionary<string, double>>(s.GroupBreakdown, JsonOpts) ?? new(); }
         catch { groups = new(); }
 
+        // Anything other than the exact current version degrades to "no explanation" rather than to
+        // a silently-defaulted one. `!=` rather than `<` so a rollback is caught symmetrically.
+        var explanation = new UserExplanationDto();
+        if (s.ExplanationVersion == CurrentExplanationVersion)
+        {
+            try { explanation = JsonSerializer.Deserialize<UserExplanationDto>(s.Explanation, JsonOpts) ?? new(); }
+            catch { explanation = new(); }
+        }
+
         return new IsolationForestScoreDto
         {
             UserEmail = s.UserEmail,
             Department = s.Department,
             CalculatedAt = s.CalculatedAt,
             IFScore = s.IFScore,
+            AnomalyRaw = s.AnomalyRaw,
             IsAnomaly = s.IsAnomaly,
             IncidentCount = s.IncidentCount,
             BaselineIncidentCount = s.BaselineIncidentCount,
             TopFeatures = features,
-            GroupBreakdown = groups
+            GroupBreakdown = groups,
+            Reasons = explanation.Reasons,
+            SecondarySignals = explanation.SecondarySignals,
+            Dimensions = explanation.Dimensions,
+            ConfidenceLevel = explanation.ConfidenceLevel,
+            ExplainedSharePct = explanation.ExplainedSharePct,
+            UnexplainedSharePct = explanation.UnexplainedSharePct,
+            CohortRank = explanation.CohortRank,
+            CohortSize = explanation.CohortSize,
+            Caveats = explanation.Caveats,
+            TeamContext = explanation.TeamContext
         };
     }
 }
