@@ -49,6 +49,18 @@ public class IsolationForestScoreDto
     public bool IsAnomaly { get; set; }
     public int IncidentCount { get; set; }
     public int BaselineIncidentCount { get; set; }
+
+    // ── Movement since the previous run ──────────────────────────────────────
+    // A score on its own says where the user sits in today's cohort; it takes the previous run to
+    // say whether anything changed. Null throughout when the user was not scored in that run —
+    // "no previous score" and "previous score of 0" are different facts and must not collapse.
+
+    /// <summary>The same user's score in the run named by <see cref="PreviousCalculatedAt"/>.</summary>
+    public double? PreviousScore { get; set; }
+    public DateTime? PreviousCalculatedAt { get; set; }
+    public double? ScoreDelta { get; set; }
+    public bool? PreviousIsAnomaly { get; set; }
+
     /// <summary>Per-feature contributions. Superseded by <see cref="Reasons"/>; kept one release.</summary>
     public List<FeatureContributionDto> TopFeatures { get; set; } = new();
 
@@ -198,6 +210,9 @@ public class IsolationForestOverviewDto
     public int ScoreWindowDays { get; set; } = 7;
     public DateTime? ScoreWindowStart { get; set; }
     public DateTime? ScoreWindowEnd { get; set; }
+
+    /// <summary>The run every <see cref="IsolationForestScoreDto.ScoreDelta"/> is measured against.</summary>
+    public DateTime? PreviousRunAt { get; set; }
     public string BaselineStrategy { get; set; } = "all_time_before_score_window";
     public List<DepartmentIFRiskDto> DepartmentRisks { get; set; } = new();
 }

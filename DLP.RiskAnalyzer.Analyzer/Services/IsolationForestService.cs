@@ -89,6 +89,8 @@ public class IsolationForestService : IIsolationForestService
 
         var scoreDtos = displayScores.Select(ToDto).ToList();
 
+        var previousRunAt = await AttachPreviousRunAsync(db, latestJob.JobId, latestJob.CalculatedAt, scoreDtos);
+
         // Department risks — load aggregates from all rows (not just display set)
         var allScores = await db.IsolationForestScores
             .Where(s => s.JobId == latestJob.JobId)
@@ -129,8 +131,73 @@ public class IsolationForestService : IIsolationForestService
             ScoreWindowStart = latestJob.CalculatedAt.AddDays(-latestJob.LookbackDays),
             ScoreWindowEnd = latestJob.CalculatedAt,
             BaselineStrategy = "all_time_before_score_window",
+            PreviousRunAt = previousRunAt,
             DepartmentRisks = deptRisks
         };
+    }
+
+    /// <summary>
+    /// A run this many days older than the current one counts as "the previous week". With a daily
+    /// batch the immediately preceding job is yesterday, and a one-day move on a seven-day window is
+    /// mostly noise — the comparison an analyst asks for is against the week before.
+    /// </summary>
+    private const int ComparisonMinAgeDays = 6;
+
+    /// <summary>
+    /// Fills in each user's score from the previous comparable run and returns the timestamp of that
+    /// run. Everything stays null when the user was not scored then: "not scored" and "scored zero"
+    /// are different facts, and showing a −40 drop for someone who simply had no incidents that week
+    /// would be an invented finding. The run's own date travels with the payload so the UI names
+    /// what it compared against instead of implying a fixed cadence the deployment may not have.
+    /// </summary>
+    private static async Task<DateTime?> AttachPreviousRunAsync(
+        AnalyzerDbContext db,
+        string currentJobId,
+        DateTime currentRunAt,
+        List<IsolationForestScoreDto> scores)
+    {
+        if (scores.Count == 0) return null;
+
+        var cutoff = currentRunAt.AddDays(-ComparisonMinAgeDays);
+
+        var previousJob = await db.IsolationForestScores
+            .Where(s => s.JobId != currentJobId && s.CalculatedAt <= cutoff)
+            .OrderByDescending(s => s.CalculatedAt)
+            .Select(s => new { s.JobId, s.CalculatedAt })
+            .FirstOrDefaultAsync();
+
+        // Nothing that old yet — fall back to whatever ran last, rather than showing no movement at
+        // all on a system that has only been running for a few days.
+        previousJob ??= await db.IsolationForestScores
+            .Where(s => s.JobId != currentJobId && s.CalculatedAt < currentRunAt)
+            .OrderByDescending(s => s.CalculatedAt)
+            .Select(s => new { s.JobId, s.CalculatedAt })
+            .FirstOrDefaultAsync();
+
+        if (previousJob is null) return null;
+
+        var emails = scores.Select(s => s.UserEmail).ToList();
+
+        var previous = await db.IsolationForestScores
+            .Where(s => s.JobId == previousJob.JobId && emails.Contains(s.UserEmail))
+            .Select(s => new { s.UserEmail, s.IFScore, s.IsAnomaly })
+            .ToListAsync();
+
+        var byEmail = previous
+            .GroupBy(p => p.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var score in scores)
+        {
+            if (!byEmail.TryGetValue(score.UserEmail, out var before)) continue;
+
+            score.PreviousScore = Math.Round(before.IFScore, 1);
+            score.PreviousCalculatedAt = previousJob.CalculatedAt;
+            score.PreviousIsAnomaly = before.IsAnomaly;
+            score.ScoreDelta = Math.Round(score.IFScore - before.IFScore, 1);
+        }
+
+        return previousJob.CalculatedAt;
     }
 
     // ── Reason evidence ───────────────────────────────────────────────────────

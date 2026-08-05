@@ -72,6 +72,62 @@ export interface ReasonEvidence {
   incidents: EvidenceIncident[]
 }
 
+// ── Event grouping ────────────────────────────────────────────────────────────
+
+/**
+ * Findings that point at the same incidents, collapsed into one event.
+ *
+ * The model scores a user's whole window, not individual incidents, so a single incident that is
+ * both off-hours and a heavy classifier hit legitimately moves two feature families. Rendering
+ * those as two independent cards reads as two separate things happening — the analyst sees a list
+ * that grows downward and silently double-counts one event in their head. Grouping on the evidence
+ * set puts them back together: one event, several findings.
+ */
+export interface ReasonGroup {
+  key: string
+  incident_ids: number[]
+  evidence_count: number
+  reasons: Reason[]
+  /** Sum of the members' shares. Shares come from sequential ablation, so they are additive. */
+  share_pct: number
+  /** Largest single marginal impact in the group — used for ordering, never summed. */
+  top_points: number
+}
+
+export function groupReasonsByEvent(reasons: Reason[]): ReasonGroup[] {
+  const groups: ReasonGroup[] = []
+  const byKey = new Map<string, ReasonGroup>()
+
+  reasons.forEach((reason, index) => {
+    const ids = [...reason.evidence_incident_ids].sort((a, b) => a - b)
+
+    // A reason with no incidents behind it (an aggregate ratio, a baseline break with nothing
+    // recorded) is its own group: merging those on an empty key would fuse unrelated findings.
+    const key = ids.length > 0 ? `e:${ids.join(',')}` : `r:${reason.family_key}:${reason.dimension}:${index}`
+
+    let group = byKey.get(key)
+    if (!group) {
+      group = {
+        key,
+        incident_ids: ids,
+        evidence_count: reason.evidence_count,
+        reasons: [],
+        share_pct: 0,
+        top_points: 0,
+      }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+
+    group.reasons.push(reason)
+    group.share_pct += reason.impact_share_pct
+    group.top_points = Math.max(group.top_points, Math.abs(reason.impact_points))
+    group.evidence_count = Math.max(group.evidence_count, reason.evidence_count)
+  })
+
+  return groups.sort((a, b) => b.share_pct - a.share_pct || b.top_points - a.top_points)
+}
+
 // ── Strings ───────────────────────────────────────────────────────────────────
 
 type Dict = Record<string, string>
@@ -98,24 +154,41 @@ const TR: Dict = {
   'family.volume': 'Olay Hacmi & Tempo',
   'family.team_context': 'Ekip Bağlamı',
 
-  // Evidence sentence, per family. {observed}/{reference}/{sigma}/{count} come from the payload.
-  'ev.baseline_break': 'Son 7 günde {count} olay kişisel normunun dışında.',
-  'ev.data_sensitivity': 'Veri duyarlılığı {observed} (kıyas: {reference}).',
-  'ev.classifier_hits': '{observed} sınıflandırıcı eşleşmesi (kıyas: {reference}).',
-  'ev.permissive_outcome': 'Eylemlerin {observed} kadarı engellenmedi (kıyas: {reference}).',
-  'ev.rare_channel': 'Kanal nadirliği {observed} (kıyas: {reference}).',
-  'ev.off_hours': 'Mesai dışı hareket {observed} (kıyas: {reference}).',
-  'ev.spread': '{observed} farklı çıkış noktası (kıyas: {reference}).',
-  'ev.severity': 'Olay ciddiyeti {observed} (kıyas: {reference}).',
-  'ev.volume': 'Olay hacmi {observed} (kıyas: {reference}).',
-  'ev.fallback': 'Gözlenen {observed}, kıyas {reference}.',
+  // What was observed, in the metric's own units. No reference value, no sigma: an analyst reads
+  // "how much" and "is that a lot", and the second question is answered in words below.
+  // No trailing punctuation: the reading templates below close the sentence.
+  'ev.baseline_break': 'Son 7 günde {count} olay kişisel normunun dışında',
+  'ev.data_sensitivity': 'Veri duyarlılığı {observed}',
+  'ev.classifier_hits': '{observed} sınıflandırıcı eşleşmesi',
+  'ev.permissive_outcome': 'Eylemlerin {observed} kadarı engellenmedi',
+  'ev.rare_channel': 'Alışılmadık kanal kullanımı',
+  'ev.off_hours': 'Hareketin {observed} kadarı mesai dışında',
+  'ev.spread': '{observed} farklı çıkış noktası kullanıldı',
+  'ev.severity': 'Olay ciddiyeti {observed}',
+  'ev.volume': 'Olay hacmi {observed}',
+  'ev.fallback': 'Gözlenen değer {observed}',
 
-  // Deviation / effect wording
-  'dev.above': '{sigma}σ üzerinde',
-  'dev.below': '{sigma}σ altında',
-  'dev.at_norm': 'norm seviyesinde',
-  'dev.unknown': '{sigma}σ sapma',
-  'dev.tail': '{tail} · bu seviyede',
+  // How far from normal, in words. The sigma is still what decides the wording — it just is not
+  // printed, because "1,9σ üzerinde" tells an analyst nothing they can act on.
+  'rel.self': 'kendi geçmişine göre',
+  'rel.peer': 'ekibine göre',
+  'rel.population': 'kurum geneline göre',
+  'lvl.above.extreme': 'olağandışı yüksek',
+  'lvl.above.strong': 'belirgin şekilde yüksek',
+  'lvl.above.mild': 'normalin üzerinde',
+  'lvl.above.flat': 'normale yakın',
+  'lvl.below.extreme': 'olağandışı düşük',
+  'lvl.below.strong': 'belirgin şekilde düşük',
+  'lvl.below.mild': 'normalin altında',
+  'lvl.below.flat': 'normale yakın',
+  'lvl.unknown.extreme': 'olağandışı',
+  'lvl.unknown.strong': 'belirgin şekilde sıra dışı',
+  'lvl.unknown.mild': 'hafif sıra dışı',
+  'lvl.unknown.flat': 'normale yakın',
+  'lvl.at_norm': 'normal seviyede',
+  'read.withValue': '{evidence} — {relation} {level}.',
+  'read.plain': '{relation} {level}.',
+
   'effect.raises': 'Skoru yükseltiyor',
   'effect.lowers': 'Skoru düşürüyor',
   'effect.points': '{points} puan',
@@ -190,7 +263,19 @@ const TR: Dict = {
   'detail.evidenceSplit': 'KANIT DAĞILIMI',
   'detail.evidenceSplitLead': 'Skorun kanıtı ağırlıklı olarak "{dimension}" boyutundan geliyor.',
   'detail.reasons': 'ÖNE ÇIKAN DAVRANIŞLAR',
-  'detail.explained': 'skorun {explained}’i açıklandı · {unexplained} etkileşim artığı',
+  'detail.explained': 'skorun {explained}’i bu davranışlarla açıklanıyor',
+
+  // Movement since the previous run
+  'trend.comparedTo': '{date} koşusuna göre',
+  'trend.up': '{delta} arttı',
+  'trend.down': '{delta} azaldı',
+  'trend.flat': 'Değişim yok',
+  'trend.new': 'İlk kez skorlandı',
+  'trend.previous': 'Önceki skor: {score}',
+  'trend.becameAnomaly': 'Bu koşuda inceleme listesine girdi',
+  'trend.leftAnomaly': 'Bu koşuda inceleme listesinden çıktı',
+  'stat.rising': 'Skoru Yükselen',
+  'stat.risingNote': '{date} koşusuna göre skoru artan kullanıcı sayısı.',
   'detail.secondary': 'İKİNCİL SİNYALLER (sıra dışı, tek başına risk göstergesi değil)',
   'detail.teamContext': 'EKİP BAĞLAMI (karşılaştırma tabanı — gerekçe değildir)',
   'detail.noReasons': 'Bu kullanıcı için gösterilecek gerekçe yok.',
@@ -203,6 +288,18 @@ const TR: Dict = {
   'detail.evidenceLoading': 'Olaylar yükleniyor...',
   'detail.evidenceEmpty': 'Bu gerekçeye bağlı olay bulunamadı.',
   'detail.evidenceTruncated': '{shown} / {total} olay gösteriliyor',
+
+  // Event groups — one event, several findings
+  'group.single': 'Tek olay',
+  'group.multi': '{n} olay',
+  'group.aggregate': 'Dönem geneli davranış',
+  'group.findings': '{n} bulgu',
+  'group.oneFinding': '1 bulgu',
+  'group.share': 'skorun {share}’i',
+  'group.pointsNote':
+    'Puanlar davranış ailesine aittir, olaya değil: aynı olay birden fazla davranışı tetikleyebilir, bu yüzden puanlar toplanmaz.',
+  'group.eventMeta': '{severity} · {sensitivity} · {matches} eşleşme',
+  'group.unknownEvent': 'Olay detayı yüklenemedi',
 
   // Evidence table
   'ev.col.time': 'Zaman',
@@ -241,22 +338,36 @@ const EN: Dict = {
   'family.volume': 'Volume & Tempo',
   'family.team_context': 'Team Context',
 
-  'ev.baseline_break': '{count} incidents in the last 7 days fall outside their personal norm.',
-  'ev.data_sensitivity': 'Data sensitivity {observed} (reference: {reference}).',
-  'ev.classifier_hits': '{observed} classifier matches (reference: {reference}).',
-  'ev.permissive_outcome': '{observed} of actions went unblocked (reference: {reference}).',
-  'ev.rare_channel': 'Channel rarity {observed} (reference: {reference}).',
-  'ev.off_hours': 'Off-hours activity {observed} (reference: {reference}).',
-  'ev.spread': '{observed} distinct exit points (reference: {reference}).',
-  'ev.severity': 'Incident severity {observed} (reference: {reference}).',
-  'ev.volume': 'Incident volume {observed} (reference: {reference}).',
-  'ev.fallback': 'Observed {observed}, reference {reference}.',
+  'ev.baseline_break': '{count} incidents in the last 7 days fall outside their personal norm',
+  'ev.data_sensitivity': 'Data sensitivity {observed}',
+  'ev.classifier_hits': '{observed} classifier matches',
+  'ev.permissive_outcome': '{observed} of actions went unblocked',
+  'ev.rare_channel': 'Unusual channel usage',
+  'ev.off_hours': '{observed} of the activity happened off-hours',
+  'ev.spread': '{observed} distinct exit points used',
+  'ev.severity': 'Incident severity {observed}',
+  'ev.volume': 'Incident volume {observed}',
+  'ev.fallback': 'Observed value {observed}',
 
-  'dev.above': '{sigma}σ above',
-  'dev.below': '{sigma}σ below',
-  'dev.at_norm': 'at the norm',
-  'dev.unknown': '{sigma}σ deviation',
-  'dev.tail': '{tail} · at this level',
+  'rel.self': 'against their own history',
+  'rel.peer': 'against their team',
+  'rel.population': 'across the organization',
+  'lvl.above.extreme': 'exceptionally high',
+  'lvl.above.strong': 'clearly high',
+  'lvl.above.mild': 'above normal',
+  'lvl.above.flat': 'close to normal',
+  'lvl.below.extreme': 'exceptionally low',
+  'lvl.below.strong': 'clearly low',
+  'lvl.below.mild': 'below normal',
+  'lvl.below.flat': 'close to normal',
+  'lvl.unknown.extreme': 'exceptional',
+  'lvl.unknown.strong': 'clearly unusual',
+  'lvl.unknown.mild': 'slightly unusual',
+  'lvl.unknown.flat': 'close to normal',
+  'lvl.at_norm': 'at the norm',
+  'read.withValue': '{evidence} — {level} {relation}.',
+  'read.plain': '{level} {relation}.',
+
   'effect.raises': 'Raises the score',
   'effect.lowers': 'Lowers the score',
   'effect.points': '{points} points',
@@ -324,7 +435,18 @@ const EN: Dict = {
   'detail.evidenceSplit': 'EVIDENCE SPLIT',
   'detail.evidenceSplitLead': 'The evidence comes mostly from the "{dimension}" dimension.',
   'detail.reasons': 'LEADING BEHAVIORS',
-  'detail.explained': '{explained} of the score explained · {unexplained} interaction residual',
+  'detail.explained': '{explained} of the score is explained by these behaviours',
+
+  'trend.comparedTo': 'vs the {date} run',
+  'trend.up': 'up {delta}',
+  'trend.down': 'down {delta}',
+  'trend.flat': 'No change',
+  'trend.new': 'Scored for the first time',
+  'trend.previous': 'Previous score: {score}',
+  'trend.becameAnomaly': 'Entered the review queue in this run',
+  'trend.leftAnomaly': 'Left the review queue in this run',
+  'stat.rising': 'Rising scores',
+  'stat.risingNote': 'Users whose score went up compared with the {date} run.',
   'detail.secondary': 'SECONDARY SIGNALS (unusual, not a risk indicator on their own)',
   'detail.teamContext': 'TEAM CONTEXT (comparison basis — not a reason)',
   'detail.noReasons': 'There is nothing to report for this user.',
@@ -336,6 +458,17 @@ const EN: Dict = {
   'detail.evidenceLoading': 'Loading incidents...',
   'detail.evidenceEmpty': 'No incidents found for this reason.',
   'detail.evidenceTruncated': 'Showing {shown} of {total} incidents',
+
+  'group.single': 'Single event',
+  'group.multi': '{n} events',
+  'group.aggregate': 'Behaviour across the window',
+  'group.findings': '{n} findings',
+  'group.oneFinding': '1 finding',
+  'group.share': '{share} of the score',
+  'group.pointsNote':
+    'Points belong to the behaviour family, not to the event: one event can trigger several behaviours, which is why the points are not summed.',
+  'group.eventMeta': '{severity} · {sensitivity} · {matches} matches',
+  'group.unknownEvent': 'Event details could not be loaded',
 
   'ev.col.time': 'Time',
   'ev.col.channel': 'Channel',
@@ -411,19 +544,53 @@ export function dimensionLabel(locale: Locale, dimension: string): string {
   return fmt(locale, `dim.${dimension}`)
 }
 
-/** The one-line numeric evidence under a reason title. */
+/** The observed value in its own units. Empty when the metric has no unit a human can read. */
 export function evidenceLine(locale: Locale, reason: Reason): string {
   const observed = formatValue(locale, reason.observed_value, reason.value_kind)
-  const reference = formatValue(locale, reason.reference_value, reason.value_kind)
   const key = CATALOG[locale][`ev.${reason.family_key}`] ? `ev.${reason.family_key}` : 'ev.fallback'
-  return fmt(locale, key, { observed, reference, count: reason.evidence_count })
+  return fmt(locale, key, { observed, count: reason.evidence_count })
 }
 
-/** How far from the named reference, and in which direction. Never guesses an unknown sign. */
-export function deviationLine(locale: Locale, reason: Reason): string {
-  const sigma = reason.deviation_sigma === null ? null : Math.abs(reason.deviation_sigma)
-  const sigmaText = sigma === null ? '—' : num(locale, sigma, 1)
-  return fmt(locale, `dev.${reason.deviation}`, { sigma: sigmaText })
+/**
+ * How unusual this is, in words.
+ *
+ * The sigma still decides the wording, it is simply never printed: "1,9σ above the cohort median"
+ * is a statement about the feature matrix, and an analyst deciding whether to open an
+ * investigation cannot act on it. Bands are deliberately coarse — the model's own confidence does
+ * not justify finer ones.
+ */
+function levelKey(reason: Reason): string {
+  if (reason.deviation === 'at_norm') return 'lvl.at_norm'
+
+  const sigma = Math.abs(reason.deviation_sigma ?? 0)
+  const band = sigma >= 3 ? 'extreme' : sigma >= 2 ? 'strong' : sigma >= 1 ? 'mild' : 'flat'
+  const direction = reason.deviation === 'above' || reason.deviation === 'below' ? reason.deviation : 'unknown'
+  return `lvl.${direction}.${band}`
+}
+
+function capitalize(locale: Locale, text: string): string {
+  if (!text) return text
+  return text.charAt(0).toLocaleUpperCase(locale === 'tr' ? 'tr-TR' : 'en-US') + text.slice(1)
+}
+
+/**
+ * The single sentence under a finding's title: what was observed, and how unusual it is.
+ *
+ * A z-scored column has no unit anyone reads — its "value" is the sigma itself — so those findings
+ * carry the verdict alone rather than printing the number twice in two disguises.
+ */
+export function readingLine(locale: Locale, reason: Reason): string {
+  const level = fmt(locale, levelKey(reason))
+  const relation = fmt(locale, `rel.${reason.dimension}`)
+
+  const unitless = reason.value_kind === 'z' || reason.value_kind === 'zabs' || reason.observed_value === null
+  if (unitless) return capitalize(locale, fmt(locale, 'read.plain', { relation, level }))
+
+  return capitalize(locale, fmt(locale, 'read.withValue', {
+    evidence: evidenceLine(locale, reason),
+    relation,
+    level,
+  }))
 }
 
 export const DIMENSION_COLOR: Record<string, string> = {

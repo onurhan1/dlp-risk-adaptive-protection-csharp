@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import apiClient from '@/lib/axios'
-import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, Layers, ChevronDown, ChevronUp, ChevronRight, Info } from 'lucide-react'
+import { BarChart3, RefreshCw, Play, Clock, AlertTriangle, Users, Layers, ChevronDown, ChevronUp, ChevronRight, Info, TrendingUp, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import { useTranslation } from '@/components/LanguageProvider'
 import {
-  fmt, num, familyLabel, dimensionLabel, evidenceLine, deviationLine, formatValue,
-  DIMENSION_COLOR,
-  type Reason, type DimensionConfidence, type ReasonEvidence, type ConfidenceLevel,
+  fmt, num, familyLabel, dimensionLabel, readingLine, formatValue,
+  groupReasonsByEvent, DIMENSION_COLOR,
+  type Reason, type ReasonGroup, type DimensionConfidence, type ReasonEvidence,
+  type EvidenceIncident, type ConfidenceLevel,
 } from '@/lib/aiModelCatalog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +23,11 @@ interface IFScore {
   is_anomaly: boolean
   incident_count: number
   baseline_incident_count: number
+  // Null when the user was not scored in the comparison run — never treat that as a drop to zero.
+  previous_score: number | null
+  previous_calculated_at: string | null
+  score_delta: number | null
+  previous_is_anomaly: boolean | null
   reasons: Reason[]
   secondary_signals: Reason[]
   dimensions: DimensionConfidence[]
@@ -48,6 +54,7 @@ interface IFOverview {
   total_users: number
   anomaly_count: number
   score_window_days: number
+  previous_run_at: string | null
   department_risks: unknown[]
 }
 
@@ -99,12 +106,113 @@ function EvidenceSplit({ dimensions, locale }: { dimensions: DimensionConfidence
   )
 }
 
-// ── One reason card ──────────────────────────────────────────────────────────
+// ── Movement since the previous run ──────────────────────────────────────────
 
-function ReasonCard({
-  reason, userEmail, locale, secondary,
+/** Below which a move is read as "no change". Min-max normalization jitters by about this much. */
+const FLAT_DELTA = 0.5
+
+function fmtDate(locale: 'tr' | 'en', iso: string) {
+  return new Date(iso).toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-US')
+}
+
+/**
+ * The score alone says where the user sits today; the delta says whether that is new. Rendered as
+ * a chip next to the score because "68, and it was 24 last week" is a different alert from "68,
+ * same as always".
+ */
+function TrendBadge({ user, locale }: { user: IFScore; locale: 'tr' | 'en' }) {
+  // `?? null` rather than a null check: a backend that has not shipped these fields yet sends
+  // undefined, and undefined must read as "no comparison", not fall through into NaN arithmetic.
+  const delta = user.score_delta ?? null
+  const previous = user.previous_score ?? null
+
+  if (previous === null || delta === null) {
+    return <span className="if-trend" style={{ color: 'var(--text-muted)' }}>{fmt(locale, 'trend.new')}</span>
+  }
+
+  const title = [
+    fmt(locale, 'trend.previous', { score: num(locale, previous, 1) }),
+    user.previous_calculated_at ? fmt(locale, 'trend.comparedTo', { date: fmtDate(locale, user.previous_calculated_at) }) : '',
+  ].filter(Boolean).join(' · ')
+
+  if (Math.abs(delta) < FLAT_DELTA) {
+    return (
+      <span className="if-trend" style={{ color: 'var(--text-muted)' }} title={title}>
+        <Minus size={11} /> {fmt(locale, 'trend.flat')}
+      </span>
+    )
+  }
+
+  // A rising score is the thing worth noticing, so it takes the alert colour; a falling one is the
+  // reassuring case and stays green.
+  const up = delta > 0
+  return (
+    <span className="if-trend" style={{ color: up ? '#dc2626' : '#10b981' }} title={title}>
+      {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+      {fmt(locale, up ? 'trend.up' : 'trend.down', { delta: num(locale, Math.abs(delta), 1) })}
+    </span>
+  )
+}
+
+// ── One finding, on a single line ─────────────────────────────────────────────
+
+/**
+ * A finding never owns a card of its own any more. One incident can move several feature families
+ * at once — off-hours AND classifier density AND severity — and giving each its own block made a
+ * single event read as a stack of separate events. Findings are now compact rows inside the event
+ * they belong to.
+ */
+function FindingRow({ reason, locale, secondary }: { reason: Reason; locale: 'tr' | 'en'; secondary?: boolean }) {
+  const color = DIMENSION_COLOR[reason.dimension] ?? '#4C78A8'
+  const raises = reason.effect === 'raises'
+  const accent = secondary ? 'var(--text-secondary)' : raises ? '#dc2626' : '#10b981'
+  // A tenth of a point matters at 3 points and is noise at 30, so the precision follows the value.
+  const magnitude = Math.abs(reason.impact_points) >= 10
+    ? num(locale, reason.impact_points, 0)
+    : num(locale, reason.impact_points, 1)
+  const signedPoints = `${reason.impact_points > 0 ? '+' : ''}${magnitude}`
+
+  return (
+    <div className="if-finding">
+      <span className="if-finding-dot" style={{ background: color }} />
+
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13.5px', fontWeight: 650, color: 'var(--text-primary)', letterSpacing: '-.01em' }}>
+            {familyLabel(locale, reason.family_key)}
+          </span>
+          <span className="if-dim-chip" style={{ color, background: `${color}14`, borderColor: `${color}33` }}>
+            {dimensionLabel(locale, reason.dimension)}
+          </span>
+        </div>
+
+        {/* One plain sentence: what happened, and how unusual it is. No sigma, no reference value,
+            no tail percentile — those describe the feature matrix, not the person. */}
+        <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.55, marginTop: '3px' }}>
+          {readingLine(locale, reason)}
+          {reason.risk_reading === 'unusual_not_risky' && (
+            <> <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{fmt(locale, 'reading.unusual_not_risky')}</span></>
+          )}
+        </div>
+      </div>
+
+      {/* Absolute points, not a bar renormalized to the local maximum — so #1 and #3 are
+          actually comparable, and comparable across users too. */}
+      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: '13.5px', fontWeight: 750, color: accent, fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(locale, 'effect.points', { points: signedPoints })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── One event: the incident(s), and every finding that points at them ─────────
+
+function EventCard({
+  group, userEmail, locale, secondary,
 }: {
-  reason: Reason
+  group: ReasonGroup
   userEmail: string
   locale: 'tr' | 'en'
   secondary?: boolean
@@ -113,84 +221,107 @@ function ReasonCard({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const color = DIMENSION_COLOR[reason.dimension] ?? '#4C78A8'
-  const raises = reason.effect === 'raises'
-  const accent = secondary ? 'var(--text-secondary)' : raises ? '#dc2626' : '#10b981'
+  // Every member of the group carries the same evidence set by construction, so any of them
+  // resolves the same incidents.
+  const lead = group.reasons[0]
+  const single = group.incident_ids.length === 1 && group.evidence_count === 1
+  const hasEvidence = group.incident_ids.length > 0
 
-  const toggleEvidence = useCallback(async () => {
-    if (open) { setOpen(false); return }
-    setOpen(true)
+  const load = useCallback(async () => {
     if (evidence || loading) return
     setLoading(true)
     try {
       const res = await apiClient.get(`/api/isolation-forest/user/${encodeURIComponent(userEmail)}/evidence`, {
-        params: { family: reason.family_key, dimension: reason.dimension },
+        params: { family: lead.family_key, dimension: lead.dimension },
       })
       setEvidence(res.data)
     } catch {
-      setEvidence({ user_email: userEmail, family_key: reason.family_key, dimension: reason.dimension, total_count: 0, incidents: [] })
+      setEvidence({ user_email: userEmail, family_key: lead.family_key, dimension: lead.dimension, total_count: 0, incidents: [] })
     } finally {
       setLoading(false)
     }
-  }, [open, evidence, loading, userEmail, reason.family_key, reason.dimension])
+  }, [evidence, loading, userEmail, lead.family_key, lead.dimension])
 
-  const signedPoints = `${reason.impact_points > 0 ? '+' : ''}${num(locale, reason.impact_points, 1)}`
+  // A single-incident group is titled by the incident itself, so its details are not an optional
+  // drill-down — they are the heading. Fetch them up front instead of hiding the event behind a click.
+  useEffect(() => { if (single) load() }, [single, load])
+
+  const toggle = useCallback(() => {
+    if (!open) load()
+    setOpen(prev => !prev)
+  }, [open, load])
+
+  const headline: EvidenceIncident | null = single ? evidence?.incidents[0] ?? null : null
+
+  const kind = !hasEvidence
+    ? fmt(locale, 'group.aggregate')
+    : single
+      ? fmt(locale, 'group.single')
+      : fmt(locale, 'group.multi', { n: num(locale, group.evidence_count, 0) })
 
   return (
-    <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
-        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-          {familyLabel(locale, reason.family_key)}
-        </span>
-        <span style={{ fontSize: '11px', fontWeight: 600, color, background: `${color}1f`, padding: '2px 8px', borderRadius: '10px' }}>
-          {dimensionLabel(locale, reason.dimension)}
-        </span>
-        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Absolute points, not a bar renormalized to the local maximum — so #1 and #3 are
-              actually comparable, and comparable across users too. */}
-          <span style={{ fontSize: '14px', fontWeight: 800, color: accent }}>
-            {fmt(locale, 'effect.points', { points: signedPoints })}
-          </span>
-          {reason.impact_share_pct > 0 && (
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-              {fmt(locale, 'effect.share', { share: `%${num(locale, reason.impact_share_pct, 0)}` })}
+    <div className={`if-event${secondary ? ' if-event-secondary' : ''}`}>
+      <div className="if-event-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+          <span className="if-event-kind">{kind}</span>
+
+          {headline && (
+            <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', minWidth: 0 }}>
+              <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                {new Date(headline.timestamp).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}
+              </strong>
+              {headline.channel ? ` · ${headline.channel}` : ''}
+              {headline.destination ? ` → ${headline.destination}` : ''}
             </span>
           )}
-        </span>
+          {single && !headline && (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              {loading ? fmt(locale, 'detail.evidenceLoading') : evidence ? fmt(locale, 'group.unknownEvent') : ''}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+            {group.reasons.length === 1
+              ? fmt(locale, 'group.oneFinding')
+              : fmt(locale, 'group.findings', { n: num(locale, group.reasons.length, 0) })}
+          </span>
+          {group.share_pct > 0 && (
+            <span className="if-event-share" title={fmt(locale, 'group.pointsNote')}>
+              {fmt(locale, 'group.share', { share: `%${num(locale, group.share_pct, 0)}` })}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: '6px' }}>
-        {evidenceLine(locale, reason)}{' '}
-        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{deviationLine(locale, reason)}</span>
-        {reason.tail_pct > 0 && reason.tail_pct < 50 && (
-          <> · {fmt(locale, 'dev.tail', { tail: `%${num(locale, reason.tail_pct, 1)}` })}</>
-        )}
-      </div>
-
-      {reason.risk_reading === 'unusual_not_risky' && (
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>
-          {fmt(locale, 'reading.unusual_not_risky')}
+      {headline && (
+        <div className="if-event-meta">
+          {fmt(locale, 'group.eventMeta', {
+            severity: `${fmt(locale, 'ev.col.severity')} ${headline.severity}/5`,
+            sensitivity: `${fmt(locale, 'ev.col.sensitivity')} ${headline.data_sensitivity}/10`,
+            matches: num(locale, headline.max_matches, 0),
+          })}
+          {headline.policy ? ` · ${headline.policy}` : ''}
         </div>
       )}
 
-      {reason.evidence_count > 0 && (
-        <button
-          onClick={toggleEvidence}
-          style={{
-            marginTop: '8px', padding: '4px 10px', fontSize: '12px', fontWeight: 600,
-            background: 'transparent', color, border: `1px solid ${color}66`, borderRadius: '6px',
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}
-        >
+      <div className="if-finding-list">
+        {group.reasons.map(r => (
+          <FindingRow key={`${r.family_key}:${r.dimension}`} reason={r} locale={locale} secondary={secondary} />
+        ))}
+      </div>
+
+      {hasEvidence && !single && (
+        <button onClick={toggle} className="if-event-btn">
           {open
             ? fmt(locale, 'detail.hideEvidence')
-            : fmt(locale, 'detail.showEvidence', { n: num(locale, reason.evidence_count, 0) })}
+            : fmt(locale, 'detail.showEvidence', { n: num(locale, group.evidence_count, 0) })}
           <ChevronRight size={12} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
         </button>
       )}
 
-      {open && (
+      {open && !single && (
         <div style={{ marginTop: '10px', overflowX: 'auto' }}>
           {loading && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{fmt(locale, 'detail.evidenceLoading')}</div>}
           {!loading && evidence && evidence.incidents.length === 0 && (
@@ -198,24 +329,24 @@ function ReasonCard({
           )}
           {!loading && evidence && evidence.incidents.length > 0 && (
             <>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '640px' }}>
+              <table className="if-event-table">
                 <thead>
-                  <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                  <tr>
                     {['ev.col.time', 'ev.col.channel', 'ev.col.destination', 'ev.col.action', 'ev.col.severity', 'ev.col.sensitivity', 'ev.col.matches'].map(k => (
-                      <th key={k} style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>{fmt(locale, k)}</th>
+                      <th key={k}>{fmt(locale, k)}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {evidence.incidents.map(i => (
-                    <tr key={i.id} style={{ color: 'var(--text-primary)' }}>
-                      <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{new Date(i.timestamp).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}</td>
-                      <td style={{ padding: '5px 8px' }}>{i.channel ?? '—'}</td>
-                      <td style={{ padding: '5px 8px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.destination ?? '—'}</td>
-                      <td style={{ padding: '5px 8px' }}>{i.action ?? '—'}</td>
-                      <td style={{ padding: '5px 8px' }}>{i.severity}/5</td>
-                      <td style={{ padding: '5px 8px' }}>{i.data_sensitivity}/10</td>
-                      <td style={{ padding: '5px 8px' }}>{num(locale, i.max_matches, 0)}</td>
+                    <tr key={i.id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{new Date(i.timestamp).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}</td>
+                      <td>{i.channel ?? '—'}</td>
+                      <td style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.destination ?? '—'}</td>
+                      <td>{i.action ?? '—'}</td>
+                      <td>{i.severity}/5</td>
+                      <td>{i.data_sensitivity}/10</td>
+                      <td>{num(locale, i.max_matches, 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -299,6 +430,12 @@ export default function AIModelPage() {
   const meanScore = useMemo(() => {
     if (!overview || overview.user_scores.length === 0) return 0
     return overview.user_scores.reduce((s, u) => s + u.if_score, 0) / overview.user_scores.length
+  }, [overview])
+
+  // Users who were also scored in the comparison run and moved up by more than the jitter band.
+  const risingCount = useMemo(() => {
+    if (!overview) return 0
+    return overview.user_scores.filter(u => (u.score_delta ?? 0) > FLAT_DELTA).length
   }, [overview])
 
   const windowDays = overview?.score_window_days || 7
@@ -390,6 +527,12 @@ export default function AIModelPage() {
               <span>{fmt(locale, 'page.analyzed', { n: num(locale, overview.total_users, 0) })}</span>
               <span>•</span>
               <span style={{ color: '#dc2626', fontWeight: 700 }}>{fmt(locale, 'page.reviewQueue', { n: num(locale, overview.anomaly_count, 0) })}</span>
+              {overview.previous_run_at && (
+                <>
+                  <span>•</span>
+                  <span>{fmt(locale, 'trend.comparedTo', { date: fmtDate(locale, overview.previous_run_at) })}</span>
+                </>
+              )}
               {triggering && (
                 <><span>•</span><span style={{ color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}><RefreshCw size={12} className="if-spin" /> {fmt(locale, 'page.rerunning')}</span></>
               )}
@@ -402,6 +545,9 @@ export default function AIModelPage() {
                 { label: 'stat.reviewQueue', value: num(locale, overview.anomaly_count, 0), color: '#dc2626', icon: <AlertTriangle size={16} /> },
                 { label: 'stat.meanScore', value: num(locale, meanScore, 1), color: '#f59e0b', icon: <BarChart3 size={16} /> },
                 { label: 'stat.window', value: fmt(locale, 'stat.windowValue', { days: windowDays }), color: '#7c3aed', icon: <Clock size={16} /> },
+                ...(overview.previous_run_at
+                  ? [{ label: 'stat.rising', value: num(locale, risingCount, 0), color: '#dc2626', icon: <TrendingUp size={16} /> }]
+                  : []),
               ].map(s => (
                 <div key={s.label} style={{ background: 'var(--surface)', padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -414,10 +560,17 @@ export default function AIModelPage() {
             </div>
 
             {/* The review queue is a fixed top-5% slice, so say so rather than presenting it as a rate. */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-muted)', marginBottom: overview.previous_run_at ? '6px' : '24px', lineHeight: 1.5 }}>
               <Info size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
               <span>{fmt(locale, 'stat.reviewQueueNote')}</span>
             </div>
+
+            {overview.previous_run_at && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+                <Info size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <span>{fmt(locale, 'stat.risingNote', { date: fmtDate(locale, overview.previous_run_at) })}</span>
+              </div>
+            )}
 
             {/* Filter */}
             <div style={{ marginBottom: '14px' }}>
@@ -473,6 +626,157 @@ export default function AIModelPage() {
       <style>{`
         .if-spin { animation: ifSpin 1s linear infinite; }
         @keyframes ifSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* User card — status is carried by the chip and a hairline ring, not by a slab of colour
+           down the left edge. Depth comes from a two-layer shadow: a tight contact shadow plus a
+           wide, very soft ambient one. */
+        .if-user-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          overflow: hidden;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 12px 28px -22px rgba(15, 23, 42, .45);
+          transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+        }
+        .if-user-card:hover {
+          transform: translateY(-1px);
+          border-color: var(--border-hover);
+          box-shadow: 0 2px 4px rgba(15, 23, 42, .06), 0 18px 36px -24px rgba(15, 23, 42, .5);
+        }
+        /* On the dark theme a slate shadow disappears into the page; depth has to come from a
+           lighter top edge instead. */
+        .dark-theme .if-user-card {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 14px 30px -24px rgba(0, 0, 0, .9);
+        }
+        .dark-theme .if-user-card:hover {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 20px 38px -24px rgba(0, 0, 0, 1);
+        }
+        /* A flagged user is marked by a hairline ring around the whole card rather than a coloured
+           bar on one edge — the ring reads as a state, the bar read as decoration. */
+        .if-user-card-flagged { box-shadow: 0 0 0 1px rgba(220, 38, 38, .22), 0 1px 2px rgba(15, 23, 42, .05), 0 12px 28px -22px rgba(15, 23, 42, .45); }
+        .if-user-card-flagged:hover { box-shadow: 0 0 0 1px rgba(220, 38, 38, .3), 0 2px 4px rgba(15, 23, 42, .06), 0 18px 36px -24px rgba(15, 23, 42, .5); }
+        .dark-theme .if-user-card-flagged { box-shadow: 0 0 0 1px rgba(248, 113, 113, .3), 0 14px 30px -24px rgba(0, 0, 0, .9); }
+        .dark-theme .if-user-card-flagged:hover { box-shadow: 0 0 0 1px rgba(248, 113, 113, .42), 0 20px 38px -24px rgba(0, 0, 0, 1); }
+
+        .if-status-chip {
+          flex-shrink: 0;
+          padding: 5px 13px;
+          border-radius: 999px;
+          border: 1px solid;
+          font-size: 12px;
+          font-weight: 650;
+          letter-spacing: -.01em;
+        }
+
+        .if-trend {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 11.5px;
+          font-weight: 650;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+          cursor: help;
+        }
+
+        .if-score-track {
+          margin-top: 5px;
+          height: 3px;
+          border-radius: 999px;
+          background: var(--border);
+          overflow: hidden;
+          display: block;
+        }
+        .if-score-track > span { display: block; height: 100%; border-radius: 999px; }
+
+        /* Event cards — one per event, findings live inside */
+        .if-event-list { display: flex; flex-direction: column; gap: 10px; padding: 10px 20px 4px; }
+
+        .if-event {
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--background);
+          padding: 12px 14px;
+        }
+        .if-event-secondary { opacity: .82; }
+
+        .if-event-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          padding-bottom: 9px;
+          border-bottom: 1px solid var(--border);
+        }
+        .if-event-kind {
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 2px 7px;
+        }
+        .if-event-share {
+          font-size: 11.5px;
+          font-weight: 650;
+          color: var(--text-secondary);
+          font-variant-numeric: tabular-nums;
+          cursor: help;
+        }
+        .if-event-meta {
+          font-size: 11.5px;
+          color: var(--text-muted);
+          padding-top: 8px;
+        }
+
+        .if-finding-list { display: flex; flex-direction: column; }
+        .if-finding {
+          display: grid;
+          grid-template-columns: 8px 1fr auto;
+          align-items: start;
+          gap: 10px;
+          padding: 10px 0 2px;
+        }
+        .if-finding + .if-finding { border-top: 1px dashed var(--border); padding-top: 10px; }
+        .if-finding-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
+
+        .if-dim-chip {
+          font-size: 10.5px;
+          font-weight: 650;
+          padding: 1px 7px;
+          border-radius: 999px;
+          border: 1px solid;
+        }
+
+        .if-event-btn {
+          margin-top: 10px;
+          padding: 5px 11px;
+          font-size: 12px;
+          font-weight: 600;
+          background: transparent;
+          color: var(--text-secondary);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          transition: border-color .15s ease, color .15s ease;
+        }
+        .if-event-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+        .if-event-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 640px; }
+        .if-event-table th {
+          padding: 5px 8px;
+          font-weight: 600;
+          text-align: left;
+          color: var(--text-secondary);
+          border-bottom: 1px solid var(--border);
+        }
+        .if-event-table td { padding: 5px 8px; color: var(--text-primary); }
       `}</style>
     </div>
   )
@@ -495,41 +799,59 @@ function UserCard({
   const topDimension = [...user.dimensions].sort((a, b) => b.share_pct - a.share_pct)[0]
   const rankPct = user.cohort_size > 0 ? Math.max(1, Math.round(user.cohort_rank / user.cohort_size * 100)) : 0
 
+  // One card per event rather than one per finding: an incident that is both off-hours and a heavy
+  // classifier hit is one thing that happened, not two.
+  const reasonGroups = useMemo(() => groupReasonsByEvent(user.reasons), [user.reasons])
+  const secondaryGroups = useMemo(() => groupReasonsByEvent(user.secondary_signals), [user.secondary_signals])
+
   return (
-    <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', borderLeft: `4px solid ${user.is_anomaly ? '#dc2626' : '#10b981'}`, overflow: 'hidden' }}>
+    <div className={`if-user-card${user.is_anomaly ? ' if-user-card-flagged' : ''}`}>
       {/* Collapsed row — carries the reason, not the feature name */}
-      <div style={{ padding: '13px 16px', cursor: 'pointer' }} onClick={onToggle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ padding: '15px 18px', cursor: 'pointer' }} onClick={onToggle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontWeight: 650, fontSize: '14px', color: 'var(--text-primary)', letterSpacing: '-.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user.user_email}
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '3px' }}>
               {user.department ?? '—'} · {fmt(locale, 'detail.window', { n: num(locale, user.incident_count, 0) })}
             </div>
           </div>
-          <div style={{ textAlign: 'center', flexShrink: 0 }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '1px' }}>{fmt(locale, 'detail.score')}</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: scoreColor(user.if_score) }}>{num(locale, user.if_score, 1)}</div>
+          <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '96px' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '.04em', textTransform: 'uppercase' }}>{fmt(locale, 'detail.score')}</div>
+            <div style={{ fontSize: '24px', fontWeight: 750, color: scoreColor(user.if_score), fontVariantNumeric: 'tabular-nums', lineHeight: 1.15 }}>
+              {num(locale, user.if_score, 1)}
+            </div>
+            {/* The score is a position in this run, so a meter reads truer than a bare number. */}
+            <div className="if-score-track">
+              <span style={{ width: `${Math.max(2, Math.min(100, user.if_score))}%`, background: scoreColor(user.if_score) }} />
+            </div>
+            <div style={{ marginTop: '5px', display: 'flex', justifyContent: 'flex-end' }}>
+              <TrendBadge user={user} locale={locale} />
+            </div>
           </div>
-          <div style={{ padding: '5px 14px', borderRadius: '12px', flexShrink: 0, background: user.is_anomaly ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', color: user.is_anomaly ? '#dc2626' : '#10b981', border: `1px solid ${user.is_anomaly ? '#dc262640' : '#10b98140'}`, fontSize: '12px', fontWeight: 700 }}>
+          <div className="if-status-chip" style={{
+            color: user.is_anomaly ? '#dc2626' : '#10b981',
+            background: user.is_anomaly ? 'rgba(220,38,38,0.08)' : 'rgba(16,185,129,0.08)',
+            borderColor: user.is_anomaly ? 'rgba(220,38,38,0.28)' : 'rgba(16,185,129,0.28)',
+          }}>
             {fmt(locale, user.is_anomaly ? 'detail.status.anomaly' : 'detail.status.normal')}
           </div>
           <div style={{ flexShrink: 0, fontSize: '12px', fontWeight: 600, color: CONFIDENCE_COLOR[confidence], whiteSpace: 'nowrap' }}>
             {CONFIDENCE_ICON[confidence]} {fmt(locale, `conf.${confidence}`)}
           </div>
-          <div style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
+          <div style={{ color: 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </div>
         </div>
 
         {/* Top reasons, with the numbers, right on the collapsed row */}
         {headline.map(r => (
-          <div key={`${r.family_key}:${r.dimension}`} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '6px', fontSize: '12px' }}>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: DIMENSION_COLOR[r.dimension], flexShrink: 0 }} />
+          <div key={`${r.family_key}:${r.dimension}`} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '7px', fontSize: '12px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: DIMENSION_COLOR[r.dimension], flexShrink: 0 }} />
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{familyLabel(locale, r.family_key)}</span>
             <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {evidenceLine(locale, r)} {deviationLine(locale, r)}
+              {readingLine(locale, r)}
             </span>
           </div>
         ))}
@@ -570,6 +892,21 @@ function UserCard({
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                   {fmt(locale, 'detail.baselineCount', { n: num(locale, user.baseline_incident_count, 0) })}
                 </div>
+                {user.previous_score !== null && user.previous_score !== undefined && (
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {fmt(locale, 'trend.previous', { score: num(locale, user.previous_score, 1) })}
+                    {user.previous_calculated_at && (
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {' '}({fmtDate(locale, user.previous_calculated_at)})
+                      </span>
+                    )}
+                  </div>
+                )}
+                {user.previous_is_anomaly !== null && user.previous_is_anomaly !== undefined && user.previous_is_anomaly !== user.is_anomaly && (
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: user.is_anomaly ? '#dc2626' : '#10b981' }}>
+                    {fmt(locale, user.is_anomaly ? 'trend.becameAnomaly' : 'trend.leftAnomaly')}
+                  </div>
+                )}
               </div>
 
               {topDimension && (
@@ -581,10 +918,7 @@ function UserCard({
               <div style={{ padding: '14px 20px 4px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '.04em' }}>
                 {fmt(locale, 'detail.reasons')}
                 <span style={{ fontWeight: 400, marginLeft: '8px' }}>
-                  ({fmt(locale, 'detail.explained', {
-                    explained: `%${num(locale, user.explained_share_pct, 0)}`,
-                    unexplained: `%${num(locale, user.unexplained_share_pct, 0)}`,
-                  })})
+                  ({fmt(locale, 'detail.explained', { explained: `%${num(locale, user.explained_share_pct, 0)}` })})
                 </span>
               </div>
 
@@ -593,18 +927,24 @@ function UserCard({
                   {fmt(locale, 'detail.noReasons')}
                 </div>
               )}
-              {user.reasons.map(r => (
-                <ReasonCard key={`${r.family_key}:${r.dimension}`} reason={r} userEmail={user.user_email} locale={locale} />
-              ))}
+              {reasonGroups.length > 0 && (
+                <div className="if-event-list">
+                  {reasonGroups.map(g => (
+                    <EventCard key={g.key} group={g} userEmail={user.user_email} locale={locale} />
+                  ))}
+                </div>
+              )}
 
-              {user.secondary_signals.length > 0 && (
+              {secondaryGroups.length > 0 && (
                 <>
                   <div style={{ padding: '14px 20px 0', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em' }}>
                     {fmt(locale, 'detail.secondary')}
                   </div>
-                  {user.secondary_signals.map(r => (
-                    <ReasonCard key={`${r.family_key}:${r.dimension}`} reason={r} userEmail={user.user_email} locale={locale} secondary />
-                  ))}
+                  <div className="if-event-list">
+                    {secondaryGroups.map(g => (
+                      <EventCard key={g.key} group={g} userEmail={user.user_email} locale={locale} secondary />
+                    ))}
+                  </div>
                 </>
               )}
 
