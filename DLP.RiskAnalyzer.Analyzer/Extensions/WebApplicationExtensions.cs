@@ -157,6 +157,31 @@ END $$;");
             sql.AppendLine($"ALTER TABLE IF EXISTS public.{t} SET SCHEMA dlp;");
         }
 
+        // isolation_forest_scores columns added after the table shipped. Ensured here — after the
+        // relocation above, so the table is guaranteed to be in dlp — because the EF migrations
+        // that add them are skipped whenever Database:AutoMigrate is false, and because a server
+        // that already failed those migrations never records them as applied. Missing columns are
+        // not a degraded chart: every read of the entity fails outright with
+        // "column i.explanation does not exist" and the AI risk model page shows no score at all.
+        // Idempotent (ADD COLUMN IF NOT EXISTS), so this is a no-op once the columns are there.
+        //
+        // The explanation default is the empty JSON object, spelled chr(123)||chr(125) rather than
+        // written out: ExecuteSqlRaw runs the statement through string.Format to substitute its
+        // positional parameters, so a literal curly brace in the text would throw a FormatException
+        // before the SQL ever reaches PostgreSQL — taking the schema relocation above down with it.
+        sql.AppendLine(@"
+DO $$
+BEGIN
+  IF to_regclass('dlp.isolation_forest_scores') IS NOT NULL THEN
+    ALTER TABLE dlp.isolation_forest_scores
+      ADD COLUMN IF NOT EXISTS baseline_incident_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE dlp.isolation_forest_scores
+      ADD COLUMN IF NOT EXISTS explanation_version INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE dlp.isolation_forest_scores
+      ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT (chr(123) || chr(125));
+  END IF;
+END $$;");
+
         try
         {
             using var scope = app.Services.CreateScope();

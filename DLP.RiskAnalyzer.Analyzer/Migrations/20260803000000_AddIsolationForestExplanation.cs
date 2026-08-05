@@ -10,15 +10,32 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // The entity is mapped to the "dlp" schema (HasDefaultSchema), but the table is only
+            // relocated there at startup — after migrations run — so on a fresh database it is
+            // still in "public" at this point. Resolve whichever schema actually holds it instead
+            // of relying on search_path: an unqualified ALTER only sees "public" and fails with
+            // 42P01 on every server that has already been relocated to "dlp". That failure is
+            // swallowed by the migration error handler, so the column silently never lands and
+            // every read of the entity dies with "column i.explanation does not exist".
+            //
             // explanation_version defaults to 1 so every pre-existing row is correctly marked as
             // "written before the reason layer". The read path returns an empty explanation for
             // those instead of deserializing a mismatched payload into silent zeroes.
             migrationBuilder.Sql(@"
-                ALTER TABLE isolation_forest_scores
-                ADD COLUMN IF NOT EXISTS explanation_version INTEGER NOT NULL DEFAULT 1;
+                DO $$
+                DECLARE
+                    tbl regclass := COALESCE(to_regclass('dlp.isolation_forest_scores'),
+                                             to_regclass('public.isolation_forest_scores'));
+                BEGIN
+                    IF tbl IS NULL THEN
+                        RETURN;
+                    END IF;
 
-                ALTER TABLE isolation_forest_scores
-                ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT '{}';
+                    EXECUTE format(
+                        'ALTER TABLE %s ADD COLUMN IF NOT EXISTS explanation_version INTEGER NOT NULL DEFAULT 1', tbl);
+                    EXECUTE format(
+                        'ALTER TABLE %s ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT ''{}''', tbl);
+                END $$;
             ");
         }
 
@@ -26,11 +43,18 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
-                ALTER TABLE isolation_forest_scores
-                DROP COLUMN IF EXISTS explanation_version;
+                DO $$
+                DECLARE
+                    tbl regclass := COALESCE(to_regclass('dlp.isolation_forest_scores'),
+                                             to_regclass('public.isolation_forest_scores'));
+                BEGIN
+                    IF tbl IS NULL THEN
+                        RETURN;
+                    END IF;
 
-                ALTER TABLE isolation_forest_scores
-                DROP COLUMN IF EXISTS explanation;
+                    EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS explanation_version', tbl);
+                    EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS explanation', tbl);
+                END $$;
             ");
         }
     }
