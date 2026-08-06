@@ -605,20 +605,51 @@ export default function Home() {
     return sections
   }
 
+  // With responseType 'blob' an error body arrives as a Blob too, so the server's
+  // message has to be read back out of it before it can be shown.
+  const readErrorDetail = async (error: any): Promise<string | null> => {
+    const data = error?.response?.data
+    if (!data) return null
+    try {
+      const text = data instanceof Blob ? await data.text() : String(data)
+      const parsed = JSON.parse(text)
+      return parsed?.detail || parsed?.error || text
+    } catch {
+      return null
+    }
+  }
+
   const downloadDashboardPdf = async () => {
     setPdfError(null)
+
+    const sections = buildReportSections()
+    if (sections.length === 0) {
+      // Clicking before the grids have loaded would otherwise return a bare 400.
+      setPdfError(t('dashboard.pdfReportNoData'))
+      return
+    }
+
     setPdfLoading(true)
     try {
+      const token = localStorage.getItem('authToken')
       const apiUrl = getApiUrlDynamic()
       const response = await axios.post(
         `${apiUrl}/api/reports/dashboard-summary/pdf`,
         {
           title: t('dashboard.pdfReportTitle'),
           subtitle: t('dashboard.pdfReportSubtitle'),
-          sections: buildReportSections()
+          sections
         },
-        { responseType: 'blob' }
+        {
+          responseType: 'blob',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          timeout: 30000
+        }
       )
+
+      if (!(response.data instanceof Blob) || response.data.size === 0) {
+        throw new Error('Empty PDF file received from server')
+      }
 
       const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
       const link = document.createElement('a')
@@ -628,9 +659,14 @@ export default function Home() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating dashboard PDF:', error)
-      setPdfError(t('dashboard.pdfReportError'))
+      const status = error?.response?.status
+      const detail = await readErrorDetail(error)
+      // Surface the status/detail: a 404 here means the backend has not been
+      // rebuilt with the report endpoint yet, which is otherwise invisible.
+      setPdfError([t('dashboard.pdfReportError'), status ? `(HTTP ${status})` : null, detail]
+        .filter(Boolean).join(' '))
     } finally {
       setPdfLoading(false)
     }

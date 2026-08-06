@@ -223,7 +223,10 @@ public class ReportGeneratorService : IReportGeneratorService
                     var background = i % 2 == 1 ? Colors.Grey.Lighten4 : Colors.White;
 
                     table.Cell().Element(c => BodyCell(c, background)).Text((i + 1).ToString(ReportCulture));
-                    table.Cell().Element(c => BodyCell(c, background)).Text(row.Name);
+                    // Destinations and login names arrive as long unbroken strings (URLs,
+                    // DOMAIN\user); without WrapAnywhere QuestPDF cannot break them and
+                    // throws a layout exception instead of rendering the row.
+                    table.Cell().Element(c => BodyCell(c, background)).Text(row.Name).WrapAnywhere();
                     table.Cell().Element(c => BodyCell(c, background)).AlignRight()
                         .Text(row.Count.ToString("N0", ReportCulture));
                     table.Cell().Element(c => BodyCell(c, background)).AlignRight()
