@@ -9,12 +9,14 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/reports")]
 public class ReportsController : ControllerBase
 {
-    private readonly ReportGeneratorService _reportGenerator;
+    // Only IReportGeneratorService is registered in the container, so asking for the
+    // concrete class here made every endpoint on this controller fail to activate.
+    private readonly IReportGeneratorService _reportGenerator;
     private readonly IRiskAnalyzerService _riskAnalyzerService;
     private readonly string _reportsDirectory;
 
     public ReportsController(
-        ReportGeneratorService reportGenerator,
+        IReportGeneratorService reportGenerator,
         IRiskAnalyzerService riskAnalyzerService,
         IConfiguration configuration)
     {

@@ -7,6 +7,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// </summary>
 public interface IReportGeneratorService
 {
+    byte[] GenerateDailyReport(DateTime reportDate, object? data);
+
     Task<byte[]> GenerateDailySummaryReportAsync(DateTime reportDate);
 
     byte[] GenerateDashboardSummaryReport(DashboardReportRequest request);
