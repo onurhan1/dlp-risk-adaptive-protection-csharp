@@ -1,3 +1,5 @@
+using DLP.RiskAnalyzer.Analyzer.Models;
+
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 /// <summary>
@@ -6,4 +8,6 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public interface IReportGeneratorService
 {
     Task<byte[]> GenerateDailySummaryReportAsync(DateTime reportDate);
+
+    byte[] GenerateDashboardSummaryReport(DashboardReportRequest request);
 }

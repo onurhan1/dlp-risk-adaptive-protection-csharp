@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import axios from 'axios'
 import { format, subDays } from 'date-fns'
-import ChannelActivity from '../components/ChannelActivity'
+import ChannelActivity, { ChannelActivitySnapshot } from '../components/ChannelActivity'
+import TopBreakdownCard, { BreakdownSnapshot } from '../components/TopBreakdownCard'
 import RiskLevelBadge from '../components/RiskLevelBadge'
 import ActionIncidentsModal from '../components/ActionIncidentsModal'
 import HighRiskUsersModal from '../components/HighRiskUsersModal'
@@ -28,7 +29,8 @@ import {
   Activity,
   AlertCircle,
   RefreshCw,
-  Download
+  Download,
+  FileDown
 } from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -197,6 +199,18 @@ export default function Home() {
   const [isCollecting, setIsCollecting] = useState(false)
   const [collectError, setCollectError] = useState<string | null>(null)
   const [showManualCollect, setShowManualCollect] = useState(false)
+
+  // Snapshots of the four summary grids, kept in sync by each grid's onDataChange
+  // so the PDF record prints exactly the rows and filters that are on screen.
+  const [channelSnapshot, setChannelSnapshot] = useState<ChannelActivitySnapshot | null>(null)
+  const [userSnapshot, setUserSnapshot] = useState<BreakdownSnapshot | null>(null)
+  const [deptSnapshot, setDeptSnapshot] = useState<BreakdownSnapshot | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  const handleChannelData = useCallback((snapshot: ChannelActivitySnapshot) => setChannelSnapshot(snapshot), [])
+  const handleUserData = useCallback((snapshot: BreakdownSnapshot) => setUserSnapshot(snapshot), [])
+  const handleDeptData = useCallback((snapshot: BreakdownSnapshot) => setDeptSnapshot(snapshot), [])
 
   // Restore active manual collect job from localStorage on mount
   useEffect(() => {
@@ -501,6 +515,126 @@ export default function Home() {
   }
 
   const totalAlerts = topRules.reduce((sum, r) => sum + r.total_alerts, 0)
+
+  // ── PDF record of the four summary grids ──────────────────────────────────
+  const periodLabel = (days: number) => {
+    switch (days) {
+      case 7: return t('dashboard.last1Week')
+      case 14: return t('dashboard.last2Weeks')
+      case 30: return t('dashboard.lastMonth')
+      case 90: return t('dashboard.last3Months')
+      case 180: return t('dashboard.last6Months')
+      default: return `${days} ${t('dashboard.days')}`
+    }
+  }
+
+  const actionLabel = (action: string) => action === 'TOTAL' ? t('dashboard.allActions') : action
+
+  // Percentages are carried over from the grids rather than recomputed, so the
+  // printed figures match the screen cell for cell.
+  const buildReportSections = () => {
+    const sections: any[] = []
+    const REPORT_DESTINATION_LIMIT = 10
+
+    if (channelSnapshot) {
+      const periodInfo = `${t('dashboard.reportPeriod')}: ${periodLabel(channelSnapshot.days)}`
+
+      sections.push({
+        title: `${t('dashboard.dataMovement')} - ${t('channel.channel')}`,
+        subtitle: periodInfo,
+        label_header: t('channel.channel'),
+        value_header: t('dashboard.reportIncidentCount'),
+        percentage_header: t('dashboard.reportShare'),
+        rows: channelSnapshot.channels.map(c => ({
+          name: c.channel,
+          count: c.total_incidents,
+          percentage: c.percentage
+        }))
+      })
+
+      const destinations = channelSnapshot.destinations.slice(0, REPORT_DESTINATION_LIMIT)
+      sections.push({
+        title: `${t('dashboard.dataMovement')} - ${t('channel.destination')}`,
+        subtitle: `${periodInfo} (${t('dashboard.reportFirstN').replace('{n}', String(REPORT_DESTINATION_LIMIT))})`,
+        label_header: t('channel.destination'),
+        value_header: t('dashboard.reportIncidentCount'),
+        percentage_header: t('dashboard.reportShare'),
+        rows: destinations.map(d => ({
+          name: d.destination,
+          count: d.total_incidents,
+          percentage: d.percentage
+        }))
+      })
+    }
+
+    if (topRules.length > 0) {
+      sections.push({
+        title: t('dashboard.topRules'),
+        subtitle: `${t('dashboard.reportPeriod')}: ${periodLabel(topRulesDays)}`,
+        label_header: t('dashboard.topRules'),
+        value_header: t('dashboard.reportAlertCount'),
+        percentage_header: t('dashboard.reportShare'),
+        rows: topRules.map(r => ({
+          name: r.rule_name,
+          count: r.total_alerts,
+          percentage: totalAlerts > 0 ? (r.total_alerts / totalAlerts) * 100 : 0
+        }))
+      })
+    }
+
+    const breakdownSection = (snapshot: BreakdownSnapshot | null, title: string, labelHeader: string) => {
+      if (!snapshot || snapshot.items.length === 0) return
+      const total = snapshot.items.reduce((sum, i) => sum + i.total_alerts, 0)
+      sections.push({
+        title,
+        subtitle: `${t('dashboard.reportPeriod')}: ${periodLabel(snapshot.days)} | ${t('dashboard.reportAction')}: ${actionLabel(snapshot.action)}`,
+        label_header: labelHeader,
+        value_header: t('dashboard.reportAlertCount'),
+        percentage_header: t('dashboard.reportShare'),
+        rows: snapshot.items.map(i => ({
+          name: i.name,
+          count: i.total_alerts,
+          percentage: total > 0 ? (i.total_alerts / total) * 100 : 0
+        }))
+      })
+    }
+
+    breakdownSection(userSnapshot, t('dashboard.topMatchedUsers'), t('common.user'))
+    breakdownSection(deptSnapshot, t('dashboard.topMatchedDepartments'), t('dashboard.department'))
+
+    return sections
+  }
+
+  const downloadDashboardPdf = async () => {
+    setPdfError(null)
+    setPdfLoading(true)
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const response = await axios.post(
+        `${apiUrl}/api/reports/dashboard-summary/pdf`,
+        {
+          title: t('dashboard.pdfReportTitle'),
+          subtitle: t('dashboard.pdfReportSubtitle'),
+          sections: buildReportSections()
+        },
+        { responseType: 'blob' }
+      )
+
+      const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `anasayfa-ozet-raporu-${format(new Date(), 'yyyyMMdd-HHmm')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error generating dashboard PDF:', error)
+      setPdfError(t('dashboard.pdfReportError'))
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   return (
     <div className="dashboard-page" style={{ position: 'relative' }}>
@@ -1027,11 +1161,11 @@ export default function Home() {
                   height: '36px'
                 }}
               >
-                <option value="weekly">Last Week</option>
-                <option value="monthly">Last 1 Month</option>
-                <option value="quarterly">Last 3 Months</option>
-                <option value="6month">Last 6 Months</option>
-                <option value="yearly">Last 1 Year</option>
+                <option value="weekly">{t('dashboard.lastWeek')}</option>
+                <option value="monthly">{t('dashboard.lastMonth')}</option>
+                <option value="quarterly">{t('dashboard.last3Months')}</option>
+                <option value="6month">{t('dashboard.last6Months')}</option>
+                <option value="yearly">{t('dashboard.lastYear')}</option>
               </select>
               <GridExport
                 data={topUsersPeriod}
@@ -1109,7 +1243,7 @@ export default function Home() {
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
                       >
-                        <Search size={14} /> Investigate
+                        <Search size={14} /> {t('dashboard.investigate')}
                       </button>
                     </td>
                   </tr>
@@ -1137,7 +1271,7 @@ export default function Home() {
               <Zap size={18} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>Last 24 Hours</span>
+              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>{t('dashboard.last24h')}</span>
               <GridExport
                 data={topUsers24h}
                 fileName="todays-active-users"
@@ -1214,7 +1348,7 @@ export default function Home() {
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
                       >
-                        <Search size={14} /> Investigate
+                        <Search size={14} /> {t('dashboard.investigate')}
                       </button>
                     </td>
                   </tr>
@@ -1255,15 +1389,15 @@ export default function Home() {
                 cursor: 'pointer'
               }}
             >
-              <option value={7}>Last 1 Week</option>
-              <option value={14}>Last 2 Weeks</option>
-              <option value={30}>Last 1 Month</option>
-              <option value={90}>Last 3 Months</option>
-              <option value={180}>Last 6 Months</option>
+              <option value={7}>{t('dashboard.last1Week')}</option>
+              <option value={14}>{t('dashboard.last2Weeks')}</option>
+              <option value={30}>{t('dashboard.lastMonth')}</option>
+              <option value={90}>{t('dashboard.last3Months')}</option>
+              <option value={180}>{t('dashboard.last6Months')}</option>
             </select>
           </div>
           <div style={{ position: 'relative' }}>
-            <ChannelActivity days={dataMovementDays} />
+            <ChannelActivity days={dataMovementDays} onDataChange={handleChannelData} />
           </div>
         </div>
 
@@ -1318,11 +1452,11 @@ export default function Home() {
                   cursor: 'pointer'
                 }}
               >
-                <option value={7}>Last 1 Week</option>
-                <option value={14}>Last 2 Weeks</option>
-                <option value={30}>Last 1 Month</option>
-                <option value={90}>Last 3 Months</option>
-                <option value={180}>Last 6 Months</option>
+                <option value={7}>{t('dashboard.last1Week')}</option>
+                <option value={14}>{t('dashboard.last2Weeks')}</option>
+                <option value={30}>{t('dashboard.lastMonth')}</option>
+                <option value={90}>{t('dashboard.last3Months')}</option>
+                <option value={180}>{t('dashboard.last6Months')}</option>
               </select>
             </div>
           </div>
@@ -1338,14 +1472,17 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
               {topRules.map((rule, idx) => {
                 const maxCount = Math.max(...topRules.map(r => r.total_alerts), 1)
-                const percentage = maxCount > 0 ? (rule.total_alerts / maxCount) * 100 : 0
+                // Bar length stays relative to the busiest rule so the chart is readable,
+                // but the label reports the rule's share of the total (same as Data Movements).
+                const barWidth = (rule.total_alerts / maxCount) * 100
+                const percentage = totalAlerts > 0 ? (rule.total_alerts / totalAlerts) * 100 : 0
                 return (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: '220px', flexShrink: 0, fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.rule_name}>
                       {rule.rule_name}
                     </div>
                     <div style={{ flex: 1, height: '32px', background: 'var(--background-secondary)', borderRadius: '4px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                      <div style={{ height: '100%', width: `${percentage}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
+                      <div style={{ height: '100%', width: `${barWidth}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px', transition: 'width 0.3s ease', minWidth: 'fit-content' }}>
                         <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>{rule.total_alerts}</span>
                       </div>
                     </div>
@@ -1358,6 +1495,24 @@ export default function Home() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Top Matched Users & Departments - Side by Side, filterable by action */}
+      <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <TopBreakdownCard
+          dimension="user"
+          title={t('dashboard.topMatchedUsers')}
+          limit={3}
+          barColors={['#8b5cf6', '#7c3aed']}
+          onDataChange={handleUserData}
+        />
+        <TopBreakdownCard
+          dimension="department"
+          title={t('dashboard.topMatchedDepartments')}
+          limit={3}
+          barColors={['#10b981', '#059669']}
+          onDataChange={handleDeptData}
+        />
       </div>
 
       {/* High Impact Alerts - Potential Data Exfiltration */}
@@ -1662,6 +1817,37 @@ export default function Home() {
           )}
         </div>
       )}
+
+      {/* PDF record of the four summary grids - bottom right of the page */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', marginTop: '8px', marginBottom: '24px' }}>
+        {pdfError && (
+          <span style={{ fontSize: '12px', color: '#ef4444' }}>{pdfError}</span>
+        )}
+        <button
+          onClick={downloadDashboardPdf}
+          disabled={pdfLoading}
+          style={{
+            padding: '10px 18px',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: pdfLoading ? 'var(--surface-hover)' : 'var(--surface)',
+            color: pdfLoading ? 'var(--text-muted)' : 'var(--text-primary)',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: pdfLoading ? 'wait' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.2s',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          onMouseEnter={(e) => { if (!pdfLoading) e.currentTarget.style.background = 'var(--surface-hover)' }}
+          onMouseLeave={(e) => { if (!pdfLoading) e.currentTarget.style.background = 'var(--surface)' }}
+        >
+          <FileDown size={16} style={{ color: '#ef4444' }} />
+          {pdfLoading ? t('dashboard.pdfReportPreparing') : t('dashboard.pdfReport')}
+        </button>
+      </div>
 
       <style jsx>{`
         .dashboard-page {

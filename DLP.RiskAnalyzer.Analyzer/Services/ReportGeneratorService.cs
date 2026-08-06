@@ -1,3 +1,5 @@
+using System.Globalization;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -91,6 +93,165 @@ public class ReportGeneratorService : IReportGeneratorService
         var reportData = await _riskAnalyzerService.GetDailyReportDataAsync(reportDate);
         return GenerateDailyReport(reportDate, reportData);
     }
+
+    // ── Dashboard summary record (tutanak) ────────────────────────────────────
+    // Spreadsheet-style tables meant to be pasted into an official record: fully
+    // ruled cells, repeating headers, right-aligned figures and a TOPLAM row.
+    // Turkish number formatting throughout.
+
+    // Falls back to invariant if the host runs in globalization-invariant mode,
+    // so a missing culture can never take down the whole report generator.
+    private static readonly CultureInfo ReportCulture = ResolveReportCulture();
+
+    private static CultureInfo ResolveReportCulture()
+    {
+        try
+        {
+            return CultureInfo.GetCultureInfo("tr-TR");
+        }
+        catch (CultureNotFoundException)
+        {
+            return CultureInfo.InvariantCulture;
+        }
+    }
+
+    public byte[] GenerateDashboardSummaryReport(DashboardReportRequest request)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        var title = string.IsNullOrWhiteSpace(request.Title)
+            ? "DLP Risk Radar - Anasayfa Özet Raporu"
+            : request.Title!;
+        var generatedAt = DateTime.Now;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1.5f, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontSize(9));
+
+                page.Header().Column(col =>
+                {
+                    col.Item().Text(title).FontSize(15).Bold().FontColor(Colors.Blue.Darken2);
+                    if (!string.IsNullOrWhiteSpace(request.Subtitle))
+                        col.Item().Text(request.Subtitle!).FontSize(10).FontColor(Colors.Grey.Darken1);
+                    col.Item().PaddingTop(4).Text(text =>
+                    {
+                        text.Span("Rapor Tarihi: ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        text.Span(generatedAt.ToString("dd.MM.yyyy HH:mm", ReportCulture)).FontSize(9).SemiBold();
+                        if (!string.IsNullOrWhiteSpace(request.GeneratedBy))
+                        {
+                            text.Span("   |   Oluşturan: ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                            text.Span(request.GeneratedBy!).FontSize(9).SemiBold();
+                        }
+                    });
+                    col.Item().PaddingTop(6).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+                });
+
+                page.Content().PaddingVertical(0.4f, Unit.Centimetre).Column(col =>
+                {
+                    col.Spacing(18);
+
+                    if (request.Sections.Count == 0)
+                    {
+                        col.Item().Text("Raporlanacak veri bulunamadı.").FontSize(11).Italic();
+                        return;
+                    }
+
+                    foreach (var section in request.Sections)
+                        col.Item().Element(c => ComposeReportSection(c, section));
+                });
+
+                page.Footer().Row(row =>
+                {
+                    row.RelativeItem().Text("Bu rapor DLP Risk Radar tarafından otomatik olarak üretilmiştir.")
+                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+                    row.ConstantItem(90).AlignRight().Text(text =>
+                    {
+                        text.Span("Sayfa ").FontSize(8).FontColor(Colors.Grey.Darken1);
+                        text.CurrentPageNumber().FontSize(8);
+                        text.Span(" / ").FontSize(8).FontColor(Colors.Grey.Darken1);
+                        text.TotalPages().FontSize(8);
+                    });
+                });
+            });
+        }).GeneratePdf();
+    }
+
+    private void ComposeReportSection(IContainer container, DashboardReportSection section)
+    {
+        container.Column(col =>
+        {
+            col.Item().Text(section.Title).FontSize(12).Bold().FontColor(Colors.Blue.Darken2);
+
+            if (!string.IsNullOrWhiteSpace(section.Subtitle))
+                col.Item().PaddingTop(2).Text(section.Subtitle!).FontSize(8).FontColor(Colors.Grey.Darken1);
+
+            if (section.Rows.Count == 0)
+            {
+                col.Item().PaddingTop(6).Text("Bu bölüm için kayıt bulunamadı.").FontSize(9).Italic()
+                    .FontColor(Colors.Grey.Darken1);
+                return;
+            }
+
+            var totalCount = section.Rows.Sum(r => r.Count);
+            var totalPercentage = section.Rows.Sum(r => r.Percentage);
+
+            col.Item().PaddingTop(6).Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.ConstantColumn(28);
+                    columns.RelativeColumn(6);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(2);
+                });
+
+                table.Header(header =>
+                {
+                    header.Cell().Element(HeaderCell).Text("#").Bold().FontColor(Colors.White);
+                    header.Cell().Element(HeaderCell).Text(section.LabelHeader).Bold().FontColor(Colors.White);
+                    header.Cell().Element(HeaderCell).AlignRight().Text(section.ValueHeader).Bold().FontColor(Colors.White);
+                    header.Cell().Element(HeaderCell).AlignRight().Text(section.PercentageHeader).Bold().FontColor(Colors.White);
+                });
+
+                for (int i = 0; i < section.Rows.Count; i++)
+                {
+                    var row = section.Rows[i];
+                    var background = i % 2 == 1 ? Colors.Grey.Lighten4 : Colors.White;
+
+                    table.Cell().Element(c => BodyCell(c, background)).Text((i + 1).ToString(ReportCulture));
+                    table.Cell().Element(c => BodyCell(c, background)).Text(row.Name);
+                    table.Cell().Element(c => BodyCell(c, background)).AlignRight()
+                        .Text(row.Count.ToString("N0", ReportCulture));
+                    table.Cell().Element(c => BodyCell(c, background)).AlignRight()
+                        .Text(row.Percentage.ToString("N1", ReportCulture));
+                }
+
+                table.Cell().Element(TotalCell).Text(string.Empty);
+                table.Cell().Element(TotalCell).Text("TOPLAM").Bold();
+                table.Cell().Element(TotalCell).AlignRight().Text(totalCount.ToString("N0", ReportCulture)).Bold();
+                table.Cell().Element(TotalCell).AlignRight().Text(totalPercentage.ToString("N1", ReportCulture)).Bold();
+            });
+        });
+    }
+
+    private static IContainer HeaderCell(IContainer container) =>
+        container.Background(Colors.Blue.Darken2)
+            .Border(0.75f).BorderColor(Colors.Grey.Medium)
+            .PaddingVertical(4).PaddingHorizontal(5);
+
+    private static IContainer BodyCell(IContainer container, string background) =>
+        container.Background(background)
+            .Border(0.75f).BorderColor(Colors.Grey.Lighten1)
+            .PaddingVertical(3).PaddingHorizontal(5);
+
+    private static IContainer TotalCell(IContainer container) =>
+        container.Background(Colors.Grey.Lighten3)
+            .Border(0.75f).BorderColor(Colors.Grey.Medium)
+            .PaddingVertical(4).PaddingHorizontal(5);
 
     private void ComposeHeader(IContainer container)
     {

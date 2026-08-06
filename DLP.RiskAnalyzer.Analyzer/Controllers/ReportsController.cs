@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.IO;
@@ -140,6 +141,31 @@ public class ReportsController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Render the dashboard grids the caller is currently looking at as a
+    /// record-ready PDF (spreadsheet-style tables, no screenshots).
+    /// </summary>
+    [HttpPost("dashboard-summary/pdf")]
+    public IActionResult GenerateDashboardSummaryPdf([FromBody] DashboardReportRequest request)
+    {
+        try
+        {
+            if (request == null || request.Sections.Count == 0)
+            {
+                return BadRequest(new { detail = "At least one section is required" });
+            }
+
+            var pdfBytes = _reportGenerator.GenerateDashboardSummaryReport(request);
+            var filename = $"anasayfa_ozet_raporu_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+
+            return File(pdfBytes, "application/pdf", filename);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = $"Error generating dashboard summary PDF: {ex.Message}" });
         }
     }
 

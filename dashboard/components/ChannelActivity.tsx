@@ -1,19 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { Mail, Globe, Usb, Printer, ClipboardList, ShieldCheck, Cloud, ArrowUpRight, Package, FileText } from 'lucide-react'
 
 import { getApiUrlDynamic } from '@/lib/api-config'
 import { useTranslation } from '@/components/LanguageProvider'
 
-interface ChannelActivity {
+export interface ChannelActivity {
   channel: string
   total_incidents: number
   percentage: number
 }
 
-interface DestinationActivity {
+export interface DestinationActivity {
   destination: string
   total_incidents: number
   percentage: number
@@ -38,16 +38,34 @@ const FALLBACK_DESTINATIONS: DestinationActivity[] = [
   { destination: 'box.com', total_incidents: 20, percentage: 2 }
 ]
 
-export default function ChannelActivity({ days = 30 }: { days?: number }) {
+export interface ChannelActivitySnapshot {
+  channels: ChannelActivity[]
+  destinations: DestinationActivity[]
+  days: number
+}
+
+export default function ChannelActivity({
+  days = 30,
+  onDataChange
+}: {
+  days?: number
+  onDataChange?: (snapshot: ChannelActivitySnapshot) => void
+}) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'channel' | 'destination'>('channel')
   const [channels, setChannels] = useState<ChannelActivity[]>([])
   const [destinations, setDestinations] = useState<DestinationActivity[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Kept in a ref so a new callback identity from the parent never re-triggers the fetch.
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
+      let nextChannels: ChannelActivity[] = []
+      let nextDestinations: DestinationActivity[] = []
       try {
         const apiUrl = getApiUrlDynamic()
         // Calculate date range for incidents
@@ -70,7 +88,8 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
         ])
 
         if (channelRes.data?.channels) {
-          setChannels(channelRes.data.channels)
+          nextChannels = channelRes.data.channels
+          setChannels(nextChannels)
         }
 
         // Calculate destinations from incidents
@@ -114,16 +133,21 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
               }))
               .sort((a, b) => b.total_incidents - a.total_incidents)
               .slice(0, 100) // Increase limit to show more destinations
+            nextDestinations = destData
             setDestinations(destData)
           }
         }
       } catch (error) {
         console.error('Error fetching channel activity:', error)
         // Use fallback data only when API fails
+        nextChannels = FALLBACK_CHANNELS
+        nextDestinations = FALLBACK_DESTINATIONS
         setChannels(FALLBACK_CHANNELS)
         setDestinations(FALLBACK_DESTINATIONS)
       } finally {
         setLoading(false)
+        // Hand the rendered rows to the parent so the PDF record can reuse them.
+        onDataChangeRef.current?.({ channels: nextChannels, destinations: nextDestinations, days })
       }
     }
 
@@ -239,7 +263,7 @@ export default function ChannelActivity({ days = 30 }: { days?: number }) {
       }}>
         {loading ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            Loading {activeTab === 'channel' ? t('channel.channel') : t('channel.destination')} {t('channel.loadingData')}
+            {activeTab === 'channel' ? t('channel.channel') : t('channel.destination')} {t('channel.loadingData')}
           </div>
         ) : currentData.length === 0 ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>

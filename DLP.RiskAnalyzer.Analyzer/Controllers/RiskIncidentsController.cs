@@ -104,6 +104,82 @@ public class RiskIncidentsController : ControllerBase
     }
 
     /// <summary>
+    /// Top matched users / departments for the dashboard grids.
+    /// Grouping happens in the database; the optional action filter uses the same
+    /// BLOCK/BLOCKED and QUARANTINE/QUARANTINED normalisation as by-action.
+    /// </summary>
+    [HttpGet("incidents/top-breakdown")]
+    public async Task<ActionResult<object>> GetTopBreakdown(
+        [FromQuery] string dimension = "user",
+        [FromQuery] string? action = null,
+        [FromQuery] int days = 30,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int limit = 3)
+    {
+        try
+        {
+            var normalizedDimension = (dimension ?? "user").ToLowerInvariant();
+            if (normalizedDimension != "user" && normalizedDimension != "department")
+            {
+                return BadRequest(new { detail = "Invalid dimension parameter. Must be one of: user, department" });
+            }
+
+            if (limit < 1) limit = 1;
+            if (limit > 100) limit = 100;
+
+            DateTime startOfRange, endOfRange;
+            if (startDate.HasValue && endDate.HasValue)
+            {
+                startOfRange = startDate.Value.Date;
+                endOfRange = endDate.Value.Date.AddDays(1);
+            }
+            else
+            {
+                if (days < 1) days = 30;
+                endOfRange = DateTime.UtcNow.Date.AddDays(1);
+                startOfRange = DateTime.UtcNow.Date.AddDays(-days);
+            }
+
+            var query = _context.Incidents
+                .Where(i => i.Timestamp >= startOfRange && i.Timestamp < endOfRange);
+
+            var normalizedAction = action?.ToUpper();
+            if (!string.IsNullOrEmpty(normalizedAction) && normalizedAction != "TOTAL")
+            {
+                query = query.Where(i => i.Action != null &&
+                           (i.Action.ToUpper() == normalizedAction ||
+                            (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
+                            (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")));
+            }
+
+            // Users are keyed on the email, departments fall back to the Team field
+            // that the collector fills from the Manager column (same rule the
+            // behavioural models use). Rows with no usable key are dropped before
+            // grouping so the fallback stays a plain CASE in the GROUP BY.
+            var grouped = normalizedDimension == "user"
+                ? query
+                    .Where(i => (i.UserEmail != null && i.UserEmail != "") || (i.LoginName != null && i.LoginName != ""))
+                    .GroupBy(i => i.UserEmail != null && i.UserEmail != "" ? i.UserEmail : i.LoginName)
+                : query
+                    .Where(i => (i.Department != null && i.Department != "") || (i.Team != null && i.Team != ""))
+                    .GroupBy(i => i.Department != null && i.Department != "" ? i.Department : i.Team);
+
+            var items = await grouped
+                .Select(g => new { Name = g.Key!, TotalAlerts = g.Count() })
+                .OrderByDescending(x => x.TotalAlerts)
+                .Take(limit)
+                .ToListAsync();
+
+            return Ok(items);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Get incidents filtered by action type for Action Summary modal
     /// Supports pagination and server-side filtering for performance
     /// </summary>
