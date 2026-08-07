@@ -81,6 +81,8 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
                 <option value="resolved">{t('remediate.resolved')}</option>
                 <option value="false_positive">{t('remediate.falsePositive')}</option>
                 <option value="investigating">{t('remediate.investigating')}</option>
+                <option value="queried">{t('remediate.queried')}</option>
+                <option value="query_completed">{t('remediate.queryCompleted')}</option>
               </select>
             </div>
 
@@ -264,4 +266,3 @@ export default function RemediateButton({ incidentId, currentStatus, onRemediate
     </>
   )
 }
-

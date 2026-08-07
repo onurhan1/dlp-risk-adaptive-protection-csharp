@@ -33,12 +33,20 @@ public class RiskController : ControllerBase
         {
             var query = _context.Incidents.AsQueryable();
             
-            // Apply date filters only if explicitly provided
-            if (startDate.HasValue)
-                query = query.Where(i => i.Timestamp >= startDate.Value);
-            
-            if (endDate.HasValue)
-                query = query.Where(i => i.Timestamp <= endDate.Value);
+            if (!startDate.HasValue && !endDate.HasValue)
+            {
+                var end = DateTime.UtcNow;
+                var start = end.Date.AddDays(-days);
+                query = query.Where(i => i.Timestamp >= start && i.Timestamp <= end);
+            }
+            else
+            {
+                if (startDate.HasValue)
+                    query = query.Where(i => i.Timestamp >= startDate.Value);
+
+                if (endDate.HasValue)
+                    query = query.Where(i => i.Timestamp <= endDate.Value);
+            }
 
             // Count by action type
             var actionCounts = await query

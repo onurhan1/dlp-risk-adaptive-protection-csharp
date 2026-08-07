@@ -1,4 +1,6 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +94,26 @@ public class InvestigationController : ControllerBase
 
         if (success)
         {
+            await InvestigationQuerySchema.EnsureAsync(_context, _logger);
+            var now = DateTime.UtcNow;
+            var actor = User?.Identity?.Name ?? "System";
+            _context.InvestigationQueries.Add(new InvestigationQueryRecord
+            {
+                FullName = TurkishNameHelper.FromEmailLocalPart(request.ToEmail, request.ToName),
+                MailAddress = request.ToEmail.Trim(),
+                Subject = request.Subject.Trim(),
+                QueryDate = now,
+                ResponseStatus = "Mail gönderildi",
+                Action = "Sorgu maili gönderildi",
+                QueryStatus = InvestigationQueryStatus.Queried,
+                Source = "manual_mail",
+                CreatedAt = now,
+                UpdatedAt = now,
+                CreatedBy = actor,
+                UpdatedBy = actor
+            });
+            await _context.SaveChangesAsync();
+
             _logger.LogInformation("Investigation mail sent to {ToEmail} (cc: {Cc})", request.ToEmail, ccEmail ?? "-");
             return Ok(new { success = true, message = $"Mail gönderildi: {request.ToEmail}" });
         }

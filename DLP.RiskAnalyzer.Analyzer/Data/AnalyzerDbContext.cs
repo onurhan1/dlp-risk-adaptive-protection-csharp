@@ -35,6 +35,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<Playbook> Playbooks { get; set; }
     public DbSet<PlaybookRun> PlaybookRuns { get; set; }
     public DbSet<PlaybookMailLog> PlaybookMailLogs { get; set; }
+    public DbSet<InvestigationQueryRecord> InvestigationQueries { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -635,6 +636,35 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.RunId);
             entity.HasIndex(e => new { e.PlaybookId, e.CreatedAt });
             entity.HasIndex(e => e.Status);
+        });
+
+        modelBuilder.Entity<InvestigationQueryRecord>(entity =>
+        {
+            entity.ToTable("investigation_queries", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.FullName).HasColumnName("full_name").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.MailAddress).HasColumnName("mail_address").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Subject).HasColumnName("subject").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.QueryDate).HasColumnName("query_date");
+            entity.Property(e => e.ResponseStatus).HasColumnName("response_status").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Action).HasColumnName("action").IsRequired();
+            entity.Property(e => e.QueryStatus).HasColumnName("query_status").IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Source).HasColumnName("source").HasMaxLength(80);
+            entity.Property(e => e.Team).HasColumnName("team").HasMaxLength(255);
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.PlaybookMailLogId).HasColumnName("playbook_mail_log_id");
+            entity.Property(e => e.ExtraJson).HasColumnName("extra_json").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by").HasMaxLength(120);
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by").HasMaxLength(120);
+
+            entity.HasIndex(e => e.MailAddress);
+            entity.HasIndex(e => e.QueryDate);
+            entity.HasIndex(e => e.QueryStatus);
+            entity.HasIndex(e => e.PlaybookMailLogId);
         });
 
         // Policy Inventory Configuration

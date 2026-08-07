@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw, Workflow } from 'lucide-react'
+import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw, Workflow, FileSpreadsheet } from 'lucide-react'
 import apiClient from '@/lib/axios'
 import MailTemplateManager from '@/components/investigation/MailTemplateManager'
 import SendMailModal from '@/components/investigation/SendMailModal'
@@ -50,6 +51,21 @@ export default function WeeklyReviewPage() {
         >
           <RefreshCw size={15} style={{ animation: loading ? 'spin 1s linear infinite' : undefined }} /> Yenile
         </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+        <Link
+          href="/investigation/weekly-review"
+          style={{ padding: '10px 16px', color: 'var(--primary)', borderBottom: '2px solid var(--primary)', textDecoration: 'none', fontWeight: 600, fontSize: 14 }}
+        >
+          Haftalık Sorgu
+        </Link>
+        <Link
+          href="/investigation/queries"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', color: 'var(--text-secondary)', borderBottom: '2px solid transparent', textDecoration: 'none', fontWeight: 600, fontSize: 14 }}
+        >
+          <FileSpreadsheet size={15} /> Sorgulamalar
+        </Link>
       </div>
 
       {error && (

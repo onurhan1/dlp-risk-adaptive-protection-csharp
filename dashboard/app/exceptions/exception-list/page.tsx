@@ -449,7 +449,11 @@ function ExceptionListContent() {
                         last_incident_date: item.last_incident_date || item.lastIncidentDate || null,
                     })))
                 })
-                .catch(err => console.error('Error fetching exception stats:', err))
+                .catch(err => {
+                    console.error('Error fetching exception stats:', err)
+                    setApiError(err.response?.data?.detail || err.message || 'Exception usage stats could not be loaded')
+                    setBackendStats([])
+                })
 
             await Promise.all([exceptionsPromise, incidentsPromise])
         } catch (error) {
@@ -462,7 +466,11 @@ function ExceptionListContent() {
     const handleSync = async () => {
         setSyncing(true)
         try {
-            await apiClient.post('/api/policy-exceptions/sync')
+            const res = await apiClient.post('/api/policy-exceptions/sync')
+            const syncedAt = res.data?.last_synced_at || res.data?.lastSyncedAt || res.data?.synced_at || res.data?.syncedAt
+            if (syncedAt) {
+                setLastSyncedAt(syncedAt)
+            }
             await fetchData()
         } catch (error) {
             console.error('Error syncing:', error)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import axios from 'axios'
@@ -132,6 +132,20 @@ interface ActionSummary {
   total: number
 }
 
+const getDashboardPeriodRange = (days: number) => {
+  const today = new Date()
+  if (days === 30) {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const end = new Date(today.getFullYear(), today.getMonth(), 0)
+    return { start: format(start, 'yyyy-MM-dd'), end: format(end, 'yyyy-MM-dd') }
+  }
+
+  return {
+    start: format(subDays(today, days), 'yyyy-MM-dd'),
+    end: format(today, 'yyyy-MM-dd')
+  }
+}
+
 export default function Home() {
   const router = useRouter()
   const { t } = useTranslation()
@@ -211,6 +225,7 @@ export default function Home() {
   const handleChannelData = useCallback((snapshot: ChannelActivitySnapshot) => setChannelSnapshot(snapshot), [])
   const handleUserData = useCallback((snapshot: BreakdownSnapshot) => setUserSnapshot(snapshot), [])
   const handleDeptData = useCallback((snapshot: BreakdownSnapshot) => setDeptSnapshot(snapshot), [])
+  const dataMovementRange = useMemo(() => getDashboardPeriodRange(dataMovementDays), [dataMovementDays])
 
   // Restore active manual collect job from localStorage on mount
   useEffect(() => {
@@ -291,6 +306,7 @@ export default function Home() {
 
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
+      const topRulesRange = getDashboardPeriodRange(topRulesDays)
 
       // Fetch data from new user_daily_risk_scores based endpoints
       const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes] = await Promise.all([
@@ -316,8 +332,8 @@ export default function Home() {
         // Optimized: Fetch aggregated top rules directly from backend
         axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
           params: {
-            startDate: currentStart,
-            endDate: currentEnd,
+            startDate: topRulesRange.start,
+            endDate: topRulesRange.end,
             limit: 10
           }
         }).catch(() => ({ data: [] }))
@@ -358,6 +374,24 @@ export default function Home() {
   const fetchActionIncidents = (action: string) => {
     setShowModal(true)
     setSelectedAction(action)
+  }
+
+  const fetchTopRulesForPeriod = async (days: number) => {
+    try {
+      const apiUrl = getApiUrlDynamic()
+      const range = getDashboardPeriodRange(days)
+      const res = await axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
+        params: {
+          startDate: range.start,
+          endDate: range.end,
+          limit: 10
+        }
+      })
+      setTopRules(res.data || [])
+    } catch (error) {
+      console.error('Error fetching rules:', error)
+      setTopRules([])
+    }
   }
 
   // Manual collect: start collection
@@ -1433,7 +1467,12 @@ export default function Home() {
             </select>
           </div>
           <div style={{ position: 'relative' }}>
-            <ChannelActivity days={dataMovementDays} onDataChange={handleChannelData} />
+            <ChannelActivity
+              days={dataMovementDays}
+              startDate={dataMovementRange.start}
+              endDate={dataMovementRange.end}
+              onDataChange={handleChannelData}
+            />
           </div>
         </div>
 
@@ -1446,36 +1485,7 @@ export default function Home() {
                 onChange={(e) => {
                   const newDays = Number(e.target.value)
                   setTopRulesDays(newDays)
-                  // Re-fetch incidents for this period
-                  const fetchRules = async () => {
-                    try {
-                      const apiUrl = getApiUrlDynamic()
-                      const endDate = new Date()
-                      const startDate = new Date()
-                      startDate.setDate(startDate.getDate() - newDays)
-                      const incidentsRes = await axios.get(`${apiUrl}/api/incidents`, {
-                        params: {
-                          startDate: format(startDate, 'yyyy-MM-dd'),
-                          endDate: format(endDate, 'yyyy-MM-dd'),
-                          limit: 5000,
-                          orderBy: 'risk_score_desc'
-                        }
-                      })
-                      const rulesMap = new Map<string, number>()
-                        ; (incidentsRes.data || []).forEach((incident: any) => {
-                          const ruleName = incident.policy || 'Unknown Rule'
-                          rulesMap.set(ruleName, (rulesMap.get(ruleName) || 0) + 1)
-                        })
-                      const topRulesData = Array.from(rulesMap.entries())
-                        .map(([rule_name, total_alerts]) => ({ rule_name, total_alerts }))
-                        .sort((a, b) => b.total_alerts - a.total_alerts)
-                        .slice(0, 10)
-                      setTopRules(topRulesData)
-                    } catch (error) {
-                      console.error('Error fetching rules:', error)
-                    }
-                  }
-                  fetchRules()
+                  fetchTopRulesForPeriod(newDays)
                 }}
                 style={{
                   padding: '6px 12px',

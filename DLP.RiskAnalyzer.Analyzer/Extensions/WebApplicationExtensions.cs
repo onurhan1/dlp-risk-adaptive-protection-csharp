@@ -70,6 +70,7 @@ public static class WebApplicationExtensions
         // Ensure schemas (dlp/log/auth) exist and relocate tables to them.
         // Done at runtime (idempotent, data-preserving) so no EF migration is required.
         await EnsureSchemasAndMoveTablesAsync(app, logger);
+        await EnsureInvestigationQuerySchemaAsync(app, logger);
 
         // Seed default admin user
         logger.LogInformation("=== SEEDING DEFAULT ADMIN USER ===");
@@ -193,6 +194,13 @@ END $$;");
         {
             logger.LogError(ex, "Failed to ensure schemas / relocate tables: {Message}", ex.Message);
         }
+    }
+
+    private static async Task EnsureInvestigationQuerySchemaAsync(WebApplication app, ILogger logger)
+    {
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
+        await InvestigationQuerySchema.EnsureAsync(context, logger);
     }
 
     /// <summary>

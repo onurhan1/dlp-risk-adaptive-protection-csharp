@@ -23,6 +23,20 @@ public class IncidentRepository : IIncidentRepository
             i.Timestamp >= startDate.ToDateTime(TimeOnly.MinValue) &&
             i.Timestamp <= endDate.ToDateTime(TimeOnly.MaxValue));
 
+    private static string NormalizeDestination(Incident incident)
+    {
+        if (!string.IsNullOrWhiteSpace(incident.Destination))
+            return incident.Destination;
+
+        var channel = (incident.Channel ?? string.Empty).ToLowerInvariant();
+        if (channel.Contains("email")) return "Unknown Email";
+        if (channel.Contains("web")) return "Unknown Web Site";
+        if (channel.Contains("cloud")) return "Unknown Cloud Service";
+        if (channel.Contains("removable") || channel.Contains("usb")) return "USB Device";
+        if (channel == "endpoint_printing" || channel == "printer") return "Printer";
+        return "Unknown";
+    }
+
     public async Task<Incident?> GetByIdAsync(int id)
     {
         return await _context.Incidents.FirstOrDefaultAsync(i => i.Id == id);
@@ -357,6 +371,19 @@ public class IncidentRepository : IIncidentRepository
                              (i.RiskScore ?? 0) < RiskConstants.RiskScores.HighThreshold),
                 g.Count(i => (i.RiskScore ?? 0) < RiskConstants.RiskScores.MediumThreshold)))
             .OrderByDescending(c => c.TotalIncidents)
+            .ToList();
+    }
+
+    public async Task<List<DestinationBreakdownDto>> GetDestinationBreakdownAggregatedAsync(
+        DateOnly startDate, DateOnly endDate, int limit = 100)
+    {
+        var incidents = await DateRangeQuery(startDate, endDate).ToListAsync();
+
+        return incidents
+            .GroupBy(NormalizeDestination)
+            .Select(g => new DestinationBreakdownDto(g.Key, g.Count()))
+            .OrderByDescending(d => d.TotalIncidents)
+            .Take(limit)
             .ToList();
     }
 

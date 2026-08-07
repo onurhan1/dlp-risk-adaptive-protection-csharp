@@ -27,6 +27,7 @@ public class UserListItem
 public class ChannelActivityResponse
 {
     public List<ChannelActivityItem> Channels { get; set; } = [];
+    public List<DestinationActivityItem> Destinations { get; set; } = [];
     public int Total { get; set; }
     public DateRangeInfo DateRange { get; set; } = new();
 }
@@ -40,6 +41,13 @@ public class ChannelActivityItem
     public int HighCount { get; set; }
     public int MediumCount { get; set; }
     public int LowCount { get; set; }
+}
+
+public class DestinationActivityItem
+{
+    public string Destination { get; set; } = string.Empty;
+    public int TotalIncidents { get; set; }
+    public double Percentage { get; set; }
 }
 
 public class DateRangeInfo

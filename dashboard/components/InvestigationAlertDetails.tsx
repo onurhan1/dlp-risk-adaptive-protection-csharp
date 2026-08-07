@@ -516,7 +516,7 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
               </div>
               {event.remediationAction && (
                 <div style={{ marginBottom: '4px' }}>
-                  <strong>{t('investigation.actionLabel')}</strong> <span style={{ color: '#f59e0b', fontWeight: '500' }}>{event.remediationAction}</span>
+                  <strong>{t('investigation.actionLabel')}</strong> <span style={{ color: '#f59e0b', fontWeight: '500' }}>{formatRemediationAction(event.remediationAction)}</span>
                 </div>
               )}
               {event.remediationNotes && (
@@ -537,4 +537,15 @@ export default function InvestigationAlertDetails({ event }: InvestigationAlertD
       </div>
     </div>
   )
+}
+
+function formatRemediationAction(action?: string) {
+  switch (action) {
+    case 'resolved': return 'Çözüldü'
+    case 'false_positive': return 'Yanlış Pozitif'
+    case 'investigating': return 'Araştırılıyor'
+    case 'queried': return 'Sorgulandı'
+    case 'query_completed': return 'Sorgu Sonuçlandı'
+    default: return action || ''
+  }
 }

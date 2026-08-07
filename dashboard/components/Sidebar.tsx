@@ -126,6 +126,13 @@ export default function Sidebar() {
                     <span>{t('nav.investigationWeekly')}</span>
                   </Link>
                   <Link
+                    href="/investigation/queries"
+                    className={`sidebar-subitem ${pathname === '/investigation/queries' ? 'active' : ''}`}
+                  >
+                    <ClipboardList size={16} />
+                    <span>Sorgulamalar</span>
+                  </Link>
+                  <Link
                     href="/investigation/agentic-workflows"
                     className={`sidebar-subitem ${pathname?.startsWith('/investigation/agentic-workflows') ? 'active' : ''}`}
                   >

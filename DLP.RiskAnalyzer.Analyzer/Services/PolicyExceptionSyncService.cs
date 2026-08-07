@@ -190,21 +190,40 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
         try
         {
             var jsonDoc = JsonDocument.Parse(responseJson);
+            var root = jsonDoc.RootElement;
 
-            if (jsonDoc.RootElement.TryGetProperty("exception_rules", out var exceptionRules) &&
-                exceptionRules.ValueKind == JsonValueKind.Array)
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("data", out var data)) root = data;
+                else if (root.TryGetProperty("items", out var items)) root = items;
+                else if (root.TryGetProperty("result", out var result)) root = result;
+            }
+
+            JsonElement exceptionRules;
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                exceptionRules = root;
+            }
+            else if (!TryGetProperty(root, out exceptionRules, "exception_rules", "exceptionRules", "rules", "policy_rules"))
+            {
+                return exceptions;
+            }
+
+            if (exceptionRules.ValueKind == JsonValueKind.Array)
             {
                 foreach (var rule in exceptionRules.EnumerateArray())
                 {
-                    var policyName = rule.TryGetProperty("policy_name", out var pn) ? pn.GetString() ?? "" : "";
-                    var ruleName = rule.TryGetProperty("rule_name", out var rn) ? rn.GetString() ?? "" : "";
+                    var policyName = GetString(rule, "policy_name", "PolicyName", "policyName") ?? "";
+                    var ruleName = GetString(rule, "rule_name", "RuleName", "ruleName", "name") ?? "";
 
-                    if (rule.TryGetProperty("exception_rule_names", out var ern) &&
+                    if (TryGetProperty(rule, out var ern, "exception_rule_names", "exceptionRuleNames", "exception_rules", "exceptions") &&
                         ern.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var exceptionNameElem in ern.EnumerateArray())
                         {
-                            var exceptionName = exceptionNameElem.GetString();
+                            var exceptionName = exceptionNameElem.ValueKind == JsonValueKind.String
+                                ? exceptionNameElem.GetString()
+                                : GetString(exceptionNameElem, "exception_name", "exceptionName", "rule_name", "RuleName", "name");
                             if (!string.IsNullOrEmpty(exceptionName))
                             {
                                 exceptions.Add(new PolicyRuleException
@@ -226,6 +245,30 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
         }
 
         return exceptions;
+
+        static bool TryGetProperty(JsonElement element, out JsonElement value, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out value))
+                    return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        static string? GetString(JsonElement element, params string[] names)
+        {
+            if (element.ValueKind != JsonValueKind.Object) return null;
+            foreach (var name in names)
+            {
+                if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                    return value.GetString();
+            }
+
+            return null;
+        }
     }
 
     /// <summary>

@@ -98,11 +98,21 @@ public class DatabaseService : IDatabaseService
             // Parametreli SQL — string interpolasyon ile SQL injection riski önlendi
             var sql = @"
                 SELECT
-                    trigger_elem->>'policy_name' AS policy_name,
-                    trigger_elem->>'rule_name' AS rule_name,
+                    COALESCE(
+                        trigger_elem->>'policy_name',
+                        trigger_elem->>'PolicyName',
+                        trigger_elem->>'policyName',
+                        i.policy
+                    ) AS policy_name,
+                    COALESCE(
+                        trigger_elem->>'rule_name',
+                        trigger_elem->>'RuleName',
+                        trigger_elem->>'ruleName',
+                        i.rule_name
+                    ) AS rule_name,
                     COUNT(*) AS incident_count,
                     MAX(i.""timestamp"") AS last_incident_date
-                FROM incidents i,
+                FROM dlp.incidents i,
                     jsonb_array_elements(i.violation_triggers::jsonb) AS trigger_elem
                 WHERE i.violation_triggers IS NOT NULL
                     AND i.violation_triggers != '[]'
@@ -133,7 +143,19 @@ public class DatabaseService : IDatabaseService
             }
 
             sql += @"
-                GROUP BY trigger_elem->>'policy_name', trigger_elem->>'rule_name'
+                GROUP BY
+                    COALESCE(
+                        trigger_elem->>'policy_name',
+                        trigger_elem->>'PolicyName',
+                        trigger_elem->>'policyName',
+                        i.policy
+                    ),
+                    COALESCE(
+                        trigger_elem->>'rule_name',
+                        trigger_elem->>'RuleName',
+                        trigger_elem->>'ruleName',
+                        i.rule_name
+                    )
                 ORDER BY incident_count DESC";
 
             cmd.CommandText = sql;

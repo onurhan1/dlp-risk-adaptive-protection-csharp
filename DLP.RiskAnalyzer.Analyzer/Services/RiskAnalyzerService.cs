@@ -232,8 +232,11 @@ public class RiskAnalyzerService : IRiskAnalyzerService
 
         var channels = await _incidentRepository.GetChannelBreakdownAggregatedAsync(
             startDate.Value, endDate.Value);
+        var destinations = await _incidentRepository.GetDestinationBreakdownAggregatedAsync(
+            startDate.Value, endDate.Value);
 
         var total = channels.Sum(c => c.TotalIncidents);
+        var destinationTotal = destinations.Sum(d => d.TotalIncidents);
 
         return new ChannelActivityResponse
         {
@@ -246,6 +249,12 @@ public class RiskAnalyzerService : IRiskAnalyzerService
                 HighCount      = c.HighCount,
                 MediumCount    = c.MediumCount,
                 LowCount       = c.LowCount
+            }).ToList(),
+            Destinations = destinations.Select(d => new DestinationActivityItem
+            {
+                Destination    = d.Destination,
+                TotalIncidents = d.TotalIncidents,
+                Percentage     = destinationTotal > 0 ? Math.Round((d.TotalIncidents / (double)destinationTotal) * 100, 1) : 0
             }).ToList(),
             Total = total,
             DateRange = new DateRangeInfo

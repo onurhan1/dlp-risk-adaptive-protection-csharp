@@ -605,7 +605,7 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
   const metricSources = graph.nodes.filter(n => n.type === 'source.incidentMetric')
   const metricReach = new Set<string>()
   for (const source of metricSources) {
-    for (const id of reachableFrom(source.id, graph)) metricReach.add(id)
+    reachableFrom(source.id, graph).forEach(id => metricReach.add(id))
   }
 
   for (const node of graph.nodes) {
@@ -622,8 +622,9 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
   }
 
   for (const source of metricSources) {
-    const hasThreshold = [...reachableFrom(source.id, graph)].some(
-      id => id !== source.id && graph.nodes.find(n => n.id === id)?.type === 'logic.metricThreshold'
+    const reachable = reachableFrom(source.id, graph)
+    const hasThreshold = graph.nodes.some(
+      n => n.id !== source.id && reachable.has(n.id) && n.type === 'logic.metricThreshold'
     )
     if (!hasThreshold) {
       warnings.push(

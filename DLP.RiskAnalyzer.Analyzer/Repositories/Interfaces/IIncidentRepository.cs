@@ -4,6 +4,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 
 public record UserRiskTrendDto(string UserEmail, DateOnly Date, int TotalIncidents, int MaxRiskScore);
 public record ChannelBreakdownDto(string Channel, int TotalIncidents, int CriticalCount, int HighCount, int MediumCount, int LowCount);
+public record DestinationBreakdownDto(string Destination, int TotalIncidents);
 public record HeatmapItemDto(string Label, int Count);
 public record DailySummaryDto(DateOnly Date, int TotalIncidents, double AvgRiskScore, int UniqueUsers, int HighRiskUserCount, int DepartmentsAffected);
 public record TopUserDto(string UserEmail, int TotalAlerts, int MaxRiskScore, string? Department, string? LoginName, string? EmailAddress, string? FullName);
@@ -40,7 +41,7 @@ public interface IIncidentRepository
     Task<List<UserRiskTrendDto>> GetUserRiskTrendsAggregatedAsync(DateOnly startDate, DateOnly endDate, string? user = null);
     Task<List<DailySummaryDto>> GetDailySummariesAggregatedAsync(DateOnly startDate, DateOnly endDate);
     Task<List<ChannelBreakdownDto>> GetChannelBreakdownAggregatedAsync(DateOnly startDate, DateOnly endDate);
+    Task<List<DestinationBreakdownDto>> GetDestinationBreakdownAggregatedAsync(DateOnly startDate, DateOnly endDate, int limit = 100);
     Task<List<HeatmapItemDto>> GetHeatmapAggregatedAsync(DateOnly startDate, DateOnly endDate, string dimension, int limit = 10);
     Task<List<TopUserDto>> GetTopUsersAggregatedAsync(DateOnly startDate, DateOnly endDate, int minRiskScore = 35, int limit = 20);
 }
-

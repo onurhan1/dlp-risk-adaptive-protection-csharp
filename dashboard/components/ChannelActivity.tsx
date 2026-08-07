@@ -46,9 +46,13 @@ export interface ChannelActivitySnapshot {
 
 export default function ChannelActivity({
   days = 30,
+  startDate,
+  endDate,
   onDataChange
 }: {
   days?: number
+  startDate?: string
+  endDate?: string
   onDataChange?: (snapshot: ChannelActivitySnapshot) => void
 }) {
   const { t } = useTranslation()
@@ -68,74 +72,19 @@ export default function ChannelActivity({
       let nextDestinations: DestinationActivity[] = []
       try {
         const apiUrl = getApiUrlDynamic()
-        // Calculate date range for incidents
-        const endDate = new Date()
-        const startDate = new Date()
-        startDate.setDate(startDate.getDate() - days)
-        const [channelRes, incidentsRes] = await Promise.all([
-          axios.get(`${apiUrl}/api/risk/channel-activity`, {
-            params: { days },
-            timeout: 5000
-          }).catch(() => ({ data: null })),
-          axios.get(`${apiUrl}/api/incidents`, {
-            params: {
-              start_date: startDate.toISOString().split('T')[0],
-              end_date: endDate.toISOString().split('T')[0],
-              limit: 10000 // Increased limit to handle large datasets
-            },
-            timeout: 10000 // Increased timeout for large datasets
-          }).catch(() => ({ data: [] }))
-        ])
+        const channelRes = await axios.get(`${apiUrl}/api/risk/channel-activity`, {
+          params: { days, startDate, endDate },
+          timeout: 10000
+        }).catch(() => ({ data: null }))
 
         if (channelRes.data?.channels) {
           nextChannels = channelRes.data.channels
           setChannels(nextChannels)
         }
 
-        // Calculate destinations from incidents
-        const incidents = incidentsRes.data || []
-        if (incidents.length > 0) {
-          const destMap = new Map<string, number>()
-          incidents.forEach((incident: any) => {
-            let dest = incident.destination
-
-            // If destination is empty/null, try to derive from channel
-            if (!dest) {
-              const channel = (incident.channel || '').toLowerCase()
-              if (channel.includes('email')) {
-                dest = 'Unknown Email'
-              } else if (channel.includes('web')) {
-                dest = 'Unknown Web Site'
-              } else if (channel.includes('cloud')) {
-                dest = 'Unknown Cloud Service'
-              } else if (channel.includes('removable') || channel.includes('usb')) {
-                dest = 'USB Device'
-              } else if (channel === 'endpoint_printing' || channel === 'printer') {
-                dest = 'Printer'
-              } else {
-                dest = 'Unknown'
-              }
-            } else {
-              // Clean up destination if needed (e.g., remove common prefixes if user improved it before)
-              // For now, use the raw destination as it seems to contain valid domains/paths
-            }
-
-            destMap.set(dest, (destMap.get(dest) || 0) + 1)
-          })
-
-          if (destMap.size > 0) {
-            const total = Array.from(destMap.values()).reduce((sum, count) => sum + count, 0)
-            const destData: DestinationActivity[] = Array.from(destMap.entries())
-              .map(([destination, count]) => ({
-                destination,
-                total_incidents: count,
-                percentage: total > 0 ? Math.round((count / total) * 100) : 0
-              }))
-              .sort((a, b) => b.total_incidents - a.total_incidents)
-              .slice(0, 100) // Increase limit to show more destinations
-            nextDestinations = destData
-            setDestinations(destData)
-          }
+        if (channelRes.data?.destinations) {
+          nextDestinations = channelRes.data.destinations
+          setDestinations(nextDestinations)
         }
       } catch (error) {
         console.error('Error fetching channel activity:', error)
@@ -152,7 +101,7 @@ export default function ChannelActivity({
     }
 
     fetchData()
-  }, [days])
+  }, [days, startDate, endDate])
 
   const currentData = activeTab === 'channel' ? channels : destinations
   const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444']

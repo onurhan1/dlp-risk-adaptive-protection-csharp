@@ -33,6 +33,8 @@ public class PlaybookEngine : IPlaybookEngine
     /// </summary>
     private const int MetricRowCap = 500_000;
 
+    private static readonly TimeSpan SameContentDuplicateWindow = TimeSpan.FromMinutes(30);
+
     /// <summary>Stand-in "user" recorded in the mail log for organisation-wide metric mails.</summary>
     private const string MetricSubjectLabel = "(kurum toplamı)";
 
@@ -61,6 +63,7 @@ public class PlaybookEngine : IPlaybookEngine
     public async Task<PlaybookRun> RunAsync(int playbookId, string triggerType, bool? forceDryRun, CancellationToken ct = default)
     {
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
 
         var playbook = await _context.Playbooks.FirstOrDefaultAsync(p => p.Id == playbookId, ct)
             ?? throw new KeyNotFoundException($"Agentic Workflow bulunamadı: {playbookId}");
@@ -596,7 +599,9 @@ public class PlaybookEngine : IPlaybookEngine
         var ccEmail = node.GetString("cc_email")?.Trim();
         if (string.IsNullOrWhiteSpace(ccEmail)) ccEmail = null;
 
-        if (recipientMode == "fixed" && !IsValidEmail(fixedRecipient))
+        if (recipientMode == "fixed" && string.IsNullOrWhiteSpace(fixedRecipient))
+            throw new InvalidOperationException("Sabit alıcı adresi boş olamaz.");
+        if (recipientMode == "fixed" && fixedRecipient!.Contains('@') && !IsValidEmail(fixedRecipient))
             throw new InvalidOperationException("Sabit alıcı adresi geçerli değil.");
 
         // A metric describes the whole organisation, so it produces one summary mail rather than
@@ -612,6 +617,7 @@ public class PlaybookEngine : IPlaybookEngine
         var input = payload.Items;
         var now = DateTime.UtcNow;
         var processed = new List<PlaybookItem>();
+        var queryLogEntries = new List<PlaybookMailLog>();
         var capped = 0;
 
         foreach (var item in input)
@@ -637,10 +643,21 @@ public class PlaybookEngine : IPlaybookEngine
                 CreatedAt = now
             };
 
-            if (!IsValidEmail(toEmail))
+            if (!toEmail.Contains('@'))
+            {
+                entry.Status = PlaybookMailStatus.Pending;
+                entry.ErrorMessage = "Alıcı adresinde @ yok; manuel gönderim için bekliyor.";
+                queryLogEntries.Add(entry);
+            }
+            else if (!IsValidEmail(toEmail))
             {
                 entry.Status = PlaybookMailStatus.Skipped;
                 entry.ErrorMessage = "Geçerli bir alıcı adresi yok";
+            }
+            else if (await HasDuplicateMailAsync(toEmail, entry.Subject, entry.BodyHtml, null, ct))
+            {
+                entry.Status = PlaybookMailStatus.Skipped;
+                entry.ErrorMessage = "Aynı alıcıya aynı içerikte mail son 30 dakika içinde hazırlanmış veya gönderilmiş.";
             }
             else if (!context.TryReserveRecipient(toEmail))
             {
@@ -652,6 +669,7 @@ public class PlaybookEngine : IPlaybookEngine
             else if (context.DryRun)
             {
                 entry.Status = PlaybookMailStatus.Pending;
+                queryLogEntries.Add(entry);
                 processed.Add(item);
             }
             else
@@ -668,6 +686,7 @@ public class PlaybookEngine : IPlaybookEngine
                 {
                     entry.Status = PlaybookMailStatus.Sent;
                     entry.SentAt = DateTime.UtcNow;
+                    queryLogEntries.Add(entry);
                     processed.Add(item);
                 }
                 else
@@ -681,6 +700,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         await _context.SaveChangesAsync(ct);
+        await UpsertQueryRecordsForMailLogsAsync(queryLogEntries, ct);
 
         var verb = context.DryRun ? "onay için hazırlandı" : "gönderildi";
         var message = $"{processed.Count} mail {verb}";
@@ -706,10 +726,12 @@ public class PlaybookEngine : IPlaybookEngine
         SendContext context,
         CancellationToken ct)
     {
-        if (!IsValidEmail(fixedRecipient))
+        if (string.IsNullOrWhiteSpace(fixedRecipient))
             throw new InvalidOperationException(
                 "Metrik maili için sabit bir alıcı adresi gerekir. Mail node'unda Alıcı'yı " +
                 "\"Sabit bir adres\" yapıp adresi girin.");
+        if (fixedRecipient.Contains('@') && !IsValidEmail(fixedRecipient))
+            throw new InvalidOperationException("Sabit alıcı adresi geçerli değil.");
 
         var now = DateTime.UtcNow;
         var entry = new PlaybookMailLog
@@ -730,7 +752,17 @@ public class PlaybookEngine : IPlaybookEngine
             CreatedAt = now
         };
 
-        if (!context.TryReserveRecipient(fixedRecipient!))
+        if (!fixedRecipient.Contains('@'))
+        {
+            entry.Status = PlaybookMailStatus.Pending;
+            entry.ErrorMessage = "Alıcı adresinde @ yok; manuel gönderim için bekliyor.";
+        }
+        else if (await HasDuplicateMailAsync(fixedRecipient!, entry.Subject, entry.BodyHtml, null, ct))
+        {
+            entry.Status = PlaybookMailStatus.Skipped;
+            entry.ErrorMessage = "Aynı alıcıya aynı içerikte mail son 30 dakika içinde hazırlanmış veya gönderilmiş.";
+        }
+        else if (!context.TryReserveRecipient(fixedRecipient!))
         {
             entry.Status = PlaybookMailStatus.Skipped;
             entry.ErrorMessage = context.LastSkipReason;
@@ -763,6 +795,8 @@ public class PlaybookEngine : IPlaybookEngine
 
         _context.PlaybookMailLogs.Add(entry);
         await _context.SaveChangesAsync(ct);
+        if (entry.Status == PlaybookMailStatus.Pending || entry.Status == PlaybookMailStatus.Sent)
+            await UpsertQueryRecordsForMailLogsAsync(new[] { entry }, ct);
 
         context.SetMessage(entry.Status switch
         {
@@ -771,6 +805,64 @@ public class PlaybookEngine : IPlaybookEngine
             PlaybookMailStatus.Skipped => entry.ErrorMessage ?? "Özet mail atlandı",
             _ => "Özet mail gönderilemedi"
         });
+    }
+
+    private async Task<bool> HasDuplicateMailAsync(
+        string toEmail,
+        string subject,
+        string bodyHtml,
+        int? excludeMailLogId,
+        CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow.Subtract(SameContentDuplicateWindow);
+        var normalized = toEmail.Trim().ToLower();
+
+        return await _context.PlaybookMailLogs.AsNoTracking()
+            .AnyAsync(m =>
+                (!excludeMailLogId.HasValue || m.Id != excludeMailLogId.Value) &&
+                m.CreatedAt >= cutoff &&
+                m.ToEmail.ToLower() == normalized &&
+                m.Subject == subject &&
+                m.BodyHtml == bodyHtml &&
+                (m.Status == PlaybookMailStatus.Pending || m.Status == PlaybookMailStatus.Sent),
+                ct);
+    }
+
+    private async Task UpsertQueryRecordsForMailLogsAsync(IEnumerable<PlaybookMailLog> mailLogs, CancellationToken ct)
+    {
+        foreach (var mail in mailLogs.Where(m => m.Id > 0))
+        {
+            var query = await _context.InvestigationQueries
+                .FirstOrDefaultAsync(q => q.PlaybookMailLogId == mail.Id, ct);
+
+            if (query == null)
+            {
+                query = new InvestigationQueryRecord
+                {
+                    PlaybookMailLogId = mail.Id,
+                    CreatedAt = mail.CreatedAt,
+                    CreatedBy = "Agentic Workflow"
+                };
+                _context.InvestigationQueries.Add(query);
+            }
+
+            query.FullName = TurkishNameHelper.FromEmailLocalPart(mail.ToEmail, mail.FullName ?? mail.UserEmail);
+            query.MailAddress = mail.ToEmail;
+            query.Subject = mail.Subject;
+            query.QueryDate = mail.SentAt ?? mail.CreatedAt;
+            query.ResponseStatus = mail.Status == PlaybookMailStatus.Sent ? "Mail gönderildi" : "Manuel gönderim bekliyor";
+            query.Action = mail.ErrorMessage ?? (mail.Status == PlaybookMailStatus.Sent ? "Sorgu maili gönderildi" : "Sorgu maili hazırlandı");
+            query.QueryStatus = mail.Status == PlaybookMailStatus.Sent
+                ? InvestigationQueryStatus.Queried
+                : InvestigationQueryStatus.Pending;
+            query.Source = "agentic_workflow";
+            query.Team = mail.Team;
+            query.Notes = mail.SourceCriterion;
+            query.UpdatedAt = DateTime.UtcNow;
+            query.UpdatedBy = "Agentic Workflow";
+        }
+
+        await _context.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -808,6 +900,7 @@ public class PlaybookEngine : IPlaybookEngine
     public async Task<(int Sent, int Failed)> ApprovePendingAsync(int runId, int? mailLogId, CancellationToken ct = default)
     {
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
 
         var run = await _context.PlaybookRuns.FirstOrDefaultAsync(r => r.Id == runId, ct)
             ?? throw new KeyNotFoundException($"Çalıştırma bulunamadı: {runId}");
@@ -823,8 +916,27 @@ public class PlaybookEngine : IPlaybookEngine
         var pending = await query.OrderBy(m => m.Id).ToListAsync(ct);
 
         int sent = 0, failed = 0;
+        var queryUpdates = new List<PlaybookMailLog>();
         foreach (var entry in pending)
         {
+            if (!entry.ToEmail.Contains('@') || !IsValidEmail(entry.ToEmail))
+            {
+                entry.ErrorMessage = !entry.ToEmail.Contains('@')
+                    ? "Alıcı adresinde @ yok; manuel gönderim için bekliyor."
+                    : "Geçerli bir alıcı adresi yok; manuel düzeltme gerekiyor.";
+                failed++;
+                queryUpdates.Add(entry);
+                continue;
+            }
+
+            if (await HasDuplicateMailAsync(entry.ToEmail, entry.Subject, entry.BodyHtml, entry.Id, ct))
+            {
+                entry.Status = PlaybookMailStatus.Skipped;
+                entry.ErrorMessage = "Aynı alıcıya aynı içerikte mail son 30 dakika içinde hazırlanmış veya gönderilmiş.";
+                failed++;
+                continue;
+            }
+
             var success = await _emailService.SendEmailAsync(
                 toEmail: entry.ToEmail,
                 subject: entry.Subject,
@@ -838,6 +950,7 @@ public class PlaybookEngine : IPlaybookEngine
                 entry.Status = PlaybookMailStatus.Sent;
                 entry.SentAt = DateTime.UtcNow;
                 entry.ErrorMessage = null;
+                queryUpdates.Add(entry);
                 sent++;
             }
             else
@@ -849,6 +962,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         await _context.SaveChangesAsync(ct);
+        await UpsertQueryRecordsForMailLogsAsync(queryUpdates, ct);
 
         run.MailsSent = await CountAsync(runId, PlaybookMailStatus.Sent, ct);
         run.MailsPending = await CountAsync(runId, PlaybookMailStatus.Pending, ct);

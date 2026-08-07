@@ -70,6 +70,7 @@ public class PolicyExceptionsController : ControllerBase
                 totalExceptions = exceptions.Count,
                 totalPolicies = grouped.Count,
                 lastSyncedAt = lastSync,
+                last_synced_at = lastSync,
                 data = grouped
             });
         }
@@ -91,13 +92,18 @@ public class PolicyExceptionsController : ControllerBase
         {
             _logger.LogInformation("Manual policy exception sync triggered");
             var count = await _syncService.SyncAsync();
+            var lastSync = await _context.PolicyRuleExceptions
+                .AsNoTracking()
+                .MaxAsync(e => (DateTime?)e.SyncedAt);
 
             return Ok(new
             {
                 success = true,
                 message = $"Sync completed: {count} exceptions saved",
                 syncedCount = count,
-                syncedAt = DateTime.UtcNow
+                syncedAt = lastSync ?? DateTime.UtcNow,
+                lastSyncedAt = lastSync,
+                last_synced_at = lastSync
             });
         }
         catch (Exception ex)

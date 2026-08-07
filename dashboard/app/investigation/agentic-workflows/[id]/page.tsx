@@ -222,7 +222,7 @@ export default function PlaybookEditorPage() {
   const metricFlowNodeIds = useMemo(() => {
     const ids = new Set<string>()
     for (const source of graph.nodes.filter(n => n.type === 'source.incidentMetric')) {
-      for (const id of reachableFrom(source.id, graph)) ids.add(id)
+      reachableFrom(source.id, graph).forEach(id => ids.add(id))
     }
     return ids
   }, [graph])
