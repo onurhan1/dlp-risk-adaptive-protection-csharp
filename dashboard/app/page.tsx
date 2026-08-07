@@ -132,6 +132,18 @@ interface ActionSummary {
   total: number
   total_all_time?: number
   totalAllTime?: number
+  all_time_authorized?: number
+  allTimeAuthorized?: number
+  all_time_block?: number
+  allTimeBlock?: number
+  all_time_quarantine?: number
+  allTimeQuarantine?: number
+  all_time_released?: number
+  allTimeReleased?: number
+  all_time_unknown?: number
+  allTimeUnknown?: number
+  all_time_total?: number
+  allTimeTotal?: number
 }
 
 const getDashboardPeriodRange = (days: number) => {
@@ -566,6 +578,18 @@ export default function Home() {
 
   const actionLabel = (action: string) => action === 'TOTAL' ? t('dashboard.allActions') : action
 
+  const getAllTimeActionCounts = (summary: ActionSummary) => {
+    const authorized = summary.all_time_authorized ?? summary.allTimeAuthorized ?? summary.authorized
+    const block = summary.all_time_block ?? summary.allTimeBlock ?? summary.block
+    const quarantine = summary.all_time_quarantine ?? summary.allTimeQuarantine ?? summary.quarantine
+    const released = summary.all_time_released ?? summary.allTimeReleased ?? summary.released ?? 0
+    const unknown = summary.all_time_unknown ?? summary.allTimeUnknown ?? summary.unknown ?? 0
+    const total = summary.all_time_total ?? summary.allTimeTotal ?? summary.total_all_time ?? summary.totalAllTime ?? summary.total
+    const knownTotal = authorized + block + quarantine + released
+    const other = Math.max(total - knownTotal, unknown)
+    return { authorized, block, quarantine, released, unknown, other, total }
+  }
+
   // Percentages are carried over from the grids rather than recomputed, so the
   // printed figures match the screen cell for cell.
   const buildReportSections = () => {
@@ -965,15 +989,13 @@ export default function Home() {
             <div style={{ height: '300px', position: 'relative' }}>
               {(() => {
                 const periodTotal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0) + (actionSummary.unknown || 0))
-                const totalVal = actionSummary.total_all_time ?? actionSummary.totalAllTime ?? periodTotal
-                const knownTotal = actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)
-                const otherTotal = Math.max(periodTotal - knownTotal, actionSummary.unknown || 0)
+                const allTime = getAllTimeActionCounts(actionSummary)
                 const pieItems = [
-                  { label: 'Authorized', value: actionSummary.authorized, color: '#10b981' },
-                  { label: 'Block', value: actionSummary.block, color: '#ef4444' },
-                  { label: 'Quarantine', value: actionSummary.quarantine, color: '#8b5cf6' },
-                  { label: 'Released', value: actionSummary.released || 0, color: '#f59e0b' },
-                  ...(otherTotal > 0 ? [{ label: 'Other', value: otherTotal, color: '#64748b' }] : []),
+                  { label: 'Authorized', value: allTime.authorized, color: '#10b981' },
+                  { label: 'Block', value: allTime.block, color: '#ef4444' },
+                  { label: 'Quarantine', value: allTime.quarantine, color: '#8b5cf6' },
+                  { label: 'Released', value: allTime.released, color: '#f59e0b' },
+                  ...(allTime.other > 0 ? [{ label: 'Other', value: allTime.other, color: '#64748b' }] : []),
                 ]
                 return (
                   <Plot
@@ -1000,7 +1022,7 @@ export default function Home() {
                       paper_bgcolor: 'transparent',
                       plot_bgcolor: 'transparent',
                       annotations: [{
-                        text: `<b style="font-size:28px">${totalVal.toLocaleString()}</b><br><span style="font-size:12px;color:${plotTextMuted}">Tüm Zamanlar</span><br><span style="font-size:11px;color:${plotTextMuted}">Dönem: ${periodTotal.toLocaleString()}</span>`,
+                        text: `<b style="font-size:28px">${allTime.total.toLocaleString()}</b><br><span style="font-size:12px;color:${plotTextMuted}">Tüm Zamanlar</span><br><span style="font-size:11px;color:${plotTextMuted}">Dönem: ${periodTotal.toLocaleString()}</span>`,
                         showarrow: false,
                         font: { size: 24, color: plotTextPrimary, family: 'Inter, sans-serif' },
                         x: 0.5, y: 0.5,
@@ -1032,27 +1054,16 @@ export default function Home() {
 
             {/* Action Cards Grid — Figma colored left-bar pattern */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-              {[
-                { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981' },
-                { action: 'BLOCK', value: actionSummary.block, color: '#ef4444' },
-                { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7' },
-                { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b' },
-                ...(
-                  Math.max(
-                    (actionSummary.total || 0) - (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)),
-                    actionSummary.unknown || 0
-                  ) > 0
-                    ? [{
-                        action: 'OTHER',
-                        value: Math.max(
-                          (actionSummary.total || 0) - (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)),
-                          actionSummary.unknown || 0
-                        ),
-                        color: '#64748b'
-                      }]
-                    : []
-                ),
-              ].map(({ action, value, color }) => (
+              {(() => {
+                const allTime = getAllTimeActionCounts(actionSummary)
+                return [
+                  { action: 'AUTHORIZED', value: allTime.authorized, color: '#10b981' },
+                  { action: 'BLOCK', value: allTime.block, color: '#ef4444' },
+                  { action: 'QUARANTINE', value: allTime.quarantine, color: '#a855f7' },
+                  { action: 'RELEASED', value: allTime.released, color: '#f59e0b' },
+                  ...(allTime.other > 0 ? [{ action: 'OTHER', value: allTime.other, color: '#64748b' }] : []),
+                ]
+              })().map(({ action, value, color }) => (
                 <div
                   key={action}
                   onClick={() => action !== 'OTHER' && fetchActionIncidents(action)}

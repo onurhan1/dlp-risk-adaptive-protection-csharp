@@ -51,17 +51,20 @@ public class RiskController : ControllerBase
             var total = await query.CountAsync();
             var totalAllTime = await _context.Incidents.CountAsync();
 
-            // Count by action type
-            var actionCounts = await query
-                .GroupBy(i => i.Action ?? "UNKNOWN")
-                .Select(g => new { Action = g.Key, Count = g.Count() })
-                .ToListAsync();
+            var actionCounts = await GetActionCountsAsync(query);
+            var allTimeActionCounts = await GetActionCountsAsync(_context.Incidents.AsQueryable());
 
-            var authorized = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "AUTHORIZED")?.Count ?? 0;
-            var block = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "BLOCK" || a.Action.ToUpper() == "BLOCKED")?.Count ?? 0;
-            var quarantine = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "QUARANTINE" || a.Action.ToUpper() == "QUARANTINED")?.Count ?? 0;
-            var released = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "RELEASED")?.Count ?? 0;
-            var unknown = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "UNKNOWN" || string.IsNullOrEmpty(a.Action))?.Count ?? 0;
+            var authorized = actionCounts.GetValueOrDefault("AUTHORIZED", 0);
+            var block = actionCounts.GetValueOrDefault("BLOCK", 0);
+            var quarantine = actionCounts.GetValueOrDefault("QUARANTINE", 0);
+            var released = actionCounts.GetValueOrDefault("RELEASED", 0);
+            var unknown = actionCounts.GetValueOrDefault("UNKNOWN", 0);
+
+            var allTimeAuthorized = allTimeActionCounts.GetValueOrDefault("AUTHORIZED", 0);
+            var allTimeBlock = allTimeActionCounts.GetValueOrDefault("BLOCK", 0);
+            var allTimeQuarantine = allTimeActionCounts.GetValueOrDefault("QUARANTINE", 0);
+            var allTimeReleased = allTimeActionCounts.GetValueOrDefault("RELEASED", 0);
+            var allTimeUnknown = allTimeActionCounts.GetValueOrDefault("UNKNOWN", 0);
 
             // Get min and max dates from the data
             var minDate = await query.MinAsync(i => (DateTime?)i.Timestamp);
@@ -76,15 +79,50 @@ public class RiskController : ControllerBase
                 { "unknown", unknown },
                 { "total", total },
                 { "total_all_time", totalAllTime },
+                { "all_time_authorized", allTimeAuthorized },
+                { "all_time_block", allTimeBlock },
+                { "all_time_quarantine", allTimeQuarantine },
+                { "all_time_released", allTimeReleased },
+                { "all_time_unknown", allTimeUnknown },
+                { "all_time_total", totalAllTime },
                 { "min_date", minDate?.ToString("yyyy-MM-dd") ?? "" },
                 { "max_date", maxDate?.ToString("yyyy-MM-dd") ?? "" },
-                { "actions", actionCounts.Select(a => new { action = a.Action, count = a.Count }).ToList() }
+                { "actions", actionCounts.Select(a => new { action = a.Key, count = a.Value }).ToList() },
+                { "all_time_actions", allTimeActionCounts.Select(a => new { action = a.Key, count = a.Value }).ToList() }
             });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { detail = ex.Message });
         }
+    }
+
+    private static async Task<Dictionary<string, int>> GetActionCountsAsync(IQueryable<Incident> query)
+    {
+        var rawCounts = await query
+            .GroupBy(i => i.Action ?? "UNKNOWN")
+            .Select(g => new { Action = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        return rawCounts
+            .GroupBy(a => NormalizeAction(a.Action))
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.Count));
+    }
+
+    private static string NormalizeAction(string? action)
+    {
+        var value = (action ?? string.Empty).Trim().ToUpperInvariant();
+        return value switch
+        {
+            "" => "UNKNOWN",
+            "PERMIT" => "AUTHORIZED",
+            "PERMITTED" => "AUTHORIZED",
+            "AUTHORISED" => "AUTHORIZED",
+            "BLOCKED" => "BLOCK",
+            "QUARANTINED" => "QUARANTINE",
+            "RELEASE" => "RELEASED",
+            _ => value
+        };
     }
 
     [HttpGet("trends")]
