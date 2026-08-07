@@ -12,15 +12,18 @@ public class DlpConfigurationController : ControllerBase
 {
     private readonly IDlpConfigurationService _configurationService;
     private readonly InternalApiOptions _internalApiOptions;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<DlpConfigurationController> _logger;
 
     public DlpConfigurationController(
         IDlpConfigurationService configurationService,
         IOptions<InternalApiOptions> internalApiOptions,
+        IConfiguration configuration,
         ILogger<DlpConfigurationController> logger)
     {
         _configurationService = configurationService;
         _internalApiOptions = internalApiOptions.Value;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -81,9 +84,7 @@ public class DlpConfigurationController : ControllerBase
     [HttpGet("runtime")]
     public async Task<ActionResult<DlpApiSensitiveSettingsResponse>> GetSensitiveSettings(CancellationToken cancellationToken)
     {
-        if (!Request.Headers.TryGetValue("X-Internal-Secret", out var providedSecret) ||
-            string.IsNullOrWhiteSpace(_internalApiOptions.SharedSecret) ||
-            !string.Equals(providedSecret, _internalApiOptions.SharedSecret, StringComparison.Ordinal))
+        if (!IsInternalRequestAuthorized())
         {
             _logger.LogWarning("Unauthorized attempt to access runtime DLP config");
             return Unauthorized(new { detail = "Missing or invalid internal secret" });
@@ -105,5 +106,32 @@ public class DlpConfigurationController : ControllerBase
             return StatusCode(500, new { detail = "Failed to retrieve settings" });
         }
     }
-}
 
+    [HttpGet("/api/settings/collector/runtime")]
+    public ActionResult GetCollectorRuntimeSettings()
+    {
+        if (!IsInternalRequestAuthorized())
+        {
+            _logger.LogWarning("Unauthorized attempt to access collector runtime config");
+            return Unauthorized(new { detail = "Missing or invalid internal secret" });
+        }
+
+        return Ok(new
+        {
+            redis = new
+            {
+                host = _configuration["Redis:Host"] ?? "localhost",
+                port = _configuration.GetValue<int>("Redis:Port", 6379),
+                password = _configuration["Redis:Password"] ?? string.Empty,
+                stream_name = _configuration["Redis:StreamName"] ?? "dlp:incidents"
+            }
+        });
+    }
+
+    private bool IsInternalRequestAuthorized()
+    {
+        return Request.Headers.TryGetValue("X-Internal-Secret", out var providedSecret) &&
+               !string.IsNullOrWhiteSpace(_internalApiOptions.SharedSecret) &&
+               string.Equals(providedSecret, _internalApiOptions.SharedSecret, StringComparison.Ordinal);
+    }
+}

@@ -12,11 +12,30 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        using var bootstrapLoggerFactory = LoggerFactory.Create(logging =>
+        {
+            logging.AddConsole();
+            logging.SetMinimumLevel(LogLevel.Information);
+        });
+        var bootstrapLogger = bootstrapLoggerFactory.CreateLogger("CollectorRuntimeConfig");
+        var preliminaryConfiguration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables()
+            .Build();
+        var runtimeOverrides = await AnalyzerRuntimeConfigBootstrapper.FetchOverridesAsync(
+            preliminaryConfiguration,
+            bootstrapLogger);
+
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((context, config) =>
             {
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
                 config.AddEnvironmentVariables();
+                if (runtimeOverrides.Count > 0)
+                {
+                    config.AddInMemoryCollection(runtimeOverrides);
+                }
             })
             .ConfigureServices((context, services) =>
             {

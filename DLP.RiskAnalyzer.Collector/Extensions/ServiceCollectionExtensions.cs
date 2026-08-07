@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using System.Runtime.InteropServices;
 
@@ -43,7 +44,15 @@ public static class ServiceCollectionExtensions
         }
         
         services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(redisConfig));
+        {
+            var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Redis");
+            logger.LogInformation(
+                "Connecting to Redis at {Host}:{Port}; PasswordSet={PasswordSet}",
+                redisHost,
+                redisPort,
+                !string.IsNullOrWhiteSpace(redisPassword));
+            return ConnectionMultiplexer.Connect(redisConfig);
+        });
 
         return services;
     }
