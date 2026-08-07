@@ -31,6 +31,12 @@ const DEFAULT_COLUMNS = [
   { key: 'query_status', label: 'Sorgu Durumu' }
 ]
 
+const STATUS_OPTIONS = [
+  { value: 'bekliyor', label: 'Bekliyor' },
+  { value: 'sorgulandi', label: 'Sorgulandı' },
+  { value: 'tamamlandi', label: 'Tamamlandı' }
+]
+
 const emptyRow = (): QueryRow => ({
   full_name: '',
   mail_address: '',
@@ -253,12 +259,24 @@ export default function InvestigationQueriesPage() {
                       }}
                     >
                       <div style={{ position: 'relative' }}>
-                        <input
-                          type={col.key === 'query_date' ? 'date' : 'text'}
-                          value={row[col.key] || ''}
-                          onChange={e => updateCell(rowIndex, col.key, e.target.value)}
-                          style={cellInputStyle}
-                        />
+                        {col.key === 'query_status' ? (
+                          <select
+                            value={row[col.key] || 'bekliyor'}
+                            onChange={e => updateCell(rowIndex, col.key, e.target.value)}
+                            style={cellInputStyle}
+                          >
+                            {STATUS_OPTIONS.map(option => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={col.key === 'query_date' ? 'date' : 'text'}
+                            value={row[col.key] || ''}
+                            onChange={e => updateCell(rowIndex, col.key, e.target.value)}
+                            style={cellInputStyle}
+                          />
+                        )}
                         <span
                           title="Aşağı sürükleyerek doldur"
                           onMouseDown={() => { fillRef.current = { row: rowIndex, key: col.key, value: row[col.key] || '' } }}

@@ -14,17 +14,20 @@ public class InvestigationController : ControllerBase
 {
     private readonly IWeeklyFlagService _weeklyFlagService;
     private readonly IEmailService _emailService;
+    private readonly IInvestigationQueryRemediationSyncService _queryRemediationSync;
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<InvestigationController> _logger;
 
     public InvestigationController(
         IWeeklyFlagService weeklyFlagService,
         IEmailService emailService,
+        IInvestigationQueryRemediationSyncService queryRemediationSync,
         AnalyzerDbContext context,
         ILogger<InvestigationController> logger)
     {
         _weeklyFlagService = weeklyFlagService;
         _emailService = emailService;
+        _queryRemediationSync = queryRemediationSync;
         _context = context;
         _logger = logger;
     }
@@ -97,7 +100,7 @@ public class InvestigationController : ControllerBase
             await InvestigationQuerySchema.EnsureAsync(_context, _logger);
             var now = DateTime.UtcNow;
             var actor = User?.Identity?.Name ?? "System";
-            _context.InvestigationQueries.Add(new InvestigationQueryRecord
+            var queryRecord = new InvestigationQueryRecord
             {
                 FullName = TurkishNameHelper.FromEmailLocalPart(request.ToEmail, request.ToName),
                 MailAddress = request.ToEmail.Trim(),
@@ -111,7 +114,9 @@ public class InvestigationController : ControllerBase
                 UpdatedAt = now,
                 CreatedBy = actor,
                 UpdatedBy = actor
-            });
+            };
+            _context.InvestigationQueries.Add(queryRecord);
+            await _queryRemediationSync.SyncAsync([queryRecord], actor, now);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Investigation mail sent to {ToEmail} (cc: {Cc})", request.ToEmail, ccEmail ?? "-");

@@ -75,6 +75,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IWeeklyFlagService, WeeklyFlagService>();
+        services.AddScoped<IInvestigationQueryRemediationSyncService, InvestigationQueryRemediationSyncService>();
         services.AddScoped<IPlaybookEngine, PlaybookEngine>();
         services.AddScoped<IAuditLogService, AuditLogService>();
 

@@ -42,6 +42,7 @@ public class PlaybookEngine : IPlaybookEngine
     private readonly IWeeklyFlagService _weeklyFlagService;
     private readonly IIncidentRepository _incidentRepository;
     private readonly IEmailService _emailService;
+    private readonly IInvestigationQueryRemediationSyncService _queryRemediationSync;
     private readonly ILogger<PlaybookEngine> _logger;
 
     public PlaybookEngine(
@@ -49,12 +50,14 @@ public class PlaybookEngine : IPlaybookEngine
         IWeeklyFlagService weeklyFlagService,
         IIncidentRepository incidentRepository,
         IEmailService emailService,
+        IInvestigationQueryRemediationSyncService queryRemediationSync,
         ILogger<PlaybookEngine> logger)
     {
         _context = context;
         _weeklyFlagService = weeklyFlagService;
         _incidentRepository = incidentRepository;
         _emailService = emailService;
+        _queryRemediationSync = queryRemediationSync;
         _logger = logger;
     }
 
@@ -830,6 +833,9 @@ public class PlaybookEngine : IPlaybookEngine
 
     private async Task UpsertQueryRecordsForMailLogsAsync(IEnumerable<PlaybookMailLog> mailLogs, CancellationToken ct)
     {
+        var changedRows = new List<InvestigationQueryRecord>();
+        var now = DateTime.UtcNow;
+
         foreach (var mail in mailLogs.Where(m => m.Id > 0))
         {
             var query = await _context.InvestigationQueries
@@ -858,10 +864,12 @@ public class PlaybookEngine : IPlaybookEngine
             query.Source = "agentic_workflow";
             query.Team = mail.Team;
             query.Notes = mail.SourceCriterion;
-            query.UpdatedAt = DateTime.UtcNow;
+            query.UpdatedAt = now;
             query.UpdatedBy = "Agentic Workflow";
+            changedRows.Add(query);
         }
 
+        await _queryRemediationSync.SyncAsync(changedRows, "Agentic Workflow", now, ct);
         await _context.SaveChangesAsync(ct);
     }
 

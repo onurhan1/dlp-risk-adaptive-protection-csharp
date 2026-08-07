@@ -1,6 +1,7 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
+using DLP.RiskAnalyzer.Analyzer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,13 +12,16 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 public class InvestigationQueriesController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
+    private readonly IInvestigationQueryRemediationSyncService _remediationSync;
     private readonly ILogger<InvestigationQueriesController> _logger;
 
     public InvestigationQueriesController(
         AnalyzerDbContext context,
+        IInvestigationQueryRemediationSyncService remediationSync,
         ILogger<InvestigationQueriesController> logger)
     {
         _context = context;
+        _remediationSync = remediationSync;
         _logger = logger;
     }
 
@@ -46,6 +50,7 @@ public class InvestigationQueriesController : ControllerBase
         var now = DateTime.UtcNow;
         var actor = User?.Identity?.Name ?? "System";
         var saved = 0;
+        var changedRows = new List<InvestigationQueryRecord>();
 
         foreach (var row in request.Rows)
         {
@@ -62,11 +67,13 @@ public class InvestigationQueriesController : ControllerBase
             }
 
             Apply(row, entity, now, actor);
+            changedRows.Add(entity);
             saved++;
         }
 
+        var remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, saved });
+        return Ok(new { success = true, saved, remediationsSynced });
     }
 
     [HttpPost]
@@ -78,6 +85,7 @@ public class InvestigationQueriesController : ControllerBase
         var entity = new InvestigationQueryRecord { CreatedAt = now, CreatedBy = actor };
         Apply(request, entity, now, actor);
         _context.InvestigationQueries.Add(entity);
+        await _remediationSync.SyncAsync([entity], actor, now, ct);
         await _context.SaveChangesAsync(ct);
         return Ok(entity);
     }
@@ -89,7 +97,10 @@ public class InvestigationQueriesController : ControllerBase
         var entity = await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.Id == id, ct)
             ?? throw new KeyNotFoundException($"Sorgu kaydı bulunamadı: {id}");
 
-        Apply(request, entity, DateTime.UtcNow, User?.Identity?.Name ?? "System");
+        var now = DateTime.UtcNow;
+        var actor = User?.Identity?.Name ?? "System";
+        Apply(request, entity, now, actor);
+        await _remediationSync.SyncAsync([entity], actor, now, ct);
         await _context.SaveChangesAsync(ct);
         return Ok(entity);
     }
@@ -117,7 +128,7 @@ public class InvestigationQueriesController : ControllerBase
         entity.QueryDate = row.QueryDate;
         entity.ResponseStatus = row.ResponseStatus?.Trim() ?? string.Empty;
         entity.Action = row.Action?.Trim() ?? string.Empty;
-        entity.QueryStatus = string.IsNullOrWhiteSpace(row.QueryStatus) ? InvestigationQueryStatus.Pending : row.QueryStatus.Trim();
+        entity.QueryStatus = InvestigationQueryRemediationSyncService.NormalizeQueryStatus(row.QueryStatus);
         entity.Source = row.Source?.Trim();
         entity.Team = row.Team?.Trim();
         entity.Notes = row.Notes?.Trim();
