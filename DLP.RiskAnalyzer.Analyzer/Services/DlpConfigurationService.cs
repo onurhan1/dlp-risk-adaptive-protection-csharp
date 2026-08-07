@@ -20,17 +20,20 @@ public class DlpConfigurationService : IDlpConfigurationService
 
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<DlpConfigurationService> _logger;
     private readonly IConnectionMultiplexer _redis;
 
     public DlpConfigurationService(
         AnalyzerDbContext context,
         IDataProtectionProvider dataProtectionProvider,
+        IConfiguration configuration,
         IConnectionMultiplexer redis,
         ILogger<DlpConfigurationService> logger)
     {
         _context = context;
         _protector = dataProtectionProvider.CreateProtector("DLP.ApiSecretProtector");
+        _configuration = configuration;
         _redis = redis;
         _logger = logger;
     }
@@ -45,45 +48,51 @@ public class DlpConfigurationService : IDlpConfigurationService
 
         var response = new DlpApiSettingsResponse
         {
-            ManagerIp = dict.TryGetValue(ManagerIpKey, out var ip) ? ip.Value : "localhost",
-            ManagerPort = dict.TryGetValue(ManagerPortKey, out var portSetting) && int.TryParse(portSetting.Value, out var port)
-                ? port
-                : 8443,
-            Username = dict.TryGetValue(UsernameKey, out var user) ? user.Value : string.Empty,
-            UseHttps = dict.TryGetValue(UseHttpsKey, out var httpsSetting) && bool.TryParse(httpsSetting.Value, out var https)
-                ? https
-                : true,
-            TimeoutSeconds = dict.TryGetValue(TimeoutKey, out var timeoutSetting) && int.TryParse(timeoutSetting.Value, out var timeout)
-                ? timeout
-                : 30,
-            PasswordSet = dict.ContainsKey(PasswordKey),
+            ManagerIp = GetStringSetting(dict, ManagerIpKey, "DLP:ManagerIP", "localhost"),
+            ManagerPort = GetIntSetting(dict, ManagerPortKey, "DLP:ManagerPort", 8443),
+            Username = GetStringSetting(dict, UsernameKey, "DLP:Username", string.Empty),
+            UseHttps = GetBoolSetting(dict, UseHttpsKey, "DLP:UseHttps", true),
+            TimeoutSeconds = GetIntSetting(dict, TimeoutKey, "DLP:Timeout", 30),
+            PasswordSet = dict.ContainsKey(PasswordKey) || !string.IsNullOrWhiteSpace(_configuration["DLP:Password"]),
             UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
         };
 
-        if (includeSensitive && dict.TryGetValue(PasswordKey, out var passwordSetting))
+        if (includeSensitive)
         {
-            try
+            var password = string.Empty;
+            if (dict.TryGetValue(PasswordKey, out var passwordSetting))
             {
-                var decrypted = _protector.Unprotect(passwordSetting.Value);
-                return new DlpApiSensitiveSettingsResponse
+                try
                 {
-                    ManagerIp = response.ManagerIp,
-                    ManagerPort = response.ManagerPort,
-                    Username = response.Username,
-                    UseHttps = response.UseHttps,
-                    TimeoutSeconds = response.TimeoutSeconds,
-                    PasswordSet = response.PasswordSet,
-                    UpdatedAt = response.UpdatedAt,
-                    Password = decrypted
-                };
+                    password = _protector.Unprotect(passwordSetting.Value);
+                }
+                catch (Exception ex)
+                {
+                    // Data protection keys may have been replaced (e.g. after a redeploy).
+                    // Fall back to DB-backed configuration if available before reporting that
+                    // the password is not set.
+                    _logger.LogWarning(ex, "Stored DLP API password cannot be decrypted; trying configuration fallback.");
+                    response.PasswordSet = false;
+                }
             }
-            catch (Exception ex)
+
+            if (string.IsNullOrWhiteSpace(password))
             {
-                // Data protection keys may have been replaced (e.g. after a redeploy).
-                // Treat the password as not set so the UI prompts for re-entry instead of failing.
-                _logger.LogWarning(ex, "Stored DLP API password cannot be decrypted; data protection keys may have changed. Please re-enter the password in Settings.");
-                response.PasswordSet = false;
+                password = _configuration["DLP:Password"] ?? string.Empty;
             }
+
+            response.PasswordSet = !string.IsNullOrWhiteSpace(password);
+            return new DlpApiSensitiveSettingsResponse
+            {
+                ManagerIp = response.ManagerIp,
+                ManagerPort = response.ManagerPort,
+                Username = response.Username,
+                UseHttps = response.UseHttps,
+                TimeoutSeconds = response.TimeoutSeconds,
+                PasswordSet = response.PasswordSet,
+                UpdatedAt = response.UpdatedAt,
+                Password = password
+            };
         }
 
         return response;
@@ -204,9 +213,8 @@ public class DlpConfigurationService : IDlpConfigurationService
     {
         var response = await GetAsync(includeSensitive: true, cancellationToken);
         
-        // Validate that settings are actually configured (not just defaults)
-        // If ManagerIp is "localhost" and Username is empty, it means settings are not configured
-        if (response.ManagerIp == "localhost" && string.IsNullOrWhiteSpace(response.Username))
+        // Validate that settings are actually configured (not just defaults/placeholders).
+        if (IsPlaceholder(response.ManagerIp) || IsPlaceholder(response.Username))
         {
             _logger.LogInformation("DLP API settings are not configured in database. Please configure via Settings page.");
             throw new InvalidOperationException("DLP API settings are not configured. Please configure via Settings page in the dashboard.");
@@ -232,6 +240,47 @@ public class DlpConfigurationService : IDlpConfigurationService
         {
             return null;
         }
+    }
+
+    private string GetStringSetting(
+        Dictionary<string, SystemSetting> settings,
+        string dbKey,
+        string configKey,
+        string defaultValue)
+    {
+        if (settings.TryGetValue(dbKey, out var setting) && !string.IsNullOrWhiteSpace(setting.Value))
+        {
+            return setting.Value;
+        }
+
+        return _configuration[configKey] ?? defaultValue;
+    }
+
+    private int GetIntSetting(
+        Dictionary<string, SystemSetting> settings,
+        string dbKey,
+        string configKey,
+        int defaultValue)
+    {
+        var value = GetStringSetting(settings, dbKey, configKey, string.Empty);
+        return int.TryParse(value, out var parsed) && parsed > 0 ? parsed : defaultValue;
+    }
+
+    private bool GetBoolSetting(
+        Dictionary<string, SystemSetting> settings,
+        string dbKey,
+        string configKey,
+        bool defaultValue)
+    {
+        var value = GetStringSetting(settings, dbKey, configKey, string.Empty);
+        return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    private static bool IsPlaceholder(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+               value.Equals("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("YOUR_DLP_MANAGER_IP", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateRequest(DlpApiSettingsRequest request, bool allowEmptyPassword = false)
@@ -348,4 +397,3 @@ public class DlpConfigurationService : IDlpConfigurationService
         return $"{scheme}://{settings.ManagerIp}:{settings.ManagerPort}";
     }
 }
-

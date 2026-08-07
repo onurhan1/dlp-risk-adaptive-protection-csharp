@@ -290,7 +290,7 @@ public class CollectorBackgroundService : BackgroundService
                 {
                     try
                     {
-                        chunkIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, 1, _pageSize);
+                        chunkIncidents = await FetchChunkPagesAsync(chunkStart, chunkEnd, $"Manual:{command.JobId}", cancellationToken);
                         _logger.LogInformation("[Manual:{JobId}] Chunk {ChunkIndex}: Fetched {Count} incidents",
                             command.JobId, chunkIndex, chunkIncidents.Count);
                         chunkSuccess = true;
@@ -472,7 +472,7 @@ public class CollectorBackgroundService : BackgroundService
                 {
                     try
                     {
-                        chunkIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, 1, _pageSize);
+                        chunkIncidents = await FetchChunkPagesAsync(chunkStart, chunkEnd, runType, cancellationToken);
                         _logger.LogInformation("[{RunType}] Chunk {ChunkIndex}: Fetched {Count} incidents", 
                             runType, chunkIndex, chunkIncidents.Count);
                         chunkSuccess = true;
@@ -663,6 +663,49 @@ public class CollectorBackgroundService : BackgroundService
             _logger.LogError(ex, "[{RunType}] Failed to collect incidents from Forcepoint DLP API", runType);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Fetch all paged incidents for a single time chunk.
+    /// </summary>
+    private async Task<List<DLPIncident>> FetchChunkPagesAsync(
+        DateTime chunkStart,
+        DateTime chunkEnd,
+        string runType,
+        CancellationToken cancellationToken)
+    {
+        var allIncidents = new List<DLPIncident>();
+        const int maxPagesPerChunk = 500;
+
+        for (var page = 1; page <= maxPagesPerChunk; page++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var pageIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, page, _pageSize);
+            allIncidents.AddRange(pageIncidents);
+
+            _logger.LogInformation(
+                "[{RunType}] Chunk page {Page}: fetched {Count} incidents (Accumulated={Accumulated})",
+                runType,
+                page,
+                pageIncidents.Count,
+                allIncidents.Count);
+
+            if (pageIncidents.Count < _pageSize)
+            {
+                return allIncidents;
+            }
+        }
+
+        _logger.LogWarning(
+            "[{RunType}] Reached max page limit ({MaxPages}) for chunk {Start} - {End}. Accumulated={Count}",
+            runType,
+            maxPagesPerChunk,
+            chunkStart,
+            chunkEnd,
+            allIncidents.Count);
+
+        return allIncidents;
     }
 
     /// <summary>
