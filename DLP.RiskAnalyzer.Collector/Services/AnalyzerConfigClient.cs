@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,6 +22,12 @@ public class AnalyzerConfigClient
             BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/')),
             Timeout = TimeSpan.FromSeconds(15)
         };
+
+        _logger.LogInformation(
+            "Analyzer config client initialized for {BaseUrl}; InternalSecret configured={Configured}, fingerprint={Fingerprint}",
+            _httpClient.BaseAddress,
+            !string.IsNullOrWhiteSpace(_options.InternalSecret),
+            Fingerprint(_options.InternalSecret));
     }
 
     public async Task<DLPConfig?> FetchConfigAsync(CancellationToken cancellationToken)
@@ -45,8 +53,12 @@ public class AnalyzerConfigClient
                 }
 
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Failed to fetch DLP config from Analyzer API. Status: {Status}, Body: {Body}",
-                    response.StatusCode, body);
+                _logger.LogWarning(
+                    "Failed to fetch DLP config from Analyzer API. BaseUrl={BaseUrl}, InternalSecretFingerprint={Fingerprint}, Status={Status}, Body={Body}",
+                    _httpClient.BaseAddress,
+                    Fingerprint(_options.InternalSecret),
+                    response.StatusCode,
+                    body);
                 return null;
             }
 
@@ -74,6 +86,17 @@ public class AnalyzerConfigClient
         }
     }
 
+    private static string Fingerprint(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "empty";
+        }
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash)[..10];
+    }
+
     /// <summary>
     /// DTO matching the Analyzer's snake_case JSON output (SnakeCaseLower policy).
     /// </summary>
@@ -98,4 +121,3 @@ public class AnalyzerConfigClient
         public string? Password { get; set; }
     }
 }
-

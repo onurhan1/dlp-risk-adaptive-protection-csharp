@@ -60,7 +60,7 @@ public class DLPCollectorService : IDLPCollectorService, IDisposable
             var config = _configProvider.GetCurrent();
             
             // Validate that config is actually configured (not placeholder values)
-            if (config.ManagerIP == "YOUR_DLP_MANAGER_IP" || 
+            if (IsPlaceholder(config.ManagerIP) ||
                 (config.ManagerIP == "localhost" && string.IsNullOrWhiteSpace(config.Username)))
             {
                 _logger.LogError("DLP API settings are not configured. Please configure via Settings page in the dashboard.");
@@ -362,6 +362,13 @@ public class DLPCollectorService : IDLPCollectorService, IDisposable
                a.Password == b.Password &&
                a.UseHttps == b.UseHttps &&
                a.Timeout == b.Timeout;
+    }
+
+    private static bool IsPlaceholder(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+               value.Equals("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("YOUR_DLP_MANAGER_IP", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()

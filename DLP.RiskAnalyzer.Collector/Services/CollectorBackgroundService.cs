@@ -37,11 +37,15 @@ public class CollectorBackgroundService : BackgroundService
     private readonly IDLPCollectorService _collectorService;
     private readonly ICollectorLogService _logService;
     private readonly ManualCollectQueue _manualCollectQueue;
+    private readonly AnalyzerConfigClient _configClient;
+    private readonly DlpRuntimeConfigProvider _configProvider;
     
     public CollectorBackgroundService(
         IDLPCollectorService collectorService,
         ICollectorLogService logService,
         ManualCollectQueue manualCollectQueue,
+        AnalyzerConfigClient configClient,
+        DlpRuntimeConfigProvider configProvider,
         IConnectionMultiplexer redis,
         ILogger<CollectorBackgroundService> logger,
         IConfiguration configuration)
@@ -49,6 +53,8 @@ public class CollectorBackgroundService : BackgroundService
         _collectorService = collectorService;
         _logService = logService;
         _manualCollectQueue = manualCollectQueue;
+        _configClient = configClient;
+        _configProvider = configProvider;
         _redis = redis;
         _logger = logger;
         _configuration = configuration;
@@ -77,8 +83,10 @@ public class CollectorBackgroundService : BackgroundService
     {
         _logger.LogInformation("DLP Collector Service started (DUAL MODE)");
 
-        // Run initial collection immediately
-        await CollectIncidentsAsync(_regularLookbackHours, "Initial", stoppingToken);
+        await RefreshRuntimeConfigAsync("collector startup", stoppingToken);
+
+        // Run initial collection after runtime config has had a chance to load from Analyzer.
+        await TryCollectIncidentsAsync(_regularLookbackHours, "Initial", stoppingToken);
         _lastRegularRun = DateTime.Now;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -91,7 +99,8 @@ public class CollectorBackgroundService : BackgroundService
                 if (ShouldRunDaily(now))
                 {
                     _logger.LogInformation("=== DAILY COLLECTION TRIGGERED (24h lookback) ===");
-                    await CollectIncidentsAsync(_dailyLookbackHours, "Daily", stoppingToken);
+                    await RefreshRuntimeConfigAsync("daily collection", stoppingToken);
+                    await TryCollectIncidentsAsync(_dailyLookbackHours, "Daily", stoppingToken);
                     _lastDailyRun = now.Date; // Mark that we ran today
                 }
                 
@@ -99,7 +108,8 @@ public class CollectorBackgroundService : BackgroundService
                 if (ShouldRunRegular(now))
                 {
                     _logger.LogInformation("=== REGULAR COLLECTION TRIGGERED ({LookbackHours}h lookback) ===", _regularLookbackHours);
-                    await CollectIncidentsAsync(_regularLookbackHours, "Regular", stoppingToken);
+                    await RefreshRuntimeConfigAsync("regular collection", stoppingToken);
+                    await TryCollectIncidentsAsync(_regularLookbackHours, "Regular", stoppingToken);
                     _lastRegularRun = now;
                 }
                 
@@ -110,6 +120,7 @@ public class CollectorBackgroundService : BackgroundService
                     {
                         _logger.LogInformation("=== MANUAL COLLECTION TRIGGERED: JobId={JobId}, {Start} to {End} ===",
                             manualCommand.JobId, manualCommand.StartDate, manualCommand.EndDate);
+                        await RefreshRuntimeConfigAsync($"manual collection {manualCommand.JobId}", stoppingToken);
                         await CollectIncidentsByDateRangeAsync(manualCommand, stoppingToken);
                     }
                 }
@@ -129,6 +140,83 @@ public class CollectorBackgroundService : BackgroundService
         }
 
         _logger.LogInformation("DLP Collector Service stopped");
+    }
+
+    private async Task TryCollectIncidentsAsync(int lookbackHours, string runType, CancellationToken cancellationToken)
+    {
+        var config = _configProvider.GetCurrent();
+        if (!HasUsableDlpConfig(config))
+        {
+            _logger.LogWarning(
+                "[{RunType}] DLP runtime config is not ready (Manager={Manager}, Port={Port}, UsernameSet={UsernameSet}). Skipping this cycle; will retry later.",
+                runType,
+                config.ManagerIP,
+                config.ManagerPort,
+                !string.IsNullOrWhiteSpace(config.Username));
+            return;
+        }
+
+        try
+        {
+            await CollectIncidentsAsync(lookbackHours, runType, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{RunType}] Incident collection failed. Collector will keep running and retry on the next cycle.", runType);
+        }
+    }
+
+    private async Task RefreshRuntimeConfigAsync(string reason, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var remoteConfig = await _configClient.FetchConfigAsync(cancellationToken);
+            if (remoteConfig == null)
+            {
+                _logger.LogWarning("Could not refresh DLP runtime config from Analyzer API before {Reason}.", reason);
+                return;
+            }
+
+            if (!HasUsableDlpConfig(remoteConfig))
+            {
+                _logger.LogWarning(
+                    "Analyzer API returned incomplete DLP runtime config before {Reason} (Manager={Manager}, Port={Port}, UsernameSet={UsernameSet}).",
+                    reason,
+                    remoteConfig.ManagerIP,
+                    remoteConfig.ManagerPort,
+                    !string.IsNullOrWhiteSpace(remoteConfig.Username));
+                return;
+            }
+
+            _configProvider.Update(remoteConfig, $"Analyzer API ({reason})");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not refresh DLP runtime config before {Reason}.", reason);
+        }
+    }
+
+    private static bool HasUsableDlpConfig(DLPConfig config)
+    {
+        return !IsPlaceholder(config.ManagerIP) &&
+               config.ManagerPort > 0 &&
+               !string.IsNullOrWhiteSpace(config.Username) &&
+               !string.IsNullOrWhiteSpace(config.Password);
+    }
+
+    private static bool IsPlaceholder(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+               value.Equals("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("YOUR_DLP_MANAGER_IP", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool ShouldRunDaily(DateTime now)
