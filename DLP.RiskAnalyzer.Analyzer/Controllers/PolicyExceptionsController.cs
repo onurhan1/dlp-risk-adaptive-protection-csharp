@@ -70,7 +70,6 @@ public class PolicyExceptionsController : ControllerBase
                 totalExceptions = exceptions.Count,
                 totalPolicies = grouped.Count,
                 lastSyncedAt = lastSync,
-                last_synced_at = lastSync,
                 data = grouped
             });
         }
@@ -102,8 +101,7 @@ public class PolicyExceptionsController : ControllerBase
                 message = $"Sync completed: {count} exceptions saved",
                 syncedCount = count,
                 syncedAt = lastSync ?? DateTime.UtcNow,
-                lastSyncedAt = lastSync,
-                last_synced_at = lastSync
+                lastSyncedAt = lastSync
             });
         }
         catch (Exception ex)
