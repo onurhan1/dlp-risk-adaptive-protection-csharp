@@ -130,6 +130,8 @@ interface ActionSummary {
   released: number
   unknown: number
   total: number
+  total_all_time?: number
+  totalAllTime?: number
 }
 
 const getDashboardPeriodRange = (days: number) => {
@@ -962,21 +964,26 @@ export default function Home() {
             {/* Donut Chart */}
             <div style={{ height: '300px', position: 'relative' }}>
               {(() => {
-                const totalVal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0))
+                const periodTotal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0) + (actionSummary.unknown || 0))
+                const totalVal = actionSummary.total_all_time ?? actionSummary.totalAllTime ?? periodTotal
+                const knownTotal = actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)
+                const otherTotal = Math.max(periodTotal - knownTotal, actionSummary.unknown || 0)
+                const pieItems = [
+                  { label: 'Authorized', value: actionSummary.authorized, color: '#10b981' },
+                  { label: 'Block', value: actionSummary.block, color: '#ef4444' },
+                  { label: 'Quarantine', value: actionSummary.quarantine, color: '#8b5cf6' },
+                  { label: 'Released', value: actionSummary.released || 0, color: '#f59e0b' },
+                  ...(otherTotal > 0 ? [{ label: 'Other', value: otherTotal, color: '#64748b' }] : []),
+                ]
                 return (
                   <Plot
                     data={[{
-                      values: [
-                        actionSummary.authorized,
-                        actionSummary.block,
-                        actionSummary.quarantine,
-                        actionSummary.released || 0,
-                      ],
-                      labels: ['Authorized', 'Block', 'Quarantine', 'Released'],
+                      values: pieItems.map(item => item.value),
+                      labels: pieItems.map(item => item.label),
                       type: 'pie',
                       hole: 0.6,
                       marker: {
-                        colors: ['#10b981', '#ef4444', '#8b5cf6', '#f59e0b'],
+                        colors: pieItems.map(item => item.color),
                         line: { color: 'white', width: 3 }
                       },
                       textinfo: 'percent',
@@ -993,9 +1000,9 @@ export default function Home() {
                       paper_bgcolor: 'transparent',
                       plot_bgcolor: 'transparent',
                       annotations: [{
-                        text: `<b style="font-size:28px">${totalVal}</b><br><span style="font-size:12px;color:${plotTextMuted}">Toplam</span>`,
+                        text: `<b style="font-size:28px">${totalVal.toLocaleString()}</b><br><span style="font-size:12px;color:${plotTextMuted}">Tüm Zamanlar</span><br><span style="font-size:11px;color:${plotTextMuted}">Dönem: ${periodTotal.toLocaleString()}</span>`,
                         showarrow: false,
-                        font: { size: 28, color: plotTextPrimary, family: 'Inter, sans-serif' },
+                        font: { size: 24, color: plotTextPrimary, family: 'Inter, sans-serif' },
                         x: 0.5, y: 0.5,
                       }],
                       height: 300,
@@ -1030,15 +1037,30 @@ export default function Home() {
                 { action: 'BLOCK', value: actionSummary.block, color: '#ef4444' },
                 { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7' },
                 { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b' },
+                ...(
+                  Math.max(
+                    (actionSummary.total || 0) - (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)),
+                    actionSummary.unknown || 0
+                  ) > 0
+                    ? [{
+                        action: 'OTHER',
+                        value: Math.max(
+                          (actionSummary.total || 0) - (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)),
+                          actionSummary.unknown || 0
+                        ),
+                        color: '#64748b'
+                      }]
+                    : []
+                ),
               ].map(({ action, value, color }) => (
                 <div
                   key={action}
-                  onClick={() => fetchActionIncidents(action)}
+                  onClick={() => action !== 'OTHER' && fetchActionIncidents(action)}
                   style={{
                     background: 'var(--background)',
                     padding: '16px 16px 16px 20px',
                     borderRadius: '12px',
-                    cursor: 'pointer',
+                    cursor: action === 'OTHER' ? 'default' : 'pointer',
                     transition: 'all 0.2s',
                     borderLeft: `4px solid ${color}`,
                     border: '1px solid var(--border)',

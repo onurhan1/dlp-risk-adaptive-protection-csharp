@@ -48,6 +48,9 @@ public class RiskController : ControllerBase
                     query = query.Where(i => i.Timestamp <= endDate.Value);
             }
 
+            var total = await query.CountAsync();
+            var totalAllTime = await _context.Incidents.CountAsync();
+
             // Count by action type
             var actionCounts = await query
                 .GroupBy(i => i.Action ?? "UNKNOWN")
@@ -59,7 +62,6 @@ public class RiskController : ControllerBase
             var quarantine = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "QUARANTINE" || a.Action.ToUpper() == "QUARANTINED")?.Count ?? 0;
             var released = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "RELEASED")?.Count ?? 0;
             var unknown = actionCounts.FirstOrDefault(a => a.Action.ToUpper() == "UNKNOWN" || string.IsNullOrEmpty(a.Action))?.Count ?? 0;
-            var total = authorized + block + quarantine + released + unknown;
 
             // Get min and max dates from the data
             var minDate = await query.MinAsync(i => (DateTime?)i.Timestamp);
@@ -73,6 +75,7 @@ public class RiskController : ControllerBase
                 { "released", released },
                 { "unknown", unknown },
                 { "total", total },
+                { "total_all_time", totalAllTime },
                 { "min_date", minDate?.ToString("yyyy-MM-dd") ?? "" },
                 { "max_date", maxDate?.ToString("yyyy-MM-dd") ?? "" },
                 { "actions", actionCounts.Select(a => new { action = a.Action, count = a.Count }).ToList() }
