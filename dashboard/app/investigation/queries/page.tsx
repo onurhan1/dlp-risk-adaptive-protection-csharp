@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, FileSpreadsheet, Plus, Save, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { Download, FileSpreadsheet, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import apiClient from '@/lib/axios'
 
 type QueryRow = {
@@ -36,6 +36,20 @@ const STATUS_OPTIONS = [
   { value: 'sorgulandi', label: 'Sorgulandı' },
   { value: 'tamamlandi', label: 'Tamamlandı' }
 ]
+
+const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  full_name: 230,
+  mail_address: 260,
+  subject: 320,
+  query_date: 170,
+  response_status: 330,
+  action: 280,
+  query_status: 190
+}
+
+const MIN_COLUMN_WIDTH = 120
+const MIN_ROW_HEIGHT = 38
+const MAX_ROW_HEIGHT = 360
 
 const emptyRow = (): QueryRow => ({
   full_name: '',
@@ -88,11 +102,15 @@ function toInputDate(value: any) {
 export default function InvestigationQueriesPage() {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [rows, setRows] = useState<QueryRow[]>([])
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS)
+  const [rowHeights, setRowHeights] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const fillRef = useRef<{ row: number; key: string; value: string } | null>(null)
+  const resizeRef = useRef<{ type: 'column'; key: string; startX: number; startWidth: number } | { type: 'row'; key: string; startY: number; startHeight: number } | null>(null)
 
   const loadRows = async () => {
     setLoading(true)
@@ -111,7 +129,52 @@ export default function InvestigationQueriesPage() {
     loadRows()
   }, [])
 
-  const visibleRows = useMemo(() => rows.length ? rows : [emptyRow()], [rows])
+  useEffect(() => {
+    const handleMove = (event: MouseEvent) => {
+      const resize = resizeRef.current
+      if (!resize) return
+
+      if (resize.type === 'column') {
+        const nextWidth = Math.max(MIN_COLUMN_WIDTH, resize.startWidth + event.clientX - resize.startX)
+        setColumnWidths(prev => ({ ...prev, [resize.key]: nextWidth }))
+      } else {
+        const nextHeight = Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, resize.startHeight + event.clientY - resize.startY))
+        setRowHeights(prev => ({ ...prev, [resize.key]: nextHeight }))
+      }
+    }
+
+    const stopResize = () => {
+      resizeRef.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', stopResize)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', stopResize)
+    }
+  }, [])
+
+  const rowKeyOf = (row: QueryRow, sourceIndex: number) => row.id ? `id:${row.id}` : `idx:${sourceIndex}`
+
+  const visibleRows = useMemo(() => {
+    const source = rows.length ? rows : [emptyRow()]
+    return source
+      .map((row, sourceIndex) => ({ row, sourceIndex }))
+      .filter(({ row }) => columns.every(col => {
+        const filter = (columnFilters[col.key] || '').trim().toLocaleLowerCase('tr-TR')
+        if (!filter) return true
+        const value = String(row[col.key] || '').toLocaleLowerCase('tr-TR')
+        return value.includes(filter)
+      }))
+  }, [rows, columns, columnFilters])
+
+  const totalTableWidth = useMemo(
+    () => 58 + 58 + columns.reduce((total, col) => total + (columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 220), 0),
+    [columns, columnWidths]
+  )
 
   const updateCell = (rowIndex: number, key: string, value: string) => {
     setRows(prev => {
@@ -140,12 +203,43 @@ export default function InvestigationQueriesPage() {
 
   const addColumn = () => {
     const index = columns.length + 1
-    setColumns(prev => [...prev, { key: `custom_${Date.now()}`, label: `Yeni Kolon ${index}` }])
+    const key = `custom_${Date.now()}`
+    setColumns(prev => [...prev, { key, label: `Yeni Kolon ${index}` }])
+    setColumnWidths(prev => ({ ...prev, [key]: 220 }))
   }
 
   const removeColumn = (key: string) => {
     if (columns.length <= 1) return
     setColumns(prev => prev.filter(c => c.key !== key))
+    setColumnFilters(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const startColumnResize = (event: ReactMouseEvent, key: string) => {
+    event.preventDefault()
+    resizeRef.current = {
+      type: 'column',
+      key,
+      startX: event.clientX,
+      startWidth: columnWidths[key] || DEFAULT_COLUMN_WIDTHS[key] || 220
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  const startRowResize = (event: ReactMouseEvent, key: string, currentHeight: number) => {
+    event.preventDefault()
+    resizeRef.current = {
+      type: 'row',
+      key,
+      startY: event.clientY,
+      startHeight: currentHeight
+    }
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
   }
 
   const importExcel = async (file: File) => {
@@ -223,58 +317,130 @@ export default function InvestigationQueriesPage() {
 
       {message && <div style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>{message}</div>}
 
-      <div className="card" style={{ overflow: 'auto', padding: 0 }}>
+      <div className="card" style={{ overflow: 'auto', padding: 0, maxHeight: 'calc(100vh - 260px)' }}>
         {loading ? (
           <div style={{ padding: 24, color: 'var(--text-muted)' }}>Yükleniyor...</div>
         ) : (
-          <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse' }}>
+          <table style={{ width: totalTableWidth, minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 58 }} />
+              {columns.map(col => (
+                <col key={col.key} style={{ width: columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 220 }} />
+              ))}
+              <col style={{ width: 58 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th style={thStyle}>#</th>
+                <th style={stickyThStyle}>#</th>
                 {columns.map(col => (
                   <th key={col.key} style={thStyle}>
-                    <input
-                      value={col.label}
-                      onChange={e => setColumns(prev => prev.map(c => c.key === col.key ? { ...c, label: e.target.value } : c))}
-                      style={headerInputStyle}
+                    <div style={headerCellStyle}>
+                      <input
+                        value={col.label}
+                        onChange={e => setColumns(prev => prev.map(c => c.key === col.key ? { ...c, label: e.target.value } : c))}
+                        style={headerInputStyle}
+                        title={col.label}
+                      />
+                      <button title="Kolonu sil" onClick={() => removeColumn(col.key)} style={iconButtonStyle}><Trash2 size={13} /></button>
+                    </div>
+                    <span
+                      title="Sütunu genişlet"
+                      onMouseDown={event => startColumnResize(event, col.key)}
+                      style={columnResizeHandleStyle}
                     />
-                    <button title="Kolonu sil" onClick={() => removeColumn(col.key)} style={iconButtonStyle}><Trash2 size={13} /></button>
                   </th>
                 ))}
                 <th style={thStyle}></th>
               </tr>
+              <tr>
+                <th style={filterThStyle}></th>
+                {columns.map(col => (
+                  <th key={col.key} style={filterThStyle}>
+                    <div style={filterCellStyle}>
+                      {col.key === 'query_status' ? (
+                        <select
+                          value={columnFilters[col.key] || ''}
+                          onChange={e => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          style={filterInputStyle}
+                        >
+                          <option value="">Tümü</option>
+                          {STATUS_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={columnFilters[col.key] || ''}
+                          onChange={e => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          placeholder="Filtrele"
+                          style={filterInputStyle}
+                        />
+                      )}
+                      {columnFilters[col.key] && (
+                        <button
+                          title="Filtreyi temizle"
+                          onClick={() => setColumnFilters(prev => ({ ...prev, [col.key]: '' }))}
+                          style={clearFilterButtonStyle}
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                ))}
+                <th style={filterThStyle}></th>
+              </tr>
             </thead>
             <tbody onMouseLeave={() => { fillRef.current = null }} onMouseUp={() => { fillRef.current = null }}>
-              {visibleRows.map((row, rowIndex) => (
-                <tr key={row.id ?? rowIndex}>
-                  <td style={indexStyle}>{rowIndex + 1}</td>
+              {visibleRows.map(({ row, sourceIndex }, rowIndex) => {
+                const rowKey = rowKeyOf(row, sourceIndex)
+                const rowHeight = rowHeights[rowKey] || MIN_ROW_HEIGHT
+                return (
+                <tr key={row.id ?? sourceIndex} style={{ height: rowHeight }}>
+                  <td style={{ ...indexStyle, height: rowHeight }}>
+                    {sourceIndex + 1}
+                    <span
+                      title="Satırı genişlet"
+                      onMouseDown={event => startRowResize(event, rowKey, rowHeight)}
+                      style={rowResizeHandleStyle}
+                    />
+                  </td>
                   {columns.map(col => (
                     <td
                       key={col.key}
-                      style={tdStyle}
+                      style={{ ...tdStyle, height: rowHeight }}
                       onMouseEnter={() => {
                         if (fillRef.current?.key === col.key && rowIndex > fillRef.current.row) {
-                          updateCell(rowIndex, col.key, fillRef.current.value)
+                          updateCell(sourceIndex, col.key, fillRef.current.value)
                         }
                       }}
                     >
-                      <div style={{ position: 'relative' }}>
+                      <div style={{ position: 'relative', height: '100%' }}>
                         {col.key === 'query_status' ? (
                           <select
                             value={row[col.key] || 'bekliyor'}
-                            onChange={e => updateCell(rowIndex, col.key, e.target.value)}
-                            style={cellInputStyle}
+                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
+                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
+                            title={STATUS_OPTIONS.find(option => option.value === row[col.key])?.label || row[col.key] || ''}
                           >
                             {STATUS_OPTIONS.map(option => (
                               <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                           </select>
-                        ) : (
+                        ) : col.key === 'query_date' ? (
                           <input
-                            type={col.key === 'query_date' ? 'date' : 'text'}
+                            type="date"
                             value={row[col.key] || ''}
-                            onChange={e => updateCell(rowIndex, col.key, e.target.value)}
-                            style={cellInputStyle}
+                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
+                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
+                            title={String(row[col.key] || '')}
+                          />
+                        ) : (
+                          <textarea
+                            value={row[col.key] || ''}
+                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
+                            style={{ ...cellTextAreaStyle, height: Math.max(32, rowHeight - 10) }}
+                            title={String(row[col.key] || '')}
                           />
                         )}
                         <span
@@ -285,17 +451,24 @@ export default function InvestigationQueriesPage() {
                       </div>
                     </td>
                   ))}
-                  <td style={tdStyle}>
+                  <td style={{ ...tdStyle, height: rowHeight }}>
                     <button
                       title="Satırı sil"
-                      onClick={() => setRows(prev => prev.filter((_, i) => i !== rowIndex))}
+                      onClick={() => setRows(prev => prev.filter((_, i) => i !== sourceIndex))}
                       style={iconButtonStyle}
                     >
                       <Trash2 size={15} />
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
+              {visibleRows.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length + 2} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Filtreyle eşleşen kayıt yok.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         )}
@@ -309,23 +482,62 @@ export default function InvestigationQueriesPage() {
 }
 
 const thStyle = {
+  position: 'sticky' as const,
+  top: 0,
+  zIndex: 3,
   padding: 8,
   borderBottom: '1px solid var(--border)',
+  borderRight: '1px solid var(--border)',
   background: 'var(--surface-hover)',
   color: 'var(--text-primary)',
   fontSize: 12,
   textAlign: 'left' as const,
-  whiteSpace: 'nowrap' as const
+  whiteSpace: 'nowrap' as const,
+  verticalAlign: 'top' as const
+}
+
+const stickyThStyle = {
+  ...thStyle,
+  left: 0,
+  zIndex: 4
+}
+
+const filterThStyle = {
+  ...thStyle,
+  top: 48,
+  padding: 6,
+  background: 'var(--surface)',
+  zIndex: 2
+}
+
+const headerCellStyle = {
+  position: 'relative' as const,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  minWidth: 0
+}
+
+const filterCellStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  minWidth: 0
 }
 
 const tdStyle = {
-  padding: 6,
+  position: 'relative' as const,
+  padding: 5,
   borderBottom: '1px solid var(--border)',
-  borderRight: '1px solid var(--border)'
+  borderRight: '1px solid var(--border)',
+  verticalAlign: 'middle' as const
 }
 
 const indexStyle = {
   ...tdStyle,
+  position: 'sticky' as const,
+  left: 0,
+  zIndex: 1,
   width: 42,
   color: 'var(--text-muted)',
   textAlign: 'center' as const,
@@ -334,22 +546,44 @@ const indexStyle = {
 
 const cellInputStyle = {
   width: '100%',
-  minWidth: 150,
+  minWidth: 0,
   border: '1px solid transparent',
   background: 'transparent',
   color: 'var(--text-primary)',
   padding: '7px 9px',
   borderRadius: 4,
-  outline: 'none'
+  outline: 'none',
+  boxSizing: 'border-box' as const,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const
+}
+
+const cellTextAreaStyle = {
+  ...cellInputStyle,
+  resize: 'none' as const,
+  whiteSpace: 'pre-wrap' as const,
+  overflow: 'auto',
+  lineHeight: 1.35
 }
 
 const headerInputStyle = {
   ...cellInputStyle,
-  minWidth: 170,
+  flex: 1,
+  minWidth: 0,
   fontWeight: 600
 }
 
+const filterInputStyle = {
+  ...cellInputStyle,
+  height: 30,
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  fontSize: 12
+}
+
 const iconButtonStyle = {
+  flex: '0 0 auto',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -363,6 +597,13 @@ const iconButtonStyle = {
   marginLeft: 4
 }
 
+const clearFilterButtonStyle = {
+  ...iconButtonStyle,
+  width: 24,
+  height: 24,
+  marginLeft: 0
+}
+
 const fillHandleStyle = {
   position: 'absolute' as const,
   right: 1,
@@ -372,4 +613,24 @@ const fillHandleStyle = {
   borderRadius: 2,
   background: 'var(--primary)',
   cursor: 'crosshair'
+}
+
+const columnResizeHandleStyle = {
+  position: 'absolute' as const,
+  top: 0,
+  right: -3,
+  width: 7,
+  height: '100%',
+  cursor: 'col-resize',
+  zIndex: 5
+}
+
+const rowResizeHandleStyle = {
+  position: 'absolute' as const,
+  left: 0,
+  right: 0,
+  bottom: -3,
+  height: 7,
+  cursor: 'row-resize',
+  zIndex: 2
 }
