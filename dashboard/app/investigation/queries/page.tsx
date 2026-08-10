@@ -171,6 +171,25 @@ export default function InvestigationQueriesPage() {
 
   const rowKeyOf = (row: QueryRow, sourceIndex: number) => row.id ? `id:${row.id}` : `idx:${sourceIndex}`
 
+  const updateColumnFilter = (key: string, value: string) => {
+    setColumnFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  const clearColumnFilter = (key: string) => {
+    setColumnFilters(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const clearAllFilters = () => setColumnFilters({})
+
+  const activeFilterCount = useMemo(
+    () => Object.values(columnFilters).filter(value => value.trim()).length,
+    [columnFilters]
+  )
+
   const visibleRows = useMemo(() => {
     const source = rows.length ? rows : [emptyRow()]
     return source
@@ -364,6 +383,15 @@ export default function InvestigationQueriesPage() {
 
       {message && <div style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>{message}</div>}
 
+      <div style={tableToolbarStyle}>
+        <span>{visibleRows.length} / {rows.length || 1} kayıt gösteriliyor</span>
+        {activeFilterCount > 0 && (
+          <button className="btn-secondary" onClick={clearAllFilters}>
+            <X size={15} /> Filtreleri Temizle ({activeFilterCount})
+          </button>
+        )}
+      </div>
+
       <div className="card" style={{ overflow: 'auto', padding: 0, maxHeight: 'calc(100vh - 260px)' }}>
         {loading ? (
           <div style={{ padding: 24, color: 'var(--text-muted)' }}>Yükleniyor...</div>
@@ -400,33 +428,43 @@ export default function InvestigationQueriesPage() {
                 <th style={thStyle}></th>
               </tr>
               <tr>
-                <th style={filterThStyle}></th>
+                <th style={stickyFilterThStyle}></th>
                 {columns.map(col => (
                   <th key={col.key} style={filterThStyle}>
                     <div style={filterCellStyle}>
                       {col.key === 'query_status' ? (
                         <select
                           value={columnFilters[col.key] || ''}
-                          onChange={e => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          onChange={e => updateColumnFilter(col.key, e.target.value)}
                           style={filterInputStyle}
+                          title={`${col.label} filtresi`}
                         >
                           <option value="">Tümü</option>
                           {STATUS_OPTIONS.map(option => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
                         </select>
+                      ) : col.key === 'query_date' ? (
+                        <input
+                          type="date"
+                          value={columnFilters[col.key] || ''}
+                          onChange={e => updateColumnFilter(col.key, e.target.value)}
+                          style={filterInputStyle}
+                          title={`${col.label} filtresi`}
+                        />
                       ) : (
                         <input
                           value={columnFilters[col.key] || ''}
-                          onChange={e => setColumnFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          onChange={e => updateColumnFilter(col.key, e.target.value)}
                           placeholder="Filtrele"
                           style={filterInputStyle}
+                          title={`${col.label} filtresi`}
                         />
                       )}
                       {columnFilters[col.key] && (
                         <button
                           title="Filtreyi temizle"
-                          onClick={() => setColumnFilters(prev => ({ ...prev, [col.key]: '' }))}
+                          onClick={() => clearColumnFilter(col.key)}
                           style={clearFilterButtonStyle}
                         >
                           <X size={13} />
@@ -546,6 +584,23 @@ const filterThStyle = {
   padding: '5px 8px',
   background: 'var(--surface)',
   zIndex: 2
+}
+
+const stickyFilterThStyle = {
+  ...filterThStyle,
+  left: 0,
+  zIndex: 4
+}
+
+const tableToolbarStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  marginBottom: 10,
+  color: 'var(--text-muted)',
+  fontSize: 13,
+  flexWrap: 'wrap' as const
 }
 
 const headerCellStyle = {
