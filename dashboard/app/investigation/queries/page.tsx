@@ -51,6 +51,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
 }
 
 const MIN_COLUMN_WIDTH = 120
+const MAX_AUTO_COLUMN_WIDTH = 720
 const MIN_ROW_HEIGHT = 38
 const MAX_ROW_HEIGHT = 360
 
@@ -103,11 +104,18 @@ function toInputDate(value: any) {
   return text.slice(0, 10)
 }
 
+function estimateTextWidth(value: any) {
+  const text = String(value || '')
+  const longestLine = text.split(/\r?\n/).reduce((max, line) => Math.max(max, line.length), 0)
+  return Math.min(MAX_AUTO_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, longestLine * 8 + 58))
+}
+
 export default function InvestigationQueriesPage() {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [rows, setRows] = useState<QueryRow[]>([])
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS)
+  const [manualColumnWidths, setManualColumnWidths] = useState<Set<string>>(new Set())
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -140,6 +148,7 @@ export default function InvestigationQueriesPage() {
       if (resize.type === 'column') {
         const nextWidth = Math.max(MIN_COLUMN_WIDTH, resize.startWidth + event.clientX - resize.startX)
         setColumnWidths(prev => ({ ...prev, [resize.key]: nextWidth }))
+        setManualColumnWidths(prev => new Set(prev).add(resize.key))
       } else {
         const nextHeight = Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, resize.startHeight + event.clientY - resize.startY))
         setRowHeights(prev => ({ ...prev, [resize.key]: nextHeight }))
@@ -179,6 +188,31 @@ export default function InvestigationQueriesPage() {
     [columns, columnWidths]
   )
 
+  useEffect(() => {
+    const source = rows.length ? rows : [emptyRow()]
+    setColumnWidths(prev => {
+      let changed = false
+      const next = { ...prev }
+
+      columns.forEach(col => {
+        if (manualColumnWidths.has(col.key)) return
+        const current = next[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || MIN_COLUMN_WIDTH
+        const headerWidth = estimateTextWidth(col.label)
+        const contentWidth = source.reduce(
+          (max, row) => Math.max(max, estimateTextWidth(row[col.key])),
+          headerWidth
+        )
+        const desired = Math.max(current, DEFAULT_COLUMN_WIDTHS[col.key] || MIN_COLUMN_WIDTH, contentWidth)
+        if (desired > current) {
+          next[col.key] = desired
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [rows, columns, manualColumnWidths])
+
   const updateCell = (rowIndex: number, key: string, value: string) => {
     setRows(prev => {
       const next = prev.length ? [...prev] : [emptyRow()]
@@ -209,6 +243,11 @@ export default function InvestigationQueriesPage() {
     const key = `custom_${Date.now()}`
     setColumns(prev => [...prev, { key, label: `Yeni Kolon ${index}` }])
     setColumnWidths(prev => ({ ...prev, [key]: 220 }))
+    setManualColumnWidths(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
   }
 
   const removeColumn = (key: string) => {
@@ -217,6 +256,11 @@ export default function InvestigationQueriesPage() {
     setColumnFilters(prev => {
       const next = { ...prev }
       delete next[key]
+      return next
+    })
+    setManualColumnWidths(prev => {
+      const next = new Set(prev)
+      next.delete(key)
       return next
     })
   }
@@ -434,10 +478,11 @@ export default function InvestigationQueriesPage() {
                             title={String(row[col.key] || '')}
                           />
                         ) : (
-                          <textarea
+                          <input
+                            type="text"
                             value={row[col.key] || ''}
                             onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
-                            style={{ ...cellTextAreaStyle, height: Math.max(32, rowHeight - 10) }}
+                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
                             title={String(row[col.key] || '')}
                           />
                         )}
@@ -550,14 +595,6 @@ const cellInputStyle = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap' as const
-}
-
-const cellTextAreaStyle = {
-  ...cellInputStyle,
-  resize: 'none' as const,
-  whiteSpace: 'pre-wrap' as const,
-  overflow: 'auto',
-  lineHeight: 1.35
 }
 
 const headerInputStyle = {
