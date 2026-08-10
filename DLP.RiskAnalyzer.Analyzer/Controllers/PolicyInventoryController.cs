@@ -258,6 +258,30 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             });
         }
 
+        [HttpPost("exceptions/forcepoint-enabled/bulk")]
+        public async Task<IActionResult> SetForcepointExceptionsEnabledBulk(
+            [FromBody] ForcepointExceptionsBulkEnabledRequest request,
+            CancellationToken cancellationToken)
+        {
+            var actor = User?.Identity?.Name ?? "System";
+            var result = await _forcepointExceptionService.SetExceptionsEnabledAsync(
+                request?.ExceptionIds ?? new List<int>(),
+                request?.Enabled ?? false,
+                actor,
+                cancellationToken);
+
+            var response = new
+            {
+                success = result.Success,
+                message = result.Message,
+                data = result
+            };
+
+            return result.UpdatedCount > 0 || result.Success
+                ? Ok(response)
+                : BadRequest(response);
+        }
+
         [HttpDelete("exceptions/{id}")]
         public async Task<IActionResult> DeleteException(int id)
         {
@@ -269,6 +293,12 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
 
     public class ForcepointExceptionEnabledRequest
     {
+        public bool Enabled { get; set; }
+    }
+
+    public class ForcepointExceptionsBulkEnabledRequest
+    {
+        public List<int>? ExceptionIds { get; set; }
         public bool Enabled { get; set; }
     }
 }

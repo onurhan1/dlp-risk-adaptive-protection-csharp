@@ -98,4 +98,5 @@ export interface PolicyInventorySearchResult {
     resource_type?: string;
     include?: string;
     enabled?: string;
+    exception_enabled?: string;
 }

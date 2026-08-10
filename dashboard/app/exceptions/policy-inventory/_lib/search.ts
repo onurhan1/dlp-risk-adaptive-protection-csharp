@@ -115,6 +115,7 @@ export function buildPolicyInventorySearchIndex(policies: PolicyInventoryItem[])
           exception_id: exception.id,
           exception_rule_name: exception.exception_rule_name,
           enabled: exception.enabled,
+          exception_enabled: exception.enabled,
         }
 
         pushEntry(policy, 'exception', 'exception_rule_name', exception.exception_rule_name, exceptionContext)

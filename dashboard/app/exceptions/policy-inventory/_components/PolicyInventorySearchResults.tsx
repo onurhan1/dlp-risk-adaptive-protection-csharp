@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, FileSearch, Layers, ShieldAlert } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileSearch, Layers, PowerOff, ShieldAlert } from 'lucide-react'
 import { PolicyInventorySearchResult } from '../_lib/types'
 
 interface SearchResultFilters {
@@ -8,6 +8,7 @@ interface SearchResultFilters {
   destinationType: string
   resourceType: string
   include: string
+  exceptionStatus: string
 }
 
 interface SearchResultFilterOptions {
@@ -16,6 +17,7 @@ interface SearchResultFilterOptions {
   destinationTypes: string[]
   resourceTypes: string[]
   includes: string[]
+  exceptionStatuses: string[]
 }
 
 interface SearchResultFilterSetters {
@@ -24,6 +26,7 @@ interface SearchResultFilterSetters {
   setDestinationType: (value: string) => void
   setResourceType: (value: string) => void
   setInclude: (value: string) => void
+  setExceptionStatus: (value: string) => void
 }
 
 interface Props {
@@ -35,6 +38,8 @@ interface Props {
   filters: SearchResultFilters
   filterOptions: SearchResultFilterOptions
   onFiltersChange: SearchResultFilterSetters
+  onBulkDisableExceptions?: (exceptionIds: number[]) => void
+  bulkDisableInProgress?: boolean
 }
 
 const PAGE_SIZE = 100
@@ -92,11 +97,13 @@ function FilterSelect({
   value,
   options,
   onChange,
+  formatOption,
 }: {
   label: string
   value: string
   options: string[]
   onChange: (value: string) => void
+  formatOption?: (value: string) => string
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', minWidth: '150px' }}>
@@ -116,10 +123,30 @@ function FilterSelect({
       >
         <option value="all">All</option>
         {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{formatOption ? formatOption(option) : option}</option>
         ))}
       </select>
     </label>
+  )
+}
+
+function StatusPill({ value }: { value?: string }) {
+  if (!value) return <span style={{ color: 'var(--text-secondary)' }}>-</span>
+  const active = value === 'true'
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontWeight: 700,
+      background: active ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.08)',
+      color: active ? '#10b981' : '#ef4444',
+      border: `1px solid ${active ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}`
+    }}>
+      {active ? 'Aktif' : 'Pasif'}
+    </span>
   )
 }
 
@@ -154,13 +181,23 @@ export default function PolicyInventorySearchResults({
   filters,
   filterOptions,
   onFiltersChange,
+  onBulkDisableExceptions,
+  bulkDisableInProgress = false,
 }: Props) {
   const [page, setPage] = useState(1)
   const pageCount = Math.max(1, Math.ceil(results.length / PAGE_SIZE))
+  const activeExceptionIds = useMemo(
+    () => Array.from(new Set(
+      results
+        .filter(result => result.exception_id && result.exception_enabled === 'true')
+        .map(result => result.exception_id!)
+    )),
+    [results]
+  )
 
   useEffect(() => {
     setPage(1)
-  }, [results, filters.area, filters.scope, filters.destinationType, filters.resourceType, filters.include])
+  }, [results, filters.area, filters.scope, filters.destinationType, filters.resourceType, filters.include, filters.exceptionStatus])
 
   const visibleResults = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE
@@ -211,7 +248,21 @@ export default function PolicyInventorySearchResults({
             </div>
           </div>
         </div>
-        <Badge value="filtered" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {onBulkDisableExceptions && activeExceptionIds.length > 0 && (
+            <button
+              type="button"
+              disabled={bulkDisableInProgress}
+              onClick={() => onBulkDisableExceptions(activeExceptionIds)}
+              className="pi-bulk-disable-btn"
+              title="Filtrelenen aktif exceptionlari Forcepoint uzerinde pasiflestir"
+            >
+              <PowerOff size={14} />
+              {bulkDisableInProgress ? 'Kapatiliyor...' : `Filtrelenenleri Kapat (${activeExceptionIds.length})`}
+            </button>
+          )}
+          <Badge value="filtered" />
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', padding: '12px 18px', borderBottom: '1px solid var(--border-color)' }}>
@@ -220,6 +271,13 @@ export default function PolicyInventorySearchResults({
         <FilterSelect label="Destination Type" value={filters.destinationType} options={filterOptions.destinationTypes} onChange={onFiltersChange.setDestinationType} />
         <FilterSelect label="Resource Type" value={filters.resourceType} options={filterOptions.resourceTypes} onChange={onFiltersChange.setResourceType} />
         <FilterSelect label="Include" value={filters.include} options={filterOptions.includes} onChange={onFiltersChange.setInclude} />
+        <FilterSelect
+          label="Durum"
+          value={filters.exceptionStatus}
+          options={filterOptions.exceptionStatuses}
+          onChange={onFiltersChange.setExceptionStatus}
+          formatOption={(option) => option === 'true' ? 'Aktif' : 'Pasif'}
+        />
       </div>
 
       {!results.length ? (
@@ -234,7 +292,7 @@ export default function PolicyInventorySearchResults({
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '980px' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-color)' }}>
-                  {['Policy', 'Rule', 'Scope', 'Exception', 'Alan', 'Eslesen Deger', 'Destination Type', 'Resource Type', 'Include'].map((header) => (
+                  {['Policy', 'Rule', 'Scope', 'Exception', 'Durum', 'Alan', 'Eslesen Deger', 'Destination Type', 'Resource Type', 'Include'].map((header) => (
                     <th key={header} style={{
                       padding: '10px 12px',
                       borderBottom: '1px solid var(--border-color)',
@@ -268,6 +326,7 @@ export default function PolicyInventorySearchResults({
                     </TextCell>
                     <TextCell><Badge value={result.scope} /></TextCell>
                     <TextCell>{result.exception_rule_name}</TextCell>
+                    <TextCell><StatusPill value={result.exception_enabled} /></TextCell>
                     <TextCell>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <Badge value={result.match_area} />
@@ -334,6 +393,23 @@ export default function PolicyInventorySearchResults({
             .pi-search-page-btn:disabled {
               cursor: not-allowed;
               opacity: 0.45;
+            }
+            .pi-bulk-disable-btn {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              padding: 8px 11px;
+              border-radius: 8px;
+              border: 1px solid rgba(239,68,68,0.28);
+              background: rgba(239,68,68,0.1);
+              color: #ef4444;
+              cursor: pointer;
+              font-size: 12px;
+              font-weight: 700;
+            }
+            .pi-bulk-disable-btn:disabled {
+              cursor: wait;
+              opacity: 0.6;
             }
           `}</style>
         </>

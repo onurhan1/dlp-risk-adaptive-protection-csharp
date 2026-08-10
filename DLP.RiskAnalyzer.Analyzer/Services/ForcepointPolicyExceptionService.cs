@@ -12,6 +12,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public interface IForcepointPolicyExceptionService
 {
     Task<ForcepointExceptionToggleResult> SetExceptionEnabledAsync(int exceptionId, bool enabled, string actor, CancellationToken ct = default);
+    Task<ForcepointExceptionBulkToggleResult> SetExceptionsEnabledAsync(IEnumerable<int> exceptionIds, bool enabled, string actor, CancellationToken ct = default);
 }
 
 public record ForcepointExceptionToggleResult(
@@ -23,6 +24,24 @@ public record ForcepointExceptionToggleResult(
     string? ExceptionRuleName,
     string Enabled,
     string? ForcepointResponse = null);
+
+public record ForcepointExceptionBulkToggleItemResult(
+    bool Success,
+    string Message,
+    int ExceptionId,
+    string? PolicyName,
+    string? RuleName,
+    string? ExceptionRuleName,
+    string Enabled,
+    string? ForcepointResponse = null);
+
+public record ForcepointExceptionBulkToggleResult(
+    bool Success,
+    string Message,
+    int RequestedCount,
+    int UpdatedCount,
+    int FailedCount,
+    IReadOnlyList<ForcepointExceptionBulkToggleItemResult> Items);
 
 public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionService
 {
@@ -47,20 +66,81 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         string actor,
         CancellationToken ct = default)
     {
-        var exception = await _context.PIExceptions
+        var result = await SetExceptionsEnabledAsync(new[] { exceptionId }, enabled, actor, ct);
+        var item = result.Items.FirstOrDefault(i => i.ExceptionId == exceptionId);
+        if (item == null)
+            return Fail(exceptionId, null, null, null, enabled, result.Message);
+
+        return new ForcepointExceptionToggleResult(
+            item.Success,
+            item.Message,
+            item.ExceptionId,
+            item.PolicyName,
+            item.RuleName,
+            item.ExceptionRuleName,
+            item.Enabled,
+            item.ForcepointResponse);
+    }
+
+    public async Task<ForcepointExceptionBulkToggleResult> SetExceptionsEnabledAsync(
+        IEnumerable<int> exceptionIds,
+        bool enabled,
+        string actor,
+        CancellationToken ct = default)
+    {
+        var requestedIds = exceptionIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+
+        if (requestedIds.Count == 0)
+        {
+            return new ForcepointExceptionBulkToggleResult(
+                false,
+                "Islem yapilacak exception secilmedi.",
+                0,
+                0,
+                0,
+                Array.Empty<ForcepointExceptionBulkToggleItemResult>());
+        }
+
+        var exceptions = await _context.PIExceptions
             .Include(e => e.Rule)
                 .ThenInclude(r => r.Policy)
-            .FirstOrDefaultAsync(e => e.Id == exceptionId, ct);
+            .Where(e => requestedIds.Contains(e.Id))
+            .ToListAsync(ct);
 
-        if (exception == null)
-            return Fail(exceptionId, null, null, null, enabled, "Exception kaydı bulunamadı.");
+        var items = new List<ForcepointExceptionBulkToggleItemResult>();
+        var exceptionsById = exceptions.ToDictionary(e => e.Id);
+        foreach (var requestedId in requestedIds)
+        {
+            if (!exceptionsById.ContainsKey(requestedId))
+            {
+                items.Add(FailItem(requestedId, null, null, null, enabled, "Exception kaydi bulunamadi."));
+            }
+        }
 
-        var ruleName = exception.Rule?.RuleName;
-        var exceptionName = exception.ExceptionRuleName;
-        var policyName = exception.Rule?.Policy?.PolicyName;
+        var candidates = exceptions
+            .Where(e =>
+            {
+                var ruleName = e.Rule?.RuleName;
+                var exceptionName = e.ExceptionRuleName;
+                if (!string.IsNullOrWhiteSpace(ruleName) && !string.IsNullOrWhiteSpace(exceptionName))
+                    return true;
 
-        if (string.IsNullOrWhiteSpace(ruleName) || string.IsNullOrWhiteSpace(exceptionName))
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Rule veya exception adı boş olduğu için Forcepoint güncellemesi yapılamadı.");
+                items.Add(FailItem(
+                    e.Id,
+                    e.Rule?.Policy?.PolicyName,
+                    ruleName,
+                    exceptionName,
+                    enabled,
+                    "Rule veya exception adi bos oldugu icin Forcepoint guncellemesi yapilamadi."));
+                return false;
+            })
+            .ToList();
+
+        if (candidates.Count == 0)
+            return BuildBulkResult(requestedIds.Count, enabled, items);
 
         DlpApiSensitiveSettingsResponse config;
         try
@@ -70,89 +150,219 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Forcepoint DLP config could not be loaded from database.");
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Forcepoint DLP konfigürasyonu okunamadı. Settings ekranındaki DLP API ayarlarını kontrol edin.");
+            foreach (var candidate in candidates)
+            {
+                items.Add(FailItem(
+                    candidate.Id,
+                    candidate.Rule?.Policy?.PolicyName,
+                    candidate.Rule?.RuleName,
+                    candidate.ExceptionRuleName,
+                    enabled,
+                    "Forcepoint DLP konfigurasyonu okunamadi. Settings ekranindaki DLP API ayarlarini kontrol edin."));
+            }
+            return BuildBulkResult(requestedIds.Count, enabled, items);
         }
 
         using var httpClient = CreateHttpClient(config);
         var token = await GetAccessTokenAsync(httpClient, config, ct);
         if (string.IsNullOrWhiteSpace(token))
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Forcepoint DLP API kimlik doğrulaması başarısız.");
-
-        var getPath = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}";
-        var getRequest = new HttpRequestMessage(HttpMethod.Get, getPath);
-        getRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        getRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        getRequest.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-        getRequest.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-        getRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-        var getResponse = await httpClient.SendAsync(getRequest, ct);
-        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
-        if (!getResponse.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Forcepoint exception GET failed. Rule={RuleName}, Status={Status}, Body={Body}", ruleName, getResponse.StatusCode, getBody);
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, $"Forcepoint GET başarısız: {(int)getResponse.StatusCode} {getResponse.ReasonPhrase}", getBody);
+            foreach (var candidate in candidates)
+            {
+                items.Add(FailItem(
+                    candidate.Id,
+                    candidate.Rule?.Policy?.PolicyName,
+                    candidate.Rule?.RuleName,
+                    candidate.ExceptionRuleName,
+                    enabled,
+                    "Forcepoint DLP API kimlik dogrulamasi basarisiz."));
+            }
+            return BuildBulkResult(requestedIds.Count, enabled, items);
         }
 
-        JsonNode? getPayload;
-        try
+        var updatedEntities = new List<PIException>();
+        foreach (var group in candidates.GroupBy(e => e.Rule!.RuleName, StringComparer.OrdinalIgnoreCase))
         {
-            getPayload = JsonNode.Parse(getBody);
+            var ruleName = group.Key!;
+            var groupItems = group.ToList();
+            using var getRequest = CreateGetExceptionsRequest(ruleName, token);
+            var getResponse = await httpClient.SendAsync(getRequest, ct);
+            var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+            if (!getResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Forcepoint exception GET failed. Rule={RuleName}, Status={Status}, Body={Body}", ruleName, getResponse.StatusCode, getBody);
+                foreach (var candidate in groupItems)
+                {
+                    items.Add(FailItem(
+                        candidate.Id,
+                        candidate.Rule?.Policy?.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        $"Forcepoint GET basarisiz: {(int)getResponse.StatusCode} {getResponse.ReasonPhrase}",
+                        getBody));
+                }
+                continue;
+            }
+
+            JsonNode? getPayload;
+            try
+            {
+                getPayload = JsonNode.Parse(getBody);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Forcepoint exception GET returned invalid JSON. Rule={RuleName}", ruleName);
+                foreach (var candidate in groupItems)
+                {
+                    items.Add(FailItem(
+                        candidate.Id,
+                        candidate.Rule?.Policy?.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        "Forcepoint GET cevabi JSON olarak okunamadi.",
+                        getBody));
+                }
+                continue;
+            }
+
+            if (getPayload == null)
+            {
+                foreach (var candidate in groupItems)
+                {
+                    items.Add(FailItem(
+                        candidate.Id,
+                        candidate.Rule?.Policy?.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        "Forcepoint GET cevabi bos dondu.",
+                        getBody));
+                }
+                continue;
+            }
+
+            var payload = SelectForcepointPayload(getPayload);
+            var foundItems = new List<PIException>();
+            foreach (var candidate in groupItems)
+            {
+                var exceptionNode = FindExceptionNode(payload, candidate.ExceptionRuleName!);
+                if (exceptionNode == null)
+                {
+                    items.Add(FailItem(
+                        candidate.Id,
+                        candidate.Rule?.Policy?.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        "Forcepoint uzerinde hedef exception bulunamadi.",
+                        getBody));
+                    continue;
+                }
+
+                exceptionNode["enabled"] = enabled ? "true" : "false";
+                foundItems.Add(candidate);
+            }
+
+            if (foundItems.Count == 0)
+                continue;
+
+            EnsurePostMetadata(payload, ruleName);
+            var json = payload.ToJsonString(new JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+
+            using var postRequest = CreatePostExceptionsRequest(token, json);
+            var postResponse = await httpClient.SendAsync(postRequest, ct);
+            var postBody = await postResponse.Content.ReadAsStringAsync(ct);
+            if (!postResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Forcepoint exception POST failed. Rule={RuleName}, Count={Count}, Status={Status}, Body={Body}",
+                    ruleName, foundItems.Count, postResponse.StatusCode, postBody);
+                foreach (var candidate in foundItems)
+                {
+                    items.Add(FailItem(
+                        candidate.Id,
+                        candidate.Rule?.Policy?.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        $"Forcepoint POST basarisiz: {(int)postResponse.StatusCode} {postResponse.ReasonPhrase}",
+                        postBody));
+                }
+                continue;
+            }
+
+            foreach (var candidate in foundItems)
+            {
+                candidate.Enabled = enabled ? "true" : "false";
+                candidate.UpdatedAt = DateTime.UtcNow;
+                updatedEntities.Add(candidate);
+                items.Add(new ForcepointExceptionBulkToggleItemResult(
+                    true,
+                    enabled ? "Exception Forcepoint uzerinde aktif edildi." : "Exception Forcepoint uzerinde pasif edildi.",
+                    candidate.Id,
+                    candidate.Rule?.Policy?.PolicyName,
+                    ruleName,
+                    candidate.ExceptionRuleName,
+                    candidate.Enabled,
+                    postBody));
+            }
         }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(ex, "Forcepoint exception GET returned invalid JSON. Rule={RuleName}", ruleName);
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Forcepoint GET cevabı JSON olarak okunamadı.", getBody);
-        }
 
-        if (getPayload == null)
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Forcepoint GET cevabı boş döndü.", getBody);
-
-        var payload = SelectForcepointPayload(getPayload);
-        var exceptionNode = FindExceptionNode(payload, exceptionName);
-        if (exceptionNode == null)
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, "Forcepoint üzerinde hedef exception bulunamadı.", getBody);
-
-        exceptionNode["enabled"] = enabled ? "true" : "false";
-        EnsurePostMetadata(payload, ruleName);
-
-        var json = payload.ToJsonString(new JsonSerializerOptions
-        {
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
-        var postRequest = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/policy/rules/exceptions");
-        postRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        postRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        postRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var postResponse = await httpClient.SendAsync(postRequest, ct);
-        var postBody = await postResponse.Content.ReadAsStringAsync(ct);
-
-        if (!postResponse.IsSuccessStatusCode)
-        {
-            _logger.LogWarning(
-                "Forcepoint exception POST failed. Rule={RuleName}, Exception={ExceptionName}, Status={Status}, Body={Body}",
-                ruleName, exceptionName, postResponse.StatusCode, postBody);
-            return Fail(exceptionId, policyName, ruleName, exceptionName, enabled, $"Forcepoint POST başarısız: {(int)postResponse.StatusCode} {postResponse.ReasonPhrase}", postBody);
-        }
-
-        exception.Enabled = enabled ? "true" : "false";
-        exception.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        if (updatedEntities.Count > 0)
+            await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Forcepoint exception enabled changed. Policy={PolicyName}, Rule={RuleName}, Exception={ExceptionName}, Enabled={Enabled}, Actor={Actor}",
-            policyName, ruleName, exceptionName, exception.Enabled, actor);
+            "Forcepoint bulk exception enabled changed. Requested={Requested}, Updated={Updated}, Failed={Failed}, Enabled={Enabled}, Actor={Actor}",
+            requestedIds.Count, updatedEntities.Count, items.Count(i => !i.Success), enabled, actor);
 
-        return new ForcepointExceptionToggleResult(
-            true,
-            enabled ? "Exception Forcepoint üzerinde aktif edildi." : "Exception Forcepoint üzerinde pasif edildi.",
-            exceptionId,
-            policyName,
-            ruleName,
-            exceptionName,
-            exception.Enabled,
-            postBody);
+        return BuildBulkResult(requestedIds.Count, enabled, items);
+    }
+
+    private static HttpRequestMessage CreateGetExceptionsRequest(string ruleName, string token)
+    {
+        var getPath = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}";
+        var request = new HttpRequestMessage(HttpMethod.Get, getPath);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+        request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        return request;
+    }
+
+    private static HttpRequestMessage CreatePostExceptionsRequest(string token, string json)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/policy/rules/exceptions");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        return request;
+    }
+
+    private static ForcepointExceptionBulkToggleResult BuildBulkResult(
+        int requestedCount,
+        bool enabled,
+        IReadOnlyList<ForcepointExceptionBulkToggleItemResult> items)
+    {
+        var updatedCount = items.Count(i => i.Success);
+        var failedCount = items.Count(i => !i.Success);
+        var action = enabled ? "aktif edildi" : "pasif edildi";
+        var message = failedCount == 0
+            ? $"{updatedCount} exception Forcepoint uzerinde {action}."
+            : $"{updatedCount} exception {action}, {failedCount} exception icin hata olustu.";
+
+        return new ForcepointExceptionBulkToggleResult(
+            failedCount == 0 && updatedCount == requestedCount,
+            message,
+            requestedCount,
+            updatedCount,
+            failedCount,
+            items);
     }
 
     private static HttpClient CreateHttpClient(DlpApiSensitiveSettingsResponse config)
@@ -292,6 +502,16 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
     }
 
     private static ForcepointExceptionToggleResult Fail(
+        int exceptionId,
+        string? policyName,
+        string? ruleName,
+        string? exceptionName,
+        bool enabled,
+        string message,
+        string? forcepointResponse = null) =>
+        new(false, message, exceptionId, policyName, ruleName, exceptionName, enabled ? "true" : "false", forcepointResponse);
+
+    private static ForcepointExceptionBulkToggleItemResult FailItem(
         int exceptionId,
         string? policyName,
         string? ruleName,

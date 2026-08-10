@@ -36,6 +36,7 @@ export default function PolicyInventoryPage() {
   const [resultDestinationTypeFilter, setResultDestinationTypeFilter] = useState('all')
   const [resultResourceTypeFilter, setResultResourceTypeFilter] = useState('all')
   const [resultIncludeFilter, setResultIncludeFilter] = useState('all')
+  const [resultExceptionStatusFilter, setResultExceptionStatusFilter] = useState('all')
 
   // Modals state
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false)
@@ -43,6 +44,7 @@ export default function PolicyInventoryPage() {
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [togglingExceptionId, setTogglingExceptionId] = useState<number | null>(null)
+  const [bulkTogglingExceptions, setBulkTogglingExceptions] = useState(false)
   const [forcepointMessage, setForcepointMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Current items for editing/deleting
@@ -100,6 +102,7 @@ export default function PolicyInventoryPage() {
     setResultDestinationTypeFilter('all')
     setResultResourceTypeFilter('all')
     setResultIncludeFilter('all')
+    setResultExceptionStatusFilter('all')
   }, [debouncedSearchQuery, searchFilter])
 
   const searchIndex = useMemo(
@@ -126,6 +129,7 @@ export default function PolicyInventoryPage() {
       destinationTypes: unique(rawSearchResults.map(r => r.destination_type)),
       resourceTypes: unique(rawSearchResults.map(r => r.resource_type)),
       includes: unique(rawSearchResults.map(r => r.include)),
+      exceptionStatuses: unique(rawSearchResults.map(r => r.exception_enabled)),
     }
   }, [rawSearchResults])
 
@@ -135,7 +139,8 @@ export default function PolicyInventoryPage() {
       (resultScopeFilter === 'all' || result.scope === resultScopeFilter) &&
       (resultDestinationTypeFilter === 'all' || result.destination_type === resultDestinationTypeFilter) &&
       (resultResourceTypeFilter === 'all' || result.resource_type === resultResourceTypeFilter) &&
-      (resultIncludeFilter === 'all' || result.include === resultIncludeFilter)
+      (resultIncludeFilter === 'all' || result.include === resultIncludeFilter) &&
+      (resultExceptionStatusFilter === 'all' || result.exception_enabled === resultExceptionStatusFilter)
     ),
     [
       rawSearchResults,
@@ -143,7 +148,8 @@ export default function PolicyInventoryPage() {
       resultScopeFilter,
       resultDestinationTypeFilter,
       resultResourceTypeFilter,
-      resultIncludeFilter
+      resultIncludeFilter,
+      resultExceptionStatusFilter
     ]
   )
   const isSearchMode = searchQuery.trim().length > 0
@@ -214,6 +220,40 @@ export default function PolicyInventoryPage() {
       })
     } finally {
       setTogglingExceptionId(null)
+    }
+  }
+
+  const handleBulkDisableFilteredExceptions = async (exceptionIds: number[]) => {
+    const uniqueIds = Array.from(new Set(exceptionIds.filter(id => id > 0)))
+    if (uniqueIds.length === 0) return
+
+    const confirmed = window.confirm(
+      `Filtrelenen sonuclardaki ${uniqueIds.length} aktif exception Forcepoint uzerinde pasif edilecek.\n\n` +
+      `Bu islem lokal kaydi sadece Forcepoint basarili donerse gunceller. Devam etmek istiyor musunuz?`
+    )
+    if (!confirmed) return
+
+    setBulkTogglingExceptions(true)
+    setForcepointMessage(null)
+
+    try {
+      const res = await apiClient.post('/api/policy-inventory/exceptions/forcepoint-enabled/bulk', {
+        exceptionIds: uniqueIds,
+        enabled: false
+      })
+      const success = Boolean(res.data?.success)
+      setForcepointMessage({
+        type: success ? 'success' : 'error',
+        text: res.data?.message || `${uniqueIds.length} exception icin toplu kapatma tamamlandi.`
+      })
+      await loadData()
+    } catch (e: any) {
+      setForcepointMessage({
+        type: 'error',
+        text: e?.response?.data?.message || e?.message || 'Toplu Forcepoint exception kapatma basarisiz.'
+      })
+    } finally {
+      setBulkTogglingExceptions(false)
     }
   }
 
@@ -316,6 +356,7 @@ export default function PolicyInventoryPage() {
                     destinationType: resultDestinationTypeFilter,
                     resourceType: resultResourceTypeFilter,
                     include: resultIncludeFilter,
+                    exceptionStatus: resultExceptionStatusFilter,
                   }}
                   filterOptions={resultFilterOptions}
                   onFiltersChange={{
@@ -324,7 +365,10 @@ export default function PolicyInventoryPage() {
                     setDestinationType: setResultDestinationTypeFilter,
                     setResourceType: setResultResourceTypeFilter,
                     setInclude: setResultIncludeFilter,
+                    setExceptionStatus: setResultExceptionStatusFilter,
                   }}
+                  onBulkDisableExceptions={handleBulkDisableFilteredExceptions}
+                  bulkDisableInProgress={bulkTogglingExceptions}
                 />
               ) : (
                 <Table
