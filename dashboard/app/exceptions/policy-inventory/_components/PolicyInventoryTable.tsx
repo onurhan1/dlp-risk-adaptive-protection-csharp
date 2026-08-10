@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, Plus, Edit2, Trash2,
   ShieldAlert, Globe, FileWarning, Cpu, Mail,
   Network, HardDrive, Monitor, Wifi, Server,
-  AlertTriangle, CheckCircle, XCircle, Info, ArrowRight
+  AlertTriangle, CheckCircle, XCircle, Info, ArrowRight, Power
 } from 'lucide-react'
 import { PolicyInventoryItem, PolicyRule, PolicyException } from '../_lib/types'
 
@@ -20,6 +20,8 @@ interface Props {
   onAddException: (ruleId: number) => void
   onEditException: (exc: PolicyException, ruleId: number) => void
   onDeleteException: (id: number, name: string) => void
+  onToggleExceptionEnabled: (exc: PolicyException, rule: PolicyRule) => void
+  togglingExceptionId?: number | null
 }
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
@@ -440,12 +442,14 @@ function DestinationPanel({ destinations }: { destinations?: any[] }) {
 }
 
 function RuleDetailPanel({
-  rule, onAddException, onEditException, onDeleteException
+  rule, onAddException, onEditException, onDeleteException, onToggleExceptionEnabled, togglingExceptionId
 }: {
   rule: PolicyRule
   onAddException: (ruleId: number) => void
   onEditException: (exc: PolicyException, ruleId: number) => void
   onDeleteException: (id: number, name: string) => void
+  onToggleExceptionEnabled: (exc: PolicyException, rule: PolicyRule) => void
+  togglingExceptionId?: number | null
 }) {
   const [expandedExceptions, setExpandedExceptions] = useState<Record<number, boolean>>({})
   const toggleException = (id: number) => setExpandedExceptions(p => ({ ...p, [id]: !p[id] }))
@@ -561,6 +565,19 @@ function RuleDetailPanel({
 
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                      <button
+                        className="pi-icon-btn"
+                        disabled={togglingExceptionId === exc.id}
+                        onClick={() => onToggleExceptionEnabled(exc, rule)}
+                        title={exc.enabled === 'true' ? "Forcepoint'te pasifleştir" : "Forcepoint'te aktifleştir"}
+                        style={{
+                          color: exc.enabled === 'true' ? '#ef4444' : '#10b981',
+                          opacity: togglingExceptionId === exc.id ? 0.5 : 1,
+                          cursor: togglingExceptionId === exc.id ? 'wait' : 'pointer'
+                        }}
+                      >
+                        <Power size={13} />
+                      </button>
                       <button className="pi-icon-btn" onClick={() => onEditException(exc, rule.id)} title="Düzenle"><Edit2 size={13} /></button>
                       <button className="pi-icon-btn pi-delete" onClick={() => onDeleteException(exc.id, exc.exception_rule_name)} title="Sil"><Trash2 size={13} /></button>
                     </div>
@@ -641,7 +658,8 @@ function RuleDetailPanel({
 export default function PolicyInventoryTable({
   policies, onAddPolicy, onEditPolicy, onDeletePolicy,
   onAddRule, onEditRule, onDeleteRule,
-  onAddException, onEditException, onDeleteException
+  onAddException, onEditException, onDeleteException,
+  onToggleExceptionEnabled, togglingExceptionId
 }: Props) {
   const [expandedPolicies, setExpandedPolicies] = useState<Record<number, boolean>>({})
   const [expandedRules, setExpandedRules] = useState<Record<number, boolean>>({})
@@ -807,6 +825,8 @@ export default function PolicyInventoryTable({
                           onAddException={onAddException}
                           onEditException={onEditException}
                           onDeleteException={onDeleteException}
+                          onToggleExceptionEnabled={onToggleExceptionEnabled}
+                          togglingExceptionId={togglingExceptionId}
                         />
                       )}
                     </div>

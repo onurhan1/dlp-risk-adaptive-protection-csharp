@@ -16,15 +16,18 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
         private readonly AnalyzerDbContext _context;
         private readonly IPolicyInventoryService _inventoryService;
         private readonly IBulkPolicyInventoryImportService _bulkImportService;
+        private readonly IForcepointPolicyExceptionService _forcepointExceptionService;
 
         public PolicyInventoryController(
             AnalyzerDbContext context,
             IPolicyInventoryService inventoryService,
-            IBulkPolicyInventoryImportService bulkImportService)
+            IBulkPolicyInventoryImportService bulkImportService,
+            IForcepointPolicyExceptionService forcepointExceptionService)
         {
             _context = context;
             _inventoryService = inventoryService;
             _bulkImportService = bulkImportService;
+            _forcepointExceptionService = forcepointExceptionService;
         }
 
         // GET: api/policy-inventory
@@ -224,6 +227,37 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             return BadRequest(new { success = false, message = result.Message });
         }
 
+        [HttpPost("exceptions/{id}/forcepoint-enabled")]
+        public async Task<IActionResult> SetForcepointExceptionEnabled(
+            int id,
+            [FromBody] ForcepointExceptionEnabledRequest request,
+            CancellationToken cancellationToken)
+        {
+            var actor = User?.Identity?.Name ?? "System";
+            var result = await _forcepointExceptionService.SetExceptionEnabledAsync(
+                id,
+                request.Enabled,
+                actor,
+                cancellationToken);
+
+            if (result.Success)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = result.Message,
+                    data = result
+                });
+            }
+
+            return BadRequest(new
+            {
+                success = false,
+                message = result.Message,
+                data = result
+            });
+        }
+
         [HttpDelete("exceptions/{id}")]
         public async Task<IActionResult> DeleteException(int id)
         {
@@ -231,5 +265,10 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers
             if (result.Success) return Ok(new { success = true, message = result.Message });
             return BadRequest(new { success = false, message = result.Message });
         }
+    }
+
+    public class ForcepointExceptionEnabledRequest
+    {
+        public bool Enabled { get; set; }
     }
 }

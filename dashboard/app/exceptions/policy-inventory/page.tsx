@@ -42,6 +42,8 @@ export default function PolicyInventoryPage() {
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [togglingExceptionId, setTogglingExceptionId] = useState<number | null>(null)
+  const [forcepointMessage, setForcepointMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Current items for editing/deleting
   const [currentPolicy, setCurrentPolicy] = useState<PolicyInventoryItem | null>(null)
@@ -184,6 +186,37 @@ export default function PolicyInventoryPage() {
     } catch (e) { console.error(e) }
   }
 
+  const handleToggleForcepointException = async (exception: PolicyException, rule: PolicyRule) => {
+    const nextEnabled = exception.enabled !== 'true'
+    const actionText = nextEnabled ? 'aktif' : 'pasif'
+    const confirmed = window.confirm(
+      `"${exception.exception_rule_name}" exception kaydı Forcepoint üzerinde ${actionText} edilecek.\n\n` +
+      `Rule: ${rule.rule_name}\n\nDevam etmek istiyor musunuz?`
+    )
+    if (!confirmed) return
+
+    setTogglingExceptionId(exception.id)
+    setForcepointMessage(null)
+
+    try {
+      const res = await apiClient.post(`/api/policy-inventory/exceptions/${exception.id}/forcepoint-enabled`, {
+        enabled: nextEnabled
+      })
+      setForcepointMessage({
+        type: 'success',
+        text: res.data?.message || `Exception Forcepoint üzerinde ${actionText} edildi.`
+      })
+      await loadData()
+    } catch (e: any) {
+      setForcepointMessage({
+        type: 'error',
+        text: e?.response?.data?.message || e?.message || 'Forcepoint exception güncellemesi başarısız.'
+      })
+    } finally {
+      setTogglingExceptionId(null)
+    }
+  }
+
   const handleDeleteConfirm = async () => {
     if (!deleteContext) return
     try {
@@ -232,6 +265,21 @@ export default function PolicyInventoryPage() {
 
         {/* Stats */}
         <Stats stats={stats} />
+
+        {forcepointMessage && (
+          <div style={{
+            margin: '0 0 16px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            border: `1px solid ${forcepointMessage.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            background: forcepointMessage.type === 'success' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+            color: forcepointMessage.type === 'success' ? '#10b981' : '#ef4444',
+            fontSize: '13px',
+            fontWeight: 500
+          }}>
+            {forcepointMessage.text}
+          </div>
+        )}
 
         {/* Main Content Area */}
         <div style={{
@@ -293,6 +341,8 @@ export default function PolicyInventoryPage() {
                   onAddException={(rId) => { setParentRuleId(rId); setCurrentException(null); setIsExceptionModalOpen(true); }}
                   onEditException={(e, rId) => { setParentRuleId(rId); setCurrentException(e); setIsExceptionModalOpen(true); }}
                   onDeleteException={(id, name) => { setDeleteContext({type:'exception', id, name}); setIsDeleteModalOpen(true); }}
+                  onToggleExceptionEnabled={handleToggleForcepointException}
+                  togglingExceptionId={togglingExceptionId}
                 />
               )
             )}

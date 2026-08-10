@@ -99,6 +99,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpClient<ISplunkService, SplunkService>();
         services.AddHttpClient<IRemediationService, RemediationService>();
+        services.AddScoped<IForcepointPolicyExceptionService, ForcepointPolicyExceptionService>();
         services.AddHttpClient<IOpenAIService, OpenAIService>();
         services.AddHttpClient<ICopilotService, CopilotService>();
         services.AddHttpClient<IAzureOpenAIService, AzureOpenAIService>();
