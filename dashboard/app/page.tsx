@@ -583,11 +583,8 @@ export default function Home() {
     const block = summary.all_time_block ?? summary.allTimeBlock ?? summary.block
     const quarantine = summary.all_time_quarantine ?? summary.allTimeQuarantine ?? summary.quarantine
     const released = summary.all_time_released ?? summary.allTimeReleased ?? summary.released ?? 0
-    const unknown = summary.all_time_unknown ?? summary.allTimeUnknown ?? summary.unknown ?? 0
-    const total = summary.all_time_total ?? summary.allTimeTotal ?? summary.total_all_time ?? summary.totalAllTime ?? summary.total
     const knownTotal = authorized + block + quarantine + released
-    const other = Math.max(total - knownTotal, unknown)
-    return { authorized, block, quarantine, released, unknown, other, total }
+    return { authorized, block, quarantine, released, total: knownTotal }
   }
 
   // Percentages are carried over from the grids rather than recomputed, so the
@@ -988,14 +985,13 @@ export default function Home() {
             {/* Donut Chart */}
             <div style={{ height: '300px', position: 'relative' }}>
               {(() => {
-                const periodTotal = actionSummary.total || (actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0) + (actionSummary.unknown || 0))
+                const periodTotal = actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)
                 const allTime = getAllTimeActionCounts(actionSummary)
                 const pieItems = [
                   { label: 'Authorized', value: allTime.authorized, color: '#10b981' },
                   { label: 'Block', value: allTime.block, color: '#ef4444' },
                   { label: 'Quarantine', value: allTime.quarantine, color: '#8b5cf6' },
                   { label: 'Released', value: allTime.released, color: '#f59e0b' },
-                  ...(allTime.other > 0 ? [{ label: 'Other', value: allTime.other, color: '#64748b' }] : []),
                 ]
                 return (
                   <Plot
@@ -1061,17 +1057,16 @@ export default function Home() {
                   { action: 'BLOCK', value: allTime.block, color: '#ef4444' },
                   { action: 'QUARANTINE', value: allTime.quarantine, color: '#a855f7' },
                   { action: 'RELEASED', value: allTime.released, color: '#f59e0b' },
-                  ...(allTime.other > 0 ? [{ action: 'OTHER', value: allTime.other, color: '#64748b' }] : []),
                 ]
               })().map(({ action, value, color }) => (
                 <div
                   key={action}
-                  onClick={() => action !== 'OTHER' && fetchActionIncidents(action)}
+                  onClick={() => fetchActionIncidents(action)}
                   style={{
                     background: 'var(--background)',
                     padding: '16px 16px 16px 20px',
                     borderRadius: '12px',
-                    cursor: action === 'OTHER' ? 'default' : 'pointer',
+                    cursor: 'pointer',
                     transition: 'all 0.2s',
                     borderLeft: `4px solid ${color}`,
                     border: '1px solid var(--border)',
