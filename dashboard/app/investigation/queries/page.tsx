@@ -113,7 +113,6 @@ export default function InvestigationQueriesPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const fillRef = useRef<{ row: number; key: string; value: string } | null>(null)
   const resizeRef = useRef<{ type: 'column'; key: string; startX: number; startWidth: number } | { type: 'row'; key: string; startY: number; startHeight: number } | null>(null)
 
   const loadRows = async () => {
@@ -395,8 +394,8 @@ export default function InvestigationQueriesPage() {
                 <th style={filterThStyle}></th>
               </tr>
             </thead>
-            <tbody onMouseLeave={() => { fillRef.current = null }} onMouseUp={() => { fillRef.current = null }}>
-              {visibleRows.map(({ row, sourceIndex }, rowIndex) => {
+            <tbody>
+              {visibleRows.map(({ row, sourceIndex }) => {
                 const rowKey = rowKeyOf(row, sourceIndex)
                 const rowHeight = rowHeights[rowKey] || MIN_ROW_HEIGHT
                 return (
@@ -413,11 +412,6 @@ export default function InvestigationQueriesPage() {
                     <td
                       key={col.key}
                       style={{ ...tdStyle, height: rowHeight }}
-                      onMouseEnter={() => {
-                        if (fillRef.current?.key === col.key && rowIndex > fillRef.current.row) {
-                          updateCell(sourceIndex, col.key, fillRef.current.value)
-                        }
-                      }}
                     >
                       <div style={{ position: 'relative', height: '100%' }}>
                         {col.key === 'query_status' ? (
@@ -447,11 +441,6 @@ export default function InvestigationQueriesPage() {
                             title={String(row[col.key] || '')}
                           />
                         )}
-                        <span
-                          title="Aşağı sürükleyerek doldur"
-                          onMouseDown={() => { fillRef.current = { row: rowIndex, key: col.key, value: row[col.key] || '' } }}
-                          style={fillHandleStyle}
-                        />
                       </div>
                     </td>
                   ))}
@@ -489,7 +478,7 @@ const thStyle = {
   position: 'sticky' as const,
   top: 0,
   zIndex: 3,
-  padding: 8,
+  padding: '7px 8px',
   borderBottom: '1px solid var(--border)',
   borderRight: '1px solid var(--border)',
   background: 'var(--surface-hover)',
@@ -508,8 +497,8 @@ const stickyThStyle = {
 
 const filterThStyle = {
   ...thStyle,
-  top: 48,
-  padding: 6,
+  top: 46,
+  padding: '5px 8px',
   background: 'var(--surface)',
   zIndex: 2
 }
@@ -518,20 +507,20 @@ const headerCellStyle = {
   position: 'relative' as const,
   display: 'flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 6,
   minWidth: 0
 }
 
 const filterCellStyle = {
   display: 'flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 6,
   minWidth: 0
 }
 
 const tdStyle = {
   position: 'relative' as const,
-  padding: 5,
+  padding: '4px 6px',
   borderBottom: '1px solid var(--border)',
   borderRight: '1px solid var(--border)',
   verticalAlign: 'middle' as const
@@ -554,7 +543,7 @@ const cellInputStyle = {
   border: '1px solid transparent',
   background: 'transparent',
   color: 'var(--text-primary)',
-  padding: '7px 9px',
+  padding: '6px 8px',
   borderRadius: 4,
   outline: 'none',
   boxSizing: 'border-box' as const,
@@ -582,7 +571,7 @@ const filterInputStyle = {
   ...cellInputStyle,
   height: 30,
   border: '1px solid var(--border)',
-  background: 'var(--surface)',
+  background: 'var(--background)',
   fontSize: 12
 }
 
@@ -598,7 +587,7 @@ const iconButtonStyle = {
   color: 'var(--text-muted)',
   borderRadius: 4,
   cursor: 'pointer',
-  marginLeft: 4
+  marginLeft: 0
 }
 
 const clearFilterButtonStyle = {
@@ -606,17 +595,6 @@ const clearFilterButtonStyle = {
   width: 24,
   height: 24,
   marginLeft: 0
-}
-
-const fillHandleStyle = {
-  position: 'absolute' as const,
-  right: 1,
-  bottom: 1,
-  width: 8,
-  height: 8,
-  borderRadius: 2,
-  background: 'var(--primary)',
-  cursor: 'crosshair'
 }
 
 const columnResizeHandleStyle = {
