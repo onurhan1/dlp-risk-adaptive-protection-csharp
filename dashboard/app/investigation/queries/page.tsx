@@ -22,6 +22,22 @@ type QueryRow = {
   [key: string]: any
 }
 
+type WorkflowMailRow = {
+  id: number
+  run_id: number
+  playbook_id: number
+  playbook_name: string
+  to_email: string
+  cc_email?: string
+  subject: string
+  mail_date: string
+  status: string
+  source: string
+  trigger_count: number
+  error_message?: string
+  [key: string]: any
+}
+
 const DEFAULT_COLUMNS = [
   { key: 'user_code', label: 'Kullanıcı Kodu' },
   { key: 'full_name', label: 'Kullanıcı Adı Soyadı' },
@@ -31,6 +47,18 @@ const DEFAULT_COLUMNS = [
   { key: 'response_status', label: 'Kullanıcıdan Geri Dönüş Yapılma Durumu' },
   { key: 'action', label: 'Aksiyon' },
   { key: 'query_status', label: 'Sorgu Durumu' }
+]
+
+const WORKFLOW_MAIL_COLUMNS = [
+  { key: 'playbook_name', label: 'Workflow' },
+  { key: 'to_email', label: 'Alıcı' },
+  { key: 'cc_email', label: 'CC' },
+  { key: 'subject', label: 'Mail Konusu' },
+  { key: 'mail_date', label: 'Mail Tarihi' },
+  { key: 'status', label: 'Durum' },
+  { key: 'source', label: 'Kaynak' },
+  { key: 'trigger_count', label: 'Değer / Adet' },
+  { key: 'error_message', label: 'Açıklama' }
 ]
 
 const STATUS_OPTIONS = [
@@ -48,6 +76,18 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   response_status: 330,
   action: 280,
   query_status: 190
+}
+
+const WORKFLOW_MAIL_COLUMN_WIDTHS: Record<string, number> = {
+  playbook_name: 240,
+  to_email: 260,
+  cc_email: 220,
+  subject: 340,
+  mail_date: 180,
+  status: 150,
+  source: 260,
+  trigger_count: 150,
+  error_message: 420
 }
 
 const MIN_COLUMN_WIDTH = 120
@@ -104,6 +144,28 @@ function toInputDate(value: any) {
   return text.slice(0, 10)
 }
 
+function toDisplayDateTime(value: any) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('tr-TR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function workflowMailStatusLabel(value: any) {
+  const status = String(value || '').toLowerCase()
+  if (status === 'sent') return 'Gönderildi'
+  if (status === 'pending') return 'Manuel bekliyor'
+  if (status === 'failed') return 'Başarısız'
+  if (status === 'skipped') return 'Atlandı'
+  return String(value || '')
+}
+
 function estimateTextWidth(value: any) {
   const text = String(value || '')
   const longestLine = text.split(/\r?\n/).reduce((max, line) => Math.max(max, line.length), 0)
@@ -113,7 +175,9 @@ function estimateTextWidth(value: any) {
 export default function InvestigationQueriesPage() {
   const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [rows, setRows] = useState<QueryRow[]>([])
+  const [workflowMailRows, setWorkflowMailRows] = useState<WorkflowMailRow[]>([])
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [workflowMailFilters, setWorkflowMailFilters] = useState<Record<string, string>>({})
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS)
   const [manualColumnWidths, setManualColumnWidths] = useState<Set<string>>(new Set())
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({})
@@ -126,10 +190,17 @@ export default function InvestigationQueriesPage() {
   const loadRows = async () => {
     setLoading(true)
     try {
-      const res = await apiClient.get('/api/investigation/queries')
-      setRows((Array.isArray(res.data) ? res.data : []).map((r: any) => ({
+      const [queryRes, workflowMailRes] = await Promise.all([
+        apiClient.get('/api/investigation/queries'),
+        apiClient.get('/api/investigation/queries/workflow-mails')
+      ])
+      setRows((Array.isArray(queryRes.data) ? queryRes.data : []).map((r: any) => ({
         ...r,
         query_date: toInputDate(r.query_date)
+      })))
+      setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((r: any) => ({
+        ...r,
+        mail_date: r.mail_date || ''
       })))
     } finally {
       setLoading(false)
@@ -190,6 +261,25 @@ export default function InvestigationQueriesPage() {
     [columnFilters]
   )
 
+  const updateWorkflowMailFilter = (key: string, value: string) => {
+    setWorkflowMailFilters(prev => ({ ...prev, [key]: value }))
+  }
+
+  const clearWorkflowMailFilter = (key: string) => {
+    setWorkflowMailFilters(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const clearAllWorkflowMailFilters = () => setWorkflowMailFilters({})
+
+  const activeWorkflowMailFilterCount = useMemo(
+    () => Object.values(workflowMailFilters).filter(value => value.trim()).length,
+    [workflowMailFilters]
+  )
+
   const visibleRows = useMemo(() => {
     const source = rows.length ? rows : [emptyRow()]
     return source
@@ -202,9 +292,24 @@ export default function InvestigationQueriesPage() {
       }))
   }, [rows, columns, columnFilters])
 
+  const visibleWorkflowMailRows = useMemo(() => {
+    return workflowMailRows.filter(row => WORKFLOW_MAIL_COLUMNS.every(col => {
+      const filter = (workflowMailFilters[col.key] || '').trim().toLocaleLowerCase('tr-TR')
+      if (!filter) return true
+      const rawValue = col.key === 'mail_date' ? toInputDate(row[col.key]) : row[col.key]
+      const value = String(rawValue || '').toLocaleLowerCase('tr-TR')
+      return value.includes(filter)
+    }))
+  }, [workflowMailRows, workflowMailFilters])
+
   const totalTableWidth = useMemo(
     () => 58 + 58 + columns.reduce((total, col) => total + (columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 220), 0),
     [columns, columnWidths]
+  )
+
+  const totalWorkflowMailTableWidth = useMemo(
+    () => 58 + WORKFLOW_MAIL_COLUMNS.reduce((total, col) => total + (WORKFLOW_MAIL_COLUMN_WIDTHS[col.key] || 220), 0),
+    []
   )
 
   useEffect(() => {
@@ -550,8 +655,126 @@ export default function InvestigationQueriesPage() {
         )}
       </div>
 
+      <div style={{ marginTop: 28 }}>
+        <div style={sectionHeaderStyle}>
+          <div>
+            <h2 style={sectionTitleStyle}>Kullanıcı Sorgusu Olmayan Workflow Mailleri</h2>
+            <p className="text-muted" style={{ margin: '4px 0 0' }}>
+              Agentic workflow metrik ve kurum toplamı mailleri burada ayrı takip edilir.
+            </p>
+          </div>
+        </div>
+
+        <div style={tableToolbarStyle}>
+          <span>{visibleWorkflowMailRows.length} / {workflowMailRows.length} kayıt gösteriliyor</span>
+          {activeWorkflowMailFilterCount > 0 && (
+            <button className="btn-secondary" onClick={clearAllWorkflowMailFilters}>
+              <X size={15} /> Filtreleri Temizle ({activeWorkflowMailFilterCount})
+            </button>
+          )}
+        </div>
+
+        <div className="card" style={{ overflow: 'auto', padding: 0, maxHeight: 420 }}>
+          {loading ? (
+            <div style={{ padding: 24, color: 'var(--text-muted)' }}>Yükleniyor...</div>
+          ) : (
+            <table style={{ width: totalWorkflowMailTableWidth, minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: 58 }} />
+                {WORKFLOW_MAIL_COLUMNS.map(col => (
+                  <col key={col.key} style={{ width: WORKFLOW_MAIL_COLUMN_WIDTHS[col.key] || 220 }} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={stickyThStyle}>#</th>
+                  {WORKFLOW_MAIL_COLUMNS.map(col => (
+                    <th key={col.key} style={thStyle}>{col.label}</th>
+                  ))}
+                </tr>
+                <tr>
+                  <th style={stickyFilterThStyle}></th>
+                  {WORKFLOW_MAIL_COLUMNS.map(col => (
+                    <th key={col.key} style={filterThStyle}>
+                      <div style={filterCellStyle}>
+                        {col.key === 'mail_date' ? (
+                          <input
+                            type="date"
+                            value={workflowMailFilters[col.key] || ''}
+                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
+                            style={filterInputStyle}
+                            title={`${col.label} filtresi`}
+                          />
+                        ) : col.key === 'status' ? (
+                          <select
+                            value={workflowMailFilters[col.key] || ''}
+                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
+                            style={filterInputStyle}
+                            title={`${col.label} filtresi`}
+                          >
+                            <option value="">Tümü</option>
+                            <option value="sent">Gönderildi</option>
+                            <option value="pending">Manuel bekliyor</option>
+                            <option value="failed">Başarısız</option>
+                            <option value="skipped">Atlandı</option>
+                          </select>
+                        ) : (
+                          <input
+                            value={workflowMailFilters[col.key] || ''}
+                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
+                            placeholder="Filtrele"
+                            style={filterInputStyle}
+                            title={`${col.label} filtresi`}
+                          />
+                        )}
+                        {workflowMailFilters[col.key] && (
+                          <button
+                            title="Filtreyi temizle"
+                            onClick={() => clearWorkflowMailFilter(col.key)}
+                            style={clearFilterButtonStyle}
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleWorkflowMailRows.map((row, index) => (
+                  <tr key={row.id}>
+                    <td style={indexStyle}>{index + 1}</td>
+                    {WORKFLOW_MAIL_COLUMNS.map(col => {
+                      const rawValue = row[col.key]
+                      const value = col.key === 'mail_date'
+                        ? toDisplayDateTime(rawValue)
+                        : col.key === 'status'
+                          ? workflowMailStatusLabel(rawValue)
+                          : String(rawValue ?? '')
+                      return (
+                        <td key={col.key} style={readOnlyTdStyle} title={value}>
+                          {value || '-'}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+                {visibleWorkflowMailRows.length === 0 && (
+                  <tr>
+                    <td colSpan={WORKFLOW_MAIL_COLUMNS.length + 1} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                      Filtreyle eşleşen workflow mail kaydı yok.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 13 }}>
-        <FileSpreadsheet size={16} /> Agentic workflow mail kayıtları bu tabloya otomatik düşer.
+        <FileSpreadsheet size={16} /> Kullanıcı sorgusu olan workflow kayıtları üstte, metrik ve kurum toplamı mailleri ayrı tabloda görünür.
       </div>
     </div>
   )
@@ -603,6 +826,21 @@ const tableToolbarStyle = {
   flexWrap: 'wrap' as const
 }
 
+const sectionHeaderStyle = {
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'space-between',
+  gap: 16,
+  marginBottom: 12
+}
+
+const sectionTitleStyle = {
+  margin: 0,
+  color: 'var(--text-primary)',
+  fontSize: 16,
+  fontWeight: 600
+}
+
 const headerCellStyle = {
   position: 'relative' as const,
   display: 'flex',
@@ -624,6 +862,16 @@ const tdStyle = {
   borderBottom: '1px solid var(--border)',
   borderRight: '1px solid var(--border)',
   verticalAlign: 'middle' as const
+}
+
+const readOnlyTdStyle = {
+  ...tdStyle,
+  padding: '9px 10px',
+  color: 'var(--text-primary)',
+  fontSize: 13,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const
 }
 
 const indexStyle = {

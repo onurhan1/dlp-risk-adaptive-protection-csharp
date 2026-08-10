@@ -798,8 +798,6 @@ public class PlaybookEngine : IPlaybookEngine
 
         _context.PlaybookMailLogs.Add(entry);
         await _context.SaveChangesAsync(ct);
-        if (entry.Status == PlaybookMailStatus.Pending || entry.Status == PlaybookMailStatus.Sent)
-            await UpsertQueryRecordsForMailLogsAsync(new[] { entry }, ct);
 
         context.SetMessage(entry.Status switch
         {

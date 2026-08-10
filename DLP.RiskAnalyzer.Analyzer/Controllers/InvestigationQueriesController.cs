@@ -30,12 +30,47 @@ public class InvestigationQueriesController : ControllerBase
     {
         await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
 
-        var query = _context.InvestigationQueries.AsNoTracking();
+        var query = _context.InvestigationQueries
+            .AsNoTracking()
+            .Where(q => !(q.Source == "agentic_workflow" && q.Notes == PlaybookNodeType.SourceIncidentMetric));
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(q => q.QueryStatus == status);
 
         var rows = await query
             .OrderByDescending(q => q.QueryDate ?? q.CreatedAt)
+            .Take(Math.Clamp(limit, 1, 2000))
+            .ToListAsync(ct);
+
+        return Ok(rows);
+    }
+
+    [HttpGet("workflow-mails")]
+    public async Task<ActionResult> GetWorkflowMails([FromQuery] int limit = 500, CancellationToken ct = default)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+
+        var rows = await (
+            from mail in _context.PlaybookMailLogs.AsNoTracking()
+            join playbook in _context.Playbooks.AsNoTracking()
+                on mail.PlaybookId equals playbook.Id into playbooks
+            from playbook in playbooks.DefaultIfEmpty()
+            where mail.SourceCriterion == PlaybookNodeType.SourceIncidentMetric
+            orderby (mail.SentAt ?? mail.CreatedAt) descending
+            select new
+            {
+                id = mail.Id,
+                run_id = mail.RunId,
+                playbook_id = mail.PlaybookId,
+                playbook_name = playbook != null ? playbook.Name : $"Workflow #{mail.PlaybookId}",
+                to_email = mail.ToEmail,
+                cc_email = mail.CcEmail,
+                subject = mail.Subject,
+                mail_date = mail.SentAt ?? mail.CreatedAt,
+                status = mail.Status,
+                source = "Incident metriği (kurum toplamı)",
+                trigger_count = mail.TriggerCount,
+                error_message = mail.ErrorMessage
+            })
             .Take(Math.Clamp(limit, 1, 2000))
             .ToListAsync(ct);
 
