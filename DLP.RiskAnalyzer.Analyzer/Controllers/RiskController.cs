@@ -66,9 +66,10 @@ public class RiskController : ControllerBase
             var allTimeReleased = allTimeActionCounts.GetValueOrDefault("RELEASED", 0);
             var allTimeUnknown = allTimeActionCounts.GetValueOrDefault("UNKNOWN", 0);
 
-            // Get min and max dates from the data
-            var minDate = await query.MinAsync(i => (DateTime?)i.Timestamp);
-            var maxDate = await query.MaxAsync(i => (DateTime?)i.Timestamp);
+            // The dashboard action cards display all-time counts, so expose the
+            // full incident date range instead of the currently selected period.
+            var minDate = await _context.Incidents.MinAsync(i => (DateTime?)i.Timestamp);
+            var maxDate = await _context.Incidents.MaxAsync(i => (DateTime?)i.Timestamp);
 
             return Ok(new Dictionary<string, object>
             {
