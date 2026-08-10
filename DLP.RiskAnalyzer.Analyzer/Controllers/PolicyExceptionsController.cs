@@ -15,15 +15,18 @@ public class PolicyExceptionsController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
     private readonly IPolicyExceptionSyncService _syncService;
+    private readonly IForcepointPolicyExceptionService _forcepointExceptionService;
     private readonly ILogger<PolicyExceptionsController> _logger;
 
     public PolicyExceptionsController(
         AnalyzerDbContext context,
         IPolicyExceptionSyncService syncService,
+        IForcepointPolicyExceptionService forcepointExceptionService,
         ILogger<PolicyExceptionsController> logger)
     {
         _context = context;
         _syncService = syncService;
+        _forcepointExceptionService = forcepointExceptionService;
         _logger = logger;
     }
 
@@ -111,6 +114,43 @@ public class PolicyExceptionsController : ControllerBase
         }
     }
 
+    [HttpPost("forcepoint-enabled/bulk")]
+    public async Task<ActionResult> SetForcepointExceptionsEnabledBulk(
+        [FromBody] PolicyExceptionBulkToggleRequest? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var actor = User?.Identity?.Name ?? "System";
+            var refs = request?.Exceptions?.Select(e => new ForcepointExceptionToggleReference(
+                e.PolicyName,
+                e.RuleName,
+                e.ExceptionName)) ?? Enumerable.Empty<ForcepointExceptionToggleReference>();
+
+            var result = await _forcepointExceptionService.SetExceptionReferencesEnabledAsync(
+                refs,
+                request?.Enabled ?? false,
+                actor,
+                cancellationToken);
+
+            var response = new
+            {
+                success = result.Success,
+                message = result.Message,
+                data = result
+            };
+
+            return result.UpdatedCount > 0 || result.Success
+                ? Ok(response)
+                : BadRequest(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during bulk Forcepoint policy exception update");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Belirli bir rule name'in exception olup olmadığını kontrol eder
     /// GET /api/policy-exceptions/check/{ruleName}
@@ -139,4 +179,17 @@ public class PolicyExceptionsController : ControllerBase
             return StatusCode(500, new { success = false, error = ex.Message });
         }
     }
+}
+
+public class PolicyExceptionBulkToggleRequest
+{
+    public List<PolicyExceptionBulkToggleItem> Exceptions { get; set; } = new();
+    public bool Enabled { get; set; }
+}
+
+public class PolicyExceptionBulkToggleItem
+{
+    public string? PolicyName { get; set; }
+    public string RuleName { get; set; } = string.Empty;
+    public string ExceptionName { get; set; } = string.Empty;
 }

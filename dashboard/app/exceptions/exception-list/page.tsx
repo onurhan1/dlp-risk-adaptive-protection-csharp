@@ -17,6 +17,7 @@ import {
     Clock,
     Trash2,
     RefreshCw,
+    PowerOff,
     ListChecks,
     ChevronUp,
     Filter,
@@ -359,6 +360,8 @@ function ExceptionListContent() {
     const [totalExceptionsCount, setTotalExceptionsCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [syncing, setSyncing] = useState(false)
+    const [bulkDisabling, setBulkDisabling] = useState(false)
+    const [forcepointMessage, setForcepointMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     // Filter states
     const defaultStart = format(subDays(new Date(), 365), 'yyyy-MM-dd')
@@ -479,6 +482,38 @@ function ExceptionListContent() {
         }
     }
 
+    const handleBulkDisableFiltered = async () => {
+        if (filteredExceptionRefs.length === 0) return
+
+        const confirmed = window.confirm(
+            `Ekranda filtrelenen ${filteredExceptionRefs.length} exception Forcepoint uzerinde pasif edilecek.\n\n` +
+            `Bu islem Forcepoint basarili donerse lokal envanter kaydini da gunceller. Devam etmek istiyor musunuz?`
+        )
+        if (!confirmed) return
+
+        setBulkDisabling(true)
+        setForcepointMessage(null)
+        try {
+            const res = await apiClient.post('/api/policy-exceptions/forcepoint-enabled/bulk', {
+                exceptions: filteredExceptionRefs,
+                enabled: false
+            })
+            const success = Boolean(res.data?.success)
+            setForcepointMessage({
+                type: success ? 'success' : 'error',
+                text: res.data?.message || `${filteredExceptionRefs.length} exception icin toplu kapatma tamamlandi.`
+            })
+            await fetchData()
+        } catch (error: any) {
+            setForcepointMessage({
+                type: 'error',
+                text: error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Toplu Forcepoint exception kapatma basarisiz.'
+            })
+        } finally {
+            setBulkDisabling(false)
+        }
+    }
+
     // ─── Compute exception stats from incidents ────────────────────────────────
 
     const exceptionStatsMap = useMemo(() => {
@@ -554,6 +589,27 @@ function ExceptionListContent() {
             }))
             .filter(policy => policy.rules.length > 0)
     }, [exceptionData, selectedPolicies, selectedRules, exceptionSearch])
+
+    const filteredExceptionRefs = useMemo(() => {
+        const unique = new Map<string, { policyName: string; ruleName: string; exceptionName: string }>()
+
+        filteredData.forEach(policy => {
+            policy.rules.forEach(rule => {
+                rule.exceptions.forEach(exceptionName => {
+                    const key = `${policy.policyName.toLowerCase()}|${rule.ruleName.toLowerCase()}|${exceptionName.toLowerCase()}`
+                    if (!unique.has(key)) {
+                        unique.set(key, {
+                            policyName: policy.policyName,
+                            ruleName: rule.ruleName,
+                            exceptionName
+                        })
+                    }
+                })
+            })
+        })
+
+        return Array.from(unique.values())
+    }, [filteredData])
 
     // ─── Summary computations ─────────────────────────────────────────────────
 
@@ -724,6 +780,25 @@ function ExceptionListContent() {
             )}
 
             {/* ── Summary Cards ────────────────────────────────────────────────── */}
+            {forcepointMessage && (
+                <div style={{
+                    marginBottom: '24px',
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    background: forcepointMessage.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    border: `1px solid ${forcepointMessage.type === 'success' ? 'rgba(16, 185, 129, 0.28)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    color: forcepointMessage.type === 'success' ? '#059669' : '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                }}>
+                    {forcepointMessage.type === 'success' ? <Check size={16} /> : <AlertTriangle size={16} />}
+                    <span>{forcepointMessage.text}</span>
+                </div>
+            )}
+
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -909,29 +984,55 @@ function ExceptionListContent() {
                             {lastSyncedAt ? format(parseISO(lastSyncedAt), 'dd.MM.yyyy HH:mm') : '—'}
                         </div>
                     </div>
-                    <button
-                        onClick={handleSync}
-                        disabled={syncing}
-                        style={{
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border)',
-                            background: 'transparent',
-                            color: 'var(--text-primary)',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            cursor: syncing ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s',
-                            opacity: syncing ? 0.6 : 1,
-                            fontFamily: 'Inter, sans-serif',
-                        }}
-                    >
-                        <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
-                        {t('exceptionList.syncNow')}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={handleBulkDisableFiltered}
+                            disabled={bulkDisabling || filteredExceptionRefs.length === 0}
+                            title="Filtrelenen exceptionlari Forcepoint uzerinde pasiflestir"
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                color: '#ef4444',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: bulkDisabling || filteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                                opacity: bulkDisabling || filteredExceptionRefs.length === 0 ? 0.55 : 1,
+                                fontFamily: 'Inter, sans-serif',
+                            }}
+                        >
+                            <PowerOff size={14} />
+                            {bulkDisabling ? 'Kapatiliyor...' : `Filtrelenenleri Kapat (${filteredExceptionRefs.length})`}
+                        </button>
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)',
+                                background: 'transparent',
+                                color: 'var(--text-primary)',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                cursor: syncing ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                                opacity: syncing ? 0.6 : 1,
+                                fontFamily: 'Inter, sans-serif',
+                            }}
+                        >
+                            <RefreshCw size={14} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
+                            {t('exceptionList.syncNow')}
+                        </button>
+                    </div>
                 </div>
             </div>
 

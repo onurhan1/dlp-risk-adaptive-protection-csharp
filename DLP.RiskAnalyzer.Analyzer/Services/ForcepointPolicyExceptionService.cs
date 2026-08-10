@@ -13,7 +13,13 @@ public interface IForcepointPolicyExceptionService
 {
     Task<ForcepointExceptionToggleResult> SetExceptionEnabledAsync(int exceptionId, bool enabled, string actor, CancellationToken ct = default);
     Task<ForcepointExceptionBulkToggleResult> SetExceptionsEnabledAsync(IEnumerable<int> exceptionIds, bool enabled, string actor, CancellationToken ct = default);
+    Task<ForcepointExceptionBulkToggleResult> SetExceptionReferencesEnabledAsync(IEnumerable<ForcepointExceptionToggleReference> references, bool enabled, string actor, CancellationToken ct = default);
 }
+
+public record ForcepointExceptionToggleReference(
+    string? PolicyName,
+    string RuleName,
+    string ExceptionRuleName);
 
 public record ForcepointExceptionToggleResult(
     bool Success,
@@ -42,6 +48,13 @@ public record ForcepointExceptionBulkToggleResult(
     int UpdatedCount,
     int FailedCount,
     IReadOnlyList<ForcepointExceptionBulkToggleItemResult> Items);
+
+internal record ForcepointExceptionToggleCandidate(
+    int ExceptionId,
+    string? PolicyName,
+    string RuleName,
+    string ExceptionRuleName,
+    PIException? Entity);
 
 public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionService
 {
@@ -94,15 +107,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             .ToList();
 
         if (requestedIds.Count == 0)
-        {
-            return new ForcepointExceptionBulkToggleResult(
-                false,
-                "Islem yapilacak exception secilmedi.",
-                0,
-                0,
-                0,
-                Array.Empty<ForcepointExceptionBulkToggleItemResult>());
-        }
+            return EmptyBulkResult();
 
         var exceptions = await _context.PIExceptions
             .Include(e => e.Rule)
@@ -115,32 +120,77 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         foreach (var requestedId in requestedIds)
         {
             if (!exceptionsById.ContainsKey(requestedId))
-            {
                 items.Add(FailItem(requestedId, null, null, null, enabled, "Exception kaydi bulunamadi."));
-            }
         }
 
         var candidates = exceptions
-            .Where(e =>
-            {
-                var ruleName = e.Rule?.RuleName;
-                var exceptionName = e.ExceptionRuleName;
-                if (!string.IsNullOrWhiteSpace(ruleName) && !string.IsNullOrWhiteSpace(exceptionName))
-                    return true;
+            .Select(e => CreateCandidate(e, enabled, items))
+            .Where(candidate => candidate != null)
+            .Select(candidate => candidate!)
+            .ToList();
 
-                items.Add(FailItem(
-                    e.Id,
-                    e.Rule?.Policy?.PolicyName,
-                    ruleName,
-                    exceptionName,
-                    enabled,
-                    "Rule veya exception adi bos oldugu icin Forcepoint guncellemesi yapilamadi."));
-                return false;
+        return await ExecuteBulkToggleAsync(candidates, requestedIds.Count, enabled, actor, items, ct);
+    }
+
+    public async Task<ForcepointExceptionBulkToggleResult> SetExceptionReferencesEnabledAsync(
+        IEnumerable<ForcepointExceptionToggleReference> references,
+        bool enabled,
+        string actor,
+        CancellationToken ct = default)
+    {
+        var requestedRefs = references
+            .Where(r => !string.IsNullOrWhiteSpace(r.RuleName) && !string.IsNullOrWhiteSpace(r.ExceptionRuleName))
+            .GroupBy(r => BuildRefKey(r.PolicyName, r.RuleName, r.ExceptionRuleName))
+            .Select(g => g.First())
+            .ToList();
+
+        if (requestedRefs.Count == 0)
+            return EmptyBulkResult();
+
+        var ruleNames = requestedRefs.Select(r => r.RuleName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var localExceptions = await _context.PIExceptions
+            .Include(e => e.Rule)
+                .ThenInclude(r => r.Policy)
+            .Where(e => e.Rule != null && e.Rule.RuleName != null && ruleNames.Contains(e.Rule.RuleName))
+            .ToListAsync(ct);
+
+        var localLookup = localExceptions
+            .Where(e => e.Rule != null)
+            .GroupBy(e => BuildRefKey(e.Rule!.Policy?.PolicyName, e.Rule.RuleName, e.ExceptionRuleName))
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var candidates = requestedRefs
+            .Select(r =>
+            {
+                localLookup.TryGetValue(BuildRefKey(r.PolicyName, r.RuleName, r.ExceptionRuleName), out var entity);
+                return new ForcepointExceptionToggleCandidate(
+                    entity?.Id ?? 0,
+                    r.PolicyName,
+                    r.RuleName,
+                    r.ExceptionRuleName,
+                    entity);
             })
             .ToList();
 
+        return await ExecuteBulkToggleAsync(
+            candidates,
+            requestedRefs.Count,
+            enabled,
+            actor,
+            new List<ForcepointExceptionBulkToggleItemResult>(),
+            ct);
+    }
+
+    private async Task<ForcepointExceptionBulkToggleResult> ExecuteBulkToggleAsync(
+        IReadOnlyList<ForcepointExceptionToggleCandidate> candidates,
+        int requestedCount,
+        bool enabled,
+        string actor,
+        List<ForcepointExceptionBulkToggleItemResult> items,
+        CancellationToken ct)
+    {
         if (candidates.Count == 0)
-            return BuildBulkResult(requestedIds.Count, enabled, items);
+            return BuildBulkResult(requestedCount, enabled, items);
 
         DlpApiSensitiveSettingsResponse config;
         try
@@ -153,14 +203,14 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             foreach (var candidate in candidates)
             {
                 items.Add(FailItem(
-                    candidate.Id,
-                    candidate.Rule?.Policy?.PolicyName,
-                    candidate.Rule?.RuleName,
+                    candidate.ExceptionId,
+                    candidate.PolicyName,
+                    candidate.RuleName,
                     candidate.ExceptionRuleName,
                     enabled,
                     "Forcepoint DLP konfigurasyonu okunamadi. Settings ekranindaki DLP API ayarlarini kontrol edin."));
             }
-            return BuildBulkResult(requestedIds.Count, enabled, items);
+            return BuildBulkResult(requestedCount, enabled, items);
         }
 
         using var httpClient = CreateHttpClient(config);
@@ -170,20 +220,20 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             foreach (var candidate in candidates)
             {
                 items.Add(FailItem(
-                    candidate.Id,
-                    candidate.Rule?.Policy?.PolicyName,
-                    candidate.Rule?.RuleName,
+                    candidate.ExceptionId,
+                    candidate.PolicyName,
+                    candidate.RuleName,
                     candidate.ExceptionRuleName,
                     enabled,
                     "Forcepoint DLP API kimlik dogrulamasi basarisiz."));
             }
-            return BuildBulkResult(requestedIds.Count, enabled, items);
+            return BuildBulkResult(requestedCount, enabled, items);
         }
 
         var updatedEntities = new List<PIException>();
-        foreach (var group in candidates.GroupBy(e => e.Rule!.RuleName, StringComparer.OrdinalIgnoreCase))
+        foreach (var group in candidates.GroupBy(e => e.RuleName, StringComparer.OrdinalIgnoreCase))
         {
-            var ruleName = group.Key!;
+            var ruleName = group.Key;
             var groupItems = group.ToList();
             using var getRequest = CreateGetExceptionsRequest(ruleName, token);
             var getResponse = await httpClient.SendAsync(getRequest, ct);
@@ -194,8 +244,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 foreach (var candidate in groupItems)
                 {
                     items.Add(FailItem(
-                        candidate.Id,
-                        candidate.Rule?.Policy?.PolicyName,
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
@@ -216,8 +266,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 foreach (var candidate in groupItems)
                 {
                     items.Add(FailItem(
-                        candidate.Id,
-                        candidate.Rule?.Policy?.PolicyName,
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
@@ -232,8 +282,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 foreach (var candidate in groupItems)
                 {
                     items.Add(FailItem(
-                        candidate.Id,
-                        candidate.Rule?.Policy?.PolicyName,
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
@@ -244,15 +294,15 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             }
 
             var payload = SelectForcepointPayload(getPayload);
-            var foundItems = new List<PIException>();
+            var foundItems = new List<ForcepointExceptionToggleCandidate>();
             foreach (var candidate in groupItems)
             {
-                var exceptionNode = FindExceptionNode(payload, candidate.ExceptionRuleName!);
+                var exceptionNode = FindExceptionNode(payload, candidate.ExceptionRuleName);
                 if (exceptionNode == null)
                 {
                     items.Add(FailItem(
-                        candidate.Id,
-                        candidate.Rule?.Policy?.PolicyName,
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
@@ -285,8 +335,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 foreach (var candidate in foundItems)
                 {
                     items.Add(FailItem(
-                        candidate.Id,
-                        candidate.Rule?.Policy?.PolicyName,
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
@@ -298,17 +348,21 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
 
             foreach (var candidate in foundItems)
             {
-                candidate.Enabled = enabled ? "true" : "false";
-                candidate.UpdatedAt = DateTime.UtcNow;
-                updatedEntities.Add(candidate);
+                if (candidate.Entity != null)
+                {
+                    candidate.Entity.Enabled = enabled ? "true" : "false";
+                    candidate.Entity.UpdatedAt = DateTime.UtcNow;
+                    updatedEntities.Add(candidate.Entity);
+                }
+
                 items.Add(new ForcepointExceptionBulkToggleItemResult(
                     true,
                     enabled ? "Exception Forcepoint uzerinde aktif edildi." : "Exception Forcepoint uzerinde pasif edildi.",
-                    candidate.Id,
-                    candidate.Rule?.Policy?.PolicyName,
+                    candidate.ExceptionId,
+                    candidate.PolicyName,
                     ruleName,
                     candidate.ExceptionRuleName,
-                    candidate.Enabled,
+                    enabled ? "true" : "false",
                     postBody));
             }
         }
@@ -318,9 +372,36 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
 
         _logger.LogInformation(
             "Forcepoint bulk exception enabled changed. Requested={Requested}, Updated={Updated}, Failed={Failed}, Enabled={Enabled}, Actor={Actor}",
-            requestedIds.Count, updatedEntities.Count, items.Count(i => !i.Success), enabled, actor);
+            requestedCount, items.Count(i => i.Success), items.Count(i => !i.Success), enabled, actor);
 
-        return BuildBulkResult(requestedIds.Count, enabled, items);
+        return BuildBulkResult(requestedCount, enabled, items);
+    }
+
+    private static ForcepointExceptionToggleCandidate? CreateCandidate(
+        PIException exception,
+        bool enabled,
+        List<ForcepointExceptionBulkToggleItemResult> items)
+    {
+        var ruleName = exception.Rule?.RuleName;
+        var exceptionName = exception.ExceptionRuleName;
+        if (!string.IsNullOrWhiteSpace(ruleName) && !string.IsNullOrWhiteSpace(exceptionName))
+        {
+            return new ForcepointExceptionToggleCandidate(
+                exception.Id,
+                exception.Rule?.Policy?.PolicyName,
+                ruleName,
+                exceptionName,
+                exception);
+        }
+
+        items.Add(FailItem(
+            exception.Id,
+            exception.Rule?.Policy?.PolicyName,
+            ruleName,
+            exceptionName,
+            enabled,
+            "Rule veya exception adi bos oldugu icin Forcepoint guncellemesi yapilamadi."));
+        return null;
     }
 
     private static HttpRequestMessage CreateGetExceptionsRequest(string ruleName, string token)
@@ -342,6 +423,17 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
         return request;
+    }
+
+    private static ForcepointExceptionBulkToggleResult EmptyBulkResult()
+    {
+        return new ForcepointExceptionBulkToggleResult(
+            false,
+            "Islem yapilacak exception secilmedi.",
+            0,
+            0,
+            0,
+            Array.Empty<ForcepointExceptionBulkToggleItemResult>());
     }
 
     private static ForcepointExceptionBulkToggleResult BuildBulkResult(
@@ -499,6 +591,16 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return source.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+    }
+
+    private static string BuildRefKey(string? policyName, string? ruleName, string? exceptionName)
+    {
+        return $"{NormalizeKey(policyName)}|{NormalizeKey(ruleName)}|{NormalizeKey(exceptionName)}";
+    }
+
+    private static string NormalizeKey(string? value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant();
     }
 
     private static ForcepointExceptionToggleResult Fail(
