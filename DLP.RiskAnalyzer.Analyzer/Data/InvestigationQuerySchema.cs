@@ -9,6 +9,7 @@ public static class InvestigationQuerySchema
 
         CREATE TABLE IF NOT EXISTS dlp.investigation_queries (
             id SERIAL PRIMARY KEY,
+            user_code VARCHAR(120) NOT NULL DEFAULT '',
             full_name VARCHAR(255) NOT NULL DEFAULT '',
             mail_address VARCHAR(255) NOT NULL DEFAULT '',
             subject VARCHAR(500) NOT NULL DEFAULT '',
@@ -35,6 +36,10 @@ public static class InvestigationQuerySchema
             ON dlp.investigation_queries (query_status);
         ALTER TABLE dlp.investigation_queries
             ADD COLUMN IF NOT EXISTS playbook_mail_log_id INTEGER;
+        ALTER TABLE dlp.investigation_queries
+            ADD COLUMN IF NOT EXISTS user_code VARCHAR(120) NOT NULL DEFAULT '';
+        CREATE INDEX IF NOT EXISTS ix_investigation_queries_user_code
+            ON dlp.investigation_queries (user_code);
         CREATE INDEX IF NOT EXISTS ix_investigation_queries_mail_log
             ON dlp.investigation_queries (playbook_mail_log_id);
     ";

@@ -51,6 +51,7 @@ public class InvestigationController : ControllerBase
     {
         public string ToEmail { get; set; } = string.Empty;
         public string? ToName { get; set; }
+        public string? UserCode { get; set; }
         public bool CcAdmin { get; set; }
         public string? CcEmail { get; set; }
         public string Subject { get; set; } = string.Empty;
@@ -102,6 +103,7 @@ public class InvestigationController : ControllerBase
             var actor = User?.Identity?.Name ?? "System";
             var queryRecord = new InvestigationQueryRecord
             {
+                UserCode = request.UserCode?.Trim() ?? string.Empty,
                 FullName = TurkishNameHelper.FromEmailLocalPart(request.ToEmail, request.ToName),
                 MailAddress = request.ToEmail.Trim(),
                 Subject = request.Subject.Trim(),

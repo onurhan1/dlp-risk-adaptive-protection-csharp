@@ -94,6 +94,7 @@ export default function SendMailModal({ user, onClose }: Props) {
       const res = await apiClient.post('/api/investigation/send-mail', {
         to_email: recipient.trim(),
         to_name: recipient.trim().toLowerCase() === defaultRecipient.toLowerCase() ? (user.full_name || user.user_email) : null,
+        user_code: user.user_email?.includes('@') ? null : user.user_email,
         cc_admin: false,
         cc_email: ccEmail.trim() || null,
         subject,

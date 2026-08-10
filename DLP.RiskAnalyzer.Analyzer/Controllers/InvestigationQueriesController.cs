@@ -120,6 +120,7 @@ public class InvestigationQueriesController : ControllerBase
     private static void Apply(QueryRecordRequest row, InvestigationQueryRecord entity, DateTime now, string actor)
     {
         var mail = row.MailAddress?.Trim() ?? string.Empty;
+        entity.UserCode = row.UserCode?.Trim() ?? string.Empty;
         entity.FullName = string.IsNullOrWhiteSpace(row.FullName)
             ? TurkishNameHelper.FromEmailLocalPart(mail)
             : TurkishNameHelper.ToTurkishTitle(row.FullName);
@@ -147,6 +148,7 @@ public class BulkQueryRequest
 public class QueryRecordRequest
 {
     public int? Id { get; set; }
+    public string? UserCode { get; set; }
     public string? FullName { get; set; }
     public string? MailAddress { get; set; }
     public string? Subject { get; set; }

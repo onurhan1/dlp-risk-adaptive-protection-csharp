@@ -37,22 +37,28 @@ public class InvestigationQueryRemediationSyncService : IInvestigationQueryRemed
             var targetAction = ToRemediationAction(record.QueryStatus);
             if (targetAction == null) continue;
 
-            var email = record.MailAddress.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@')) continue;
-
-            var localPart = email.Split('@', 2)[0];
-            var loginSuffix = "\\" + localPart;
+            var email = NormalizeLower(record.MailAddress);
+            var fullName = NormalizeLower(record.FullName);
+            var userCode = NormalizeUserCode(record.UserCode);
+            if (string.IsNullOrWhiteSpace(userCode))
+            {
+                userCode = await ResolveUserCodeAsync(email, fullName, ct);
+                if (!string.IsNullOrWhiteSpace(userCode))
+                    record.UserCode = userCode;
+            }
 
             var incidents = await _context.Incidents
                 .Where(i =>
-                    (i.UserEmail != null && (
-                        i.UserEmail.ToLower() == email ||
-                        i.UserEmail.ToLower() == localPart ||
-                        i.UserEmail.ToLower().EndsWith(loginSuffix))) ||
-                    (i.EmailAddress != null && i.EmailAddress.ToLower() == email) ||
-                    (i.LoginName != null && (
-                        i.LoginName.ToLower() == localPart ||
-                        i.LoginName.ToLower().EndsWith(loginSuffix))))
+                    (!string.IsNullOrWhiteSpace(userCode) && (
+                        (i.LoginName != null && (
+                            i.LoginName.ToLower() == userCode ||
+                            i.LoginName.ToLower().EndsWith("\\" + userCode))) ||
+                        (i.UserEmail != null && i.UserEmail.ToLower() == userCode))) ||
+                    (!string.IsNullOrWhiteSpace(email) && (
+                        (i.UserEmail != null && i.UserEmail.ToLower() == email) ||
+                        (i.EmailAddress != null && i.EmailAddress.ToLower() == email))) ||
+                    (!string.IsNullOrWhiteSpace(fullName) &&
+                        i.FullName != null && i.FullName.ToLower() == fullName))
                 .ToListAsync(ct);
 
             foreach (var incident in incidents)
@@ -133,5 +139,41 @@ public class InvestigationQueryRemediationSyncService : IInvestigationQueryRemed
         var subject = string.IsNullOrWhiteSpace(record.Subject) ? "-" : record.Subject.Trim();
         var response = string.IsNullOrWhiteSpace(record.ResponseStatus) ? "-" : record.ResponseStatus.Trim();
         return $"{label}. Konu: {subject}. Kullanıcı dönüş durumu: {response}.";
+    }
+
+    private async Task<string> ResolveUserCodeAsync(string email, string fullName, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(email) && string.IsNullOrWhiteSpace(fullName))
+            return string.Empty;
+
+        var match = await _context.Incidents
+            .AsNoTracking()
+            .Where(i =>
+                (!string.IsNullOrWhiteSpace(email) && (
+                    (i.UserEmail != null && i.UserEmail.ToLower() == email) ||
+                    (i.EmailAddress != null && i.EmailAddress.ToLower() == email))) ||
+                (!string.IsNullOrWhiteSpace(fullName) &&
+                    i.FullName != null && i.FullName.ToLower() == fullName))
+            .OrderByDescending(i => i.Timestamp)
+            .Select(i => new { i.LoginName, i.UserEmail })
+            .FirstOrDefaultAsync(ct);
+
+        var fromLogin = NormalizeUserCode(match?.LoginName);
+        if (!string.IsNullOrWhiteSpace(fromLogin)) return fromLogin;
+
+        return NormalizeUserCode(match?.UserEmail);
+    }
+
+    private static string NormalizeLower(string? value) =>
+        (value ?? string.Empty).Trim().ToLowerInvariant();
+
+    private static string NormalizeUserCode(string? value)
+    {
+        var normalized = NormalizeLower(value);
+        if (string.IsNullOrWhiteSpace(normalized)) return string.Empty;
+        if (normalized.Contains('\\')) normalized = normalized.Split('\\').Last();
+        if (normalized.Contains('@')) return string.Empty;
+        if (normalized == "unknown" || normalized == "n/a") return string.Empty;
+        return normalized;
     }
 }

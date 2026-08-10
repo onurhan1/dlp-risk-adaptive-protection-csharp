@@ -644,6 +644,7 @@ public class AnalyzerDbContext : DbContext
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.UserCode).HasColumnName("user_code").IsRequired().HasMaxLength(120);
             entity.Property(e => e.FullName).HasColumnName("full_name").IsRequired().HasMaxLength(255);
             entity.Property(e => e.MailAddress).HasColumnName("mail_address").IsRequired().HasMaxLength(255);
             entity.Property(e => e.Subject).HasColumnName("subject").IsRequired().HasMaxLength(500);
@@ -662,6 +663,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.UpdatedBy).HasColumnName("updated_by").HasMaxLength(120);
 
             entity.HasIndex(e => e.MailAddress);
+            entity.HasIndex(e => e.UserCode);
             entity.HasIndex(e => e.QueryDate);
             entity.HasIndex(e => e.QueryStatus);
             entity.HasIndex(e => e.PlaybookMailLogId);

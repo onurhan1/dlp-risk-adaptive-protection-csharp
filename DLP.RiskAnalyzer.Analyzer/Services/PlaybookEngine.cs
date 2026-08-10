@@ -853,6 +853,7 @@ public class PlaybookEngine : IPlaybookEngine
             }
 
             query.FullName = TurkishNameHelper.FromEmailLocalPart(mail.ToEmail, mail.FullName ?? mail.UserEmail);
+            query.UserCode = ResolveQueryUserCode(mail.UserEmail, mail.ToEmail);
             query.MailAddress = mail.ToEmail;
             query.Subject = mail.Subject;
             query.QueryDate = mail.SentAt ?? mail.CreatedAt;
@@ -871,6 +872,15 @@ public class PlaybookEngine : IPlaybookEngine
 
         await _queryRemediationSync.SyncAsync(changedRows, "Agentic Workflow", now, ct);
         await _context.SaveChangesAsync(ct);
+    }
+
+    private static string ResolveQueryUserCode(string userEmail, string toEmail)
+    {
+        var candidate = string.IsNullOrWhiteSpace(userEmail) ? toEmail : userEmail;
+        candidate = candidate.Trim();
+        if (candidate.Contains('\\')) candidate = candidate.Split('\\').Last();
+        if (candidate.Equals("unknown", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+        return candidate.Contains('@') ? string.Empty : candidate;
     }
 
     /// <summary>

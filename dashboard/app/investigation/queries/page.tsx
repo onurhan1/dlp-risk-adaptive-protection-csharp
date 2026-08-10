@@ -6,6 +6,7 @@ import apiClient from '@/lib/axios'
 
 type QueryRow = {
   id?: number
+  user_code: string
   full_name: string
   mail_address: string
   subject: string
@@ -22,6 +23,7 @@ type QueryRow = {
 }
 
 const DEFAULT_COLUMNS = [
+  { key: 'user_code', label: 'Kullanıcı Kodu' },
   { key: 'full_name', label: 'Kullanıcı Adı Soyadı' },
   { key: 'mail_address', label: 'Mail Adresi' },
   { key: 'subject', label: 'Mail Konu Başlığı' },
@@ -38,6 +40,7 @@ const STATUS_OPTIONS = [
 ]
 
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  user_code: 180,
   full_name: 230,
   mail_address: 260,
   subject: 320,
@@ -52,6 +55,7 @@ const MIN_ROW_HEIGHT = 38
 const MAX_ROW_HEIGHT = 360
 
 const emptyRow = (): QueryRow => ({
+  user_code: '',
   full_name: '',
   mail_address: '',
   subject: 'DLP Blocklanmış İşlemler Hk.',
