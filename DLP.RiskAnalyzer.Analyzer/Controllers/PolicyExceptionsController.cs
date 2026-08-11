@@ -140,7 +140,7 @@ public class PolicyExceptionsController : ControllerBase
             var syncService = scope.ServiceProvider.GetRequiredService<IPolicyExceptionSyncService>();
             var context = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
 
-            var count = await syncService.SyncAsync();
+            var count = await syncService.SyncAsync(force: true);
             var lastSync = await GetLastSyncAsync(context);
             var completedAt = DateTime.UtcNow;
 

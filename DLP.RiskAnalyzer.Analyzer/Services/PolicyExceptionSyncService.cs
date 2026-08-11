@@ -13,6 +13,9 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// </summary>
 public class PolicyExceptionSyncService : IPolicyExceptionSyncService
 {
+    private static readonly SemaphoreSlim SyncLock = new(1, 1);
+    private static readonly TimeSpan MinimumAutomaticSyncInterval = TimeSpan.FromHours(24);
+
     private readonly AnalyzerDbContext _context;
     private readonly IDlpConfigurationService _dlpConfigService;
     private readonly IConfiguration _configuration;
@@ -37,11 +40,31 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
     /// <summary>
     /// DLP API'den exception bilgilerini çeker ve veritabanına kaydeder.
     /// </summary>
-    public async Task<int> SyncAsync()
+    public async Task<int> SyncAsync(bool force = false)
     {
+        if (!await SyncLock.WaitAsync(0))
+        {
+            var currentCount = await GetCachedExceptionCountAsync();
+            _logger.LogInformation(
+                "Policy exception sync skipped because another sync is already running. CachedCount={Count}",
+                currentCount);
+            return currentCount;
+        }
+
         HttpClient? httpClient = null;
         try
         {
+            if (!force && await HasFreshSyncAsync(MinimumAutomaticSyncInterval))
+            {
+                var currentCount = await GetCachedExceptionCountAsync();
+                _logger.LogInformation(
+                    "Policy exception sync skipped because cached data is fresh. IntervalHours={Hours}, CachedCount={Count}",
+                    MinimumAutomaticSyncInterval.TotalHours,
+                    currentCount);
+                await RefreshCacheAsync();
+                return currentCount;
+            }
+
             httpClient = await CreateHttpClientAsync();
             var config = await _dlpConfigService.GetSensitiveConfigAsync();
 
@@ -127,6 +150,7 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
         finally
         {
             httpClient?.Dispose();
+            SyncLock.Release();
         }
     }
 
@@ -149,6 +173,25 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
     /// <summary>
     /// Verilen policy + rule name'in exception olup olmadığını kontrol eder.
     /// </summary>
+    private async Task<bool> HasFreshSyncAsync(TimeSpan interval)
+    {
+        var lastSync = await _context.PolicyRuleExceptions
+            .AsNoTracking()
+            .Select(e => (DateTime?)e.SyncedAt)
+            .OrderByDescending(e => e)
+            .FirstOrDefaultAsync();
+
+        return lastSync.HasValue &&
+               DateTime.UtcNow - DateTime.SpecifyKind(lastSync.Value, DateTimeKind.Utc) < interval;
+    }
+
+    private async Task<int> GetCachedExceptionCountAsync()
+    {
+        return await _context.PolicyRuleExceptions
+            .AsNoTracking()
+            .CountAsync();
+    }
+
     public async Task<bool> IsExceptionAsync(string policyName, string ruleName)
     {
         var lookup = await GetExceptionLookupAsync();
