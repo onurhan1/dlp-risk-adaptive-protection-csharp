@@ -3,6 +3,7 @@ using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DLP.RiskAnalyzer.Analyzer.Constants;
 
@@ -15,6 +16,12 @@ public interface IRedisStreamProcessor
 
 public class RedisStreamProcessor : IRedisStreamProcessor
 {
+    private static readonly ConcurrentDictionary<string, bool> EnsuredConsumerGroups = new();
+    private static readonly object ExceptionLookupLogLock = new();
+    private static int _lastLoggedExceptionLookupCount = -1;
+    private static DateTime _lastExceptionLookupLogAt = DateTime.MinValue;
+    private static readonly TimeSpan ExceptionLookupLogInterval = TimeSpan.FromHours(1);
+
     private readonly AnalyzerDbContext _context;
     private readonly IConnectionMultiplexer _redis;
     private readonly IPolicyExceptionSyncService _policyExceptionSyncService;
@@ -44,24 +51,14 @@ public class RedisStreamProcessor : IRedisStreamProcessor
         var consumerGroup = "analyzer";
         var consumerName = Environment.MachineName;
 
-        // Create consumer group if it doesn't exist
-        try
-        {
-            await db.StreamCreateConsumerGroupAsync(streamName, consumerGroup, "0", createStream: true);
-            _logger.LogDebug("Created Redis consumer group: {Group}", consumerGroup);
-        }
-        catch (Exception ex)
-        {
-            // Group may already exist, which is fine
-            _logger.LogDebug("Consumer group may already exist: {Error}", ex.Message);
-        }
+        await EnsureConsumerGroupAsync(db, streamName, consumerGroup);
 
         // Exception lookup yükle (exception_name -> parent_rule_name)
         Dictionary<string, string> exceptionLookup;
         try
         {
             exceptionLookup = await _policyExceptionSyncService.GetExceptionLookupAsync();
-            if (exceptionLookup.Count > 0)
+            if (exceptionLookup.Count > 0 && ShouldLogExceptionLookupCount(exceptionLookup.Count))
                 _logger.LogDebug("Loaded {Count} policy exception mappings for ViolationTriggers enrichment", exceptionLookup.Count);
         }
         catch (Exception ex)
@@ -416,6 +413,46 @@ public class RedisStreamProcessor : IRedisStreamProcessor
         }
 
         return totalProcessedCount;
+    }
+
+    private async Task EnsureConsumerGroupAsync(IDatabase db, string streamName, string consumerGroup)
+    {
+        var key = $"{streamName}|{consumerGroup}";
+        if (EnsuredConsumerGroups.ContainsKey(key))
+            return;
+
+        try
+        {
+            await db.StreamCreateConsumerGroupAsync(streamName, consumerGroup, "0", createStream: true);
+            _logger.LogDebug("Created Redis consumer group: {Group}", consumerGroup);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Redis consumer group already exists: {Group}", consumerGroup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Consumer group may already exist: {Error}", ex.Message);
+        }
+
+        EnsuredConsumerGroups[key] = true;
+    }
+
+    private static bool ShouldLogExceptionLookupCount(int count)
+    {
+        lock (ExceptionLookupLogLock)
+        {
+            var now = DateTime.UtcNow;
+            if (count != _lastLoggedExceptionLookupCount ||
+                now - _lastExceptionLookupLogAt >= ExceptionLookupLogInterval)
+            {
+                _lastLoggedExceptionLookupCount = count;
+                _lastExceptionLookupLogAt = now;
+                return true;
+            }
+
+            return false;
+        }
     }
 
 

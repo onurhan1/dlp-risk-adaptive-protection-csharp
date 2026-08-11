@@ -3,6 +3,7 @@ using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using System.Collections.Concurrent;
 using DLP.RiskAnalyzer.Analyzer.Constants;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -14,6 +15,8 @@ public interface IReleasedIncidentProcessor
 
 public class ReleasedIncidentProcessor : IReleasedIncidentProcessor
 {
+    private static readonly ConcurrentDictionary<string, bool> EnsuredConsumerGroups = new();
+
     private readonly AnalyzerDbContext _context;
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<ReleasedIncidentProcessor> _logger;
@@ -38,7 +41,9 @@ public class ReleasedIncidentProcessor : IReleasedIncidentProcessor
         var streamName = "dlp:released-incidents";
         var consumerGroup = "analyzer-released";
         var consumerName = Environment.MachineName;
+        var consumerGroupKey = $"{streamName}|{consumerGroup}";
 
+        if (!EnsuredConsumerGroups.ContainsKey(consumerGroupKey))
         try
         {
             await db.StreamCreateConsumerGroupAsync(streamName, consumerGroup, "0", createStream: true);
@@ -49,6 +54,8 @@ public class ReleasedIncidentProcessor : IReleasedIncidentProcessor
             // Group may already exist — expected on repeat startup
             _logger.LogDebug("Redis consumer group for released incidents may already exist: {Error}", ex.Message);
         }
+
+        EnsuredConsumerGroups[consumerGroupKey] = true;
 
         var totalProcessed = 0;
         var totalSkipped = 0;
