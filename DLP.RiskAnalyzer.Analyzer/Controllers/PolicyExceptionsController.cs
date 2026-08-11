@@ -217,6 +217,34 @@ public class PolicyExceptionsController : ControllerBase
 #pragma warning restore CS0162
     }
 
+    [HttpPost("forcepoint-enabled/preview")]
+    public async Task<ActionResult> PreviewForcepointExceptionsEnabled(
+        [FromBody] PolicyExceptionBulkToggleRequest? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var refs = request?.Exceptions?.Select(e => new ForcepointExceptionToggleReference(
+                e.GetPolicyName(),
+                e.GetRuleName(),
+                e.GetExceptionName())) ?? Enumerable.Empty<ForcepointExceptionToggleReference>();
+
+            var result = await _forcepointExceptionService.PreviewExceptionReferencesEnabledAsync(
+                refs,
+                request?.Enabled ?? false,
+                cancellationToken);
+
+            return result.Success
+                ? Ok(new { success = true, message = result.Message, data = result })
+                : BadRequest(new { success = false, message = result.Message, data = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during Forcepoint policy exception update preview");
+            return StatusCode(500, new { success = false, error = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Belirli bir rule name'in exception olup olmadığını kontrol eder
     /// GET /api/policy-exceptions/check/{ruleName}

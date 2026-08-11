@@ -14,6 +14,7 @@ public interface IForcepointPolicyExceptionService
     Task<ForcepointExceptionToggleResult> SetExceptionEnabledAsync(int exceptionId, bool enabled, string actor, CancellationToken ct = default);
     Task<ForcepointExceptionBulkToggleResult> SetExceptionsEnabledAsync(IEnumerable<int> exceptionIds, bool enabled, string actor, CancellationToken ct = default);
     Task<ForcepointExceptionBulkToggleResult> SetExceptionReferencesEnabledAsync(IEnumerable<ForcepointExceptionToggleReference> references, bool enabled, string actor, CancellationToken ct = default);
+    Task<ForcepointExceptionBulkTogglePreviewResult> PreviewExceptionReferencesEnabledAsync(IEnumerable<ForcepointExceptionToggleReference> references, bool enabled, CancellationToken ct = default);
 }
 
 public record ForcepointExceptionToggleReference(
@@ -48,6 +49,25 @@ public record ForcepointExceptionBulkToggleResult(
     int UpdatedCount,
     int FailedCount,
     IReadOnlyList<ForcepointExceptionBulkToggleItemResult> Items);
+
+public record ForcepointExceptionTogglePreviewItem(
+    bool Success,
+    bool SafeToPost,
+    string Message,
+    string? PolicyName,
+    string RuleName,
+    IReadOnlyList<string> RequestedExceptionRuleNames,
+    int OriginalExceptionCount,
+    int PreviewExceptionCount,
+    IReadOnlyList<string> OriginalExceptionRuleNames,
+    IReadOnlyList<string> PreviewExceptionRuleNames,
+    string? PayloadPreview = null);
+
+public record ForcepointExceptionBulkTogglePreviewResult(
+    bool Success,
+    string Message,
+    int RequestedCount,
+    IReadOnlyList<ForcepointExceptionTogglePreviewItem> Items);
 
 internal record ForcepointExceptionToggleCandidate(
     int ExceptionId,
@@ -186,6 +206,170 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             actor,
             new List<ForcepointExceptionBulkToggleItemResult>(),
             ct);
+    }
+
+    public async Task<ForcepointExceptionBulkTogglePreviewResult> PreviewExceptionReferencesEnabledAsync(
+        IEnumerable<ForcepointExceptionToggleReference> references,
+        bool enabled,
+        CancellationToken ct = default)
+    {
+        var requestedRefs = references
+            .Where(r => !string.IsNullOrWhiteSpace(r.RuleName) && !string.IsNullOrWhiteSpace(r.ExceptionRuleName))
+            .GroupBy(r => BuildRefKey(r.PolicyName, r.RuleName, r.ExceptionRuleName))
+            .Select(g => g.First())
+            .ToList();
+
+        if (requestedRefs.Count == 0)
+        {
+            return new ForcepointExceptionBulkTogglePreviewResult(
+                false,
+                "Islem yapilacak exception secilmedi.",
+                0,
+                Array.Empty<ForcepointExceptionTogglePreviewItem>());
+        }
+
+        DlpApiSensitiveSettingsResponse config;
+        try
+        {
+            config = await _dlpConfigService.GetSensitiveConfigAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Forcepoint DLP config could not be loaded from database.");
+            return new ForcepointExceptionBulkTogglePreviewResult(
+                false,
+                "Forcepoint DLP konfigurasyonu okunamadi.",
+                requestedRefs.Count,
+                Array.Empty<ForcepointExceptionTogglePreviewItem>());
+        }
+
+        using var httpClient = CreateHttpClient(config);
+        var token = await GetAccessTokenAsync(httpClient, config, ct);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new ForcepointExceptionBulkTogglePreviewResult(
+                false,
+                "Forcepoint DLP API kimlik dogrulamasi basarisiz.",
+                requestedRefs.Count,
+                Array.Empty<ForcepointExceptionTogglePreviewItem>());
+        }
+
+        var items = new List<ForcepointExceptionTogglePreviewItem>();
+        foreach (var group in requestedRefs.GroupBy(e => BuildRefKey(e.PolicyName, e.RuleName, null), StringComparer.OrdinalIgnoreCase))
+        {
+            var groupItems = group.ToList();
+            var ruleName = groupItems[0].RuleName;
+            var policyName = groupItems[0].PolicyName;
+            var requestedNames = groupItems.Select(i => i.ExceptionRuleName).ToList();
+
+            using var getRequest = CreateGetExceptionsRequest(httpClient, ruleName, policyName, token);
+            var getResponse = await httpClient.SendAsync(getRequest, ct);
+            var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+            if (!getResponse.IsSuccessStatusCode)
+            {
+                items.Add(new ForcepointExceptionTogglePreviewItem(
+                    false,
+                    false,
+                    $"Forcepoint GET basarisiz: {(int)getResponse.StatusCode} {getResponse.ReasonPhrase}",
+                    policyName,
+                    ruleName,
+                    requestedNames,
+                    0,
+                    0,
+                    Array.Empty<string>(),
+                    Array.Empty<string>(),
+                    Truncate(getBody, 2000)));
+                continue;
+            }
+
+            JsonNode? getPayload;
+            try
+            {
+                getPayload = JsonNode.Parse(getBody);
+            }
+            catch (JsonException)
+            {
+                items.Add(new ForcepointExceptionTogglePreviewItem(
+                    false,
+                    false,
+                    "Forcepoint GET cevabi JSON olarak okunamadi.",
+                    policyName,
+                    ruleName,
+                    requestedNames,
+                    0,
+                    0,
+                    Array.Empty<string>(),
+                    Array.Empty<string>(),
+                    Truncate(getBody, 2000)));
+                continue;
+            }
+
+            if (getPayload == null)
+            {
+                items.Add(new ForcepointExceptionTogglePreviewItem(
+                    false,
+                    false,
+                    "Forcepoint GET cevabi bos dondu.",
+                    policyName,
+                    ruleName,
+                    requestedNames,
+                    0,
+                    0,
+                    Array.Empty<string>(),
+                    Array.Empty<string>()));
+                continue;
+            }
+
+            var payload = SelectForcepointPayload(getPayload);
+            var originalNames = ExtractTopLevelExceptionRuleNames(payload);
+            var missingTargets = new List<string>();
+            foreach (var requestedName in requestedNames)
+            {
+                var exceptionNode = FindExceptionNode(payload, requestedName);
+                if (exceptionNode == null)
+                {
+                    missingTargets.Add(requestedName);
+                    continue;
+                }
+
+                exceptionNode["enabled"] = enabled ? "true" : "false";
+            }
+
+            EnsurePostMetadata(payload, policyName, ruleName);
+            SanitizePayloadForPost(payload);
+            var previewNames = ExtractTopLevelExceptionRuleNames(payload);
+            var hasSameExceptionSet = HasSameValues(originalNames, previewNames);
+            var hasNonEmptyExceptionList = previewNames.Count > 0;
+            var safeToPost = missingTargets.Count == 0 && hasNonEmptyExceptionList && hasSameExceptionSet;
+            var json = payload.ToJsonString(new JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+
+            items.Add(new ForcepointExceptionTogglePreviewItem(
+                safeToPost,
+                safeToPost,
+                safeToPost
+                    ? "Preview basarili. POST payload'i exception listesini koruyor."
+                    : BuildUnsafePreviewMessage(missingTargets, hasNonEmptyExceptionList, hasSameExceptionSet),
+                policyName,
+                ruleName,
+                requestedNames,
+                originalNames.Count,
+                previewNames.Count,
+                originalNames,
+                previewNames,
+                Truncate(json, 4000)));
+        }
+
+        var success = items.Count > 0 && items.All(i => i.Success && i.SafeToPost);
+        return new ForcepointExceptionBulkTogglePreviewResult(
+            success,
+            success
+                ? "Preview basarili. Herhangi bir Forcepoint POST islemi yapilmadi."
+                : "Preview guvenli degil veya tamamlanamadi. Forcepoint POST islemi yapilmadi.",
+            requestedRefs.Count,
+            items);
     }
 
     private async Task<ForcepointExceptionBulkToggleResult> ExecuteBulkToggleAsync(
@@ -687,6 +871,65 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                     SanitizePayloadForPost(item);
             }
         }
+    }
+
+    private static List<string> ExtractTopLevelExceptionRuleNames(JsonNode payload)
+    {
+        var names = new List<string>();
+        if (payload is not JsonObject obj ||
+            obj["exception_rules"] is not JsonArray exceptionRules)
+        {
+            return names;
+        }
+
+        foreach (var item in exceptionRules)
+        {
+            if (item is not JsonObject exceptionObj) continue;
+            var name = GetJsonNodeString(exceptionObj, "exception_rule_name", "exceptionRuleName", "exception_name", "exceptionName");
+            if (!string.IsNullOrWhiteSpace(name))
+                names.Add(name);
+        }
+
+        return names;
+    }
+
+    private static string? GetJsonNodeString(JsonObject obj, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (obj.TryGetPropertyValue(name, out var node) &&
+                node is JsonValue value &&
+                value.TryGetValue<string>(out var stringValue))
+            {
+                return stringValue;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasSameValues(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        return left
+            .Select(NormalizeKey)
+            .OrderBy(v => v)
+            .SequenceEqual(right.Select(NormalizeKey).OrderBy(v => v));
+    }
+
+    private static string BuildUnsafePreviewMessage(
+        IReadOnlyList<string> missingTargets,
+        bool hasNonEmptyExceptionList,
+        bool hasSameExceptionSet)
+    {
+        var reasons = new List<string>();
+        if (missingTargets.Count > 0)
+            reasons.Add($"hedef exception bulunamadi: {string.Join(", ", missingTargets)}");
+        if (!hasNonEmptyExceptionList)
+            reasons.Add("exception_rules bos veya okunamadi");
+        if (!hasSameExceptionSet)
+            reasons.Add("POST preview exception isim listesini korumuyor");
+
+        return $"Preview guvenli degil: {string.Join("; ", reasons)}.";
     }
 
     private static string? GetString(Dictionary<string, JsonElement> source, string key)
