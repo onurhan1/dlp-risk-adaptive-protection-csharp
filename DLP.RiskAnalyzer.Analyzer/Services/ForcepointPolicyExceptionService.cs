@@ -320,20 +320,20 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             if (foundItems.Count == 0)
                 continue;
 
-            EnsurePostMetadata(payload, ruleName);
+            EnsurePostMetadata(payload, policyName, ruleName);
             var json = payload.ToJsonString(new JsonSerializerOptions
             {
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             });
 
-            using var postRequest = CreatePostExceptionsRequest(token, json);
+            using var postRequest = CreatePostExceptionsRequest(httpClient, token, json);
             var postResponse = await httpClient.SendAsync(postRequest, ct);
             var postBody = await postResponse.Content.ReadAsStringAsync(ct);
             if (!postResponse.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "Forcepoint exception POST failed. Rule={RuleName}, Count={Count}, Status={Status}, Body={Body}",
-                    ruleName, foundItems.Count, postResponse.StatusCode, postBody);
+                    "Forcepoint exception POST failed. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Uri={Uri}, Status={Status}, Body={Body}",
+                    policyName, ruleName, foundItems.Count, postRequest.RequestUri, postResponse.StatusCode, postBody);
                 foreach (var candidate in foundItems)
                 {
                     items.Add(FailItem(
@@ -435,9 +435,11 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return request;
     }
 
-    private static HttpRequestMessage CreatePostExceptionsRequest(string token, string json)
+    private static HttpRequestMessage CreatePostExceptionsRequest(HttpClient httpClient, string token, string json)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/dlp/rest/v1/policy/rules/exceptions");
+        var baseUri = httpClient.BaseAddress ?? throw new InvalidOperationException("DLP API base address is not configured.");
+        var authority = baseUri.GetLeftPart(UriPartial.Authority);
+        var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{authority}//dlp/rest/v1/policy/rules/exceptions"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -596,10 +598,12 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return obj;
     }
 
-    private static void EnsurePostMetadata(JsonNode payload, string ruleName)
+    private static void EnsurePostMetadata(JsonNode payload, string? policyName, string ruleName)
     {
         if (payload is JsonObject obj)
         {
+            if (!string.IsNullOrWhiteSpace(policyName))
+                obj["parent_policy_name"] ??= policyName;
             obj["parent_rule_name"] ??= ruleName;
             obj["policy_type"] ??= PolicyType;
         }
