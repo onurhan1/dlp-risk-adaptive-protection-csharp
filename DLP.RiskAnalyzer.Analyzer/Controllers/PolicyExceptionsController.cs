@@ -72,13 +72,14 @@ public class PolicyExceptionsController : ControllerBase
             var lastSync = exceptions.Any()
                 ? exceptions.Max(e => e.SyncedAt)
                 : (DateTime?)null;
+            var lastSyncIso = FormatUtcIso(lastSync);
 
             return Ok(new
             {
                 success = true,
                 totalExceptions = exceptions.Count,
                 totalPolicies = grouped.Count,
-                lastSyncedAt = lastSync,
+                lastSyncedAt = lastSyncIso,
                 data = grouped
             });
         }
@@ -103,14 +104,15 @@ public class PolicyExceptionsController : ControllerBase
             var lastSync = await _context.PolicyRuleExceptions
                 .AsNoTracking()
                 .MaxAsync(e => (DateTime?)e.SyncedAt);
+            var lastSyncIso = FormatUtcIso(lastSync ?? DateTime.UtcNow);
 
             return Ok(new
             {
                 success = true,
                 message = $"Sync completed: {count} exceptions saved",
                 syncedCount = count,
-                syncedAt = lastSync ?? DateTime.UtcNow,
-                lastSyncedAt = lastSync
+                syncedAt = lastSyncIso,
+                lastSyncedAt = lastSyncIso
             });
         }
         catch (Exception ex)
@@ -185,6 +187,11 @@ public class PolicyExceptionsController : ControllerBase
             return StatusCode(500, new { success = false, error = ex.Message });
         }
     }
+
+    private static string? FormatUtcIso(DateTime? value)
+        => value.HasValue
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc).ToString("O")
+            : null;
 }
 
 public class PolicyExceptionBulkToggleRequest

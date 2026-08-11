@@ -360,6 +360,72 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
         return null;
     }
 
+    private async Task<(bool Success, System.Net.HttpStatusCode? Status, string Body)> FetchExceptionDetailAsync(
+        HttpClient httpClient,
+        string accessToken,
+        string ruleName)
+    {
+        var encodedRuleName = Uri.EscapeDataString(ruleName);
+        var formEncodedRuleName = System.Net.WebUtility.UrlEncode(ruleName);
+        var paths = new[]
+            {
+                $"/dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={encodedRuleName}",
+                $"/dlp/rest/v1/policy/rules/exceptions?ruleName={encodedRuleName}&type=DLP",
+                $"/dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={formEncodedRuleName}"
+            }
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        System.Net.HttpStatusCode? lastStatus = null;
+        var lastBody = string.Empty;
+
+        foreach (var path in paths)
+        {
+            var result = await SendExceptionDetailRequestAsync(httpClient, accessToken, path, includeBody: false);
+            if (result.Success) return result;
+            lastStatus = result.Status;
+            lastBody = result.Body;
+            _logger.LogDebug(
+                "Policy exception sync: detail fetch attempt failed. Rule={RuleName}, Path={Path}, Status={Status}",
+                ruleName, path, result.Status);
+        }
+
+        foreach (var path in paths)
+        {
+            var result = await SendExceptionDetailRequestAsync(httpClient, accessToken, path, includeBody: true);
+            if (result.Success) return result;
+            lastStatus = result.Status;
+            lastBody = result.Body;
+            _logger.LogDebug(
+                "Policy exception sync: detail fetch attempt with body failed. Rule={RuleName}, Path={Path}, Status={Status}",
+                ruleName, path, result.Status);
+        }
+
+        return (false, lastStatus, lastBody);
+    }
+
+    private static async Task<(bool Success, System.Net.HttpStatusCode? Status, string Body)> SendExceptionDetailRequestAsync(
+        HttpClient httpClient,
+        string accessToken,
+        string path,
+        bool includeBody)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        if (includeBody)
+        {
+            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        }
+
+        using var response = await httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        return (response.IsSuccessStatusCode, response.StatusCode, body);
+    }
+
     private async Task EnrichExceptionStatusesAsync(HttpClient httpClient, string accessToken, List<PolicyRuleException> exceptions)
     {
         var ruleNames = exceptions
@@ -372,25 +438,16 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
         {
             try
             {
-                var detailsUrl = $"/dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={Uri.EscapeDataString(ruleName)}";
-                using var request = new HttpRequestMessage(HttpMethod.Get, detailsUrl);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-                using var response = await httpClient.SendAsync(request);
-                var body = await response.Content.ReadAsStringAsync();
-                if (!response.IsSuccessStatusCode)
+                var detailResult = await FetchExceptionDetailAsync(httpClient, accessToken, ruleName);
+                if (!detailResult.Success)
                 {
                     _logger.LogWarning(
                         "Policy exception sync: detail fetch failed. Rule={RuleName}, Status={Status}, Body={Body}",
-                        ruleName, response.StatusCode, body);
+                        ruleName, detailResult.Status, detailResult.Body);
                     continue;
                 }
 
-                var statusLookup = ParseExceptionStatuses(body);
+                var statusLookup = ParseExceptionStatuses(detailResult.Body);
                 if (statusLookup.Count == 0)
                 {
                     _logger.LogWarning("Policy exception sync: no enabled status found in detail response. Rule={RuleName}", ruleName);

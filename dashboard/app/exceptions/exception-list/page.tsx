@@ -84,7 +84,7 @@ const normalizeExceptionItem = (exception: any): ExceptionItem => {
 }
 
 const parseUtcDate = (value: string) => {
-    const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+    const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2}(?::?\d{2})?)$/.test(value)
     return new Date(hasTimezone ? value : `${value}Z`)
 }
 
