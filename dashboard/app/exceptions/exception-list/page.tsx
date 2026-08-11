@@ -83,6 +83,30 @@ const normalizeExceptionItem = (exception: any): ExceptionItem => {
     }
 }
 
+const parseUtcDate = (value: string) => {
+    const hasTimezone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+    return new Date(hasTimezone ? value : `${value}Z`)
+}
+
+const formatIstanbulDateTime = (value: string) =>
+    parseUtcDate(value).toLocaleString('tr-TR', {
+        timeZone: 'Europe/Istanbul',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    })
+
+const formatIstanbulDate = (value: string) =>
+    parseUtcDate(value).toLocaleDateString('tr-TR', {
+        timeZone: 'Europe/Istanbul',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    })
+
 // ─── SearchableMultiSelect (reused pattern from analytics page) ────────────────
 
 interface SearchableMultiSelectProps {
@@ -1062,7 +1086,7 @@ function ExceptionListContent() {
                             {t('exceptionList.lastSync')}
                         </div>
                         <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                            {lastSyncedAt ? format(parseISO(lastSyncedAt), 'dd.MM.yyyy HH:mm') : '—'}
+                            {lastSyncedAt ? formatIstanbulDateTime(lastSyncedAt) : '—'}
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1380,7 +1404,7 @@ function ExceptionListContent() {
                                         <td style={{ padding: '9px 18px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{ref.exceptionName}</td>
                                         <td style={{ padding: '9px 18px', textAlign: 'center', color: (stats?.incidentCount || 0) > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>{stats?.incidentCount || 0}</td>
                                         <td style={{ padding: '9px 18px', textAlign: 'center', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                            {stats?.lastIncidentDate ? format(parseISO(stats.lastIncidentDate), 'dd.MM.yyyy HH:mm') : t('exceptionList.noIncidents')}
+                                            {stats?.lastIncidentDate ? formatIstanbulDateTime(stats.lastIncidentDate) : t('exceptionList.noIncidents')}
                                         </td>
                                         <td style={{ padding: '9px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             <span style={{
@@ -1570,7 +1594,7 @@ function ExceptionListContent() {
                                             {policyStats.totalIncidents}
                                         </div>
                                         <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                            {policyStats.latestDate ? format(parseISO(policyStats.latestDate), 'dd.MM.yyyy') : '—'}
+                                            {policyStats.latestDate ? formatIstanbulDate(policyStats.latestDate) : '—'}
                                         </div>
                                         <div style={{ textAlign: 'center' }}>
                                             {policyStats.staleCount > 0 && (
@@ -1639,7 +1663,7 @@ function ExceptionListContent() {
                                                         {ruleStats.totalIncidents}
                                                     </div>
                                                     <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                                        {ruleStats.latestDate ? format(parseISO(ruleStats.latestDate), 'dd.MM.yyyy') : '—'}
+                                                        {ruleStats.latestDate ? formatIstanbulDate(ruleStats.latestDate) : '—'}
                                                     </div>
                                                     <div style={{ textAlign: 'center' }}>
                                                         {ruleStats.staleChildren > 0 && (
@@ -1727,7 +1751,7 @@ function ExceptionListContent() {
                                                             </div>
                                                             <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
                                                                 {stats?.lastIncidentDate
-                                                                    ? format(parseISO(stats.lastIncidentDate), 'dd.MM.yyyy HH:mm')
+                                                                    ? formatIstanbulDateTime(stats.lastIncidentDate)
                                                                     : t('exceptionList.noIncidents')
                                                                 }
                                                             </div>

@@ -376,6 +376,9 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
                 using var request = new HttpRequestMessage(HttpMethod.Get, detailsUrl);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
                 using var response = await httpClient.SendAsync(request);
                 var body = await response.Content.ReadAsStringAsync();
