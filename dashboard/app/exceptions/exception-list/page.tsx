@@ -48,6 +48,12 @@ interface BackendExceptionStat {
     last_incident_date: string | null
 }
 
+interface FilteredExceptionRef {
+    policyName: string
+    ruleName: string
+    exceptionName: string
+}
+
 // ─── SearchableMultiSelect (reused pattern from analytics page) ────────────────
 
 interface SearchableMultiSelectProps {
@@ -361,6 +367,7 @@ function ExceptionListContent() {
     const [loading, setLoading] = useState(true)
     const [syncing, setSyncing] = useState(false)
     const [bulkDisabling, setBulkDisabling] = useState(false)
+    const [disablingExceptionKey, setDisablingExceptionKey] = useState<string | null>(null)
     const [forcepointMessage, setForcepointMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     // Filter states
@@ -516,6 +523,40 @@ function ExceptionListContent() {
 
     // ─── Compute exception stats from incidents ────────────────────────────────
 
+    const getExceptionRefKey = (ref: FilteredExceptionRef) =>
+        `${ref.policyName.toLowerCase()}|${ref.ruleName.toLowerCase()}|${ref.exceptionName.toLowerCase()}`
+
+    const handleDisableSingleException = async (ref: FilteredExceptionRef) => {
+        const key = getExceptionRefKey(ref)
+        const confirmed = window.confirm(
+            `"${ref.exceptionName}" exception kaydi Forcepoint uzerinde pasif edilecek.\n\n` +
+            `Policy: ${ref.policyName}\nRule: ${ref.ruleName}\n\nDevam etmek istiyor musunuz?`
+        )
+        if (!confirmed) return
+
+        setDisablingExceptionKey(key)
+        setForcepointMessage(null)
+        try {
+            const res = await apiClient.post('/api/policy-exceptions/forcepoint-enabled/bulk', {
+                exceptions: [ref],
+                enabled: false
+            })
+            const success = Boolean(res.data?.success)
+            setForcepointMessage({
+                type: success ? 'success' : 'error',
+                text: res.data?.message || `"${ref.exceptionName}" exception icin kapatma tamamlandi.`
+            })
+            await fetchData()
+        } catch (error: any) {
+            setForcepointMessage({
+                type: 'error',
+                text: error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Forcepoint exception kapatma basarisiz.'
+            })
+        } finally {
+            setDisablingExceptionKey(null)
+        }
+    }
+
     const exceptionStatsMap = useMemo(() => {
         const map = new Map<string, ExceptionStats>()
         const now = new Date()
@@ -591,7 +632,7 @@ function ExceptionListContent() {
     }, [exceptionData, selectedPolicies, selectedRules, exceptionSearch])
 
     const filteredExceptionRefs = useMemo(() => {
-        const unique = new Map<string, { policyName: string; ruleName: string; exceptionName: string }>()
+        const unique = new Map<string, FilteredExceptionRef>()
 
         filteredData.forEach(policy => {
             policy.rules.forEach(rule => {
@@ -1179,7 +1220,159 @@ function ExceptionListContent() {
                 </div>
             </div>
 
-            {/* ── Tree Table ────────────────────────────────────────────────────── */}
+            {/* Filtered exception breakdown */}
+            <div style={{
+                background: 'var(--surface)',
+                borderRadius: '16px',
+                marginBottom: '20px',
+                boxShadow: '0 4px 20px rgba(15, 23, 42, 0.06)',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '14px 18px',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'rgba(59, 130, 246, 0.03)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ListChecks size={15} color="#3b82f6" />
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                            Filtrelenen exception kirilimi
+                        </span>
+                        <span style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            background: 'var(--surface-hover)',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontWeight: '600',
+                        }}>
+                            {filteredExceptionRefs.length} exception
+                        </span>
+                    </div>
+                    <button
+                        onClick={handleBulkDisableFiltered}
+                        disabled={bulkDisabling || filteredExceptionRefs.length === 0}
+                        style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            color: '#ef4444',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: bulkDisabling || filteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            opacity: bulkDisabling || filteredExceptionRefs.length === 0 ? 0.55 : 1,
+                            fontFamily: 'Inter, sans-serif',
+                        }}
+                    >
+                        <PowerOff size={14} />
+                        {bulkDisabling ? 'Kapatiliyor...' : 'Tumunu Kapat'}
+                    </button>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <div style={{ minWidth: '980px', width: 'max-content' }}>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'max-content max-content max-content 110px 160px 110px 120px',
+                            columnGap: '28px',
+                            padding: '10px 18px',
+                            background: 'var(--surface-hover)',
+                            borderBottom: '1px solid var(--border)',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            color: 'var(--text-muted)',
+                            textTransform: 'uppercase',
+                        }}>
+                            <div>Policy</div>
+                            <div>Rule</div>
+                            <div>Exception</div>
+                            <div style={{ textAlign: 'center' }}>Incident</div>
+                            <div style={{ textAlign: 'center' }}>Son kullanim</div>
+                            <div style={{ textAlign: 'center' }}>Durum</div>
+                            <div style={{ textAlign: 'center' }}>Aksiyon</div>
+                        </div>
+                        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                            {filteredExceptionRefs.length === 0 ? (
+                                <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                    Filtrelere uygun exception bulunamadi.
+                                </div>
+                            ) : filteredExceptionRefs.map((ref) => {
+                                const key = `${ref.policyName}|${ref.ruleName}|${ref.exceptionName}`
+                                const stats = exceptionStatsMap.get(key)
+                                const isStale = stats?.isStale || false
+                                const actionKey = getExceptionRefKey(ref)
+                                const isDisabling = disablingExceptionKey === actionKey
+
+                                return (
+                                    <div key={key} style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'max-content max-content max-content 110px 160px 110px 120px',
+                                        columnGap: '28px',
+                                        padding: '9px 18px',
+                                        borderBottom: '1px solid var(--border)',
+                                        alignItems: 'center',
+                                        fontSize: '12px',
+                                    }}>
+                                        <div style={{ color: 'var(--text-primary)', fontWeight: '600', whiteSpace: 'nowrap' }}>{ref.policyName}</div>
+                                        <div style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{ref.ruleName}</div>
+                                        <div style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{ref.exceptionName}</div>
+                                        <div style={{ textAlign: 'center', color: (stats?.incidentCount || 0) > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '600' }}>{stats?.incidentCount || 0}</div>
+                                        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                            {stats?.lastIncidentDate ? format(parseISO(stats.lastIncidentDate), 'dd.MM.yyyy HH:mm') : t('exceptionList.noIncidents')}
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <span style={{
+                                                display: 'inline-flex',
+                                                padding: '2px 8px',
+                                                borderRadius: '6px',
+                                                fontSize: '11px',
+                                                fontWeight: '700',
+                                                background: isStale ? '#FEF3C7' : '#F0FDF4',
+                                                color: isStale ? '#D97706' : '#059669',
+                                            }}>
+                                                {isStale ? t('exceptionList.stale') : t('exceptionList.active')}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                            <button
+                                                onClick={() => handleDisableSingleException(ref)}
+                                                disabled={bulkDisabling || isDisabling}
+                                                title="Bu exception'i Forcepoint uzerinde pasiflestir"
+                                                style={{
+                                                    padding: '5px 9px',
+                                                    borderRadius: '7px',
+                                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                    background: 'rgba(239, 68, 68, 0.08)',
+                                                    color: '#ef4444',
+                                                    fontSize: '11px',
+                                                    fontWeight: '700',
+                                                    cursor: bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    opacity: bulkDisabling || isDisabling ? 0.55 : 1,
+                                                }}
+                                            >
+                                                <PowerOff size={12} />
+                                                {isDisabling ? '...' : 'Kapat'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div style={{
                 background: 'var(--surface)',
                 borderRadius: '16px',
@@ -1236,7 +1429,7 @@ function ExceptionListContent() {
                 {/* Tree Table Header */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 120px 120px 140px 100px',
+                    gridTemplateColumns: 'minmax(260px, 1fr) 120px 120px 140px 100px 120px',
                     padding: '10px 20px',
                     background: 'var(--surface-hover)',
                     borderBottom: '1px solid var(--border)',
@@ -1249,6 +1442,7 @@ function ExceptionListContent() {
                     <div style={{ textAlign: 'center' }}>{t('exceptionList.incidentCount')}</div>
                     <div style={{ textAlign: 'center' }}>{t('exceptionList.lastIncident')}</div>
                     <div style={{ textAlign: 'center' }}>{t('exceptionList.status')}</div>
+                    <div style={{ textAlign: 'center' }}>Aksiyon</div>
                 </div>
 
                 {/* Tree Content */}
@@ -1274,7 +1468,7 @@ function ExceptionListContent() {
                                         onClick={() => togglePolicy(pIdx)}
                                         style={{
                                             display: 'grid',
-                                            gridTemplateColumns: '1fr 120px 120px 140px 100px',
+                                            gridTemplateColumns: 'minmax(260px, 1fr) 120px 120px 140px 100px 120px',
                                             padding: '12px 20px',
                                             cursor: 'pointer',
                                             borderBottom: '1px solid var(--border)',
@@ -1327,6 +1521,7 @@ function ExceptionListContent() {
                                                 </span>
                                             )}
                                         </div>
+                                        <div />
                                     </div>
 
                                     {/* Rules - Expanded */}
@@ -1341,7 +1536,7 @@ function ExceptionListContent() {
                                                     onClick={() => toggleRule(pIdx, rIdx)}
                                                     style={{
                                                         display: 'grid',
-                                                        gridTemplateColumns: '1fr 120px 120px 140px 100px',
+                                                        gridTemplateColumns: 'minmax(260px, 1fr) 120px 120px 140px 100px 120px',
                                                         padding: '10px 20px 10px 48px',
                                                         cursor: 'pointer',
                                                         borderBottom: '1px solid var(--border)',
@@ -1395,6 +1590,7 @@ function ExceptionListContent() {
                                                             </span>
                                                         )}
                                                     </div>
+                                                    <div />
                                                 </div>
 
                                                 {/* Exception Rows - Expanded */}
@@ -1402,13 +1598,16 @@ function ExceptionListContent() {
                                                     const key = `${policy.policyName}|${rule.ruleName}|${exc}`
                                                     const stats = exceptionStatsMap.get(key)
                                                     const isStale = stats?.isStale || false
+                                                    const ref = { policyName: policy.policyName, ruleName: rule.ruleName, exceptionName: exc }
+                                                    const actionKey = getExceptionRefKey(ref)
+                                                    const isDisabling = disablingExceptionKey === actionKey
 
                                                     return (
                                                         <div
                                                             key={`${exc || 'exc'}-${pIdx}-${rIdx}-${eIdx}`}
                                                             style={{
                                                                 display: 'grid',
-                                                                gridTemplateColumns: '1fr 120px 120px 140px 100px',
+                                                                gridTemplateColumns: 'minmax(260px, 1fr) 120px 120px 140px 100px 120px',
                                                                 padding: '9px 20px 9px 80px',
                                                                 borderBottom: '1px solid var(--border)',
                                                                 alignItems: 'center',
@@ -1486,6 +1685,30 @@ function ExceptionListContent() {
                                                                         {t('exceptionList.active')}
                                                                     </span>
                                                                 )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                                <button
+                                                                    onClick={() => handleDisableSingleException(ref)}
+                                                                    disabled={bulkDisabling || isDisabling}
+                                                                    title="Bu exception'i Forcepoint uzerinde pasiflestir"
+                                                                    style={{
+                                                                        padding: '5px 9px',
+                                                                        borderRadius: '7px',
+                                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                                        background: 'rgba(239, 68, 68, 0.08)',
+                                                                        color: '#ef4444',
+                                                                        fontSize: '11px',
+                                                                        fontWeight: '700',
+                                                                        cursor: bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '5px',
+                                                                        opacity: bulkDisabling || isDisabling ? 0.55 : 1,
+                                                                    }}
+                                                                >
+                                                                    <PowerOff size={12} />
+                                                                    {isDisabling ? '...' : 'Kapat'}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     )
