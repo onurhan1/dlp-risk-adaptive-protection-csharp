@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -95,7 +96,8 @@ public class DlpTestService : IDlpTestService
         HttpMethod method, 
         object? requestBody = null, 
         Func<string, object>? successParser = null,
-        Func<HttpResponseMessage, string, object>? errorBuilder = null)
+        Func<HttpResponseMessage, string, object>? errorBuilder = null,
+        bool includeGetBody = true)
     {
         HttpClient? httpClient = null;
         try
@@ -117,7 +119,7 @@ public class DlpTestService : IDlpTestService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            if (method == HttpMethod.Get)
+            if (method == HttpMethod.Get && includeGetBody)
             {
                 request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
                 request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -135,7 +137,7 @@ public class DlpTestService : IDlpTestService
             {
                 var errorResult = errorBuilder != null 
                     ? errorBuilder(response, responseContent) 
-                    : new { success = false, message = "DLP request failed", statusCode = (int)response.StatusCode, error = responseContent };
+                    : new { success = false, message = "DLP request failed", statusCode = (int)response.StatusCode, requestUri = request.RequestUri?.ToString(), error = responseContent };
                 return new DlpTestResult((int)response.StatusCode, errorResult);
             }
 
@@ -148,6 +150,7 @@ public class DlpTestService : IDlpTestService
                 message = "Request successful",
                 data = parsedContent,
                 rawResponse = responseContent,
+                requestUri = request.RequestUri?.ToString(),
                 config = new { baseUrl = httpClient.BaseAddress?.ToString(), source = "database" }
             };
 
@@ -256,13 +259,85 @@ public class DlpTestService : IDlpTestService
     {
         return await ExecuteWithAuthAsync(
             $"//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
-            HttpMethod.Get);
+            HttpMethod.Get,
+            includeGetBody: false);
     }
 
     public async Task<DlpTestResult> DebugPolicyRulesExceptionsAsync(string type, string ruleName)
     {
-        // For debugging purpose, redirect to GetPolicyRulesExceptionsAsync
-        return await GetPolicyRulesExceptionsAsync(type, ruleName);
+        HttpClient? httpClient = null;
+        try
+        {
+            var config = await _dlpConfigService.GetSensitiveConfigAsync();
+            if (string.IsNullOrEmpty(config.Username) || string.IsNullOrEmpty(config.Password))
+                return new DlpTestResult(400, new { success = false, message = "DLP Username or Password not configured." });
+
+            httpClient = await CreateHttpClientAsync(config);
+            var tokenResult = await GetTokenAsync(httpClient, config.Username, config.Password);
+            if (tokenResult.StatusCode != 200) return tokenResult;
+            var token = tokenResult.Content as string ?? string.Empty;
+
+            var encodedType = Uri.EscapeDataString(type ?? "DLP");
+            var encodedRule = Uri.EscapeDataString(ruleName ?? string.Empty);
+            var formEncodedRule = WebUtility.UrlEncode(ruleName ?? string.Empty);
+            var attempts = new[]
+            {
+                new { Name = "documented-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = false },
+                new { Name = "documented-double-slash-with-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = true },
+                new { Name = "single-slash-no-body", Endpoint = $"/dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = false },
+                new { Name = "rule-first-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?ruleName={encodedRule}&type={encodedType}", IncludeBody = false },
+                new { Name = "plus-encoded-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={formEncodedRule}", IncludeBody = false }
+            };
+
+            var results = new List<object>();
+            foreach (var attempt in attempts)
+            {
+                var requestUri = attempt.Endpoint.StartsWith("//dlp/", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri($"{httpClient.BaseAddress!.GetLeftPart(UriPartial.Authority)}{attempt.Endpoint}")
+                    : new Uri(attempt.Endpoint, UriKind.Relative);
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (attempt.IncludeBody)
+                {
+                    request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+                    request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+                    request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                }
+
+                using var response = await httpClient.SendAsync(request);
+                var body = await response.Content.ReadAsStringAsync();
+                results.Add(new
+                {
+                    attempt = attempt.Name,
+                    requestUri = request.RequestUri?.ToString(),
+                    statusCode = (int)response.StatusCode,
+                    reasonPhrase = response.ReasonPhrase,
+                    success = response.IsSuccessStatusCode,
+                    responsePreview = body.Length > 1000 ? body[..1000] : body
+                });
+
+                if (response.IsSuccessStatusCode)
+                    break;
+            }
+
+            var anySuccess = results.Any(r =>
+                r.GetType().GetProperty("success")?.GetValue(r) is true);
+
+            return new DlpTestResult(anySuccess ? 200 : 400, new
+            {
+                success = anySuccess,
+                message = anySuccess
+                    ? "At least one Forcepoint detail request variant succeeded."
+                    : "All Forcepoint detail request variants failed.",
+                ruleName,
+                attempts = results
+            });
+        }
+        catch (TaskCanceledException ex) { return new DlpTestResult(408, new { success = false, message = "DLP API Timeout", error = ex.Message }); }
+        catch (Exception ex) { return new DlpTestResult(500, new { success = false, message = "Error executing DLP debug request", error = ex.Message }); }
+        finally { httpClient?.Dispose(); }
     }
 
     public async Task<DlpTestResult> GetConfigAsync()
