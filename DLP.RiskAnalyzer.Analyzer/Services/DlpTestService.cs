@@ -109,7 +109,11 @@ public class DlpTestService : IDlpTestService
             if (tokenResult.StatusCode != 200) return tokenResult;
             var token = tokenResult.Content as string;
 
-            var request = new HttpRequestMessage(method, endpoint);
+            var requestUri = endpoint.StartsWith("//dlp/", StringComparison.OrdinalIgnoreCase)
+                ? new Uri($"{httpClient.BaseAddress!.GetLeftPart(UriPartial.Authority)}{endpoint}")
+                : new Uri(endpoint, UriKind.Relative);
+
+            var request = new HttpRequestMessage(method, requestUri);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
@@ -251,7 +255,7 @@ public class DlpTestService : IDlpTestService
     public async Task<DlpTestResult> GetPolicyRulesExceptionsAsync(string type, string ruleName)
     {
         return await ExecuteWithAuthAsync(
-            $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}", 
+            $"//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
             HttpMethod.Get);
     }
 

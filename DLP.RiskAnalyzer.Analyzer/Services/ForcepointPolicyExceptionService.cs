@@ -236,7 +236,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         {
             var ruleName = group.Key;
             var groupItems = group.ToList();
-            using var getRequest = CreateGetExceptionsRequest(ruleName, token);
+            using var getRequest = CreateGetExceptionsRequest(httpClient, ruleName, token);
             var getResponse = await httpClient.SendAsync(getRequest, ct);
             var getBody = await getResponse.Content.ReadAsStringAsync(ct);
             if (!getResponse.IsSuccessStatusCode)
@@ -420,15 +420,14 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return null;
     }
 
-    private static HttpRequestMessage CreateGetExceptionsRequest(string ruleName, string token)
+    private static HttpRequestMessage CreateGetExceptionsRequest(HttpClient httpClient, string ruleName, string token)
     {
-        var getPath = $"/dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}";
-        var request = new HttpRequestMessage(HttpMethod.Get, getPath);
+        var baseUri = httpClient.BaseAddress ?? throw new InvalidOperationException("DLP API base address is not configured.");
+        var authority = baseUri.GetLeftPart(UriPartial.Authority);
+        var getUri = new Uri($"{authority}//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}");
+        var request = new HttpRequestMessage(HttpMethod.Get, getUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-        request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         return request;
     }
 

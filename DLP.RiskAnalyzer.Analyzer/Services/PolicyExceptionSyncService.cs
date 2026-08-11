@@ -97,6 +97,7 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
 
             var responseContent = await response.Content.ReadAsStringAsync();
             var exceptions = ParseExceptions(responseContent);
+            await EnrichUnknownExceptionStatusesAsync(httpClient, accessToken, exceptions);
 
             if (exceptions.Count == 0)
             {
@@ -180,6 +181,147 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
             _logger.LogWarning(ex, "Failed to refresh policy exception cache");
         }
     }
+
+    private async Task EnrichUnknownExceptionStatusesAsync(
+        HttpClient httpClient,
+        string accessToken,
+        List<PolicyRuleException> exceptions)
+    {
+        var ruleNames = exceptions
+            .Where(e => IsUnknownEnabled(e.Enabled))
+            .Select(e => e.RuleName)
+            .Where(ruleName => !string.IsNullOrWhiteSpace(ruleName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (ruleNames.Count == 0)
+            return;
+
+        foreach (var ruleName in ruleNames)
+        {
+            var result = await FetchExceptionDetailAsync(httpClient, accessToken, ruleName);
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "Policy exception sync: detail fetch failed. Rule={RuleName}, Uri={Uri}, Status={Status}, Body={Body}",
+                    ruleName,
+                    result.Uri,
+                    result.Status,
+                    Truncate(result.Body, 500));
+                continue;
+            }
+
+            var statusLookup = ParseExceptionStatuses(result.Body);
+            if (statusLookup.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Policy exception sync: detail response has no enabled status. Rule={RuleName}, Uri={Uri}",
+                    ruleName,
+                    result.Uri);
+                continue;
+            }
+
+            foreach (var exception in exceptions.Where(e =>
+                string.Equals(e.RuleName, ruleName, StringComparison.OrdinalIgnoreCase) &&
+                IsUnknownEnabled(e.Enabled)))
+            {
+                if (statusLookup.TryGetValue(exception.ExceptionName, out var enabled))
+                    exception.Enabled = enabled;
+            }
+        }
+    }
+
+    private static bool IsUnknownEnabled(string? enabled)
+        => string.IsNullOrWhiteSpace(enabled) ||
+           enabled.Equals("unknown", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<(bool Success, System.Net.HttpStatusCode? Status, string Body, Uri? Uri)> FetchExceptionDetailAsync(
+        HttpClient httpClient,
+        string accessToken,
+        string ruleName)
+    {
+        var requestUri = BuildDocumentedExceptionDetailUri(httpClient, ruleName);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var response = await httpClient.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        return (response.IsSuccessStatusCode, response.StatusCode, body, requestUri);
+    }
+
+    private static Uri BuildDocumentedExceptionDetailUri(HttpClient httpClient, string ruleName)
+    {
+        var baseUri = httpClient.BaseAddress ?? throw new InvalidOperationException("DLP API base address is not configured.");
+        var authority = baseUri.GetLeftPart(UriPartial.Authority);
+        return new Uri($"{authority}//dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={Uri.EscapeDataString(ruleName)}");
+    }
+
+    private static Dictionary<string, string> ParseExceptionStatuses(string responseJson)
+    {
+        var statuses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var jsonDoc = JsonDocument.Parse(responseJson);
+            VisitExceptionStatusNodes(jsonDoc.RootElement, statuses);
+        }
+        catch
+        {
+            return statuses;
+        }
+
+        return statuses;
+    }
+
+    private static void VisitExceptionStatusNodes(JsonElement element, Dictionary<string, string> statuses)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var exceptionName = GetJsonString(element, "exception_rule_name", "exceptionRuleName", "exception_name", "exceptionName");
+            var enabled = GetJsonBooleanString(element, "enabled", "Enabled", "is_enabled", "isEnabled");
+            if (!string.IsNullOrWhiteSpace(exceptionName) && !string.IsNullOrWhiteSpace(enabled))
+                statuses[exceptionName] = enabled;
+
+            foreach (var property in element.EnumerateObject())
+                VisitExceptionStatusNodes(property.Value, statuses);
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+                VisitExceptionStatusNodes(item, statuses);
+        }
+    }
+
+    private static string? GetJsonString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return null;
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                return value.GetString();
+        }
+
+        return null;
+    }
+
+    private static string? GetJsonBooleanString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return null;
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value)) continue;
+            if (value.ValueKind == JsonValueKind.String) return value.GetString()?.ToLowerInvariant();
+            if (value.ValueKind == JsonValueKind.True) return "true";
+            if (value.ValueKind == JsonValueKind.False) return "false";
+        }
+
+        return null;
+    }
+
+    private static string Truncate(string? value, int maxLength)
+        => string.IsNullOrEmpty(value) || value.Length <= maxLength
+            ? value ?? string.Empty
+            : value[..maxLength];
 
     /// <summary>
     /// DLP API response JSON'ından exception bilgilerini parse eder.
