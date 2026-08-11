@@ -12,7 +12,7 @@ public interface IDlpTestService
     Task<DlpTestResult> GetPolicyRulesAsync(string policyName);
     Task<DlpTestResult> GetEnabledPolicyNamesAsync(string type);
     Task<DlpTestResult> GetAllPolicyRulesExceptionsAsync(string type);
-    Task<DlpTestResult> GetPolicyRulesExceptionsAsync(string type, string ruleName);
-    Task<DlpTestResult> DebugPolicyRulesExceptionsAsync(string type, string ruleName);
+    Task<DlpTestResult> GetPolicyRulesExceptionsAsync(string type, string ruleName, string? policyName = null);
+    Task<DlpTestResult> DebugPolicyRulesExceptionsAsync(string type, string ruleName, string? policyName = null);
     Task<DlpTestResult> GetConfigAsync();
 }

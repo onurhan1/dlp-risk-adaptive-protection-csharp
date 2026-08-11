@@ -239,11 +239,14 @@ public class DlpTestService : IDlpTestService
                     {
                         foreach (var rule in exceptionRules.EnumerateArray())
                         {
-                            if (rule.TryGetProperty("rule_name", out var rn)) availableRuleNames.Add(rn.GetString() ?? "");
+                            var policyName = GetJsonString(rule, "policy_name", "policyName", "PolicyName");
+                            var ruleName = GetJsonString(rule, "parent_rule_name", "parentRuleName", "rule_name", "ruleName", "RuleName", "name");
+                            if (!string.IsNullOrWhiteSpace(ruleName)) availableRuleNames.Add(ruleName);
                             rulesList.Add(new
                             {
-                                policy_name = rule.TryGetProperty("policy_name", out var pn) ? pn.GetString() : "",
-                                rule_name = rn.GetString(),
+                                policy_name = policyName,
+                                rule_name = ruleName,
+                                parent_rule_name = GetJsonString(rule, "parent_rule_name", "parentRuleName"),
                                 exception_count = rule.TryGetProperty("exception_rule_names", out var ern) && ern.ValueKind == JsonValueKind.Array ? ern.GetArrayLength() : 0
                             });
                         }
@@ -255,15 +258,16 @@ public class DlpTestService : IDlpTestService
             });
     }
 
-    public async Task<DlpTestResult> GetPolicyRulesExceptionsAsync(string type, string ruleName)
+    public async Task<DlpTestResult> GetPolicyRulesExceptionsAsync(string type, string ruleName, string? policyName = null)
     {
+        var endpoint = BuildPolicyExceptionsEndpoint(type, ruleName, policyName, doubleSlash: true);
         return await ExecuteWithAuthAsync(
-            $"//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? "")}",
+            endpoint,
             HttpMethod.Get,
             includeGetBody: false);
     }
 
-    public async Task<DlpTestResult> DebugPolicyRulesExceptionsAsync(string type, string ruleName)
+    public async Task<DlpTestResult> DebugPolicyRulesExceptionsAsync(string type, string ruleName, string? policyName = null)
     {
         HttpClient? httpClient = null;
         try
@@ -279,6 +283,7 @@ public class DlpTestService : IDlpTestService
 
             var encodedType = Uri.EscapeDataString(type ?? "DLP");
             var encodedRule = Uri.EscapeDataString(ruleName ?? string.Empty);
+            var encodedPolicy = Uri.EscapeDataString(policyName ?? string.Empty);
             var formEncodedRule = WebUtility.UrlEncode(ruleName ?? string.Empty);
             var attempts = new List<(string Name, string Endpoint, bool IncludeBody)>
             {
@@ -289,6 +294,18 @@ public class DlpTestService : IDlpTestService
                 ("plus-encoded-double-slash-no-body", $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={formEncodedRule}", false)
             };
 
+            if (!string.IsNullOrWhiteSpace(policyName))
+            {
+                attempts.Insert(0, (
+                    "with-policy-name-double-slash-no-body",
+                    $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}&policyName={encodedPolicy}",
+                    false));
+                attempts.Insert(1, (
+                    "with-policy-name-single-slash-no-body",
+                    $"/dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}&policyName={encodedPolicy}",
+                    false));
+            }
+
             var parentRuleCandidate = DeriveParentRuleName(ruleName);
             if (!string.Equals(parentRuleCandidate, ruleName, StringComparison.Ordinal))
             {
@@ -297,6 +314,13 @@ public class DlpTestService : IDlpTestService
                     "derived-parent-rule-double-slash-no-body",
                     $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedParent}",
                     false));
+                if (!string.IsNullOrWhiteSpace(policyName))
+                {
+                    attempts.Add((
+                        "derived-parent-rule-with-policy-name-double-slash-no-body",
+                        $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedParent}&policyName={encodedPolicy}",
+                        false));
+                }
             }
 
             var results = new List<object>();
@@ -343,6 +367,7 @@ public class DlpTestService : IDlpTestService
                     ? "At least one Forcepoint detail request variant succeeded."
                     : "All Forcepoint detail request variants failed.",
                 ruleName,
+                policyName,
                 attempts = results
             });
         }
@@ -374,5 +399,26 @@ public class DlpTestService : IDlpTestService
         }
 
         return value;
+    }
+
+    private static string BuildPolicyExceptionsEndpoint(string? type, string? ruleName, string? policyName, bool doubleSlash)
+    {
+        var pathPrefix = doubleSlash ? "//dlp" : "/dlp";
+        var endpoint = $"{pathPrefix}/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(type ?? "DLP")}&ruleName={Uri.EscapeDataString(ruleName ?? string.Empty)}";
+        if (!string.IsNullOrWhiteSpace(policyName))
+            endpoint += $"&policyName={Uri.EscapeDataString(policyName)}";
+        return endpoint;
+    }
+
+    private static string? GetJsonString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object) return null;
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                return value.GetString();
+        }
+
+        return null;
     }
 }

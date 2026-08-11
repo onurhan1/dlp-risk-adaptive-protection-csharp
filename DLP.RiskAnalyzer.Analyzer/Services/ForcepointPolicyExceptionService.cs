@@ -232,11 +232,12 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
 
         var updatedEntities = new List<PIException>();
         var updatedSyncedExceptions = new List<PolicyRuleException>();
-        foreach (var group in candidates.GroupBy(e => e.RuleName, StringComparer.OrdinalIgnoreCase))
+        foreach (var group in candidates.GroupBy(e => BuildRefKey(e.PolicyName, e.RuleName, null), StringComparer.OrdinalIgnoreCase))
         {
-            var ruleName = group.Key;
             var groupItems = group.ToList();
-            using var getRequest = CreateGetExceptionsRequest(httpClient, ruleName, token);
+            var ruleName = groupItems[0].RuleName;
+            var policyName = groupItems[0].PolicyName;
+            using var getRequest = CreateGetExceptionsRequest(httpClient, ruleName, policyName, token);
             var getResponse = await httpClient.SendAsync(getRequest, ct);
             var getBody = await getResponse.Content.ReadAsStringAsync(ct);
             if (!getResponse.IsSuccessStatusCode)
@@ -420,11 +421,14 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return null;
     }
 
-    private static HttpRequestMessage CreateGetExceptionsRequest(HttpClient httpClient, string ruleName, string token)
+    private static HttpRequestMessage CreateGetExceptionsRequest(HttpClient httpClient, string ruleName, string? policyName, string token)
     {
         var baseUri = httpClient.BaseAddress ?? throw new InvalidOperationException("DLP API base address is not configured.");
         var authority = baseUri.GetLeftPart(UriPartial.Authority);
-        var getUri = new Uri($"{authority}//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}");
+        var endpoint = $"{authority}//dlp/rest/v1/policy/rules/exceptions?type={Uri.EscapeDataString(PolicyType)}&ruleName={Uri.EscapeDataString(ruleName)}";
+        if (!string.IsNullOrWhiteSpace(policyName))
+            endpoint += $"&policyName={Uri.EscapeDataString(policyName)}";
+        var getUri = new Uri(endpoint);
         var request = new HttpRequestMessage(HttpMethod.Get, getUri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));

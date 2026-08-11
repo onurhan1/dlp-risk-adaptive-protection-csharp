@@ -65,16 +65,16 @@ public class DLPTestController : ControllerBase
     }
 
     [HttpGet("policy-exceptions")]
-    public async Task<ActionResult> GetPolicyRulesExceptions([FromQuery] string type, [FromQuery] string ruleName)
+    public async Task<ActionResult> GetPolicyRulesExceptions([FromQuery] string type, [FromQuery] string ruleName, [FromQuery] string? policyName = null)
     {
-        var result = await _dlpTestService.GetPolicyRulesExceptionsAsync(type, ruleName);
+        var result = await _dlpTestService.GetPolicyRulesExceptionsAsync(type, ruleName, policyName);
         return StatusCode(result.StatusCode, result.Content);
     }
 
     [HttpGet("policy-exceptions-debug")]
-    public async Task<ActionResult> DebugPolicyRulesExceptions([FromQuery] string type, [FromQuery] string ruleName)
+    public async Task<ActionResult> DebugPolicyRulesExceptions([FromQuery] string type, [FromQuery] string ruleName, [FromQuery] string? policyName = null)
     {
-        var result = await _dlpTestService.DebugPolicyRulesExceptionsAsync(type, ruleName);
+        var result = await _dlpTestService.DebugPolicyRulesExceptionsAsync(type, ruleName, policyName);
         return StatusCode(result.StatusCode, result.Content);
     }
 
