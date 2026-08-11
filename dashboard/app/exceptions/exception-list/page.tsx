@@ -425,6 +425,9 @@ export default function ExceptionListPage() {
 }
 
 const STALE_DAYS_THRESHOLD = 90
+const FORCEPOINT_EXCEPTION_WRITE_ENABLED = false
+const FORCEPOINT_WRITE_DISABLED_MESSAGE =
+    'Forcepoint exception kapatma gecici olarak devre disi. Forcepoint POST API mevcut exceptionlari silebildigi icin guvenli update akisi netlesene kadar kapali tutuluyor.'
 
 function ExceptionListContent() {
     const { t } = useTranslation()
@@ -610,6 +613,14 @@ function ExceptionListContent() {
     }
 
     const handleBulkDisableFiltered = async () => {
+        if (!FORCEPOINT_EXCEPTION_WRITE_ENABLED) {
+            setForcepointMessage({
+                type: 'error',
+                text: FORCEPOINT_WRITE_DISABLED_MESSAGE
+            })
+            return
+        }
+
         const activeExceptionRefs = filteredExceptionRefs.filter(isExceptionEnabled)
         if (activeExceptionRefs.length === 0) return
 
@@ -648,6 +659,14 @@ function ExceptionListContent() {
         `${ref.policyName.toLowerCase()}|${ref.ruleName.toLowerCase()}|${ref.exceptionName.toLowerCase()}`
 
     const handleDisableSingleException = async (ref: FilteredExceptionRef) => {
+        if (!FORCEPOINT_EXCEPTION_WRITE_ENABLED) {
+            setForcepointMessage({
+                type: 'error',
+                text: FORCEPOINT_WRITE_DISABLED_MESSAGE
+            })
+            return
+        }
+
         const key = getExceptionRefKey(ref)
         const confirmed = window.confirm(
             `"${ref.exceptionName}" exception kaydi Forcepoint uzerinde pasif edilecek.\n\n` +
@@ -1159,8 +1178,8 @@ function ExceptionListContent() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button
                             onClick={handleBulkDisableFiltered}
-                            disabled={bulkDisabling || activeFilteredExceptionRefs.length === 0}
-                            title="Filtrelenen exceptionlari Forcepoint uzerinde pasiflestir"
+                            disabled={!FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0}
+                            title={FORCEPOINT_EXCEPTION_WRITE_ENABLED ? 'Filtrelenen exceptionlari Forcepoint uzerinde pasiflestir' : FORCEPOINT_WRITE_DISABLED_MESSAGE}
                             style={{
                                 padding: '6px 12px',
                                 borderRadius: '8px',
@@ -1169,12 +1188,12 @@ function ExceptionListContent() {
                                 color: '#ef4444',
                                 fontSize: '12px',
                                 fontWeight: '600',
-                                cursor: bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
+                                cursor: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
                                 transition: 'all 0.2s',
-                                opacity: bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 0.55 : 1,
+                                opacity: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 0.55 : 1,
                                 fontFamily: 'Inter, sans-serif',
                             }}
                         >
@@ -1396,7 +1415,8 @@ function ExceptionListContent() {
                     </div>
                     <button
                         onClick={handleBulkDisableFiltered}
-                        disabled={bulkDisabling || activeFilteredExceptionRefs.length === 0}
+                        disabled={!FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0}
+                        title={FORCEPOINT_EXCEPTION_WRITE_ENABLED ? undefined : FORCEPOINT_WRITE_DISABLED_MESSAGE}
                         style={{
                             padding: '7px 12px',
                             borderRadius: '8px',
@@ -1405,11 +1425,11 @@ function ExceptionListContent() {
                             color: '#ef4444',
                             fontSize: '12px',
                             fontWeight: '700',
-                            cursor: bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
+                            cursor: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
-                            opacity: bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 0.55 : 1,
+                            opacity: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || activeFilteredExceptionRefs.length === 0 ? 0.55 : 1,
                             fontFamily: 'Inter, sans-serif',
                         }}
                     >
@@ -1491,8 +1511,8 @@ function ExceptionListContent() {
                                             {forcepointEnabled ? (
                                                 <button
                                                     onClick={() => handleDisableSingleException(ref)}
-                                                    disabled={bulkDisabling || isDisabling}
-                                                    title="Bu exception'i Forcepoint uzerinde pasiflestir"
+                                                    disabled={!FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling}
+                                                    title={FORCEPOINT_EXCEPTION_WRITE_ENABLED ? "Bu exception'i Forcepoint uzerinde pasiflestir" : FORCEPOINT_WRITE_DISABLED_MESSAGE}
                                                     style={{
                                                         padding: '5px 9px',
                                                         borderRadius: '7px',
@@ -1501,11 +1521,11 @@ function ExceptionListContent() {
                                                         color: '#ef4444',
                                                         fontSize: '11px',
                                                         fontWeight: '700',
-                                                        cursor: bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
+                                                        cursor: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
                                                         gap: '5px',
-                                                        opacity: bulkDisabling || isDisabling ? 0.55 : 1,
+                                                        opacity: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling ? 0.55 : 1,
                                                     }}
                                                 >
                                                     <PowerOff size={12} />
@@ -1859,8 +1879,8 @@ function ExceptionListContent() {
                                                                 {forcepointEnabled ? (
                                                                     <button
                                                                         onClick={() => handleDisableSingleException(ref)}
-                                                                        disabled={bulkDisabling || isDisabling}
-                                                                        title="Bu exception'i Forcepoint uzerinde pasiflestir"
+                                                                        disabled={!FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling}
+                                                                        title={FORCEPOINT_EXCEPTION_WRITE_ENABLED ? "Bu exception'i Forcepoint uzerinde pasiflestir" : FORCEPOINT_WRITE_DISABLED_MESSAGE}
                                                                         style={{
                                                                             padding: '5px 9px',
                                                                             borderRadius: '7px',
@@ -1869,11 +1889,11 @@ function ExceptionListContent() {
                                                                             color: '#ef4444',
                                                                             fontSize: '11px',
                                                                             fontWeight: '700',
-                                                                            cursor: bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
+                                                                            cursor: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling ? 'not-allowed' : 'pointer',
                                                                             display: 'inline-flex',
                                                                             alignItems: 'center',
                                                                             gap: '5px',
-                                                                            opacity: bulkDisabling || isDisabling ? 0.55 : 1,
+                                                                            opacity: !FORCEPOINT_EXCEPTION_WRITE_ENABLED || bulkDisabling || isDisabling ? 0.55 : 1,
                                                                         }}
                                                                     >
                                                                         <PowerOff size={12} />
