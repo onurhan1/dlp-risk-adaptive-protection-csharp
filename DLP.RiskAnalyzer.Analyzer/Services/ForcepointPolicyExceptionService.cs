@@ -61,7 +61,9 @@ public record ForcepointExceptionTogglePreviewItem(
     int PreviewExceptionCount,
     IReadOnlyList<string> OriginalExceptionRuleNames,
     IReadOnlyList<string> PreviewExceptionRuleNames,
-    string? PayloadPreview = null);
+    string? PayloadPreview = null,
+    string? RequestedEnabled = null,
+    IReadOnlyDictionary<string, string>? PreviewEnabledByException = null);
 
 public record ForcepointExceptionBulkTogglePreviewResult(
     bool Success,
@@ -338,9 +340,20 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             EnsurePostMetadata(payload, policyName, ruleName);
             SanitizePayloadForPost(payload);
             var previewNames = ExtractTopLevelExceptionRuleNames(payload);
+            var requestedEnabled = enabled ? "true" : "false";
+            var previewEnabledByException = requestedNames.ToDictionary(
+                name => name,
+                name => GetExceptionEnabled(payload, name) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase);
             var hasSameExceptionSet = HasSameValues(originalNames, previewNames);
             var hasNonEmptyExceptionList = previewNames.Count > 0;
-            var safeToPost = missingTargets.Count == 0 && hasNonEmptyExceptionList && hasSameExceptionSet;
+            var hasRequestedEnabled = missingTargets.Count == 0 &&
+                                      previewEnabledByException.Values.All(value =>
+                                          string.Equals(value, requestedEnabled, StringComparison.OrdinalIgnoreCase));
+            var safeToPost = missingTargets.Count == 0 &&
+                             hasNonEmptyExceptionList &&
+                             hasSameExceptionSet &&
+                             hasRequestedEnabled;
             var json = payload.ToJsonString(new JsonSerializerOptions
             {
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -351,7 +364,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 safeToPost,
                 safeToPost
                     ? "Preview basarili. POST payload'i exception listesini koruyor."
-                    : BuildUnsafePreviewMessage(missingTargets, hasNonEmptyExceptionList, hasSameExceptionSet),
+                    : BuildUnsafePreviewMessage(missingTargets, hasNonEmptyExceptionList, hasSameExceptionSet, hasRequestedEnabled),
                 policyName,
                 ruleName,
                 requestedNames,
@@ -359,7 +372,9 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 previewNames.Count,
                 originalNames,
                 previewNames,
-                Truncate(json, 4000)));
+                Truncate(json, 4000),
+                requestedEnabled,
+                previewEnabledByException));
         }
 
         var success = items.Count > 0 && items.All(i => i.Success && i.SafeToPost);
@@ -893,6 +908,14 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return names;
     }
 
+    private static string? GetExceptionEnabled(JsonNode payload, string exceptionName)
+    {
+        var exceptionNode = FindExceptionNode(payload, exceptionName);
+        return exceptionNode == null
+            ? null
+            : GetJsonNodeString(exceptionNode, "enabled", "Enabled", "is_enabled", "isEnabled");
+    }
+
     private static string? GetJsonNodeString(JsonObject obj, params string[] names)
     {
         foreach (var name in names)
@@ -919,7 +942,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
     private static string BuildUnsafePreviewMessage(
         IReadOnlyList<string> missingTargets,
         bool hasNonEmptyExceptionList,
-        bool hasSameExceptionSet)
+        bool hasSameExceptionSet,
+        bool hasRequestedEnabled)
     {
         var reasons = new List<string>();
         if (missingTargets.Count > 0)
@@ -928,6 +952,8 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             reasons.Add("exception_rules bos veya okunamadi");
         if (!hasSameExceptionSet)
             reasons.Add("POST preview exception isim listesini korumuyor");
+        if (!hasRequestedEnabled)
+            reasons.Add("hedef exception enabled degeri istenen degere donusmedi");
 
         return $"Preview guvenli degil: {string.Join("; ", reasons)}.";
     }
