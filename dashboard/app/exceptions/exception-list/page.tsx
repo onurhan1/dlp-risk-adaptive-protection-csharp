@@ -113,6 +113,17 @@ const formatIstanbulDate = (value: string) =>
 const getSyncTimestamp = (data: any) =>
     data?.last_synced_at || data?.lastSyncedAt || data?.synced_at || data?.syncedAt
 
+const toPolicyExceptionTogglePayload = (ref: FilteredExceptionRef) => ({
+    policyName: ref.policyName,
+    policy_name: ref.policyName,
+    ruleName: ref.ruleName,
+    rule_name: ref.ruleName,
+    exceptionName: ref.exceptionName,
+    exception_name: ref.exceptionName,
+    exceptionRuleName: ref.exceptionName,
+    exception_rule_name: ref.exceptionName
+})
+
 // ─── SearchableMultiSelect (reused pattern from analytics page) ────────────────
 
 interface SearchableMultiSelectProps {
@@ -612,7 +623,7 @@ function ExceptionListContent() {
         setForcepointMessage(null)
         try {
             const res = await apiClient.post('/api/policy-exceptions/forcepoint-enabled/bulk', {
-                exceptions: activeExceptionRefs,
+                exceptions: activeExceptionRefs.map(toPolicyExceptionTogglePayload),
                 enabled: false
             })
             const success = Boolean(res.data?.success)
@@ -648,7 +659,7 @@ function ExceptionListContent() {
         setForcepointMessage(null)
         try {
             const res = await apiClient.post('/api/policy-exceptions/forcepoint-enabled/bulk', {
-                exceptions: [ref],
+                exceptions: [toPolicyExceptionTogglePayload(ref)],
                 enabled: false
             })
             const success = Boolean(res.data?.success)

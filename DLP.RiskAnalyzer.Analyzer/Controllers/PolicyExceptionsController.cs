@@ -3,6 +3,7 @@ using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
@@ -179,9 +180,9 @@ public class PolicyExceptionsController : ControllerBase
         {
             var actor = User?.Identity?.Name ?? "System";
             var refs = request?.Exceptions?.Select(e => new ForcepointExceptionToggleReference(
-                e.PolicyName,
-                e.RuleName,
-                e.ExceptionName)) ?? Enumerable.Empty<ForcepointExceptionToggleReference>();
+                e.GetPolicyName(),
+                e.GetRuleName(),
+                e.GetExceptionName())) ?? Enumerable.Empty<ForcepointExceptionToggleReference>();
 
             var result = await _forcepointExceptionService.SetExceptionReferencesEnabledAsync(
                 refs,
@@ -307,6 +308,29 @@ public class PolicyExceptionBulkToggleRequest
 public class PolicyExceptionBulkToggleItem
 {
     public string? PolicyName { get; set; }
-    public string RuleName { get; set; } = string.Empty;
-    public string ExceptionName { get; set; } = string.Empty;
+
+    [JsonPropertyName("policy_name")]
+    public string? PolicyNameSnake { get; set; }
+
+    public string? RuleName { get; set; }
+
+    [JsonPropertyName("rule_name")]
+    public string? RuleNameSnake { get; set; }
+
+    public string? ExceptionName { get; set; }
+
+    public string? ExceptionRuleName { get; set; }
+
+    [JsonPropertyName("exception_name")]
+    public string? ExceptionNameSnake { get; set; }
+
+    [JsonPropertyName("exception_rule_name")]
+    public string? ExceptionRuleNameSnake { get; set; }
+
+    public string? GetPolicyName() => FirstNonEmpty(PolicyName, PolicyNameSnake);
+    public string GetRuleName() => FirstNonEmpty(RuleName, RuleNameSnake) ?? string.Empty;
+    public string GetExceptionName() => FirstNonEmpty(ExceptionName, ExceptionRuleName, ExceptionNameSnake, ExceptionRuleNameSnake) ?? string.Empty;
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 }
