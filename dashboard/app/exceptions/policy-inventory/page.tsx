@@ -19,6 +19,10 @@ import PolicyFormModal from './_components/PolicyFormModal'
 import RuleFormModal from './_components/RuleFormModal'
 import ExceptionFormModal from './_components/ExceptionFormModal'
 
+const FORCEPOINT_EXCEPTION_WRITE_ENABLED = false
+const FORCEPOINT_WRITE_DISABLED_MESSAGE =
+  'Forcepoint exception aktif/pasif islemi devre disi. Forcepoint POST API mevcut exceptionlari silebildigi icin platformdan yazma islemi durduruldu; sadece preview ve sync kullanilabilir.'
+
 export default function PolicyInventoryPage() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
@@ -193,6 +197,14 @@ export default function PolicyInventoryPage() {
   }
 
   const handleToggleForcepointException = async (exception: PolicyException, rule: PolicyRule) => {
+    if (!FORCEPOINT_EXCEPTION_WRITE_ENABLED) {
+      setForcepointMessage({
+        type: 'error',
+        text: FORCEPOINT_WRITE_DISABLED_MESSAGE
+      })
+      return
+    }
+
     const nextEnabled = exception.enabled !== 'true'
     const actionText = nextEnabled ? 'aktif' : 'pasif'
     const confirmed = window.confirm(
@@ -224,6 +236,14 @@ export default function PolicyInventoryPage() {
   }
 
   const handleBulkDisableFilteredExceptions = async (exceptionIds: number[]) => {
+    if (!FORCEPOINT_EXCEPTION_WRITE_ENABLED) {
+      setForcepointMessage({
+        type: 'error',
+        text: FORCEPOINT_WRITE_DISABLED_MESSAGE
+      })
+      return
+    }
+
     const uniqueIds = Array.from(new Set(exceptionIds.filter(id => id > 0)))
     if (uniqueIds.length === 0) return
 

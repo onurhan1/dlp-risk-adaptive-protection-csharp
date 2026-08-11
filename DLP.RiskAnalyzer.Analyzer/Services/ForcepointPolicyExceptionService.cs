@@ -88,6 +88,8 @@ internal record ForcepointPostAttemptResult(
 public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionService
 {
     private const string PolicyType = "DLP";
+    private const string ForcepointExceptionWriteDisabledMessage =
+        "Forcepoint exception aktif/pasif islemi devre disi. Forcepoint POST API mevcut exceptionlari silebildigi icin platformdan yazma islemi durduruldu; sadece preview ve sync kullanilabilir.";
     private readonly AnalyzerDbContext _context;
     private readonly IDlpConfigurationService _dlpConfigService;
     private readonly ILogger<ForcepointPolicyExceptionService> _logger;
@@ -138,6 +140,20 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         if (requestedIds.Count == 0)
             return EmptyBulkResult();
 
+        _logger.LogWarning(
+            "Forcepoint exception write blocked. Requested={Requested}, Enabled={Enabled}, Actor={Actor}",
+            requestedIds.Count,
+            enabled,
+            actor);
+        return new ForcepointExceptionBulkToggleResult(
+            false,
+            ForcepointExceptionWriteDisabledMessage,
+            requestedIds.Count,
+            0,
+            requestedIds.Count,
+            requestedIds.Select(id => FailItem(id, null, null, null, enabled, ForcepointExceptionWriteDisabledMessage)).ToList());
+
+#pragma warning disable CS0162
         var exceptions = await _context.PIExceptions
             .Include(e => e.Rule)
                 .ThenInclude(r => r.Policy)
@@ -159,6 +175,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             .ToList();
 
         return await ExecuteBulkToggleAsync(candidates, requestedIds.Count, enabled, actor, items, ct);
+#pragma warning restore CS0162
     }
 
     public async Task<ForcepointExceptionBulkToggleResult> SetExceptionReferencesEnabledAsync(
@@ -176,6 +193,22 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         if (requestedRefs.Count == 0)
             return EmptyBulkResult();
 
+        _logger.LogWarning(
+            "Forcepoint exception reference write blocked. Requested={Requested}, Enabled={Enabled}, Actor={Actor}",
+            requestedRefs.Count,
+            enabled,
+            actor);
+        return new ForcepointExceptionBulkToggleResult(
+            false,
+            ForcepointExceptionWriteDisabledMessage,
+            requestedRefs.Count,
+            0,
+            requestedRefs.Count,
+            requestedRefs
+                .Select(r => FailItem(0, r.PolicyName, r.RuleName, r.ExceptionRuleName, enabled, ForcepointExceptionWriteDisabledMessage))
+                .ToList());
+
+#pragma warning disable CS0162
         var ruleNames = requestedRefs.Select(r => r.RuleName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var localExceptions = await _context.PIExceptions
             .Include(e => e.Rule)
@@ -208,6 +241,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             actor,
             new List<ForcepointExceptionBulkToggleItemResult>(),
             ct);
+#pragma warning restore CS0162
     }
 
     public async Task<ForcepointExceptionBulkTogglePreviewResult> PreviewExceptionReferencesEnabledAsync(

@@ -425,9 +425,9 @@ export default function ExceptionListPage() {
 }
 
 const STALE_DAYS_THRESHOLD = 90
-const FORCEPOINT_EXCEPTION_WRITE_ENABLED = true
+const FORCEPOINT_EXCEPTION_WRITE_ENABLED = false
 const FORCEPOINT_WRITE_DISABLED_MESSAGE =
-    'Forcepoint exception kapatma gecici olarak devre disi.'
+    'Forcepoint exception aktif/pasif islemi devre disi. Forcepoint POST API mevcut exceptionlari silebildigi icin platformdan yazma islemi durduruldu; sadece preview ve sync kullanilabilir.'
 
 function ExceptionListContent() {
     const { t } = useTranslation()
