@@ -280,14 +280,24 @@ public class DlpTestService : IDlpTestService
             var encodedType = Uri.EscapeDataString(type ?? "DLP");
             var encodedRule = Uri.EscapeDataString(ruleName ?? string.Empty);
             var formEncodedRule = WebUtility.UrlEncode(ruleName ?? string.Empty);
-            var attempts = new[]
+            var attempts = new List<(string Name, string Endpoint, bool IncludeBody)>
             {
-                new { Name = "documented-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = false },
-                new { Name = "documented-double-slash-with-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = true },
-                new { Name = "single-slash-no-body", Endpoint = $"/dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", IncludeBody = false },
-                new { Name = "rule-first-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?ruleName={encodedRule}&type={encodedType}", IncludeBody = false },
-                new { Name = "plus-encoded-double-slash-no-body", Endpoint = $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={formEncodedRule}", IncludeBody = false }
+                ("documented-double-slash-no-body", $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", false),
+                ("documented-double-slash-with-body", $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", true),
+                ("single-slash-no-body", $"/dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedRule}", false),
+                ("rule-first-double-slash-no-body", $"//dlp/rest/v1/policy/rules/exceptions?ruleName={encodedRule}&type={encodedType}", false),
+                ("plus-encoded-double-slash-no-body", $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={formEncodedRule}", false)
             };
+
+            var parentRuleCandidate = DeriveParentRuleName(ruleName);
+            if (!string.Equals(parentRuleCandidate, ruleName, StringComparison.Ordinal))
+            {
+                var encodedParent = Uri.EscapeDataString(parentRuleCandidate);
+                attempts.Add((
+                    "derived-parent-rule-double-slash-no-body",
+                    $"//dlp/rest/v1/policy/rules/exceptions?type={encodedType}&ruleName={encodedParent}",
+                    false));
+            }
 
             var results = new List<object>();
             foreach (var attempt in attempts)
@@ -312,6 +322,7 @@ public class DlpTestService : IDlpTestService
                 {
                     attempt = attempt.Name,
                     requestUri = request.RequestUri?.ToString(),
+                    absoluteUri = request.RequestUri?.AbsoluteUri,
                     statusCode = (int)response.StatusCode,
                     reasonPhrase = response.ReasonPhrase,
                     success = response.IsSuccessStatusCode,
@@ -351,5 +362,17 @@ public class DlpTestService : IDlpTestService
         {
             return new DlpTestResult(500, new { success = false, error = ex.Message });
         }
+    }
+
+    private static string DeriveParentRuleName(string? ruleName)
+    {
+        var value = (ruleName ?? string.Empty).Trim();
+        foreach (var suffix in new[] { "-LAN", "-Mail", "-Others", "-Printing" })
+        {
+            if (value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return value[..^suffix.Length].Trim();
+        }
+
+        return value;
     }
 }
