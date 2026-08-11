@@ -49,10 +49,9 @@ public class ReleasedIncidentProcessor : IReleasedIncidentProcessor
             await db.StreamCreateConsumerGroupAsync(streamName, consumerGroup, "0", createStream: true);
             _logger.LogDebug("Created Redis consumer group for released incidents: {Group}", consumerGroup);
         }
-        catch (Exception ex)
+        catch
         {
             // Group may already exist — expected on repeat startup
-            _logger.LogDebug("Redis consumer group for released incidents may already exist: {Error}", ex.Message);
         }
 
         EnsuredConsumerGroups[consumerGroupKey] = true;

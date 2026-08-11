@@ -17,10 +17,6 @@ public interface IRedisStreamProcessor
 public class RedisStreamProcessor : IRedisStreamProcessor
 {
     private static readonly ConcurrentDictionary<string, bool> EnsuredConsumerGroups = new();
-    private static readonly object ExceptionLookupLogLock = new();
-    private static int _lastLoggedExceptionLookupCount = -1;
-    private static DateTime _lastExceptionLookupLogAt = DateTime.MinValue;
-    private static readonly TimeSpan ExceptionLookupLogInterval = TimeSpan.FromHours(1);
 
     private readonly AnalyzerDbContext _context;
     private readonly IConnectionMultiplexer _redis;
@@ -58,8 +54,6 @@ public class RedisStreamProcessor : IRedisStreamProcessor
         try
         {
             exceptionLookup = await _policyExceptionSyncService.GetExceptionLookupAsync();
-            if (exceptionLookup.Count > 0 && ShouldLogExceptionLookupCount(exceptionLookup.Count))
-                _logger.LogDebug("Loaded {Count} policy exception mappings for ViolationTriggers enrichment", exceptionLookup.Count);
         }
         catch (Exception ex)
         {
@@ -428,31 +422,14 @@ public class RedisStreamProcessor : IRedisStreamProcessor
         }
         catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogDebug("Redis consumer group already exists: {Group}", consumerGroup);
+            // Expected after the first run; keep logs quiet during normal polling.
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogDebug("Consumer group may already exist: {Error}", ex.Message);
+            // Stream/group creation is best-effort; read operations below will surface real failures.
         }
 
         EnsuredConsumerGroups[key] = true;
-    }
-
-    private static bool ShouldLogExceptionLookupCount(int count)
-    {
-        lock (ExceptionLookupLogLock)
-        {
-            var now = DateTime.UtcNow;
-            if (count != _lastLoggedExceptionLookupCount ||
-                now - _lastExceptionLookupLogAt >= ExceptionLookupLogInterval)
-            {
-                _lastLoggedExceptionLookupCount = count;
-                _lastExceptionLookupLogAt = now;
-                return true;
-            }
-
-            return false;
-        }
     }
 
 
