@@ -1328,33 +1328,42 @@ function ExceptionListContent() {
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
-                    <div style={{ minWidth: '980px', width: 'max-content' }}>
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'max-content max-content max-content 110px 160px 110px 120px',
-                            columnGap: '28px',
-                            padding: '10px 18px',
-                            background: 'var(--surface-hover)',
-                            borderBottom: '1px solid var(--border)',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            color: 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                        }}>
-                            <div>Policy</div>
-                            <div>Rule</div>
-                            <div>Exception</div>
-                            <div style={{ textAlign: 'center' }}>Incident</div>
-                            <div style={{ textAlign: 'center' }}>Son kullanim</div>
-                            <div style={{ textAlign: 'center' }}>Durum</div>
-                            <div style={{ textAlign: 'center' }}>Aksiyon</div>
-                        </div>
-                        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                            {filteredExceptionRefs.length === 0 ? (
-                                <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                                    Filtrelere uygun exception bulunamadi.
-                                </div>
-                            ) : filteredExceptionRefs.map((ref) => {
+                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        {filteredExceptionRefs.length === 0 ? (
+                            <div style={{ padding: '28px 18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Filtrelere uygun exception bulunamadi.
+                            </div>
+                        ) : (
+                            <table style={{
+                                width: 'max-content',
+                                minWidth: '100%',
+                                borderCollapse: 'collapse',
+                                tableLayout: 'auto',
+                            }}>
+                                <thead style={{
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 1,
+                                    background: 'var(--surface-hover)',
+                                }}>
+                                    <tr style={{
+                                        borderBottom: '1px solid var(--border)',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        color: 'var(--text-muted)',
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        <th style={{ padding: '10px 18px', textAlign: 'left', whiteSpace: 'nowrap', minWidth: '220px' }}>Policy</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'left', whiteSpace: 'nowrap', minWidth: '220px' }}>Rule</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'left', whiteSpace: 'nowrap', minWidth: '260px' }}>Exception</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '110px' }}>Incident</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '160px' }}>Son kullanim</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '110px' }}>Durum</th>
+                                        <th style={{ padding: '10px 18px', textAlign: 'center', whiteSpace: 'nowrap', minWidth: '120px' }}>Aksiyon</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredExceptionRefs.map((ref) => {
                                 const key = `${ref.policyName}|${ref.ruleName}|${ref.exceptionName}`
                                 const stats = exceptionStatsMap.get(key)
                                 const forcepointEnabled = isExceptionEnabled(ref)
@@ -1362,23 +1371,18 @@ function ExceptionListContent() {
                                 const isDisabling = disablingExceptionKey === actionKey
 
                                 return (
-                                    <div key={key} style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: 'max-content max-content max-content 110px 160px 110px 120px',
-                                        columnGap: '28px',
-                                        padding: '9px 18px',
+                                    <tr key={key} style={{
                                         borderBottom: '1px solid var(--border)',
-                                        alignItems: 'center',
                                         fontSize: '12px',
                                     }}>
-                                        <div style={{ color: 'var(--text-primary)', fontWeight: '600', whiteSpace: 'nowrap' }}>{ref.policyName}</div>
-                                        <div style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{ref.ruleName}</div>
-                                        <div style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{ref.exceptionName}</div>
-                                        <div style={{ textAlign: 'center', color: (stats?.incidentCount || 0) > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '600' }}>{stats?.incidentCount || 0}</div>
-                                        <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                        <td style={{ padding: '9px 18px', color: 'var(--text-primary)', fontWeight: '600', whiteSpace: 'nowrap' }}>{ref.policyName}</td>
+                                        <td style={{ padding: '9px 18px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{ref.ruleName}</td>
+                                        <td style={{ padding: '9px 18px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{ref.exceptionName}</td>
+                                        <td style={{ padding: '9px 18px', textAlign: 'center', color: (stats?.incidentCount || 0) > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '600', whiteSpace: 'nowrap' }}>{stats?.incidentCount || 0}</td>
+                                        <td style={{ padding: '9px 18px', textAlign: 'center', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                             {stats?.lastIncidentDate ? format(parseISO(stats.lastIncidentDate), 'dd.MM.yyyy HH:mm') : t('exceptionList.noIncidents')}
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
+                                        </td>
+                                        <td style={{ padding: '9px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             <span style={{
                                                 display: 'inline-flex',
                                                 padding: '2px 8px',
@@ -1390,8 +1394,8 @@ function ExceptionListContent() {
                                             }}>
                                                 {forcepointEnabled ? 'Aktif' : 'Pasif'}
                                             </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                        </td>
+                                        <td style={{ padding: '9px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             {forcepointEnabled ? (
                                                 <button
                                                     onClick={() => handleDisableSingleException(ref)}
@@ -1427,11 +1431,13 @@ function ExceptionListContent() {
                                                     Pasif
                                                 </span>
                                             )}
-                                        </div>
-                                    </div>
+                                        </td>
+                                    </tr>
                                 )
-                            })}
-                        </div>
+                                    })}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             </div>
