@@ -177,13 +177,6 @@ public class PolicyExceptionsController : ControllerBase
         [FromBody] PolicyExceptionBulkToggleRequest? request,
         CancellationToken cancellationToken)
     {
-        return StatusCode(StatusCodes.Status423Locked, new
-        {
-            success = false,
-            message = "Forcepoint exception update is temporarily disabled because the Forcepoint POST API can remove existing exceptions when the update payload is not accepted as a complete rule definition."
-        });
-
-#pragma warning disable CS0162
         try
         {
             var actor = User?.Identity?.Name ?? "System";
@@ -214,7 +207,6 @@ public class PolicyExceptionsController : ControllerBase
             _logger.LogError(ex, "Error during bulk Forcepoint policy exception update");
             return StatusCode(500, new { success = false, error = ex.Message });
         }
-#pragma warning restore CS0162
     }
 
     [HttpPost("forcepoint-enabled/preview")]

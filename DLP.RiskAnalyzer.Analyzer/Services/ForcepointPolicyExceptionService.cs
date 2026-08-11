@@ -502,11 +502,25 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             }
 
             var payload = SelectForcepointPayload(getPayload);
+            var originalNames = ExtractTopLevelExceptionRuleNames(payload);
             var foundItems = new List<ForcepointExceptionToggleCandidate>();
+            var missingTargets = new List<string>();
             foreach (var candidate in groupItems)
             {
                 var exceptionNode = FindExceptionNode(payload, candidate.ExceptionRuleName);
                 if (exceptionNode == null)
+                {
+                    missingTargets.Add(candidate.ExceptionRuleName);
+                    continue;
+                }
+
+                exceptionNode["enabled"] = enabled ? "true" : "false";
+                foundItems.Add(candidate);
+            }
+
+            if (missingTargets.Count > 0)
+            {
+                foreach (var candidate in groupItems.Where(i => missingTargets.Contains(i.ExceptionRuleName, StringComparer.OrdinalIgnoreCase)))
                 {
                     items.Add(FailItem(
                         candidate.ExceptionId,
@@ -516,11 +530,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                         enabled,
                         "Forcepoint uzerinde hedef exception bulunamadi.",
                         getBody));
-                    continue;
                 }
-
-                exceptionNode["enabled"] = enabled ? "true" : "false";
-                foundItems.Add(candidate);
             }
 
             if (foundItems.Count == 0)
@@ -528,10 +538,49 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
 
             EnsurePostMetadata(payload, policyName, ruleName);
             SanitizePayloadForPost(payload);
+            var previewNames = ExtractTopLevelExceptionRuleNames(payload);
+            var requestedEnabled = enabled ? "true" : "false";
+            var previewEnabledByException = foundItems.ToDictionary(
+                item => item.ExceptionRuleName,
+                item => GetExceptionEnabled(payload, item.ExceptionRuleName) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase);
+            var hasSameExceptionSet = HasSameValues(originalNames, previewNames);
+            var hasNonEmptyExceptionList = previewNames.Count > 0;
+            var hasRequestedEnabled = previewEnabledByException.Values.All(value =>
+                string.Equals(value, requestedEnabled, StringComparison.OrdinalIgnoreCase));
             var json = payload.ToJsonString(new JsonSerializerOptions
             {
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             });
+
+            if (!hasNonEmptyExceptionList || !hasSameExceptionSet || !hasRequestedEnabled)
+            {
+                var message = BuildUnsafePreviewMessage(
+                    Array.Empty<string>(),
+                    hasNonEmptyExceptionList,
+                    hasSameExceptionSet,
+                    hasRequestedEnabled);
+                _logger.LogWarning(
+                    "Forcepoint exception POST blocked by safety preview. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Message={Message}, PayloadPreview={PayloadPreview}",
+                    policyName,
+                    ruleName,
+                    foundItems.Count,
+                    message,
+                    Truncate(json, 2000));
+
+                foreach (var candidate in foundItems)
+                {
+                    items.Add(FailItem(
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        message,
+                        Truncate(json, 2000)));
+                }
+                continue;
+            }
 
             var postResult = await SendPostExceptionsAsync(httpClient, token, json, ct);
             var postBody = postResult.Body;
@@ -556,6 +605,100 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                         enabled,
                         $"Forcepoint POST basarisiz: {(int)postResult.StatusCode} {postResult.ReasonPhrase}",
                         postBody));
+                }
+                continue;
+            }
+
+            using var verifyRequest = CreateGetExceptionsRequest(httpClient, ruleName, policyName, token);
+            var verifyResponse = await httpClient.SendAsync(verifyRequest, ct);
+            var verifyBody = await verifyResponse.Content.ReadAsStringAsync(ct);
+            if (!verifyResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Forcepoint exception verification GET failed after POST. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Status={Status}, Body={Body}",
+                    policyName,
+                    ruleName,
+                    foundItems.Count,
+                    verifyResponse.StatusCode,
+                    verifyBody);
+
+                foreach (var candidate in foundItems)
+                {
+                    items.Add(FailItem(
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        $"Forcepoint POST yapildi ancak dogrulama GET basarisiz: {(int)verifyResponse.StatusCode} {verifyResponse.ReasonPhrase}",
+                        verifyBody));
+                }
+                continue;
+            }
+
+            JsonNode? verifyPayloadRoot;
+            try
+            {
+                verifyPayloadRoot = JsonNode.Parse(verifyBody);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Forcepoint exception verification GET returned invalid JSON. Policy={PolicyName}, Rule={RuleName}", policyName, ruleName);
+                foreach (var candidate in foundItems)
+                {
+                    items.Add(FailItem(
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        "Forcepoint POST yapildi ancak dogrulama cevabi JSON olarak okunamadi.",
+                        verifyBody));
+                }
+                continue;
+            }
+
+            var verifyPayload = verifyPayloadRoot == null ? null : SelectForcepointPayload(verifyPayloadRoot);
+            var verifyNames = verifyPayload == null
+                ? new List<string>()
+                : ExtractTopLevelExceptionRuleNames(verifyPayload);
+            var verifiedEnabledByException = foundItems.ToDictionary(
+                item => item.ExceptionRuleName,
+                item => verifyPayload == null ? string.Empty : GetExceptionEnabled(verifyPayload, item.ExceptionRuleName) ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase);
+            var verificationHasSameExceptionSet = HasSameValues(originalNames, verifyNames);
+            var verificationHasRequestedEnabled = verifiedEnabledByException.Values.All(value =>
+                string.Equals(value, requestedEnabled, StringComparison.OrdinalIgnoreCase));
+            var verificationSucceeded = verifyPayload != null &&
+                                        verifyNames.Count > 0 &&
+                                        verificationHasSameExceptionSet &&
+                                        verificationHasRequestedEnabled;
+
+            if (!verificationSucceeded)
+            {
+                var message = BuildVerificationFailureMessage(
+                    verifyPayload != null && verifyNames.Count > 0,
+                    verificationHasSameExceptionSet,
+                    verificationHasRequestedEnabled);
+                _logger.LogWarning(
+                    "Forcepoint exception verification failed after POST. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Message={Message}, VerifiedEnabled={VerifiedEnabled}, Body={Body}",
+                    policyName,
+                    ruleName,
+                    foundItems.Count,
+                    message,
+                    JsonSerializer.Serialize(verifiedEnabledByException),
+                    Truncate(verifyBody, 2000));
+
+                foreach (var candidate in foundItems)
+                {
+                    items.Add(FailItem(
+                        candidate.ExceptionId,
+                        candidate.PolicyName,
+                        ruleName,
+                        candidate.ExceptionRuleName,
+                        enabled,
+                        message,
+                        verifyBody));
                 }
                 continue;
             }
@@ -956,6 +1099,22 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             reasons.Add("hedef exception enabled degeri istenen degere donusmedi");
 
         return $"Preview guvenli degil: {string.Join("; ", reasons)}.";
+    }
+
+    private static string BuildVerificationFailureMessage(
+        bool hasNonEmptyExceptionList,
+        bool hasSameExceptionSet,
+        bool hasRequestedEnabled)
+    {
+        var reasons = new List<string>();
+        if (!hasNonEmptyExceptionList)
+            reasons.Add("dogrulama GET cevabinda exception_rules bos veya okunamadi");
+        if (!hasSameExceptionSet)
+            reasons.Add("dogrulama GET cevabi exception isim listesini korumuyor");
+        if (!hasRequestedEnabled)
+            reasons.Add("hedef exception enabled degeri Forcepoint uzerinde istenen degere donusmedi");
+
+        return $"Forcepoint POST yapildi ancak dogrulama basarisiz: {string.Join("; ", reasons)}.";
     }
 
     private static string? GetString(Dictionary<string, JsonElement> source, string key)
