@@ -110,6 +110,9 @@ const formatIstanbulDate = (value: string) =>
         year: 'numeric'
     })
 
+const getSyncTimestamp = (data: any) =>
+    data?.last_synced_at || data?.lastSyncedAt || data?.synced_at || data?.syncedAt
+
 // ─── SearchableMultiSelect (reused pattern from analytics page) ────────────────
 
 interface SearchableMultiSelectProps {
@@ -531,17 +534,67 @@ function ExceptionListContent() {
 
     const handleSync = async () => {
         setSyncing(true)
+        setForcepointMessage(null)
         try {
-            const res = await apiClient.post('/api/policy-exceptions/sync')
-            const syncedAt = res.data?.last_synced_at || res.data?.lastSyncedAt || res.data?.synced_at || res.data?.syncedAt
+            const res = await apiClient.post('/api/policy-exceptions/sync', null, { timeout: 15000 })
+            let syncStatus = res.data
+
+            if (syncStatus?.sync_in_progress || syncStatus?.syncInProgress || syncStatus?.status === 'running') {
+                syncStatus = await waitForPolicyExceptionSync()
+            }
+
+            const syncedAt = getSyncTimestamp(syncStatus)
             if (syncedAt) {
                 setLastSyncedAt(syncedAt)
             }
+
+            if (syncStatus?.status === 'failed' || syncStatus?.success === false) {
+                setForcepointMessage({
+                    type: 'error',
+                    text: syncStatus?.error || syncStatus?.message || 'Policy exception sync failed.'
+                })
+                return
+            }
+
+            if (syncStatus?.status === 'running') {
+                setForcepointMessage({
+                    type: 'success',
+                    text: 'Senkronizasyon arka planda devam ediyor. Biraz sonra sayfayi yenileyebilirsiniz.'
+                })
+                return
+            }
+
             await fetchData()
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error syncing:', error)
+            setForcepointMessage({
+                type: 'error',
+                text: error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Policy exception sync failed.'
+            })
         } finally {
             setSyncing(false)
+        }
+    }
+
+    const waitForPolicyExceptionSync = async () => {
+        const started = Date.now()
+        const maxWaitMs = 180000
+
+        while (Date.now() - started < maxWaitMs) {
+            await new Promise(resolve => setTimeout(resolve, 2500))
+            const statusRes = await apiClient.get('/api/policy-exceptions/sync/status', { timeout: 15000 })
+            const status = statusRes.data?.status
+            const inProgress = statusRes.data?.sync_in_progress || statusRes.data?.syncInProgress
+
+            if (status === 'completed' || status === 'failed' || !inProgress) {
+                return statusRes.data
+            }
+        }
+
+        return {
+            success: true,
+            status: 'running',
+            message: 'Policy exception sync is still running.'
         }
     }
 

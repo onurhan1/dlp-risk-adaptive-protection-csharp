@@ -13,20 +13,27 @@ namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 [Route("api/policy-exceptions")]
 public class PolicyExceptionsController : ControllerBase
 {
+    private static readonly SemaphoreSlim SyncSemaphore = new(1, 1);
+    private static readonly object SyncStatusLock = new();
+    private static PolicyExceptionSyncState SyncState = new()
+    {
+        Status = "idle"
+    };
+
     private readonly AnalyzerDbContext _context;
-    private readonly IPolicyExceptionSyncService _syncService;
     private readonly IForcepointPolicyExceptionService _forcepointExceptionService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PolicyExceptionsController> _logger;
 
     public PolicyExceptionsController(
         AnalyzerDbContext context,
-        IPolicyExceptionSyncService syncService,
         IForcepointPolicyExceptionService forcepointExceptionService,
+        IServiceScopeFactory scopeFactory,
         ILogger<PolicyExceptionsController> logger)
     {
         _context = context;
-        _syncService = syncService;
         _forcepointExceptionService = forcepointExceptionService;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -97,28 +104,69 @@ public class PolicyExceptionsController : ControllerBase
     [HttpPost("sync")]
     public async Task<ActionResult> Sync()
     {
+        if (!await SyncSemaphore.WaitAsync(0))
+        {
+            return Ok(CreateSyncResponse("Policy exception sync is already running.", true));
+        }
+
+        var startedAt = DateTime.UtcNow;
+        SetSyncState(new PolicyExceptionSyncState
+        {
+            Status = "running",
+            StartedAt = startedAt,
+            Message = "Policy exception sync started."
+        });
+
+        _ = Task.Run(RunSyncInBackgroundAsync);
+
+        return Ok(CreateSyncResponse("Policy exception sync started.", true));
+    }
+
+    [HttpGet("sync/status")]
+    public ActionResult GetSyncStatus()
+    {
+        return Ok(CreateSyncResponse());
+    }
+
+    private async Task RunSyncInBackgroundAsync()
+    {
         try
         {
             _logger.LogInformation("Manual policy exception sync triggered");
-            var count = await _syncService.SyncAsync();
-            var lastSync = await _context.PolicyRuleExceptions
-                .AsNoTracking()
-                .MaxAsync(e => (DateTime?)e.SyncedAt);
-            var lastSyncIso = FormatUtcIso(lastSync ?? DateTime.UtcNow);
 
-            return Ok(new
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<IPolicyExceptionSyncService>();
+            var context = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
+
+            var count = await syncService.SyncAsync();
+            var lastSync = await GetLastSyncAsync(context);
+            var completedAt = DateTime.UtcNow;
+
+            SetSyncState(new PolicyExceptionSyncState
             {
-                success = true,
-                message = $"Sync completed: {count} exceptions saved",
-                syncedCount = count,
-                syncedAt = lastSyncIso,
-                lastSyncedAt = lastSyncIso
+                Status = "completed",
+                StartedAt = GetSyncState().StartedAt,
+                CompletedAt = completedAt,
+                LastSyncedAt = lastSync ?? completedAt,
+                SyncedCount = count,
+                Message = $"Sync completed: {count} exceptions saved"
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during policy exception sync");
-            return StatusCode(500, new { success = false, error = ex.Message });
+            SetSyncState(new PolicyExceptionSyncState
+            {
+                Status = "failed",
+                StartedAt = GetSyncState().StartedAt,
+                CompletedAt = DateTime.UtcNow,
+                Message = "Policy exception sync failed.",
+                Error = ex.Message
+            });
+        }
+        finally
+        {
+            SyncSemaphore.Release();
         }
     }
 
@@ -192,6 +240,62 @@ public class PolicyExceptionsController : ControllerBase
         => value.HasValue
             ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc).ToString("O")
             : null;
+
+    private static PolicyExceptionSyncState GetSyncState()
+    {
+        lock (SyncStatusLock)
+        {
+            return SyncState;
+        }
+    }
+
+    private static void SetSyncState(PolicyExceptionSyncState state)
+    {
+        lock (SyncStatusLock)
+        {
+            SyncState = state;
+        }
+    }
+
+    private object CreateSyncResponse(string? message = null, bool? inProgress = null)
+    {
+        var state = GetSyncState();
+        var running = state.Status == "running";
+
+        return new
+        {
+            success = state.Status != "failed",
+            status = state.Status,
+            syncInProgress = inProgress ?? running,
+            message = message ?? state.Message,
+            error = state.Error,
+            syncedCount = state.SyncedCount,
+            startedAt = FormatUtcIso(state.StartedAt),
+            completedAt = FormatUtcIso(state.CompletedAt),
+            syncedAt = FormatUtcIso(state.LastSyncedAt),
+            lastSyncedAt = FormatUtcIso(state.LastSyncedAt)
+        };
+    }
+
+    private static async Task<DateTime?> GetLastSyncAsync(AnalyzerDbContext context)
+    {
+        return await context.PolicyRuleExceptions
+            .AsNoTracking()
+            .Select(e => (DateTime?)e.SyncedAt)
+            .OrderByDescending(e => e)
+            .FirstOrDefaultAsync();
+    }
+}
+
+public class PolicyExceptionSyncState
+{
+    public string Status { get; set; } = "idle";
+    public DateTime? StartedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public DateTime? LastSyncedAt { get; set; }
+    public int? SyncedCount { get; set; }
+    public string? Message { get; set; }
+    public string? Error { get; set; }
 }
 
 public class PolicyExceptionBulkToggleRequest
