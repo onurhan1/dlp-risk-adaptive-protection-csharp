@@ -3,6 +3,7 @@ using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
@@ -308,29 +309,33 @@ public class PolicyExceptionBulkToggleRequest
 public class PolicyExceptionBulkToggleItem
 {
     public string? PolicyName { get; set; }
-
-    [JsonPropertyName("policy_name")]
-    public string? PolicyNameSnake { get; set; }
-
     public string? RuleName { get; set; }
-
-    [JsonPropertyName("rule_name")]
-    public string? RuleNameSnake { get; set; }
-
     public string? ExceptionName { get; set; }
-
     public string? ExceptionRuleName { get; set; }
 
-    [JsonPropertyName("exception_name")]
-    public string? ExceptionNameSnake { get; set; }
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 
-    [JsonPropertyName("exception_rule_name")]
-    public string? ExceptionRuleNameSnake { get; set; }
-
-    public string? GetPolicyName() => FirstNonEmpty(PolicyName, PolicyNameSnake);
-    public string GetRuleName() => FirstNonEmpty(RuleName, RuleNameSnake) ?? string.Empty;
-    public string GetExceptionName() => FirstNonEmpty(ExceptionName, ExceptionRuleName, ExceptionNameSnake, ExceptionRuleNameSnake) ?? string.Empty;
+    public string? GetPolicyName() => FirstNonEmpty(PolicyName, GetAdditionalString("policyName", "policy_name"));
+    public string GetRuleName() => FirstNonEmpty(RuleName, GetAdditionalString("ruleName", "rule_name")) ?? string.Empty;
+    public string GetExceptionName() => FirstNonEmpty(
+        ExceptionName,
+        ExceptionRuleName,
+        GetAdditionalString("exceptionName", "exception_name", "exceptionRuleName", "exception_rule_name")) ?? string.Empty;
 
     private static string? FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    private string? GetAdditionalString(params string[] names)
+    {
+        if (AdditionalData == null) return null;
+
+        foreach (var name in names)
+        {
+            if (AdditionalData.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String)
+                return value.GetString();
+        }
+
+        return null;
+    }
 }
