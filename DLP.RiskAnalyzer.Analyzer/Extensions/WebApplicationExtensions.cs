@@ -173,6 +173,15 @@ END $$;");
         sql.AppendLine(@"
 DO $$
 BEGIN
+  IF to_regclass('dlp.policy_rule_exceptions') IS NOT NULL THEN
+    ALTER TABLE dlp.policy_rule_exceptions
+      ADD COLUMN IF NOT EXISTS enabled character varying(10) NOT NULL DEFAULT 'true';
+  END IF;
+END $$;");
+
+        sql.AppendLine(@"
+DO $$
+BEGIN
   IF to_regclass('dlp.isolation_forest_scores') IS NOT NULL THEN
     ALTER TABLE dlp.isolation_forest_scores
       ADD COLUMN IF NOT EXISTS baseline_incident_count INTEGER NOT NULL DEFAULT 0;

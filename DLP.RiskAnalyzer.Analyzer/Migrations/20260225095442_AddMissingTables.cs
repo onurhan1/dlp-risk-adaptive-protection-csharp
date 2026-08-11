@@ -191,6 +191,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
                     policy_name character varying(500) NOT NULL,
                     rule_name character varying(500) NOT NULL,
                     exception_name character varying(500) NOT NULL,
+                    enabled character varying(10) NOT NULL DEFAULT 'true',
                     synced_at timestamp without time zone NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ""IX_policy_rule_exceptions_exception_name""             ON policy_rule_exceptions (exception_name);

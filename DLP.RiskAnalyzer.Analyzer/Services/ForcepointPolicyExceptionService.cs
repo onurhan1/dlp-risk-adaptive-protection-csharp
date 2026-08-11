@@ -231,6 +231,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         }
 
         var updatedEntities = new List<PIException>();
+        var updatedSyncedExceptions = new List<PolicyRuleException>();
         foreach (var group in candidates.GroupBy(e => e.RuleName, StringComparer.OrdinalIgnoreCase))
         {
             var ruleName = group.Key;
@@ -346,6 +347,10 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 continue;
             }
 
+            var syncedEntriesForRule = await _context.PolicyRuleExceptions
+                .Where(e => e.RuleName == ruleName)
+                .ToListAsync(ct);
+
             foreach (var candidate in foundItems)
             {
                 if (candidate.Entity != null)
@@ -353,6 +358,17 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                     candidate.Entity.Enabled = enabled ? "true" : "false";
                     candidate.Entity.UpdatedAt = DateTime.UtcNow;
                     updatedEntities.Add(candidate.Entity);
+                }
+
+                var matchingSyncedEntries = syncedEntriesForRule.Where(e =>
+                    string.Equals(e.PolicyName, candidate.PolicyName, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(e.ExceptionName, candidate.ExceptionRuleName, StringComparison.OrdinalIgnoreCase));
+
+                foreach (var syncedEntry in matchingSyncedEntries)
+                {
+                    syncedEntry.Enabled = enabled ? "true" : "false";
+                    syncedEntry.SyncedAt = DateTime.UtcNow;
+                    updatedSyncedExceptions.Add(syncedEntry);
                 }
 
                 items.Add(new ForcepointExceptionBulkToggleItemResult(
@@ -367,7 +383,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
             }
         }
 
-        if (updatedEntities.Count > 0)
+        if (updatedEntities.Count > 0 || updatedSyncedExceptions.Count > 0)
             await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(

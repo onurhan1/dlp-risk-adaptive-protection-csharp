@@ -224,6 +224,9 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
                             var exceptionName = exceptionNameElem.ValueKind == JsonValueKind.String
                                 ? exceptionNameElem.GetString()
                                 : GetString(exceptionNameElem, "exception_name", "exceptionName", "rule_name", "RuleName", "name");
+                            var enabled = exceptionNameElem.ValueKind == JsonValueKind.Object
+                                ? GetBooleanString(exceptionNameElem, "enabled", "Enabled", "is_enabled", "isEnabled") ?? "true"
+                                : "true";
                             if (!string.IsNullOrEmpty(exceptionName))
                             {
                                 exceptions.Add(new PolicyRuleException
@@ -231,6 +234,7 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
                                     PolicyName = policyName,
                                     RuleName = ruleName,
                                     ExceptionName = exceptionName,
+                                    Enabled = enabled,
                                     SyncedAt = DateTime.UtcNow
                                 });
                             }
@@ -265,6 +269,20 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
             {
                 if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
                     return value.GetString();
+            }
+
+            return null;
+        }
+
+        static string? GetBooleanString(JsonElement element, params string[] names)
+        {
+            if (element.ValueKind != JsonValueKind.Object) return null;
+            foreach (var name in names)
+            {
+                if (!element.TryGetProperty(name, out var value)) continue;
+                if (value.ValueKind == JsonValueKind.String) return value.GetString()?.ToLowerInvariant();
+                if (value.ValueKind == JsonValueKind.True) return "true";
+                if (value.ValueKind == JsonValueKind.False) return "false";
             }
 
             return null;

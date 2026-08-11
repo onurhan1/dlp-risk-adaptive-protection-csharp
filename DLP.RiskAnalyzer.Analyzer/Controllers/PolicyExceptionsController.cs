@@ -46,27 +46,7 @@ public class PolicyExceptionsController : ControllerBase
                 .ThenBy(e => e.ExceptionName)
                 .ToListAsync();
 
-            var inventoryStatuses = await _context.PIExceptions
-                .AsNoTracking()
-                .Include(e => e.Rule)
-                    .ThenInclude(r => r.Policy)
-                .Where(e => e.Rule != null && e.Rule.Policy != null)
-                .Select(e => new
-                {
-                    PolicyName = e.Rule!.Policy!.PolicyName,
-                    RuleName = e.Rule.RuleName,
-                    ExceptionName = e.ExceptionRuleName,
-                    e.Enabled
-                })
-                .ToListAsync();
 
-            var statusLookup = inventoryStatuses
-                .Where(e =>
-                    !string.IsNullOrWhiteSpace(e.PolicyName) &&
-                    !string.IsNullOrWhiteSpace(e.RuleName) &&
-                    !string.IsNullOrWhiteSpace(e.ExceptionName))
-                .GroupBy(e => BuildExceptionKey(e.PolicyName, e.RuleName, e.ExceptionName))
-                .ToDictionary(g => g.Key, g => g.First().Enabled ?? "true", StringComparer.OrdinalIgnoreCase);
 
             // Policy → Rule → Exceptions hiyerarşisi olarak grupla
             var grouped = exceptions
@@ -82,9 +62,7 @@ public class PolicyExceptionsController : ControllerBase
                             exceptions = ruleGroup.Select(e => new
                             {
                                 exceptionName = e.ExceptionName,
-                                enabled = statusLookup.TryGetValue(BuildExceptionKey(e.PolicyName, e.RuleName, e.ExceptionName), out var enabled)
-                                    ? enabled
-                                    : "true"
+                                enabled = e.Enabled
                             }).ToList()
                         })
                         .ToList()
@@ -207,9 +185,6 @@ public class PolicyExceptionsController : ControllerBase
             return StatusCode(500, new { success = false, error = ex.Message });
         }
     }
-
-    private static string BuildExceptionKey(string? policyName, string? ruleName, string? exceptionName)
-        => $"{policyName?.Trim().ToLowerInvariant()}|{ruleName?.Trim().ToLowerInvariant()}|{exceptionName?.Trim().ToLowerInvariant()}";
 }
 
 public class PolicyExceptionBulkToggleRequest

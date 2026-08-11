@@ -908,6 +908,13 @@ namespace DLP.RiskAnalyzer.Analyzer.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("exception_name");
 
+                    b.Property<string>("Enabled")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("enabled")
+                        .HasDefaultValue("true");
+
                     b.Property<string>("PolicyName")
                         .IsRequired()
                         .HasMaxLength(500)
