@@ -56,6 +56,13 @@ internal record ForcepointExceptionToggleCandidate(
     string ExceptionRuleName,
     PIException? Entity);
 
+internal record ForcepointPostAttemptResult(
+    bool Success,
+    Uri? Uri,
+    System.Net.HttpStatusCode StatusCode,
+    string? ReasonPhrase,
+    string Body);
+
 public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionService
 {
     private const string PolicyType = "DLP";
@@ -321,19 +328,25 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                 continue;
 
             EnsurePostMetadata(payload, policyName, ruleName);
+            SanitizePayloadForPost(payload);
             var json = payload.ToJsonString(new JsonSerializerOptions
             {
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             });
 
-            using var postRequest = CreatePostExceptionsRequest(httpClient, token, json);
-            var postResponse = await httpClient.SendAsync(postRequest, ct);
-            var postBody = await postResponse.Content.ReadAsStringAsync(ct);
-            if (!postResponse.IsSuccessStatusCode)
+            var postResult = await SendPostExceptionsAsync(httpClient, token, json, ct);
+            var postBody = postResult.Body;
+            if (!postResult.Success)
             {
                 _logger.LogWarning(
-                    "Forcepoint exception POST failed. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Uri={Uri}, Status={Status}, Body={Body}",
-                    policyName, ruleName, foundItems.Count, postRequest.RequestUri, postResponse.StatusCode, postBody);
+                    "Forcepoint exception POST failed. Policy={PolicyName}, Rule={RuleName}, Count={Count}, Uri={Uri}, Status={Status}, Body={Body}, PayloadPreview={PayloadPreview}",
+                    policyName,
+                    ruleName,
+                    foundItems.Count,
+                    postResult.Uri,
+                    postResult.StatusCode,
+                    postBody,
+                    Truncate(json, 2000));
                 foreach (var candidate in foundItems)
                 {
                     items.Add(FailItem(
@@ -342,7 +355,7 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
                         ruleName,
                         candidate.ExceptionRuleName,
                         enabled,
-                        $"Forcepoint POST basarisiz: {(int)postResponse.StatusCode} {postResponse.ReasonPhrase}",
+                        $"Forcepoint POST basarisiz: {(int)postResult.StatusCode} {postResult.ReasonPhrase}",
                         postBody));
                 }
                 continue;
@@ -435,14 +448,53 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         return request;
     }
 
-    private static HttpRequestMessage CreatePostExceptionsRequest(HttpClient httpClient, string token, string json)
+    private static async Task<ForcepointPostAttemptResult> SendPostExceptionsAsync(
+        HttpClient httpClient,
+        string token,
+        string json,
+        CancellationToken ct)
+    {
+        ForcepointPostAttemptResult? lastAttempt = null;
+        foreach (var useDoubleSlash in new[] { true, false })
+        {
+            using var request = CreatePostExceptionsRequest(httpClient, token, json, useDoubleSlash);
+            using var response = await httpClient.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var attempt = new ForcepointPostAttemptResult(
+                response.IsSuccessStatusCode,
+                request.RequestUri,
+                response.StatusCode,
+                response.ReasonPhrase,
+                body);
+
+            if (attempt.Success)
+                return attempt;
+
+            lastAttempt = attempt;
+        }
+
+        return lastAttempt ?? new ForcepointPostAttemptResult(
+            false,
+            null,
+            System.Net.HttpStatusCode.InternalServerError,
+            "No POST attempt was executed.",
+            string.Empty);
+    }
+
+    private static HttpRequestMessage CreatePostExceptionsRequest(
+        HttpClient httpClient,
+        string token,
+        string json,
+        bool useDoubleSlash)
     {
         var baseUri = httpClient.BaseAddress ?? throw new InvalidOperationException("DLP API base address is not configured.");
         var authority = baseUri.GetLeftPart(UriPartial.Authority);
-        var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{authority}//dlp/rest/v1/policy/rules/exceptions"));
+        var path = useDoubleSlash ? "//dlp/rest/v1/policy/rules/exceptions" : "/dlp/rest/v1/policy/rules/exceptions";
+        var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{authority}{path}"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(json));
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         return request;
     }
 
@@ -609,6 +661,34 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
         }
     }
 
+    private static void SanitizePayloadForPost(JsonNode node)
+    {
+        if (node is JsonObject obj)
+        {
+            var keysToRemove = obj
+                .Select(property => property.Key)
+                .Where(key => key.StartsWith("dup_", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var key in keysToRemove)
+                obj.Remove(key);
+
+            foreach (var property in obj.ToList())
+            {
+                if (property.Value != null)
+                    SanitizePayloadForPost(property.Value);
+            }
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var item in array)
+            {
+                if (item != null)
+                    SanitizePayloadForPost(item);
+            }
+        }
+    }
+
     private static string? GetString(Dictionary<string, JsonElement> source, string key)
     {
         return source.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.String
@@ -625,6 +705,11 @@ public class ForcepointPolicyExceptionService : IForcepointPolicyExceptionServic
     {
         return (value ?? string.Empty).Trim().ToLowerInvariant();
     }
+
+    private static string Truncate(string? value, int maxLength)
+        => string.IsNullOrEmpty(value) || value.Length <= maxLength
+            ? value ?? string.Empty
+            : value[..maxLength];
 
     private static ForcepointExceptionToggleResult Fail(
         int exceptionId,
