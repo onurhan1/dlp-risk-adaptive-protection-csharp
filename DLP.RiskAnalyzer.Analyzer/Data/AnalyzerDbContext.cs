@@ -421,7 +421,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.PolicyName).HasColumnName("policy_name").IsRequired().HasMaxLength(500);
             entity.Property(e => e.RuleName).HasColumnName("rule_name").IsRequired().HasMaxLength(500);
             entity.Property(e => e.ExceptionName).HasColumnName("exception_name").IsRequired().HasMaxLength(500);
-            entity.Property(e => e.Enabled).HasColumnName("enabled").IsRequired().HasMaxLength(10).HasDefaultValue("true");
+            entity.Property(e => e.Enabled).HasColumnName("enabled").IsRequired().HasMaxLength(10).HasDefaultValue("unknown");
             entity.Property(e => e.SyncedAt).HasColumnName("synced_at");
 
             entity.HasIndex(e => e.PolicyName);

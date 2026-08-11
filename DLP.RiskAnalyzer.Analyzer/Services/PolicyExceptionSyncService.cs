@@ -97,7 +97,6 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
 
             var responseContent = await response.Content.ReadAsStringAsync();
             var exceptions = ParseExceptions(responseContent);
-            await EnrichExceptionStatusesAsync(httpClient, accessToken, exceptions);
 
             if (exceptions.Count == 0)
             {
@@ -217,17 +216,16 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
                     var policyName = GetString(rule, "policy_name", "PolicyName", "policyName") ?? "";
                     var ruleName = GetString(rule, "parent_rule_name", "parentRuleName", "rule_name", "RuleName", "ruleName", "name") ?? "";
 
-                    if (TryGetProperty(rule, out var ern, "exception_rule_names", "exceptionRuleNames", "exception_rules", "exceptions") &&
-                        ern.ValueKind == JsonValueKind.Array)
+                    if (TryGetProperty(rule, out var ern, "exception_rule_names", "exceptionRuleNames", "exception_rules", "exceptions"))
                     {
-                        foreach (var exceptionNameElem in ern.EnumerateArray())
+                        foreach (var exceptionNameElem in EnumerateExceptionItems(ern))
                         {
                             var exceptionName = exceptionNameElem.ValueKind == JsonValueKind.String
                                 ? exceptionNameElem.GetString()
                                 : GetString(exceptionNameElem, "exception_rule_name", "exceptionRuleName", "exception_name", "exceptionName", "rule_name", "RuleName", "name");
                             var enabled = exceptionNameElem.ValueKind == JsonValueKind.Object
-                                ? GetBooleanString(exceptionNameElem, "enabled", "Enabled", "is_enabled", "isEnabled") ?? "true"
-                                : "true";
+                                ? GetBooleanString(exceptionNameElem, "enabled", "Enabled", "is_enabled", "isEnabled") ?? "unknown"
+                                : "unknown";
                             if (!string.IsNullOrEmpty(exceptionName))
                             {
                                 exceptions.Add(new PolicyRuleException
@@ -288,187 +286,50 @@ public class PolicyExceptionSyncService : IPolicyExceptionSyncService
 
             return null;
         }
+
+        static IEnumerable<JsonElement> EnumerateExceptionItems(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    foreach (var nested in EnumerateExceptionItems(item))
+                        yield return nested;
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (HasAnyProperty(element, "exception_rule_name", "exceptionRuleName", "exception_name", "exceptionName"))
+                {
+                    yield return element;
+                    yield break;
+                }
+
+                foreach (var propertyName in new[] { "exception_rules", "exceptionRules", "exception_rule_names", "exceptionRuleNames", "exceptions" })
+                {
+                    if (element.TryGetProperty(propertyName, out var nestedElement))
+                    {
+                        foreach (var nested in EnumerateExceptionItems(nestedElement))
+                            yield return nested;
+                    }
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.String)
+            {
+                yield return element;
+            }
+        }
+
+        static bool HasAnyProperty(JsonElement element, params string[] names)
+        {
+            if (element.ValueKind != JsonValueKind.Object) return false;
+            return names.Any(name => element.TryGetProperty(name, out _));
+        }
     }
 
     /// <summary>
     /// Exception'ları veritabanına kaydeder (mevcut kayıtları temizleyip yenilerini ekler).
     /// </summary>
-    private static Dictionary<string, string> ParseExceptionStatuses(string responseJson)
-    {
-        var statuses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            using var jsonDoc = JsonDocument.Parse(responseJson);
-            VisitExceptionStatusNodes(jsonDoc.RootElement, statuses);
-        }
-        catch
-        {
-            return statuses;
-        }
-
-        return statuses;
-    }
-
-    private static void VisitExceptionStatusNodes(JsonElement element, Dictionary<string, string> statuses)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            var exceptionName = GetJsonString(element, "exception_rule_name", "exceptionRuleName", "exception_name", "exceptionName");
-            var enabled = GetJsonBooleanString(element, "enabled", "Enabled", "is_enabled", "isEnabled");
-            if (!string.IsNullOrWhiteSpace(exceptionName) && !string.IsNullOrWhiteSpace(enabled))
-            {
-                statuses[exceptionName] = enabled;
-            }
-
-            foreach (var property in element.EnumerateObject())
-            {
-                VisitExceptionStatusNodes(property.Value, statuses);
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                VisitExceptionStatusNodes(item, statuses);
-            }
-        }
-    }
-
-    private static string? GetJsonString(JsonElement element, params string[] names)
-    {
-        if (element.ValueKind != JsonValueKind.Object) return null;
-        foreach (var name in names)
-        {
-            if (!element.TryGetProperty(name, out var value)) continue;
-            if (value.ValueKind == JsonValueKind.String) return value.GetString();
-        }
-
-        return null;
-    }
-
-    private static string? GetJsonBooleanString(JsonElement element, params string[] names)
-    {
-        if (element.ValueKind != JsonValueKind.Object) return null;
-        foreach (var name in names)
-        {
-            if (!element.TryGetProperty(name, out var value)) continue;
-            if (value.ValueKind == JsonValueKind.String) return value.GetString()?.ToLowerInvariant();
-            if (value.ValueKind == JsonValueKind.True) return "true";
-            if (value.ValueKind == JsonValueKind.False) return "false";
-        }
-
-        return null;
-    }
-
-    private async Task<(bool Success, System.Net.HttpStatusCode? Status, string Body)> FetchExceptionDetailAsync(
-        HttpClient httpClient,
-        string accessToken,
-        string ruleName)
-    {
-        var encodedRuleName = Uri.EscapeDataString(ruleName);
-        var formEncodedRuleName = System.Net.WebUtility.UrlEncode(ruleName);
-        var paths = new[]
-            {
-                $"/dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={encodedRuleName}",
-                $"/dlp/rest/v1/policy/rules/exceptions?ruleName={encodedRuleName}&type=DLP",
-                $"/dlp/rest/v1/policy/rules/exceptions?type=DLP&ruleName={formEncodedRuleName}"
-            }
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        System.Net.HttpStatusCode? lastStatus = null;
-        var lastBody = string.Empty;
-
-        foreach (var path in paths)
-        {
-            var result = await SendExceptionDetailRequestAsync(httpClient, accessToken, path, includeBody: false);
-            if (result.Success) return result;
-            lastStatus = result.Status;
-            lastBody = result.Body;
-            _logger.LogDebug(
-                "Policy exception sync: detail fetch attempt failed. Rule={RuleName}, Path={Path}, Status={Status}",
-                ruleName, path, result.Status);
-        }
-
-        foreach (var path in paths)
-        {
-            var result = await SendExceptionDetailRequestAsync(httpClient, accessToken, path, includeBody: true);
-            if (result.Success) return result;
-            lastStatus = result.Status;
-            lastBody = result.Body;
-            _logger.LogDebug(
-                "Policy exception sync: detail fetch attempt with body failed. Rule={RuleName}, Path={Path}, Status={Status}",
-                ruleName, path, result.Status);
-        }
-
-        return (false, lastStatus, lastBody);
-    }
-
-    private static async Task<(bool Success, System.Net.HttpStatusCode? Status, string Body)> SendExceptionDetailRequestAsync(
-        HttpClient httpClient,
-        string accessToken,
-        string path,
-        bool includeBody)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-        if (includeBody)
-        {
-            request.Headers.TryAddWithoutValidation("Content-Type", "application/json");
-            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        }
-
-        using var response = await httpClient.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
-        return (response.IsSuccessStatusCode, response.StatusCode, body);
-    }
-
-    private async Task EnrichExceptionStatusesAsync(HttpClient httpClient, string accessToken, List<PolicyRuleException> exceptions)
-    {
-        var ruleNames = exceptions
-            .Select(e => e.RuleName)
-            .Where(ruleName => !string.IsNullOrWhiteSpace(ruleName))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var ruleName in ruleNames)
-        {
-            try
-            {
-                var detailResult = await FetchExceptionDetailAsync(httpClient, accessToken, ruleName);
-                if (!detailResult.Success)
-                {
-                    _logger.LogWarning(
-                        "Policy exception sync: detail fetch failed. Rule={RuleName}, Status={Status}, Body={Body}",
-                        ruleName, detailResult.Status, detailResult.Body);
-                    continue;
-                }
-
-                var statusLookup = ParseExceptionStatuses(detailResult.Body);
-                if (statusLookup.Count == 0)
-                {
-                    _logger.LogWarning("Policy exception sync: no enabled status found in detail response. Rule={RuleName}", ruleName);
-                    continue;
-                }
-
-                foreach (var exception in exceptions.Where(e => string.Equals(e.RuleName, ruleName, StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (statusLookup.TryGetValue(exception.ExceptionName, out var enabled))
-                    {
-                        exception.Enabled = enabled;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Policy exception sync: failed to enrich enabled statuses. Rule={RuleName}", ruleName);
-            }
-        }
-    }
-
     private async Task<int> SaveExceptionsAsync(List<PolicyRuleException> exceptions)
     {
         // Mevcut kayıtları sil

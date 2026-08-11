@@ -10,6 +10,6 @@ public class PolicyRuleException
     public string PolicyName { get; set; } = string.Empty;     // Parent policy adı
     public string RuleName { get; set; } = string.Empty;       // Parent rule adı
     public string ExceptionName { get; set; } = string.Empty;  // Exception kural adı
-    public string Enabled { get; set; } = "true";
+    public string Enabled { get; set; } = "unknown";
     public DateTime SyncedAt { get; set; } = DateTime.UtcNow;
 }

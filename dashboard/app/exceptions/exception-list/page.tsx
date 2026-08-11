@@ -64,19 +64,22 @@ const getExceptionName = (exception: ExceptionItem | string) =>
     typeof exception === 'string' ? exception : exception.exceptionName
 
 const getExceptionEnabled = (exception: ExceptionItem | FilteredExceptionRef | string) => {
-    if (typeof exception === 'string') return 'true'
-    return exception.enabled ?? 'true'
+    if (typeof exception === 'string') return 'unknown'
+    return exception.enabled ?? 'unknown'
 }
 
 const isExceptionEnabled = (exception: ExceptionItem | FilteredExceptionRef | string) =>
-    String(getExceptionEnabled(exception)).toLowerCase() !== 'false'
+    String(getExceptionEnabled(exception)).toLowerCase() === 'true'
+
+const isExceptionStatusKnown = (exception: ExceptionItem | FilteredExceptionRef | string) =>
+    ['true', 'false'].includes(String(getExceptionEnabled(exception)).toLowerCase())
 
 const normalizeExceptionItem = (exception: any): ExceptionItem => {
     if (typeof exception === 'string') {
-        return { exceptionName: exception, enabled: 'true' }
+        return { exceptionName: exception, enabled: 'unknown' }
     }
 
-    const enabledValue = exception?.enabled ?? exception?.is_enabled ?? exception?.isEnabled ?? 'true'
+    const enabledValue = exception?.enabled ?? exception?.is_enabled ?? exception?.isEnabled ?? 'unknown'
     return {
         exceptionName: exception?.exception_name || exception?.exceptionName || exception?.rule_name || exception?.ruleName || exception?.name || '',
         enabled: typeof enabledValue === 'boolean' ? String(enabledValue) : enabledValue
@@ -1391,6 +1394,7 @@ function ExceptionListContent() {
                                 const key = `${ref.policyName}|${ref.ruleName}|${ref.exceptionName}`
                                 const stats = exceptionStatsMap.get(key)
                                 const forcepointEnabled = isExceptionEnabled(ref)
+                                const forcepointStatusKnown = isExceptionStatusKnown(ref)
                                 const actionKey = getExceptionRefKey(ref)
                                 const isDisabling = disablingExceptionKey === actionKey
 
@@ -1413,10 +1417,10 @@ function ExceptionListContent() {
                                                 borderRadius: '6px',
                                                 fontSize: '11px',
                                                 fontWeight: '700',
-                                                background: forcepointEnabled ? '#F0FDF4' : '#F3F4F6',
-                                                color: forcepointEnabled ? '#059669' : '#6B7280',
+                                                background: forcepointEnabled ? '#F0FDF4' : forcepointStatusKnown ? '#F3F4F6' : '#FEF3C7',
+                                                color: forcepointEnabled ? '#059669' : forcepointStatusKnown ? '#6B7280' : '#D97706',
                                             }}>
-                                                {forcepointEnabled ? 'Aktif' : 'Pasif'}
+                                                {forcepointEnabled ? 'Aktif' : forcepointStatusKnown ? 'Pasif' : 'Bilinmiyor'}
                                             </span>
                                         </td>
                                         <td style={{ padding: '9px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1447,12 +1451,12 @@ function ExceptionListContent() {
                                                 <span style={{
                                                     fontSize: '11px',
                                                     fontWeight: '700',
-                                                    color: '#6B7280',
-                                                    background: '#F3F4F6',
+                                                    color: forcepointStatusKnown ? '#6B7280' : '#D97706',
+                                                    background: forcepointStatusKnown ? '#F3F4F6' : '#FEF3C7',
                                                     borderRadius: '7px',
                                                     padding: '5px 9px',
                                                 }}>
-                                                    Pasif
+                                                    {forcepointStatusKnown ? 'Pasif' : 'Bilinmiyor'}
                                                 </span>
                                             )}
                                         </td>
@@ -1699,6 +1703,7 @@ function ExceptionListContent() {
                                                         enabled: getExceptionEnabled(exc)
                                                     }
                                                     const forcepointEnabled = isExceptionEnabled(ref)
+                                                    const forcepointStatusKnown = isExceptionStatusKnown(ref)
                                                     const actionKey = getExceptionRefKey(ref)
                                                     const isDisabling = disablingExceptionKey === actionKey
 
@@ -1814,12 +1819,12 @@ function ExceptionListContent() {
                                                                     <span style={{
                                                                         fontSize: '11px',
                                                                         fontWeight: '700',
-                                                                        color: '#6B7280',
-                                                                        background: '#F3F4F6',
+                                                                        color: forcepointStatusKnown ? '#6B7280' : '#D97706',
+                                                                        background: forcepointStatusKnown ? '#F3F4F6' : '#FEF3C7',
                                                                         borderRadius: '7px',
                                                                         padding: '5px 9px',
                                                                     }}>
-                                                                        Pasif
+                                                                        {forcepointStatusKnown ? 'Pasif' : 'Bilinmiyor'}
                                                                     </span>
                                                                 )}
                                                             </div>
