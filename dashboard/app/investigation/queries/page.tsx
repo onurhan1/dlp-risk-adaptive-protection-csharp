@@ -1,7 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Download, FileSpreadsheet, Plus, Save, Trash2, Upload, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
+import {
+  CheckCircle2,
+  Download,
+  Edit3,
+  FileSpreadsheet,
+  Filter,
+  Inbox,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react'
 import apiClient from '@/lib/axios'
 
 type QueryRow = {
@@ -38,91 +53,92 @@ type WorkflowMailRow = {
   [key: string]: any
 }
 
-const DEFAULT_COLUMNS = [
-  { key: 'user_code', label: 'Kullanıcı Kodu' },
-  { key: 'full_name', label: 'Kullanıcı Adı Soyadı' },
-  { key: 'mail_address', label: 'Mail Adresi' },
-  { key: 'subject', label: 'Mail Konu Başlığı' },
-  { key: 'query_date', label: 'Sorgu Tarihi' },
-  { key: 'response_status', label: 'Kullanıcıdan Geri Dönüş Yapılma Durumu' },
-  { key: 'action', label: 'Aksiyon' },
-  { key: 'query_status', label: 'Sorgu Durumu' }
-]
+type Filters = {
+  search: string
+  user: string
+  mail: string
+  subject: string
+  response: string
+  action: string
+  status: string
+  source: string
+  team: string
+  dateFrom: string
+  dateTo: string
+}
 
-const WORKFLOW_MAIL_COLUMNS = [
-  { key: 'playbook_name', label: 'Workflow' },
-  { key: 'to_email', label: 'Alıcı' },
-  { key: 'cc_email', label: 'CC' },
-  { key: 'subject', label: 'Mail Konusu' },
-  { key: 'mail_date', label: 'Mail Tarihi' },
-  { key: 'status', label: 'Durum' },
+const DEFAULT_COLUMNS = [
+  { key: 'user_code', label: 'Kullanici Kodu' },
+  { key: 'full_name', label: 'Ad Soyad' },
+  { key: 'mail_address', label: 'Mail Adresi' },
+  { key: 'subject', label: 'Konu' },
+  { key: 'query_date', label: 'Sorgu Tarihi' },
+  { key: 'response_status', label: 'Geri Donus Durumu' },
+  { key: 'action', label: 'Aksiyon' },
+  { key: 'query_status', label: 'Sorgu Durumu' },
+  { key: 'team', label: 'Ekip' },
   { key: 'source', label: 'Kaynak' },
-  { key: 'trigger_count', label: 'Değer / Adet' },
-  { key: 'error_message', label: 'Açıklama' }
+  { key: 'notes', label: 'Notlar' },
 ]
 
 const STATUS_OPTIONS = [
-  { value: 'bekliyor', label: 'Bekliyor' },
-  { value: 'sorgulandi', label: 'Sorgulandı' },
-  { value: 'tamamlandi', label: 'Tamamlandı' }
+  { value: 'bekliyor', label: 'Bekliyor', color: '#64748b' },
+  { value: 'sorgulandi', label: 'Sorgulandi', color: '#3b82f6' },
+  { value: 'tamamlandi', label: 'Tamamlandi', color: '#10b981' },
 ]
 
-const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
-  user_code: 180,
-  full_name: 230,
-  mail_address: 260,
-  subject: 320,
-  query_date: 170,
-  response_status: 330,
-  action: 280,
-  query_status: 190
-}
+const WORKFLOW_STATUSES = [
+  { value: 'sent', label: 'Gonderildi' },
+  { value: 'pending', label: 'Manuel bekliyor' },
+  { value: 'failed', label: 'Basarisiz' },
+  { value: 'skipped', label: 'Atlandi' },
+]
 
-const WORKFLOW_MAIL_COLUMN_WIDTHS: Record<string, number> = {
-  playbook_name: 240,
-  to_email: 260,
-  cc_email: 220,
-  subject: 340,
-  mail_date: 180,
-  status: 150,
-  source: 260,
-  trigger_count: 150,
-  error_message: 420
-}
-
-const MIN_COLUMN_WIDTH = 120
-const MAX_AUTO_COLUMN_WIDTH = 720
-const MIN_ROW_HEIGHT = 38
-const MAX_ROW_HEIGHT = 360
+const emptyFilters = (): Filters => ({
+  search: '',
+  user: '',
+  mail: '',
+  subject: '',
+  response: '',
+  action: '',
+  status: '',
+  source: '',
+  team: '',
+  dateFrom: '',
+  dateTo: '',
+})
 
 const emptyRow = (): QueryRow => ({
   user_code: '',
   full_name: '',
   mail_address: '',
-  subject: 'DLP Blocklanmış İşlemler Hk.',
+  subject: 'DLP Blocklanmis Islemler Hk.',
   query_date: new Date().toISOString().slice(0, 10),
   response_status: '',
   action: '',
   query_status: 'bekliyor',
-  extra_json: '{}'
+  source: 'manual',
+  team: '',
+  notes: '',
+  extra_json: '{}',
 })
 
 const turkishTokenMap: Record<string, string> = {
-  saglam: 'sağlam',
-  caglar: 'çağlar',
-  cagatay: 'çağatay',
-  gokhan: 'gökhan',
-  gokce: 'gökçe',
-  gungor: 'güngör',
-  gunes: 'güneş',
-  ozgur: 'özgür',
-  ozge: 'özge',
-  ozlem: 'özlem',
-  cigdem: 'çiğdem',
-  yagmur: 'yağmur',
-  yilmaz: 'yılmaz',
-  yildiz: 'yıldız',
-  isik: 'ışık'
+  saglam: 'saglam',
+  caglar: 'caglar',
+  cagatay: 'cagatay',
+  gokhan: 'gokhan',
+  gokce: 'gokce',
+  gungor: 'gungor',
+  gunes: 'gunes',
+  ozgur: 'ozgur',
+  ozge: 'ozge',
+  ozlem: 'ozlem',
+  cigdem: 'cigdem',
+  yagmur: 'yagmur',
+  yilmaz: 'yilmaz',
+  yildiz: 'yildiz',
+  isik: 'isik',
 }
 
 function inferNameFromMail(value: string) {
@@ -130,8 +146,8 @@ function inferNameFromMail(value: string) {
   return local
     .split(/[._\-\s]+/)
     .filter(Boolean)
-    .map(t => turkishTokenMap[t.toLowerCase()] || t.toLowerCase())
-    .map(t => t.charAt(0).toLocaleUpperCase('tr-TR') + t.slice(1).toLocaleLowerCase('tr-TR'))
+    .map((token) => turkishTokenMap[token.toLowerCase()] || token.toLowerCase())
+    .map((token) => token.charAt(0).toLocaleUpperCase('tr-TR') + token.slice(1).toLocaleLowerCase('tr-TR'))
     .join(' ')
 }
 
@@ -144,205 +160,161 @@ function toInputDate(value: any) {
   return text.slice(0, 10)
 }
 
+function toDisplayDate(value: any) {
+  const text = toInputDate(value)
+  if (!text) return '-'
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) return text
+  return date.toLocaleDateString('tr-TR')
+}
+
 function toDisplayDateTime(value: any) {
-  if (!value) return ''
+  if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleString('tr-TR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return date.toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function statusMeta(value: string) {
+  return STATUS_OPTIONS.find((option) => option.value === value) || STATUS_OPTIONS[0]
 }
 
 function workflowMailStatusLabel(value: any) {
   const status = String(value || '').toLowerCase()
-  if (status === 'sent') return 'Gönderildi'
-  if (status === 'pending') return 'Manuel bekliyor'
-  if (status === 'failed') return 'Başarısız'
-  if (status === 'skipped') return 'Atlandı'
-  return String(value || '')
+  return WORKFLOW_STATUSES.find((option) => option.value === status)?.label || String(value || '-')
 }
 
-function estimateTextWidth(value: any) {
-  const text = String(value || '')
-  const longestLine = text.split(/\r?\n/).reduce((max, line) => Math.max(max, line.length), 0)
-  return Math.min(MAX_AUTO_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, longestLine * 8 + 58))
+function includesText(value: any, filter: string) {
+  const needle = filter.trim().toLocaleLowerCase('tr-TR')
+  if (!needle) return true
+  return String(value || '').toLocaleLowerCase('tr-TR').includes(needle)
 }
 
 export default function InvestigationQueriesPage() {
-  const [columns, setColumns] = useState(DEFAULT_COLUMNS)
   const [rows, setRows] = useState<QueryRow[]>([])
   const [workflowMailRows, setWorkflowMailRows] = useState<WorkflowMailRow[]>([])
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
-  const [workflowMailFilters, setWorkflowMailFilters] = useState<Record<string, string>>({})
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(DEFAULT_COLUMN_WIDTHS)
-  const [manualColumnWidths, setManualColumnWidths] = useState<Set<string>>(new Set())
-  const [rowHeights, setRowHeights] = useState<Record<string, number>>({})
+  const [filters, setFilters] = useState<Filters>(emptyFilters())
+  const [workflowFilters, setWorkflowFilters] = useState({ search: '', status: '', workflow: '', dateFrom: '', dateTo: '' })
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [editor, setEditor] = useState<QueryRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const resizeRef = useRef<{ type: 'column'; key: string; startX: number; startWidth: number } | { type: 'row'; key: string; startY: number; startHeight: number } | null>(null)
+
+  useEffect(() => {
+    void loadRows()
+  }, [])
 
   const loadRows = async () => {
     setLoading(true)
     try {
       const [queryRes, workflowMailRes] = await Promise.all([
         apiClient.get('/api/investigation/queries'),
-        apiClient.get('/api/investigation/queries/workflow-mails')
+        apiClient.get('/api/investigation/queries/workflow-mails'),
       ])
-      setRows((Array.isArray(queryRes.data) ? queryRes.data : []).map((r: any) => ({
-        ...r,
-        query_date: toInputDate(r.query_date)
-      })))
-      setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((r: any) => ({
-        ...r,
-        mail_date: r.mail_date || ''
-      })))
+
+      const nextRows = (Array.isArray(queryRes.data) ? queryRes.data : []).map((row: any) => ({
+        ...row,
+        query_date: toInputDate(row.query_date),
+      }))
+      setRows(nextRows)
+      setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((row: any) => ({ ...row, mail_date: row.mail_date || '' })))
+      setSelectedIndex(nextRows.length ? 0 : null)
+      setEditor(nextRows.length ? { ...nextRows[0] } : null)
+    } catch (error: any) {
+      flash('error', error?.response?.data?.detail || 'Sorgulamalar yuklenemedi')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    loadRows()
-  }, [])
+  const suggestions = useMemo(() => ({
+    user: unique(rows.flatMap((row) => [row.full_name, row.user_code])),
+    mail: unique(rows.map((row) => row.mail_address)),
+    subject: unique(rows.map((row) => row.subject)),
+    response: unique(rows.map((row) => row.response_status)),
+    action: unique(rows.map((row) => row.action)),
+    source: unique(rows.map((row) => row.source)),
+    team: unique(rows.map((row) => row.team)),
+    workflow: unique(workflowMailRows.map((row) => row.playbook_name)),
+  }), [rows, workflowMailRows])
 
-  useEffect(() => {
-    const handleMove = (event: MouseEvent) => {
-      const resize = resizeRef.current
-      if (!resize) return
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      const allText = DEFAULT_COLUMNS.map((column) => row[column.key]).join(' ')
+      const date = toInputDate(row.query_date)
+      return includesText(allText, filters.search)
+        && (includesText(row.full_name, filters.user) || includesText(row.user_code, filters.user))
+        && includesText(row.mail_address, filters.mail)
+        && includesText(row.subject, filters.subject)
+        && includesText(row.response_status, filters.response)
+        && includesText(row.action, filters.action)
+        && (!filters.status || row.query_status === filters.status)
+        && includesText(row.source, filters.source)
+        && includesText(row.team, filters.team)
+        && (!filters.dateFrom || date >= filters.dateFrom)
+        && (!filters.dateTo || date <= filters.dateTo)
+    })
+  }, [rows, filters])
 
-      if (resize.type === 'column') {
-        const nextWidth = Math.max(MIN_COLUMN_WIDTH, resize.startWidth + event.clientX - resize.startX)
-        setColumnWidths(prev => ({ ...prev, [resize.key]: nextWidth }))
-        setManualColumnWidths(prev => new Set(prev).add(resize.key))
-      } else {
-        const nextHeight = Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, resize.startHeight + event.clientY - resize.startY))
-        setRowHeights(prev => ({ ...prev, [resize.key]: nextHeight }))
+  const filteredWorkflowRows = useMemo(() => {
+    return workflowMailRows.filter((row) => {
+      const allText = [row.playbook_name, row.to_email, row.cc_email, row.subject, row.source, row.error_message].join(' ')
+      const date = toInputDate(row.mail_date)
+      return includesText(allText, workflowFilters.search)
+        && (!workflowFilters.status || String(row.status).toLowerCase() === workflowFilters.status)
+        && includesText(row.playbook_name, workflowFilters.workflow)
+        && (!workflowFilters.dateFrom || date >= workflowFilters.dateFrom)
+        && (!workflowFilters.dateTo || date <= workflowFilters.dateTo)
+    })
+  }, [workflowMailRows, workflowFilters])
+
+  const stats = useMemo(() => {
+    return STATUS_OPTIONS.map((option) => ({
+      ...option,
+      count: rows.filter((row) => row.query_status === option.value).length,
+    }))
+  }, [rows])
+
+  const selectRow = (row: QueryRow, index: number) => {
+    setSelectedIndex(index)
+    setEditor({ ...row })
+  }
+
+  const addRow = () => {
+    const next = emptyRow()
+    setRows((prev) => [next, ...prev])
+    setSelectedIndex(0)
+    setEditor(next)
+  }
+
+  const applyEditor = () => {
+    if (!editor || selectedIndex == null) return
+    setRows((prev) => prev.map((row, index) => index === selectedIndex ? editor : row))
+    flash('success', 'Degisiklikler listeye islendi. Kalici kayit icin Kaydet kullanin.')
+  }
+
+  const removeRow = async (row: QueryRow, index: number) => {
+    if (row.id) {
+      try {
+        await apiClient.delete(`/api/investigation/queries/${row.id}`)
+        flash('success', 'Kayit silindi')
+      } catch (error: any) {
+        flash('error', error?.response?.data?.detail || 'Kayit silinemedi')
+        return
       }
     }
 
-    const stopResize = () => {
-      resizeRef.current = null
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', stopResize)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', stopResize)
-    }
-  }, [])
-
-  const rowKeyOf = (row: QueryRow, sourceIndex: number) => row.id ? `id:${row.id}` : `idx:${sourceIndex}`
-
-  const updateColumnFilter = (key: string, value: string) => {
-    setColumnFilters(prev => ({ ...prev, [key]: value }))
+    setRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
+    setSelectedIndex(null)
+    setEditor(null)
   }
 
-  const clearColumnFilter = (key: string) => {
-    setColumnFilters(prev => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
-
-  const clearAllFilters = () => setColumnFilters({})
-
-  const activeFilterCount = useMemo(
-    () => Object.values(columnFilters).filter(value => value.trim()).length,
-    [columnFilters]
-  )
-
-  const updateWorkflowMailFilter = (key: string, value: string) => {
-    setWorkflowMailFilters(prev => ({ ...prev, [key]: value }))
-  }
-
-  const clearWorkflowMailFilter = (key: string) => {
-    setWorkflowMailFilters(prev => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
-
-  const clearAllWorkflowMailFilters = () => setWorkflowMailFilters({})
-
-  const activeWorkflowMailFilterCount = useMemo(
-    () => Object.values(workflowMailFilters).filter(value => value.trim()).length,
-    [workflowMailFilters]
-  )
-
-  const visibleRows = useMemo(() => {
-    const source = rows.length ? rows : [emptyRow()]
-    return source
-      .map((row, sourceIndex) => ({ row, sourceIndex }))
-      .filter(({ row }) => columns.every(col => {
-        const filter = (columnFilters[col.key] || '').trim().toLocaleLowerCase('tr-TR')
-        if (!filter) return true
-        const value = String(row[col.key] || '').toLocaleLowerCase('tr-TR')
-        return value.includes(filter)
-      }))
-  }, [rows, columns, columnFilters])
-
-  const visibleWorkflowMailRows = useMemo(() => {
-    return workflowMailRows.filter(row => WORKFLOW_MAIL_COLUMNS.every(col => {
-      const filter = (workflowMailFilters[col.key] || '').trim().toLocaleLowerCase('tr-TR')
-      if (!filter) return true
-      const rawValue = col.key === 'mail_date' ? toInputDate(row[col.key]) : row[col.key]
-      const value = String(rawValue || '').toLocaleLowerCase('tr-TR')
-      return value.includes(filter)
-    }))
-  }, [workflowMailRows, workflowMailFilters])
-
-  const totalTableWidth = useMemo(
-    () => 58 + 58 + columns.reduce((total, col) => total + (columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 220), 0),
-    [columns, columnWidths]
-  )
-
-  const totalWorkflowMailTableWidth = useMemo(
-    () => 58 + WORKFLOW_MAIL_COLUMNS.reduce((total, col) => total + (WORKFLOW_MAIL_COLUMN_WIDTHS[col.key] || 220), 0),
-    []
-  )
-
-  useEffect(() => {
-    const source = rows.length ? rows : [emptyRow()]
-    setColumnWidths(prev => {
-      let changed = false
-      const next = { ...prev }
-
-      columns.forEach(col => {
-        if (manualColumnWidths.has(col.key)) return
-        const current = next[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || MIN_COLUMN_WIDTH
-        const headerWidth = estimateTextWidth(col.label)
-        const contentWidth = source.reduce(
-          (max, row) => Math.max(max, estimateTextWidth(row[col.key])),
-          headerWidth
-        )
-        const desired = Math.max(current, DEFAULT_COLUMN_WIDTHS[col.key] || MIN_COLUMN_WIDTH, contentWidth)
-        if (desired > current) {
-          next[col.key] = desired
-          changed = true
-        }
-      })
-
-      return changed ? next : prev
-    })
-  }, [rows, columns, manualColumnWidths])
-
-  const updateCell = (rowIndex: number, key: string, value: string) => {
-    setRows(prev => {
-      const next = prev.length ? [...prev] : [emptyRow()]
-      const row = { ...next[rowIndex], [key]: value }
-      if (key === 'mail_address' && !row.full_name) row.full_name = inferNameFromMail(value)
-      next[rowIndex] = row
+  const updateEditor = (key: keyof QueryRow, value: string) => {
+    setEditor((prev) => {
+      const next = { ...(prev || emptyRow()), [key]: value }
+      if (key === 'mail_address' && !next.full_name) next.full_name = inferNameFromMail(value)
       return next
     })
   }
@@ -351,66 +323,18 @@ export default function InvestigationQueriesPage() {
     setSaving(true)
     setMessage(null)
     try {
-      const payload = rows.filter(r => columns.some(c => String(r[c.key] || '').trim()))
+      const nextRows = editor && selectedIndex != null
+        ? rows.map((row, index) => index === selectedIndex ? editor : row)
+        : rows
+      const payload = nextRows.filter((row) => DEFAULT_COLUMNS.some((column) => String(row[column.key] || '').trim()))
       await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
-      setMessage('Sorgulamalar kaydedildi')
+      flash('success', 'Sorgulamalar kaydedildi')
       await loadRows()
-    } catch (e: any) {
-      setMessage(e?.response?.data?.detail || 'Kaydetme başarısız')
+    } catch (error: any) {
+      flash('error', error?.response?.data?.detail || 'Kaydetme basarisiz')
     } finally {
       setSaving(false)
     }
-  }
-
-  const addColumn = () => {
-    const index = columns.length + 1
-    const key = `custom_${Date.now()}`
-    setColumns(prev => [...prev, { key, label: `Yeni Kolon ${index}` }])
-    setColumnWidths(prev => ({ ...prev, [key]: 220 }))
-    setManualColumnWidths(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-  }
-
-  const removeColumn = (key: string) => {
-    if (columns.length <= 1) return
-    setColumns(prev => prev.filter(c => c.key !== key))
-    setColumnFilters(prev => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-    setManualColumnWidths(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-  }
-
-  const startColumnResize = (event: ReactMouseEvent, key: string) => {
-    event.preventDefault()
-    resizeRef.current = {
-      type: 'column',
-      key,
-      startX: event.clientX,
-      startWidth: columnWidths[key] || DEFAULT_COLUMN_WIDTHS[key] || 220
-    }
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }
-
-  const startRowResize = (event: ReactMouseEvent, key: string, currentHeight: number) => {
-    event.preventDefault()
-    resizeRef.current = {
-      type: 'row',
-      key,
-      startY: event.clientY,
-      startHeight: currentHeight
-    }
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
   }
 
   const importExcel = async (file: File) => {
@@ -421,37 +345,38 @@ export default function InvestigationQueriesPage() {
     if (!ws) return
 
     const header = ws.getRow(1).values as any[]
-    const importedColumns = header.slice(1).map((h, i) => ({
-      key: DEFAULT_COLUMNS[i]?.key || `custom_${i}`,
-      label: String(h?.text || h || `Kolon ${i + 1}`)
+    const importedColumns = header.slice(1).map((headerValue, index) => ({
+      key: DEFAULT_COLUMNS[index]?.key || `custom_${index}`,
+      label: String(headerValue?.text || headerValue || `Kolon ${index + 1}`),
     }))
 
     const importedRows: QueryRow[] = []
     for (let i = 2; i <= ws.rowCount; i++) {
-      const row = ws.getRow(i)
-      const values = row.values as any[]
+      const sheetRow = ws.getRow(i)
+      const values = sheetRow.values as any[]
       const next = emptyRow()
-      importedColumns.forEach((col, idx) => {
-        const raw = values[idx + 1]
-        next[col.key] = col.key === 'query_date' ? toInputDate(raw) : String(raw?.text || raw || '')
+      importedColumns.forEach((column, index) => {
+        const raw = values[index + 1]
+        next[column.key] = column.key === 'query_date' ? toInputDate(raw) : String(raw?.text || raw || '')
       })
       if (!next.full_name && next.mail_address) next.full_name = inferNameFromMail(next.mail_address)
       importedRows.push(next)
     }
 
-    setColumns(importedColumns.length ? importedColumns : DEFAULT_COLUMNS)
     setRows(importedRows.length ? importedRows : [emptyRow()])
-    setMessage('Excel içeriği yüklendi')
+    setSelectedIndex(importedRows.length ? 0 : null)
+    setEditor(importedRows.length ? { ...importedRows[0] } : null)
+    flash('success', 'Excel icerigi yuklendi')
   }
 
   const exportExcel = async () => {
     const { Workbook } = await import('exceljs')
     const workbook = new Workbook()
     const ws = workbook.addWorksheet('Sorgulamalar')
-    ws.addRow(columns.map(c => c.label))
-    rows.forEach(row => ws.addRow(columns.map(c => row[c.key] || '')))
+    ws.addRow(DEFAULT_COLUMNS.map((column) => column.label))
+    rows.forEach((row) => ws.addRow(DEFAULT_COLUMNS.map((column) => row[column.key] || '')))
     ws.getRow(1).font = { bold: true }
-    ws.columns.forEach(col => { col.width = 28 })
+    ws.columns.forEach((column) => { column.width = 28 })
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const link = document.createElement('a')
@@ -463,496 +388,513 @@ export default function InvestigationQueriesPage() {
     URL.revokeObjectURL(link.href)
   }
 
+  const clearFilters = () => setFilters(emptyFilters())
+  const clearWorkflowFilters = () => setWorkflowFilters({ search: '', status: '', workflow: '', dateFrom: '', dateTo: '' })
+
+  const flash = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text })
+    window.setTimeout(() => setMessage(null), 4500)
+  }
+
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+    <div className="container page-enter" style={{ maxWidth: '100%', padding: '16px 18px 32px' }}>
+      <div style={headerStyle}>
         <div>
-          <h1>Sorgulamalar</h1>
-          <p className="text-muted">Haftalık sorgu Excel formatı, manuel kayıtlar ve agentic workflow çıktıları</p>
+          <h1 style={titleStyle}>Sorgulamalar</h1>
+          <p style={subtitleStyle}>Manuel sorgu kayitlarini ve agentic workflow mail ciktilarini yonetin.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={toolbarStyle}>
           <input
             ref={fileRef}
             type="file"
             accept=".xlsx,.xls"
             style={{ display: 'none' }}
-            onChange={e => e.target.files?.[0] && importExcel(e.target.files[0])}
+            onChange={(event) => event.target.files?.[0] && importExcel(event.target.files[0])}
           />
-          <button className="btn-secondary" onClick={() => fileRef.current?.click()}><Upload size={16} /> Yükle</button>
-          <button className="btn-secondary" onClick={exportExcel}><Download size={16} /> İndir</button>
-          <button className="btn-secondary" onClick={addColumn}><Plus size={16} /> Kolon</button>
-          <button className="btn-secondary" onClick={() => setRows(prev => [...prev, emptyRow()])}><Plus size={16} /> Satır</button>
-          <button className="btn-primary" disabled={saving} onClick={saveRows}><Save size={16} /> {saving ? 'Kaydediliyor' : 'Kaydet'}</button>
+          <ToolbarButton onClick={() => fileRef.current?.click()} icon={<Upload size={15} />} label="Excel Yukle" />
+          <ToolbarButton onClick={exportExcel} icon={<Download size={15} />} label="Excel Indir" />
+          <ToolbarButton onClick={loadRows} icon={<RefreshCw size={15} />} label="Yenile" />
+          <PrimaryButton onClick={addRow} icon={<Plus size={15} />} label="Yeni Kayit" />
+          <PrimaryButton onClick={saveRows} icon={<Save size={15} />} label={saving ? 'Kaydediliyor' : 'Kaydet'} disabled={saving} />
         </div>
       </div>
 
-      {message && <div style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>{message}</div>}
+      {message && (
+        <div style={{
+          ...messageStyle,
+          borderColor: message.type === 'success' ? '#86efac' : '#fca5a5',
+          background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+          color: message.type === 'success' ? '#166534' : '#991b1b',
+        }}>
+          {message.text}
+        </div>
+      )}
 
-      <div style={tableToolbarStyle}>
-        <span>{visibleRows.length} / {rows.length || 1} kayıt gösteriliyor</span>
-        {activeFilterCount > 0 && (
-          <button className="btn-secondary" onClick={clearAllFilters}>
-            <X size={15} /> Filtreleri Temizle ({activeFilterCount})
-          </button>
-        )}
+      <div style={statsGridStyle}>
+        <StatCard label="Toplam Kayit" value={rows.length} />
+        {stats.map((item) => <StatCard key={item.value} label={item.label} value={item.count} color={item.color} />)}
+        <StatCard label="Workflow Mail" value={workflowMailRows.length} color="#8b5cf6" />
       </div>
 
-      <div className="card" style={{ overflow: 'auto', padding: 0, maxHeight: 'calc(100vh - 260px)' }}>
-        {loading ? (
-          <div style={{ padding: 24, color: 'var(--text-muted)' }}>Yükleniyor...</div>
-        ) : (
-          <table style={{ width: totalTableWidth, minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 58 }} />
-              {columns.map(col => (
-                <col key={col.key} style={{ width: columnWidths[col.key] || DEFAULT_COLUMN_WIDTHS[col.key] || 220 }} />
-              ))}
-              <col style={{ width: 58 }} />
-            </colgroup>
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Filter size={17} color="var(--accent)" />
+            <h2 style={sectionTitleStyle}>Filtreler</h2>
+          </div>
+          <ToolbarButton onClick={clearFilters} icon={<X size={14} />} label="Temizle" />
+        </div>
+        <div style={filterGridStyle}>
+          <FilterInput label="Genel arama" value={filters.search} onChange={(value) => setFilters({ ...filters, search: value })} placeholder="Kullanici, konu, aksiyon..." icon={<Search size={14} />} />
+          <FilterInput label="Kullanici" value={filters.user} onChange={(value) => setFilters({ ...filters, user: value })} options={suggestions.user} />
+          <FilterInput label="Mail" value={filters.mail} onChange={(value) => setFilters({ ...filters, mail: value })} options={suggestions.mail} />
+          <FilterInput label="Konu" value={filters.subject} onChange={(value) => setFilters({ ...filters, subject: value })} options={suggestions.subject} />
+          <FilterInput label="Geri donus" value={filters.response} onChange={(value) => setFilters({ ...filters, response: value })} options={suggestions.response} />
+          <FilterInput label="Aksiyon" value={filters.action} onChange={(value) => setFilters({ ...filters, action: value })} options={suggestions.action} />
+          <SelectField label="Durum" value={filters.status} onChange={(value) => setFilters({ ...filters, status: value })} options={STATUS_OPTIONS} emptyLabel="Tumu" />
+          <FilterInput label="Kaynak" value={filters.source} onChange={(value) => setFilters({ ...filters, source: value })} options={suggestions.source} />
+          <FilterInput label="Ekip" value={filters.team} onChange={(value) => setFilters({ ...filters, team: value })} options={suggestions.team} />
+          <Field label="Baslangic"><input type="date" style={inputStyle} value={filters.dateFrom} onChange={(event) => setFilters({ ...filters, dateFrom: event.target.value })} /></Field>
+          <Field label="Bitis"><input type="date" style={inputStyle} value={filters.dateTo} onChange={(event) => setFilters({ ...filters, dateTo: event.target.value })} /></Field>
+        </div>
+      </section>
+
+      <div style={contentGridStyle}>
+        <section style={sectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>Sorgu Kayitlari</h2>
+              <p style={sectionHintStyle}>{filteredRows.length} / {rows.length} kayit gosteriliyor</p>
+            </div>
+          </div>
+
+          <div style={listStyle}>
+            {loading ? (
+              <EmptyState icon={<RefreshCw size={20} />} text="Yukleniyor..." />
+            ) : filteredRows.length === 0 ? (
+              <EmptyState icon={<Inbox size={20} />} text="Filtreyle eslesen kayit yok." />
+            ) : filteredRows.map((row) => {
+              const realIndex = rows.indexOf(row)
+              const meta = statusMeta(row.query_status)
+              return (
+                <div
+                  key={row.id ?? realIndex}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectRow(row, realIndex)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') selectRow(row, realIndex)
+                  }}
+                  style={{
+                    ...rowCardStyle,
+                    borderColor: selectedIndex === realIndex ? 'var(--accent)' : 'var(--border)',
+                    background: selectedIndex === realIndex ? 'rgba(59,130,246,.06)' : 'var(--surface)',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <strong style={rowTitleStyle}>{row.full_name || inferNameFromMail(row.mail_address) || 'Isimsiz Kullanici'}</strong>
+                      <Badge label={meta.label} color={meta.color} />
+                    </div>
+                    <div style={rowMetaStyle}>{row.mail_address || '-'} · {row.subject || '-'}</div>
+                    <div style={rowMetaStyle}>{toDisplayDate(row.query_date)} · {row.action || 'Aksiyon yok'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <IconButton title="Duzenle" onClick={(event) => { event.stopPropagation(); selectRow(row, realIndex) }}><Edit3 size={15} /></IconButton>
+                    <IconButton title="Sil" onClick={(event) => { event.stopPropagation(); void removeRow(row, realIndex) }}><Trash2 size={15} /></IconButton>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <section style={sectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>Kayit Detayi</h2>
+              <p style={sectionHintStyle}>Satir secerek veya yeni kayit olusturarak duzenleyin.</p>
+            </div>
+            <ToolbarButton onClick={applyEditor} icon={<CheckCircle2 size={14} />} label="Listeye Isle" disabled={!editor} />
+          </div>
+
+          {!editor ? (
+            <EmptyState icon={<Edit3 size={20} />} text="Duzenlemek icin bir kayit secin." />
+          ) : (
+            <div style={editorGridStyle}>
+              <Field label="Kullanici Kodu"><input style={inputStyle} value={editor.user_code || ''} onChange={(event) => updateEditor('user_code', event.target.value)} /></Field>
+              <Field label="Ad Soyad"><input style={inputStyle} value={editor.full_name || ''} onChange={(event) => updateEditor('full_name', event.target.value)} /></Field>
+              <Field label="Mail Adresi"><input style={inputStyle} value={editor.mail_address || ''} onChange={(event) => updateEditor('mail_address', event.target.value)} /></Field>
+              <Field label="Sorgu Tarihi"><input type="date" style={inputStyle} value={editor.query_date || ''} onChange={(event) => updateEditor('query_date', event.target.value)} /></Field>
+              <Field label="Konu"><input style={inputStyle} value={editor.subject || ''} onChange={(event) => updateEditor('subject', event.target.value)} /></Field>
+              <SelectField label="Sorgu Durumu" value={editor.query_status || 'bekliyor'} onChange={(value) => updateEditor('query_status', value)} options={STATUS_OPTIONS} />
+              <Field label="Geri Donus Durumu"><input style={inputStyle} value={editor.response_status || ''} onChange={(event) => updateEditor('response_status', event.target.value)} /></Field>
+              <Field label="Aksiyon"><input style={inputStyle} value={editor.action || ''} onChange={(event) => updateEditor('action', event.target.value)} /></Field>
+              <Field label="Ekip"><input style={inputStyle} value={editor.team || ''} onChange={(event) => updateEditor('team', event.target.value)} /></Field>
+              <Field label="Kaynak"><input style={inputStyle} value={editor.source || ''} onChange={(event) => updateEditor('source', event.target.value)} /></Field>
+              <Field label="Notlar" wide>
+                <textarea style={{ ...inputStyle, height: 94, resize: 'vertical' }} value={editor.notes || ''} onChange={(event) => updateEditor('notes', event.target.value)} />
+              </Field>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <div>
+            <h2 style={sectionTitleStyle}>Kullanici Sorgusu Olmayan Workflow Mailleri</h2>
+            <p style={sectionHintStyle}>Agentic workflow metrik ve kurum toplami mailleri ayrica takip edilir.</p>
+          </div>
+          <ToolbarButton onClick={clearWorkflowFilters} icon={<X size={14} />} label="Filtreleri Temizle" />
+        </div>
+
+        <div style={workflowFilterGridStyle}>
+          <FilterInput label="Arama" value={workflowFilters.search} onChange={(value) => setWorkflowFilters({ ...workflowFilters, search: value })} placeholder="Workflow, alici, konu..." icon={<Search size={14} />} />
+          <FilterInput label="Workflow" value={workflowFilters.workflow} onChange={(value) => setWorkflowFilters({ ...workflowFilters, workflow: value })} options={suggestions.workflow} />
+          <SelectField label="Durum" value={workflowFilters.status} onChange={(value) => setWorkflowFilters({ ...workflowFilters, status: value })} options={WORKFLOW_STATUSES} emptyLabel="Tumu" />
+          <Field label="Baslangic"><input type="date" style={inputStyle} value={workflowFilters.dateFrom} onChange={(event) => setWorkflowFilters({ ...workflowFilters, dateFrom: event.target.value })} /></Field>
+          <Field label="Bitis"><input type="date" style={inputStyle} value={workflowFilters.dateTo} onChange={(event) => setWorkflowFilters({ ...workflowFilters, dateTo: event.target.value })} /></Field>
+        </div>
+
+        <div style={{ overflowX: 'auto', marginTop: 14 }}>
+          <table className="table-modern" style={{ minWidth: 980 }}>
             <thead>
               <tr>
-                <th style={stickyThStyle}>#</th>
-                {columns.map(col => (
-                  <th key={col.key} style={thStyle}>
-                    <div style={headerCellStyle}>
-                      <input
-                        value={col.label}
-                        onChange={e => setColumns(prev => prev.map(c => c.key === col.key ? { ...c, label: e.target.value } : c))}
-                        style={headerInputStyle}
-                        title={col.label}
-                      />
-                      <button title="Kolonu sil" onClick={() => removeColumn(col.key)} style={iconButtonStyle}><Trash2 size={13} /></button>
-                    </div>
-                    <span
-                      title="Sütunu genişlet"
-                      onMouseDown={event => startColumnResize(event, col.key)}
-                      style={columnResizeHandleStyle}
-                    />
-                  </th>
-                ))}
-                <th style={thStyle}></th>
-              </tr>
-              <tr>
-                <th style={stickyFilterThStyle}></th>
-                {columns.map(col => (
-                  <th key={col.key} style={filterThStyle}>
-                    <div style={filterCellStyle}>
-                      {col.key === 'query_status' ? (
-                        <select
-                          value={columnFilters[col.key] || ''}
-                          onChange={e => updateColumnFilter(col.key, e.target.value)}
-                          style={filterInputStyle}
-                          title={`${col.label} filtresi`}
-                        >
-                          <option value="">Tümü</option>
-                          {STATUS_OPTIONS.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      ) : col.key === 'query_date' ? (
-                        <input
-                          type="date"
-                          value={columnFilters[col.key] || ''}
-                          onChange={e => updateColumnFilter(col.key, e.target.value)}
-                          style={filterInputStyle}
-                          title={`${col.label} filtresi`}
-                        />
-                      ) : (
-                        <input
-                          value={columnFilters[col.key] || ''}
-                          onChange={e => updateColumnFilter(col.key, e.target.value)}
-                          placeholder="Filtrele"
-                          style={filterInputStyle}
-                          title={`${col.label} filtresi`}
-                        />
-                      )}
-                      {columnFilters[col.key] && (
-                        <button
-                          title="Filtreyi temizle"
-                          onClick={() => clearColumnFilter(col.key)}
-                          style={clearFilterButtonStyle}
-                        >
-                          <X size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
-                <th style={filterThStyle}></th>
+                <th>Workflow</th>
+                <th>Alici</th>
+                <th>Konu</th>
+                <th>Tarih</th>
+                <th>Durum</th>
+                <th>Kaynak</th>
+                <th>Deger</th>
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ row, sourceIndex }) => {
-                const rowKey = rowKeyOf(row, sourceIndex)
-                const rowHeight = rowHeights[rowKey] || MIN_ROW_HEIGHT
-                return (
-                <tr key={row.id ?? sourceIndex} style={{ height: rowHeight }}>
-                  <td style={{ ...indexStyle, height: rowHeight }}>
-                    {sourceIndex + 1}
-                    <span
-                      title="Satırı genişlet"
-                      onMouseDown={event => startRowResize(event, rowKey, rowHeight)}
-                      style={rowResizeHandleStyle}
-                    />
-                  </td>
-                  {columns.map(col => (
-                    <td
-                      key={col.key}
-                      style={{ ...tdStyle, height: rowHeight }}
-                    >
-                      <div style={{ position: 'relative', height: '100%' }}>
-                        {col.key === 'query_status' ? (
-                          <select
-                            value={row[col.key] || 'bekliyor'}
-                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
-                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
-                            title={STATUS_OPTIONS.find(option => option.value === row[col.key])?.label || row[col.key] || ''}
-                          >
-                            {STATUS_OPTIONS.map(option => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
-                        ) : col.key === 'query_date' ? (
-                          <input
-                            type="date"
-                            value={row[col.key] || ''}
-                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
-                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
-                            title={String(row[col.key] || '')}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={row[col.key] || ''}
-                            onChange={e => updateCell(sourceIndex, col.key, e.target.value)}
-                            style={{ ...cellInputStyle, height: Math.max(32, rowHeight - 10) }}
-                            title={String(row[col.key] || '')}
-                          />
-                        )}
-                      </div>
-                    </td>
-                  ))}
-                  <td style={{ ...tdStyle, height: rowHeight }}>
-                    <button
-                      title="Satırı sil"
-                      onClick={() => setRows(prev => prev.filter((_, i) => i !== sourceIndex))}
-                      style={iconButtonStyle}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </td>
+              {filteredWorkflowRows.length === 0 ? (
+                <tr><td colSpan={7} style={emptyCellStyle}>Workflow mail kaydi yok.</td></tr>
+              ) : filteredWorkflowRows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.playbook_name}</td>
+                  <td>{row.to_email}</td>
+                  <td title={row.subject}>{row.subject}</td>
+                  <td>{toDisplayDateTime(row.mail_date)}</td>
+                  <td><Badge label={workflowMailStatusLabel(row.status)} color={row.status === 'sent' ? '#10b981' : row.status === 'failed' ? '#ef4444' : '#64748b'} /></td>
+                  <td>{row.source}</td>
+                  <td>{row.trigger_count}</td>
                 </tr>
-              )})}
-              {visibleRows.length === 0 && (
-                <tr>
-                  <td colSpan={columns.length + 2} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Filtreyle eşleşen kayıt yok.
-                  </td>
-                </tr>
-              )}
+              ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      <div style={{ marginTop: 28 }}>
-        <div style={sectionHeaderStyle}>
-          <div>
-            <h2 style={sectionTitleStyle}>Kullanıcı Sorgusu Olmayan Workflow Mailleri</h2>
-            <p className="text-muted" style={{ margin: '4px 0 0' }}>
-              Agentic workflow metrik ve kurum toplamı mailleri burada ayrı takip edilir.
-            </p>
-          </div>
         </div>
+      </section>
 
-        <div style={tableToolbarStyle}>
-          <span>{visibleWorkflowMailRows.length} / {workflowMailRows.length} kayıt gösteriliyor</span>
-          {activeWorkflowMailFilterCount > 0 && (
-            <button className="btn-secondary" onClick={clearAllWorkflowMailFilters}>
-              <X size={15} /> Filtreleri Temizle ({activeWorkflowMailFilterCount})
-            </button>
-          )}
-        </div>
-
-        <div className="card" style={{ overflow: 'auto', padding: 0, maxHeight: 420 }}>
-          {loading ? (
-            <div style={{ padding: 24, color: 'var(--text-muted)' }}>Yükleniyor...</div>
-          ) : (
-            <table style={{ width: totalWorkflowMailTableWidth, minWidth: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: 58 }} />
-                {WORKFLOW_MAIL_COLUMNS.map(col => (
-                  <col key={col.key} style={{ width: WORKFLOW_MAIL_COLUMN_WIDTHS[col.key] || 220 }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
-                  <th style={stickyThStyle}>#</th>
-                  {WORKFLOW_MAIL_COLUMNS.map(col => (
-                    <th key={col.key} style={thStyle}>{col.label}</th>
-                  ))}
-                </tr>
-                <tr>
-                  <th style={stickyFilterThStyle}></th>
-                  {WORKFLOW_MAIL_COLUMNS.map(col => (
-                    <th key={col.key} style={filterThStyle}>
-                      <div style={filterCellStyle}>
-                        {col.key === 'mail_date' ? (
-                          <input
-                            type="date"
-                            value={workflowMailFilters[col.key] || ''}
-                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
-                            style={filterInputStyle}
-                            title={`${col.label} filtresi`}
-                          />
-                        ) : col.key === 'status' ? (
-                          <select
-                            value={workflowMailFilters[col.key] || ''}
-                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
-                            style={filterInputStyle}
-                            title={`${col.label} filtresi`}
-                          >
-                            <option value="">Tümü</option>
-                            <option value="sent">Gönderildi</option>
-                            <option value="pending">Manuel bekliyor</option>
-                            <option value="failed">Başarısız</option>
-                            <option value="skipped">Atlandı</option>
-                          </select>
-                        ) : (
-                          <input
-                            value={workflowMailFilters[col.key] || ''}
-                            onChange={e => updateWorkflowMailFilter(col.key, e.target.value)}
-                            placeholder="Filtrele"
-                            style={filterInputStyle}
-                            title={`${col.label} filtresi`}
-                          />
-                        )}
-                        {workflowMailFilters[col.key] && (
-                          <button
-                            title="Filtreyi temizle"
-                            onClick={() => clearWorkflowMailFilter(col.key)}
-                            style={clearFilterButtonStyle}
-                          >
-                            <X size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleWorkflowMailRows.map((row, index) => (
-                  <tr key={row.id}>
-                    <td style={indexStyle}>{index + 1}</td>
-                    {WORKFLOW_MAIL_COLUMNS.map(col => {
-                      const rawValue = row[col.key]
-                      const value = col.key === 'mail_date'
-                        ? toDisplayDateTime(rawValue)
-                        : col.key === 'status'
-                          ? workflowMailStatusLabel(rawValue)
-                          : String(rawValue ?? '')
-                      return (
-                        <td key={col.key} style={readOnlyTdStyle} title={value}>
-                          {value || '-'}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-                {visibleWorkflowMailRows.length === 0 && (
-                  <tr>
-                    <td colSpan={WORKFLOW_MAIL_COLUMNS.length + 1} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                      Filtreyle eşleşen workflow mail kaydı yok.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 13 }}>
-        <FileSpreadsheet size={16} /> Kullanıcı sorgusu olan workflow kayıtları üstte, metrik ve kurum toplamı mailleri ayrı tabloda görünür.
+      <div style={footnoteStyle}>
+        <FileSpreadsheet size={16} /> Excel yukleme/indirme korunur; gunluk kullanimda kayitlar filtrelenebilir liste ve detay paneliyle yonetilir.
       </div>
     </div>
   )
 }
 
-const thStyle = {
-  position: 'sticky' as const,
-  top: 0,
-  zIndex: 3,
-  padding: '7px 8px',
-  borderBottom: '1px solid var(--border)',
-  borderRight: '1px solid var(--border)',
-  background: 'var(--surface-hover)',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-  textAlign: 'left' as const,
-  whiteSpace: 'nowrap' as const,
-  verticalAlign: 'top' as const
+function unique(values: Array<string | undefined | null>) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'tr-TR'))
 }
 
-const stickyThStyle = {
-  ...thStyle,
-  left: 0,
-  zIndex: 4
+function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+  return (
+    <label style={{ display: 'block', gridColumn: wide ? '1 / -1' : undefined }}>
+      <span style={labelStyle}>{label}</span>
+      {children}
+    </label>
+  )
 }
 
-const filterThStyle = {
-  ...thStyle,
-  top: 46,
-  padding: '5px 8px',
-  background: 'var(--surface)',
-  zIndex: 2
+function FilterInput({ label, value, onChange, options, placeholder, icon }: { label: string; value: string; onChange: (value: string) => void; options?: string[]; placeholder?: string; icon?: ReactNode }) {
+  const listId = `filter-${label.replace(/\s+/g, '-').toLowerCase()}`
+  return (
+    <Field label={label}>
+      <div style={{ position: 'relative' }}>
+        {icon && <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }}>{icon}</span>}
+        <input
+          style={{ ...inputStyle, paddingLeft: icon ? 32 : 10 }}
+          value={value}
+          list={options?.length ? listId : undefined}
+          placeholder={placeholder || 'Yaz veya sec'}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {options?.length ? (
+          <datalist id={listId}>
+            {options.map((option) => <option key={option} value={option} />)}
+          </datalist>
+        ) : null}
+      </div>
+    </Field>
+  )
 }
 
-const stickyFilterThStyle = {
-  ...filterThStyle,
-  left: 0,
-  zIndex: 4
+function SelectField({ label, value, onChange, options, emptyLabel }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }>; emptyLabel?: string }) {
+  return (
+    <Field label={label}>
+      <select style={inputStyle} value={value} onChange={(event) => onChange(event.target.value)}>
+        {emptyLabel && <option value="">{emptyLabel}</option>}
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </Field>
+  )
 }
 
-const tableToolbarStyle = {
+function ToolbarButton({ icon, label, onClick, disabled }: { icon: ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} style={{ ...buttonStyle, opacity: disabled ? .6 : 1 }}>{icon}{label}</button>
+}
+
+function PrimaryButton({ icon, label, onClick, disabled }: { icon: ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} style={{ ...primaryButtonStyle, opacity: disabled ? .6 : 1 }}>{icon}{label}</button>
+}
+
+function IconButton({ title, children, onClick }: { title: string; children: ReactNode; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
+  return <button type="button" title={title} onClick={onClick} style={iconButtonStyle}>{children}</button>
+}
+
+function Badge({ label, color }: { label: string; color: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 8px', borderRadius: 999, background: `${color}1f`, color, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+      {label}
+    </span>
+  )
+}
+
+function StatCard({ label, value, color = 'var(--accent)' }: { label: string; value: number; color?: string }) {
+  return (
+    <div style={statCardStyle}>
+      <div style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>{label}</div>
+      <div style={{ color, fontSize: 24, fontWeight: 850, lineHeight: 1.1 }}>{value}</div>
+    </div>
+  )
+}
+
+function EmptyState({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', gap: 8, minHeight: 180, color: 'var(--text-muted)', textAlign: 'center' }}>
+      {icon}
+      <span>{text}</span>
+    </div>
+  )
+}
+
+const headerStyle = {
   display: 'flex',
+  alignItems: 'flex-start',
   justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 12,
-  marginBottom: 10,
-  color: 'var(--text-muted)',
+  gap: 16,
+  marginBottom: 16,
+  flexWrap: 'wrap' as const,
+}
+
+const titleStyle = {
+  margin: 0,
+  color: 'var(--text-primary)',
+  fontSize: 24,
+  fontWeight: 850,
+}
+
+const subtitleStyle = {
+  margin: '3px 0 0',
+  color: 'var(--text-secondary)',
   fontSize: 13,
-  flexWrap: 'wrap' as const
+}
+
+const toolbarStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: 8,
+  flexWrap: 'wrap' as const,
+}
+
+const sectionStyle = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: 16,
+  marginBottom: 16,
+  boxShadow: 'var(--shadow-sm)',
 }
 
 const sectionHeaderStyle = {
   display: 'flex',
-  alignItems: 'flex-end',
+  alignItems: 'flex-start',
   justifyContent: 'space-between',
-  gap: 16,
-  marginBottom: 12
+  gap: 12,
+  marginBottom: 12,
+  flexWrap: 'wrap' as const,
 }
 
 const sectionTitleStyle = {
   margin: 0,
   color: 'var(--text-primary)',
   fontSize: 16,
-  fontWeight: 600
+  fontWeight: 850,
 }
 
-const headerCellStyle = {
-  position: 'relative' as const,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  minWidth: 0
+const sectionHintStyle = {
+  margin: '3px 0 0',
+  color: 'var(--text-secondary)',
+  fontSize: 12,
 }
 
-const filterCellStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  minWidth: 0
+const statsGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+  gap: 10,
+  marginBottom: 16,
 }
 
-const tdStyle = {
-  position: 'relative' as const,
-  padding: '4px 6px',
-  borderBottom: '1px solid var(--border)',
-  borderRight: '1px solid var(--border)',
-  verticalAlign: 'middle' as const
-}
-
-const readOnlyTdStyle = {
-  ...tdStyle,
-  padding: '9px 10px',
-  color: 'var(--text-primary)',
-  fontSize: 13,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap' as const
-}
-
-const indexStyle = {
-  ...tdStyle,
-  position: 'sticky' as const,
-  left: 0,
-  zIndex: 1,
-  width: 42,
-  color: 'var(--text-muted)',
-  textAlign: 'center' as const,
-  background: 'var(--surface-hover)'
-}
-
-const cellInputStyle = {
-  width: '100%',
-  minWidth: 0,
-  border: '1px solid transparent',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  padding: '6px 8px',
-  borderRadius: 4,
-  outline: 'none',
-  boxSizing: 'border-box' as const,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap' as const
-}
-
-const headerInputStyle = {
-  ...cellInputStyle,
-  flex: 1,
-  minWidth: 0,
-  fontWeight: 600
-}
-
-const filterInputStyle = {
-  ...cellInputStyle,
-  height: 30,
+const statCardStyle = {
+  background: 'var(--surface)',
   border: '1px solid var(--border)',
-  background: 'var(--background)',
-  fontSize: 12
+  borderRadius: 8,
+  padding: 14,
+  boxShadow: 'var(--shadow-sm)',
 }
 
-const iconButtonStyle = {
-  flex: '0 0 auto',
+const filterGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+  gap: 12,
+}
+
+const workflowFilterGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+  gap: 12,
+}
+
+const contentGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(360px, .95fr) minmax(420px, 1.05fr)',
+  gap: 16,
+  alignItems: 'start',
+}
+
+const listStyle = {
+  display: 'grid',
+  gap: 10,
+  maxHeight: 'calc(100vh - 360px)',
+  minHeight: 260,
+  overflow: 'auto',
+  paddingRight: 4,
+}
+
+const rowCardStyle = {
+  width: '100%',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  textAlign: 'left' as const,
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: 12,
+  cursor: 'pointer',
+  color: 'var(--text-primary)',
+}
+
+const rowTitleStyle = {
+  display: 'block',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+}
+
+const rowMetaStyle = {
+  marginTop: 3,
+  color: 'var(--text-secondary)',
+  fontSize: 12,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+}
+
+const editorGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 12,
+}
+
+const inputStyle = {
+  width: '100%',
+  minHeight: 34,
+  padding: '7px 10px',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  background: 'var(--surface)',
+  color: 'var(--text-primary)',
+  outline: 'none',
+  fontSize: 13,
+  fontFamily: 'Inter, sans-serif',
+} as const
+
+const labelStyle = {
+  display: 'block',
+  marginBottom: 6,
+  color: 'var(--text-primary)',
+  fontSize: 12,
+  fontWeight: 800,
+}
+
+const buttonStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 26,
-  height: 26,
+  gap: 6,
+  minHeight: 34,
+  padding: '7px 11px',
+  borderRadius: 6,
   border: '1px solid var(--border)',
   background: 'var(--surface)',
-  color: 'var(--text-muted)',
-  borderRadius: 4,
+  color: 'var(--text-primary)',
   cursor: 'pointer',
-  marginLeft: 0
+  fontSize: 13,
+  fontWeight: 800,
+  fontFamily: 'Inter, sans-serif',
+} as const
+
+const primaryButtonStyle = {
+  ...buttonStyle,
+  borderColor: 'var(--primary)',
+  background: 'var(--primary)',
+  color: '#fff',
 }
 
-const clearFilterButtonStyle = {
-  ...iconButtonStyle,
-  width: 24,
-  height: 24,
-  marginLeft: 0
+const iconButtonStyle = {
+  ...buttonStyle,
+  width: 32,
+  height: 32,
+  padding: 0,
+  flex: '0 0 auto',
 }
 
-const columnResizeHandleStyle = {
-  position: 'absolute' as const,
-  top: 0,
-  right: -3,
-  width: 7,
-  height: '100%',
-  cursor: 'col-resize',
-  zIndex: 5
+const messageStyle = {
+  marginBottom: 12,
+  padding: '10px 14px',
+  borderRadius: 8,
+  border: '1px solid',
+  fontSize: 13,
+  fontWeight: 800,
 }
 
-const rowResizeHandleStyle = {
-  position: 'absolute' as const,
-  left: 0,
-  right: 0,
-  bottom: -3,
-  height: 7,
-  cursor: 'row-resize',
-  zIndex: 2
+const emptyCellStyle = {
+  padding: 30,
+  textAlign: 'center' as const,
+  color: 'var(--text-muted)',
+}
+
+const footnoteStyle = {
+  marginTop: 12,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  color: 'var(--text-muted)',
+  fontSize: 13,
 }
