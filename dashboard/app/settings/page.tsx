@@ -2,7 +2,6 @@
 
 import { CSSProperties, ReactNode, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import axios from 'axios'
 import {
   Bell,
@@ -13,14 +12,11 @@ import {
   Database,
   Eye,
   EyeOff,
-  Gauge,
   Info,
   KeyRound,
   Mail,
-  Play,
   Save,
   Send,
-  Settings,
   ShieldCheck,
   TestTube2,
 } from 'lucide-react'
@@ -97,16 +93,6 @@ interface LdapSettings {
   updated_at?: string | null
 }
 
-interface SplunkSettings {
-  enabled: boolean
-  hec_url: string
-  hec_token: string
-  hec_token_set: boolean
-  index: string
-  source: string
-  sourcetype: string
-}
-
 type Message = { type: 'success' | 'error'; text: string } | null
 
 const inputStyle = {
@@ -138,7 +124,7 @@ const buttonBase = {
 } as const
 
 export default function SettingsPage() {
-  const [open, setOpen] = useState<string[]>(['ai', 'smtp', 'imap', 'ldap', 'jobs'])
+  const [open, setOpen] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [generalSaving, setGeneralSaving] = useState(false)
   const [dlpSaving, setDlpSaving] = useState(false)
@@ -149,14 +135,11 @@ export default function SettingsPage() {
   const [imapTesting, setImapTesting] = useState(false)
   const [ldapSaving, setLdapSaving] = useState(false)
   const [ldapTesting, setLdapTesting] = useState(false)
-  const [splunkSaving, setSplunkSaving] = useState(false)
-  const [splunkTesting, setSplunkTesting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showDlpPassword, setShowDlpPassword] = useState(false)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
   const [showImapPassword, setShowImapPassword] = useState(false)
   const [showLdapPassword, setShowLdapPassword] = useState(false)
-  const [showSplunkToken, setShowSplunkToken] = useState(false)
   const [smtpTestRecipient, setSmtpTestRecipient] = useState('')
   const [message, setMessage] = useState<Message>(null)
 
@@ -229,16 +212,6 @@ export default function SettingsPage() {
     last_updated: null,
   })
 
-  const [splunk, setSplunk] = useState<SplunkSettings>({
-    enabled: false,
-    hec_url: '',
-    hec_token: '',
-    hec_token_set: false,
-    index: 'dlp_risk_analyzer',
-    source: 'dlp-risk-analyzer',
-    sourcetype: 'dlp:audit',
-  })
-
   const apiUrl = useMemo(() => getApiUrlDynamic(), [])
 
   useEffect(() => {
@@ -254,7 +227,6 @@ export default function SettingsPage() {
         fetchImap(),
         fetchLdap(),
         fetchDlp(),
-        fetchSplunk(),
       ])
     } finally {
       setLoading(false)
@@ -348,20 +320,6 @@ export default function SettingsPage() {
       password: '',
       password_set: data.password_set ?? false,
       last_updated: data.updated_at ?? null,
-    })
-  }
-
-  const fetchSplunk = async () => {
-    const { data } = await axios.get(`${apiUrl}/api/settings/splunk`).catch(() => ({ data: null }))
-    if (!data) return
-    setSplunk({
-      enabled: data.enabled ?? false,
-      hec_url: data.hec_url ?? '',
-      hec_token: '',
-      hec_token_set: data.hec_token_set ?? false,
-      index: data.index ?? 'dlp_risk_analyzer',
-      source: data.source ?? 'dlp-risk-analyzer',
-      sourcetype: data.sourcetype ?? 'dlp:audit',
     })
   }
 
@@ -580,44 +538,6 @@ export default function SettingsPage() {
     }
   }
 
-  const saveSplunk = async () => {
-    setSplunkSaving(true)
-    try {
-      await axios.post(`${apiUrl}/api/settings/splunk`, {
-        enabled: splunk.enabled,
-        hec_url: splunk.hec_url.trim(),
-        hec_token: splunk.hec_token.trim() || undefined,
-        index: splunk.index.trim(),
-        source: splunk.source.trim(),
-        sourcetype: splunk.sourcetype.trim(),
-      }, { timeout: 15000 })
-      setSplunk((prev) => ({ ...prev, hec_token: '', hec_token_set: prev.hec_token_set || Boolean(prev.hec_token.trim()) }))
-      flash('success', 'Splunk ayarlari kaydedildi')
-    } catch (error: any) {
-      flash('error', error.response?.data?.detail || error.message || 'Splunk ayarlari kaydedilemedi')
-    } finally {
-      setSplunkSaving(false)
-    }
-  }
-
-  const testSplunk = async () => {
-    setSplunkTesting(true)
-    try {
-      const response = await axios.post(`${apiUrl}/api/settings/splunk/test`, {
-        hec_url: splunk.hec_url.trim() || undefined,
-        hec_token: splunk.hec_token.trim() || undefined,
-        index: splunk.index.trim() || undefined,
-        source: splunk.source.trim() || undefined,
-        sourcetype: splunk.sourcetype.trim() || undefined,
-      }, { timeout: 20000 })
-      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'Splunk testi tamamlandi')
-    } catch (error: any) {
-      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Splunk testi basarisiz')
-    } finally {
-      setSplunkTesting(false)
-    }
-  }
-
   const toggleSection = (id: string) => {
     setOpen((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   }
@@ -637,8 +557,6 @@ export default function SettingsPage() {
     setLdap((prev) => ({ ...prev, [key]: value }))
   const updateDlp = <K extends keyof DlpSettings>(key: K, value: DlpSettings[K]) =>
     setDlp((prev) => ({ ...prev, [key]: value }))
-  const updateSplunk = <K extends keyof SplunkSettings>(key: K, value: SplunkSettings[K]) =>
-    setSplunk((prev) => ({ ...prev, [key]: value }))
 
   if (loading) {
     return <div className="container"><div className="loading">Ayarlar yukleniyor...</div></div>
@@ -798,20 +716,6 @@ export default function SettingsPage() {
         </Actions>
       </AccordionSection>
 
-      <AccordionSection id="jobs" title="Jobs" icon={<Settings size={17} />} open={open.includes('jobs')} onToggle={toggleSection}>
-        <Panel>
-          <Grid columns="repeat(auto-fit, minmax(260px, 1fr))">
-            <Field label="Job gecmisi varsayilan sayfa boyutu"><input type="number" min={1} style={inputStyle} value={general.job_history_page_size} onChange={(e) => updateGeneral('job_history_page_size', Number(e.target.value) || 30)} /></Field>
-            <Field label="Hangfire'dan cekilecek maksimum is gecmisi sayisi"><input type="number" min={1} style={inputStyle} value={general.hangfire_max_history} onChange={(e) => updateGeneral('hangfire_max_history', Number(e.target.value) || 100)} /></Field>
-            <Field label="Job gecmisinde gosterilecek son kayit sayisi"><input type="number" min={1} style={inputStyle} value={general.job_history_latest_count} onChange={(e) => updateGeneral('job_history_latest_count', Number(e.target.value) || 20)} /></Field>
-          </Grid>
-          <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-            <Link href="/scheduled-jobs" style={{ ...buttonBase, textDecoration: 'none' }}><Play size={15} /> Zamanlanmis Isler</Link>
-            <PrimaryButton icon={<Save size={15} />} onClick={saveGeneral} disabled={generalSaving}>{generalSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
-          </div>
-        </Panel>
-      </AccordionSection>
-
       <AccordionSection id="notifications" title="Bildirim Ayarlari" icon={<Bell size={17} />} open={open.includes('notifications')} onToggle={toggleSection}>
         <Panel>
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -821,38 +725,6 @@ export default function SettingsPage() {
             <PrimaryButton icon={<Save size={15} />} onClick={saveGeneral} disabled={generalSaving}>{generalSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
           </div>
         </Panel>
-      </AccordionSection>
-
-      <AccordionSection id="risk" title="Risk Esikleri" icon={<Gauge size={17} />} open={open.includes('risk')} onToggle={toggleSection}>
-        <Panel>
-          <Grid>
-            <Field label="Dusuk Esik"><input type="number" min={0} max={100} style={inputStyle} value={general.risk_threshold_low} onChange={(e) => updateGeneral('risk_threshold_low', Number(e.target.value) || 10)} /></Field>
-            <Field label="Orta Esik"><input type="number" min={0} max={100} style={inputStyle} value={general.risk_threshold_medium} onChange={(e) => updateGeneral('risk_threshold_medium', Number(e.target.value) || 30)} /></Field>
-            <Field label="Yuksek Esik"><input type="number" min={0} max={100} style={inputStyle} value={general.risk_threshold_high} onChange={(e) => updateGeneral('risk_threshold_high', Number(e.target.value) || 50)} /></Field>
-          </Grid>
-          <Actions><PrimaryButton icon={<Save size={15} />} onClick={saveGeneral} disabled={generalSaving}>{generalSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton></Actions>
-        </Panel>
-      </AccordionSection>
-
-      <AccordionSection id="splunk" title="Splunk SIEM" icon={<Cloud size={17} />} open={open.includes('splunk')} onToggle={toggleSection}>
-        <Panel>
-          <Toggle checked={splunk.enabled} label="Splunk Aktif" onChange={(value) => updateSplunk('enabled', value)} />
-        </Panel>
-        <Panel title="Baglanti Bilgileri" icon={<Cloud size={15} />}>
-          <Grid>
-            <Field label="HEC URL"><input style={inputStyle} value={splunk.hec_url} onChange={(e) => updateSplunk('hec_url', e.target.value)} /></Field>
-            <Field label="HEC Token">
-              <SecretInput value={splunk.hec_token} placeholder={splunk.hec_token_set ? 'Degistirmek icin yeni token girin' : 'Token girin'} visible={showSplunkToken} onToggle={() => setShowSplunkToken((v) => !v)} onChange={(value) => updateSplunk('hec_token', value)} saved={splunk.hec_token_set} />
-            </Field>
-            <Field label="Index"><input style={inputStyle} value={splunk.index} onChange={(e) => updateSplunk('index', e.target.value)} /></Field>
-            <Field label="Source"><input style={inputStyle} value={splunk.source} onChange={(e) => updateSplunk('source', e.target.value)} /></Field>
-            <Field label="Sourcetype"><input style={inputStyle} value={splunk.sourcetype} onChange={(e) => updateSplunk('sourcetype', e.target.value)} /></Field>
-          </Grid>
-        </Panel>
-        <Actions>
-          <ActionButton icon={<TestTube2 size={15} />} onClick={testSplunk} disabled={splunkTesting}>{splunkTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
-          <PrimaryButton icon={<Save size={15} />} onClick={saveSplunk} disabled={splunkSaving}>{splunkSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
-        </Actions>
       </AccordionSection>
 
       <AccordionSection id="dlp" title="DLP API" icon={<Cloud size={17} />} open={open.includes('dlp')} onToggle={toggleSection}>
