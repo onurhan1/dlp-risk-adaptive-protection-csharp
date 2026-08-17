@@ -1,0 +1,320 @@
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Text;
+using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+
+namespace DLP.RiskAnalyzer.Analyzer.Services;
+
+public class DirectorySettingsService : IDirectorySettingsService
+{
+    private const string ImapPrefix = "imap_";
+    private const string ImapEnabledKey = "imap_enabled";
+    private const string ImapHostKey = "imap_host";
+    private const string ImapPortKey = "imap_port";
+    private const string ImapSslKey = "imap_enable_ssl";
+    private const string ImapUsernameKey = "imap_username";
+    private const string ImapPasswordKey = "imap_password_protected";
+    private const string ImapFolderKey = "imap_folder";
+    private const string ImapUnreadOnlyKey = "imap_unread_only";
+    private const string ImapLookbackDaysKey = "imap_lookback_days";
+    private const string ImapMaxMessagesKey = "imap_max_messages";
+
+    private const string LdapPrefix = "ldap_";
+    private const string LdapEnabledKey = "ldap_enabled";
+    private const string LdapUseLdapsKey = "ldap_use_ldaps";
+    private const string LdapHostKey = "ldap_host";
+    private const string LdapPortKey = "ldap_port";
+    private const string LdapDomainKey = "ldap_domain";
+    private const string LdapSearchBaseKey = "ldap_search_base";
+    private const string LdapServiceAccountKey = "ldap_service_account";
+    private const string LdapServicePasswordKey = "ldap_service_password_protected";
+    private const string LdapUserFilterKey = "ldap_user_filter";
+    private const string LdapAdminGroupKey = "ldap_admin_group";
+    private const string LdapStandardGroupKey = "ldap_standard_group";
+
+    private readonly AnalyzerDbContext _context;
+    private readonly IDataProtector _protector;
+    private readonly ILogger<DirectorySettingsService> _logger;
+
+    public DirectorySettingsService(
+        AnalyzerDbContext context,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger<DirectorySettingsService> logger)
+    {
+        _context = context;
+        _protector = dataProtectionProvider.CreateProtector("Directory.SettingsProtector");
+        _logger = logger;
+    }
+
+    public async Task<ImapSettingsResponse> GetImapAsync(CancellationToken ct = default)
+    {
+        var dict = await LoadAsync(ImapPrefix, ct);
+        return BuildImapResponse(dict);
+    }
+
+    public async Task<ImapSettingsResponse> SaveImapAsync(ImapSettingsRequest request, CancellationToken ct = default)
+    {
+        ValidateImap(request, allowEmptyPassword: true);
+
+        await UpsertAsync(ImapEnabledKey, request.Enabled.ToString(), ct);
+        await UpsertAsync(ImapHostKey, request.Host.Trim(), ct);
+        await UpsertAsync(ImapPortKey, request.Port.ToString(), ct);
+        await UpsertAsync(ImapSslKey, request.EnableSsl.ToString(), ct);
+        await UpsertAsync(ImapUsernameKey, request.Username.Trim(), ct);
+        await UpsertAsync(ImapFolderKey, string.IsNullOrWhiteSpace(request.Folder) ? "INBOX" : request.Folder.Trim(), ct);
+        await UpsertAsync(ImapUnreadOnlyKey, request.UnreadOnly.ToString(), ct);
+        await UpsertAsync(ImapLookbackDaysKey, Clamp(request.LookbackDays, 1, 365).ToString(), ct);
+        await UpsertAsync(ImapMaxMessagesKey, Clamp(request.MaxMessages, 1, 10000).ToString(), ct);
+
+        if (!string.IsNullOrWhiteSpace(request.Password))
+            await UpsertAsync(ImapPasswordKey, _protector.Protect(request.Password), ct);
+
+        return await GetImapAsync(ct);
+    }
+
+    public async Task<DirectorySettingsTestResult> TestImapAsync(ImapSettingsRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+            request.Password = await GetSecretAsync(ImapPasswordKey, ct);
+
+        ValidateImap(request, allowEmptyPassword: false);
+
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
+            using var stream = request.EnableSsl
+                ? await WrapSslAsync(client, request.Host.Trim(), ct)
+                : client.GetStream();
+
+            var greeting = await ReadImapAsync(stream, ct);
+            if (!greeting.Contains("* OK", StringComparison.OrdinalIgnoreCase))
+                return Result(false, $"IMAP sunucusu beklenen acilis yanitini vermedi: {Shorten(greeting)}");
+
+            var username = EscapeImap(request.Username.Trim());
+            var password = EscapeImap(request.Password ?? string.Empty);
+            await WriteAsync(stream, $"A001 LOGIN \"{username}\" \"{password}\"\r\n", ct);
+            var login = await ReadImapAsync(stream, ct, "A001");
+            var ok = login.Contains("A001 OK", StringComparison.OrdinalIgnoreCase);
+
+            await WriteAsync(stream, "A002 LOGOUT\r\n", ct);
+
+            return ok
+                ? Result(true, "IMAP baglantisi ve kimlik dogrulama basarili")
+                : Result(false, $"IMAP kimlik dogrulama basarisiz: {Shorten(login)}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IMAP connection test failed");
+            return Result(false, $"IMAP testi basarisiz: {ex.Message}");
+        }
+    }
+
+    public async Task<LdapSettingsResponse> GetLdapAsync(CancellationToken ct = default)
+    {
+        var dict = await LoadAsync(LdapPrefix, ct);
+        return BuildLdapResponse(dict);
+    }
+
+    public async Task<LdapSettingsResponse> SaveLdapAsync(LdapSettingsRequest request, CancellationToken ct = default)
+    {
+        ValidateLdap(request);
+
+        await UpsertAsync(LdapEnabledKey, request.Enabled.ToString(), ct);
+        await UpsertAsync(LdapUseLdapsKey, request.UseLdaps.ToString(), ct);
+        await UpsertAsync(LdapHostKey, request.Host.Trim(), ct);
+        await UpsertAsync(LdapPortKey, request.Port.ToString(), ct);
+        await UpsertAsync(LdapDomainKey, request.Domain.Trim(), ct);
+        await UpsertAsync(LdapSearchBaseKey, request.SearchBase.Trim(), ct);
+        await UpsertAsync(LdapServiceAccountKey, request.ServiceAccount.Trim(), ct);
+        await UpsertAsync(LdapUserFilterKey, string.IsNullOrWhiteSpace(request.UserFilter) ? "(sAMAccountName={0})" : request.UserFilter.Trim(), ct);
+        await UpsertAsync(LdapAdminGroupKey, request.AdminGroup.Trim(), ct);
+        await UpsertAsync(LdapStandardGroupKey, request.StandardGroup.Trim(), ct);
+
+        if (!string.IsNullOrWhiteSpace(request.ServicePassword))
+            await UpsertAsync(LdapServicePasswordKey, _protector.Protect(request.ServicePassword), ct);
+
+        return await GetLdapAsync(ct);
+    }
+
+    public async Task<DirectorySettingsTestResult> TestLdapAsync(LdapSettingsRequest request, CancellationToken ct = default)
+    {
+        ValidateLdap(request);
+
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
+
+            if (request.UseLdaps)
+            {
+                await using var ssl = await WrapSslAsync(client, request.Host.Trim(), ct);
+                return Result(true, "LDAPS endpoint erisilebilir ve TLS el sikismasi basarili");
+            }
+
+            return Result(true, "LDAP endpoint erisilebilir");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LDAP connection test failed");
+            return Result(false, $"LDAP testi basarisiz: {ex.Message}");
+        }
+    }
+
+    private async Task<Dictionary<string, SystemSetting>> LoadAsync(string prefix, CancellationToken ct)
+    {
+        return await _context.SystemSettings
+            .AsNoTracking()
+            .Where(s => s.Key.StartsWith(prefix))
+            .ToDictionaryAsync(s => s.Key, s => s, ct);
+    }
+
+    private async Task UpsertAsync(string key, string value, CancellationToken ct)
+    {
+        var entity = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == key, ct);
+        if (entity == null)
+        {
+            _context.SystemSettings.Add(new SystemSetting { Key = key, Value = value, UpdatedAt = DateTime.UtcNow });
+        }
+        else
+        {
+            entity.Value = value;
+            entity.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync(ct);
+    }
+
+    private async Task<string?> GetSecretAsync(string key, CancellationToken ct)
+    {
+        var setting = await _context.SystemSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Key == key, ct);
+        if (setting == null || string.IsNullOrWhiteSpace(setting.Value)) return null;
+
+        try
+        {
+            return _protector.Unprotect(setting.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not decrypt directory setting {Key}", key);
+            return null;
+        }
+    }
+
+    private static ImapSettingsResponse BuildImapResponse(Dictionary<string, SystemSetting> dict)
+    {
+        var host = Get(dict, ImapHostKey);
+        var username = Get(dict, ImapUsernameKey);
+        var passwordSet = dict.ContainsKey(ImapPasswordKey) && !string.IsNullOrWhiteSpace(dict[ImapPasswordKey].Value);
+
+        return new ImapSettingsResponse
+        {
+            Enabled = Bool(Get(dict, ImapEnabledKey), false),
+            Host = host,
+            Port = Int(Get(dict, ImapPortKey), 993),
+            EnableSsl = Bool(Get(dict, ImapSslKey), true),
+            Username = username,
+            PasswordSet = passwordSet,
+            Folder = Get(dict, ImapFolderKey, "INBOX"),
+            UnreadOnly = Bool(Get(dict, ImapUnreadOnlyKey), true),
+            LookbackDays = Int(Get(dict, ImapLookbackDaysKey), 7),
+            MaxMessages = Int(Get(dict, ImapMaxMessagesKey), 500),
+            IsConfigured = !string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(username) && passwordSet,
+            UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
+        };
+    }
+
+    private static LdapSettingsResponse BuildLdapResponse(Dictionary<string, SystemSetting> dict)
+    {
+        var host = Get(dict, LdapHostKey);
+        var serviceAccount = Get(dict, LdapServiceAccountKey);
+        var passwordSet = dict.ContainsKey(LdapServicePasswordKey) && !string.IsNullOrWhiteSpace(dict[LdapServicePasswordKey].Value);
+        var useLdaps = Bool(Get(dict, LdapUseLdapsKey), true);
+
+        return new LdapSettingsResponse
+        {
+            Enabled = Bool(Get(dict, LdapEnabledKey), false),
+            UseLdaps = useLdaps,
+            Host = host,
+            Port = Int(Get(dict, LdapPortKey), useLdaps ? 636 : 389),
+            Domain = Get(dict, LdapDomainKey),
+            SearchBase = Get(dict, LdapSearchBaseKey),
+            ServiceAccount = serviceAccount,
+            ServicePasswordSet = passwordSet,
+            UserFilter = Get(dict, LdapUserFilterKey, "(sAMAccountName={0})"),
+            AdminGroup = Get(dict, LdapAdminGroupKey),
+            StandardGroup = Get(dict, LdapStandardGroupKey),
+            IsConfigured = !string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(serviceAccount) && passwordSet,
+            UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
+        };
+    }
+
+    private static void ValidateImap(ImapSettingsRequest request, bool allowEmptyPassword)
+    {
+        if (string.IsNullOrWhiteSpace(request.Host)) throw new ArgumentException("IMAP sunucu adresi zorunludur");
+        if (request.Port is < 1 or > 65535) throw new ArgumentException("IMAP port 1 ile 65535 arasinda olmalidir");
+        if (string.IsNullOrWhiteSpace(request.Username)) throw new ArgumentException("IMAP kullanici adi zorunludur");
+        if (!allowEmptyPassword && string.IsNullOrWhiteSpace(request.Password)) throw new ArgumentException("IMAP sifresi zorunludur");
+    }
+
+    private static void ValidateLdap(LdapSettingsRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Host)) throw new ArgumentException("LDAP sunucu adresi zorunludur");
+        if (request.Port is < 1 or > 65535) throw new ArgumentException("LDAP port 1 ile 65535 arasinda olmalidir");
+    }
+
+    private static async Task<Stream> WrapSslAsync(TcpClient client, string host, CancellationToken ct)
+    {
+        var ssl = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
+        await ssl.AuthenticateAsClientAsync(host, null, System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13, false);
+        return ssl;
+    }
+
+    private static async Task WriteAsync(Stream stream, string command, CancellationToken ct)
+    {
+        var bytes = Encoding.ASCII.GetBytes(command);
+        await stream.WriteAsync(bytes, ct);
+        await stream.FlushAsync(ct);
+    }
+
+    private static async Task<string> ReadImapAsync(Stream stream, CancellationToken ct, string? untilTag = null)
+    {
+        var buffer = new byte[4096];
+        var builder = new StringBuilder();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+        do
+        {
+            var read = await stream.ReadAsync(buffer, timeout.Token);
+            if (read <= 0) break;
+            builder.Append(Encoding.ASCII.GetString(buffer, 0, read));
+        }
+        while (untilTag != null && !builder.ToString().Contains(untilTag, StringComparison.OrdinalIgnoreCase));
+
+        return builder.ToString();
+    }
+
+    private static DirectorySettingsTestResult Result(bool success, string message) => new()
+    {
+        Success = success,
+        Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static string Get(Dictionary<string, SystemSetting> dict, string key, string fallback = "") =>
+        dict.TryGetValue(key, out var value) ? value.Value : fallback;
+
+    private static bool Bool(string value, bool fallback) => bool.TryParse(value, out var parsed) ? parsed : fallback;
+
+    private static int Int(string value, int fallback) => int.TryParse(value, out var parsed) ? parsed : fallback;
+
+    private static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
+
+    private static string EscapeImap(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static string Shorten(string value) => value.Length <= 300 ? value : value[..300];
+}
