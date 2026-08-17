@@ -54,16 +54,22 @@ public static class PlaybookNodeType
     public const string TriggerManual = "trigger.manual";
     public const string SourceWeeklyFlags = "source.weeklyFlags";
     public const string SourceIncidentMetric = "source.incidentMetric";
+    public const string SourceHighRiskUsers = "source.highRiskUsers";
+    public const string SourceTopActionUsers = "source.topActionUsers";
+    public const string SourceHighMaxMatchTransfers = "source.highMaxMatchTransfers";
     public const string TransformFilter = "transform.filter";
     public const string LogicCondition = "logic.condition";
     public const string LogicMetricThreshold = "logic.metricThreshold";
     public const string ActionSendMail = "action.sendMail";
+    public const string ActionSendReportMail = "action.sendReportMail";
     public const string OutputReport = "output.report";
 
     public static readonly string[] All =
     {
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric,
-        TransformFilter, LogicCondition, LogicMetricThreshold, ActionSendMail, OutputReport
+        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers,
+        TransformFilter, LogicCondition, LogicMetricThreshold,
+        ActionSendMail, ActionSendReportMail, OutputReport
     };
 
     public static bool IsTrigger(string type) =>

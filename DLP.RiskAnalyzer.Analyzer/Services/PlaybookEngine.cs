@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Mail;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
@@ -249,6 +250,15 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourceIncidentMetric:
                 return SingleOutput(PlaybookPayload.OfMetric(await LoadIncidentMetricAsync(node, context)));
 
+            case PlaybookNodeType.SourceHighRiskUsers:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadHighRiskUsersAsync(node, context, ct)));
+
+            case PlaybookNodeType.SourceTopActionUsers:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadTopActionUsersAsync(node, context, ct)));
+
+            case PlaybookNodeType.SourceHighMaxMatchTransfers:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadHighMaxMatchTransfersAsync(node, context, ct)));
+
             case PlaybookNodeType.TransformFilter:
                 return SingleOutput(PlaybookPayload.OfItems(ApplyFilter(node, input.Items, context)));
 
@@ -260,6 +270,9 @@ public class PlaybookEngine : IPlaybookEngine
 
             case PlaybookNodeType.ActionSendMail:
                 return SingleOutput(await SendMailsAsync(node, input, playbook, run, context, ct));
+
+            case PlaybookNodeType.ActionSendReportMail:
+                return SingleOutput(await SendReportMailAsync(node, input, playbook, run, context, ct));
 
             case PlaybookNodeType.OutputReport:
                 context.SetMessage(input.HasMetric
@@ -311,6 +324,211 @@ public class PlaybookEngine : IPlaybookEngine
 
         return deduped;
     }
+
+    private async Task<List<PlaybookItem>> LoadHighRiskUsersAsync(PlaybookNode node, SendContext context, CancellationToken ct)
+    {
+        var days = Math.Max(1, node.GetInt("days") ?? 7);
+        var minRiskScore = Math.Clamp(node.GetInt("min_risk_score") ?? 80, 0, 100);
+        var topLimit = Math.Clamp(node.GetInt("top_limit") ?? 25, 1, 200);
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-days);
+
+        var scores = await _context.UserDailyRiskScores
+            .AsNoTracking()
+            .Where(s => s.Date >= startDate && s.Date <= endDate)
+            .ToListAsync(ct);
+
+        var rows = scores
+            .GroupBy(s => s.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var list = g.ToList();
+                var maxScore = list.Max(s => s.DailyRiskScore);
+                var first = list.Min(s => s.Date).ToDateTime(TimeOnly.MinValue);
+                var last = list.Max(s => s.Date).ToDateTime(TimeOnly.MinValue);
+                var best = list.OrderByDescending(s => s.DailyRiskScore).First();
+                var incidentCount = list.Sum(s => s.IncidentCount);
+                var blockCount = list.Sum(s => s.BlockCount);
+                var permitCount = list.Sum(s => s.PermitCount);
+                var maxMatches = list.Max(s => s.MaxMaxMatches);
+
+                return new
+                {
+                    UserEmail = g.Key,
+                    best.FullName,
+                    Team = best.Team,
+                    ContactEmail = string.IsNullOrWhiteSpace(best.EmailAddress) ? g.Key : best.EmailAddress!,
+                    MaxScore = maxScore,
+                    IncidentCount = incidentCount,
+                    BlockCount = blockCount,
+                    PermitCount = permitCount,
+                    MaxMatches = maxMatches,
+                    FirstSeen = first,
+                    LastSeen = last
+                };
+            })
+            .Where(x => x.MaxScore >= minRiskScore)
+            .OrderByDescending(x => x.MaxScore)
+            .ThenByDescending(x => x.IncidentCount)
+            .Take(topLimit)
+            .ToList();
+
+        var items = rows.Select(x => new PlaybookItem(
+            new WeeklyFlagUserDto(
+                x.UserEmail,
+                x.FullName,
+                x.Team,
+                x.ContactEmail,
+                (int)Math.Round(x.MaxScore),
+                x.FirstSeen,
+                x.LastSeen,
+                new List<WeeklyFlagIncidentDto>
+                {
+                    new(
+                        x.LastSeen,
+                        $"Max risk: {x.MaxScore:0.#} | Incident: {x.IncidentCount} | Block: {x.BlockCount} | Permit: {x.PermitCount}",
+                        x.MaxMatches,
+                        null,
+                        "Risk")
+                }),
+            PlaybookNodeType.SourceHighRiskUsers)).ToList();
+
+        context.SetMessage($"Son {days} günde risk skoru {minRiskScore}+ olan {items.Count} kullanıcı listelendi");
+        return items;
+    }
+
+    private async Task<List<PlaybookItem>> LoadTopActionUsersAsync(PlaybookNode node, SendContext context, CancellationToken ct)
+    {
+        var days = Math.Max(1, node.GetInt("days") ?? 7);
+        var topLimit = Math.Clamp(node.GetInt("top_limit") ?? 25, 1, 200);
+        var actionKind = (node.GetString("action_kind") ?? "permit").Trim().ToLowerInvariant();
+        var end = DateTime.UtcNow;
+        var start = end.Date.AddDays(-days);
+
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .Where(i => i.Timestamp >= start && i.Timestamp <= end && i.Action != null)
+            .OrderByDescending(i => i.Timestamp)
+            .Take(MetricRowCap)
+            .ToListAsync(ct);
+
+        var filtered = incidents
+            .Where(i => actionKind == "block" ? IsBlockAction(i.Action) : IsPermitAction(i.Action))
+            .ToList();
+
+        var items = filtered
+            .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var list = g.OrderByDescending(i => i.Timestamp).ToList();
+                var topSamples = list
+                    .OrderByDescending(i => i.MaxMatches)
+                    .ThenByDescending(i => i.Timestamp)
+                    .Take(3)
+                    .Select(ToWeeklyFlagIncident)
+                    .ToList();
+                var best = list.First();
+
+                return new PlaybookItem(
+                    new WeeklyFlagUserDto(
+                        g.Key,
+                        FirstNonEmpty(list.Select(i => i.FullName)),
+                        FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
+                        ResolveContactEmail(best),
+                        list.Count,
+                        list.Min(i => i.Timestamp),
+                        list.Max(i => i.Timestamp),
+                        topSamples),
+                    actionKind == "block" ? "top_block_users" : "top_permit_users");
+            })
+            .OrderByDescending(i => i.User.TriggerCount)
+            .ThenByDescending(i => i.User.SampleIncidents.Count > 0 ? i.User.SampleIncidents.Max(s => s.MaxMatches) : 0)
+            .Take(topLimit)
+            .ToList();
+
+        context.SetMessage($"Son {days} günde en çok {actionKind} incident üreten {items.Count} kullanıcı listelendi");
+        return items;
+    }
+
+    private async Task<List<PlaybookItem>> LoadHighMaxMatchTransfersAsync(PlaybookNode node, SendContext context, CancellationToken ct)
+    {
+        var days = Math.Max(1, node.GetInt("days") ?? 7);
+        var threshold = Math.Max(1, node.GetInt("min_matches") ?? 300);
+        var topLimit = Math.Clamp(node.GetInt("top_limit") ?? 25, 1, 200);
+        var end = DateTime.UtcNow;
+        var start = end.Date.AddDays(-days);
+
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .Where(i => i.Timestamp >= start && i.Timestamp <= end && i.MaxMatches >= threshold)
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Timestamp)
+            .Take(MetricRowCap)
+            .ToListAsync(ct);
+
+        var items = incidents
+            .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var list = g.OrderByDescending(i => i.MaxMatches).ThenByDescending(i => i.Timestamp).ToList();
+                var best = list.First();
+                return new PlaybookItem(
+                    new WeeklyFlagUserDto(
+                        g.Key,
+                        FirstNonEmpty(list.Select(i => i.FullName)),
+                        FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
+                        ResolveContactEmail(best),
+                        best.MaxMatches,
+                        list.Min(i => i.Timestamp),
+                        list.Max(i => i.Timestamp),
+                        list.Take(3).Select(ToWeeklyFlagIncident).ToList()),
+                    PlaybookNodeType.SourceHighMaxMatchTransfers);
+            })
+            .OrderByDescending(i => i.User.TriggerCount)
+            .Take(topLimit)
+            .ToList();
+
+        context.SetMessage($"Max Match {threshold}+ olan tekil gönderimlerden {items.Count} kullanıcı listelendi");
+        return items;
+    }
+
+    private static bool IsPermitAction(string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action)) return false;
+        var value = action.Trim().ToUpperInvariant();
+        return value.Contains("PERMIT") || value.Contains("ALLOW") || value.Contains("AUTHORIZE") || value.Contains("AUTHORIZED");
+    }
+
+    private static bool IsBlockAction(string? action)
+    {
+        if (string.IsNullOrWhiteSpace(action)) return false;
+        return action.Trim().ToUpperInvariant().Contains("BLOCK");
+    }
+
+    private static string ResolveContactEmail(Incident incident)
+    {
+        if (!string.IsNullOrWhiteSpace(incident.EmailAddress)) return incident.EmailAddress.Trim();
+        if (!string.IsNullOrWhiteSpace(incident.UserEmail)) return incident.UserEmail.Trim();
+        if (!string.IsNullOrWhiteSpace(incident.LoginName)) return incident.LoginName.Trim();
+        return "unknown";
+    }
+
+    private static string? FirstNonEmpty(IEnumerable<string?> values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static WeeklyFlagIncidentDto ToWeeklyFlagIncident(Incident incident) =>
+        new(
+            incident.Timestamp,
+            string.IsNullOrWhiteSpace(incident.Policy)
+                ? incident.RuleName
+                : string.IsNullOrWhiteSpace(incident.RuleName)
+                    ? incident.Policy
+                    : $"{incident.Policy} / {incident.RuleName}",
+            incident.MaxMatches,
+            incident.Destination,
+            string.IsNullOrWhiteSpace(incident.Action)
+                ? incident.Channel
+                : $"{incident.Channel ?? "-"} · {incident.Action}");
 
     private static List<PlaybookItem> ApplyFilter(PlaybookNode node, List<PlaybookItem> input, SendContext context)
     {
@@ -808,6 +1026,231 @@ public class PlaybookEngine : IPlaybookEngine
         });
     }
 
+    private async Task<PlaybookPayload> SendReportMailAsync(
+        PlaybookNode node,
+        PlaybookPayload payload,
+        Playbook playbook,
+        PlaybookRun run,
+        SendContext context,
+        CancellationToken ct)
+    {
+        var fixedRecipient = node.GetString("fixed_recipient")?.Trim();
+        if (string.IsNullOrWhiteSpace(fixedRecipient))
+            fixedRecipient = await ResolveAdminEmailAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(fixedRecipient))
+            throw new InvalidOperationException("Rapor maili icin alici bulunamadi. Node uzerinde alici girin veya Ayarlar > Yonetici E-postasi alanini doldurun.");
+        if (fixedRecipient.Contains('@') && !IsValidEmail(fixedRecipient))
+            throw new InvalidOperationException("Rapor alicisi gecerli degil.");
+
+        var ccEmail = node.GetString("cc_email")?.Trim();
+        if (string.IsNullOrWhiteSpace(ccEmail)) ccEmail = null;
+        if (!string.IsNullOrWhiteSpace(ccEmail) && !IsValidEmail(ccEmail))
+            throw new InvalidOperationException("Rapor CC adresi gecerli degil.");
+
+        var now = DateTime.UtcNow;
+        var title = node.GetString("title")?.Trim();
+        if (string.IsNullOrWhiteSpace(title)) title = "Agentic Workflow Raporu";
+
+        var subject = node.GetString("subject_override")?.Trim();
+        if (string.IsNullOrWhiteSpace(subject)) subject = $"{title} - {now:dd.MM.yyyy}";
+
+        var bodyHtml = BuildReportMailHtml(title, node.GetString("intro"), payload, now);
+
+        var entry = new PlaybookMailLog
+        {
+            RunId = run.Id,
+            PlaybookId = playbook.Id,
+            NodeId = node.Id,
+            UserEmail = "(rapor)",
+            FullName = title,
+            Team = null,
+            ToEmail = fixedRecipient!,
+            CcEmail = ccEmail,
+            Subject = subject,
+            BodyHtml = bodyHtml,
+            SourceCriterion = payload.HasMetric
+                ? PlaybookNodeType.SourceIncidentMetric
+                : payload.Items.FirstOrDefault()?.SourceCriterion ?? node.Type,
+            TriggerCount = payload.HasMetric ? (int)Math.Round(payload.Metric!.Value) : payload.Items.Count,
+            CreatedAt = now
+        };
+
+        var syncToQueries = false;
+        if (!fixedRecipient.Contains('@'))
+        {
+            entry.Status = PlaybookMailStatus.Pending;
+            entry.ErrorMessage = "Alici adresinde @ yok; manuel gonderim icin bekliyor.";
+            syncToQueries = true;
+        }
+        else if (await HasDuplicateMailAsync(fixedRecipient!, entry.Subject, entry.BodyHtml, null, ct))
+        {
+            entry.Status = PlaybookMailStatus.Skipped;
+            entry.ErrorMessage = "Ayni aliciya ayni rapor son 30 dakika icinde hazirlanmis veya gonderilmis.";
+        }
+        else if (!context.TryReserveRecipient(fixedRecipient!))
+        {
+            entry.Status = PlaybookMailStatus.Skipped;
+            entry.ErrorMessage = context.LastSkipReason;
+        }
+        else if (context.DryRun)
+        {
+            entry.Status = PlaybookMailStatus.Pending;
+            syncToQueries = true;
+        }
+        else
+        {
+            var success = await _emailService.SendEmailAsync(
+                toEmail: fixedRecipient!,
+                subject: entry.Subject,
+                body: entry.BodyHtml,
+                isHtml: true,
+                toName: null,
+                ccEmail: ccEmail);
+
+            if (success)
+            {
+                entry.Status = PlaybookMailStatus.Sent;
+                entry.SentAt = DateTime.UtcNow;
+                syncToQueries = true;
+            }
+            else
+            {
+                entry.Status = PlaybookMailStatus.Failed;
+                entry.ErrorMessage = "SMTP gonderimi basarisiz (yapilandirmayi ve loglari kontrol edin)";
+            }
+        }
+
+        _context.PlaybookMailLogs.Add(entry);
+        await _context.SaveChangesAsync(ct);
+        if (syncToQueries) await UpsertQueryRecordsForMailLogsAsync(new[] { entry }, ct);
+
+        context.SetMessage(entry.Status switch
+        {
+            PlaybookMailStatus.Pending => $"Rapor maili onay icin hazirlandi -> {fixedRecipient}",
+            PlaybookMailStatus.Sent => $"Rapor maili gonderildi -> {fixedRecipient}",
+            PlaybookMailStatus.Skipped => entry.ErrorMessage ?? "Rapor maili atlandi",
+            _ => "Rapor maili gonderilemedi"
+        });
+
+        return payload;
+    }
+
+    private async Task<string?> ResolveAdminEmailAsync(CancellationToken ct)
+    {
+        var setting = await _context.SystemSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Key == "admin_email", ct);
+
+        return setting?.Value;
+    }
+
+    private static string BuildReportMailHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
+    {
+        if (payload.HasMetric)
+        {
+            var metric = payload.Metric!;
+            var breakdownRows = metric.Breakdown.Count == 0
+                ? "<tr><td colspan=\"2\" class=\"empty\">Kirilim yok.</td></tr>"
+                : string.Join("", metric.Breakdown.Select(b =>
+                    $"<tr><td>{Encode(b.Label)}</td><td>{b.Count:N0}</td></tr>"));
+
+            return $@"
+<html>
+<head>{ReportMailStyles()}</head>
+<body>
+  <div class=""wrap"">
+    <div class=""header""><h1>{Encode(title)}</h1></div>
+    <div class=""content"">
+      <p class=""meta"">{Encode(intro)}<br/>Uretim tarihi: {now:dd.MM.yyyy HH:mm}</p>
+      <table>
+        <tbody>
+          <tr><th>Metrik</th><td>{Encode(metric.Label)}</td></tr>
+          <tr><th>Deger</th><td>{metric.Value:0.##}</td></tr>
+          <tr><th>Donem</th><td>{metric.WindowStart:dd.MM.yyyy} - {metric.WindowEnd:dd.MM.yyyy}</td></tr>
+          <tr><th>Toplam Incident</th><td>{metric.TotalIncidents:N0}</td></tr>
+          <tr><th>Kullanici Sayisi</th><td>{metric.UniqueUsers:N0}</td></tr>
+          <tr><th>Filtreler</th><td>{Encode(metric.FilterSummary)}</td></tr>
+        </tbody>
+      </table>
+      <h2>Kirilim</h2>
+      <table><thead><tr><th>Alan</th><th>Adet</th></tr></thead><tbody>{breakdownRows}</tbody></table>
+      <div class=""footer"">Bu rapor agentic workflow tarafindan servis hesabi uzerinden uretilmistir.</div>
+    </div>
+  </div>
+</body>
+</html>";
+        }
+
+        var rows = payload.Items.Count == 0
+            ? "<tr><td colspan=\"8\" class=\"empty\">Kayit bulunamadi.</td></tr>"
+            : string.Join("", payload.Items.Select((item, index) =>
+            {
+                var user = item.User;
+                var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
+                return "<tr>" +
+                       $"<td>{index + 1}</td>" +
+                       $"<td>{Encode(user.FullName ?? user.UserEmail)}</td>" +
+                       $"<td>{Encode(user.UserEmail)}</td>" +
+                       $"<td>{Encode(user.Team ?? "-")}</td>" +
+                       $"<td>{Encode(ReportCriterionLabel(item.SourceCriterion))}</td>" +
+                       $"<td>{user.TriggerCount:N0}</td>" +
+                       $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>" +
+                       $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
+                       "</tr>";
+            }));
+
+        return $@"
+<html>
+<head>{ReportMailStyles()}</head>
+<body>
+  <div class=""wrap"">
+    <div class=""header""><h1>{Encode(title)}</h1></div>
+    <div class=""content"">
+      <p class=""meta"">{Encode(intro)}<br/>Uretim tarihi: {now:dd.MM.yyyy HH:mm} · Satir: {payload.Items.Count:N0}</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Kullanici</th><th>E-posta</th><th>Ekip</th><th>Kaynak</th><th>Sinyal</th><th>Max Match</th><th>Ornek Policy / Rule</th></tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
+      <div class=""footer"">Bu rapor agentic workflow tarafindan servis hesabi uzerinden uretilmistir.</div>
+    </div>
+  </div>
+</body>
+</html>";
+    }
+
+    private static string ReportMailStyles() => @"
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #f8fafc; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .header { background: #0f172a; color: #fff; padding: 18px 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #fff; padding: 18px 20px; border: 1px solid #e2e8f0; border-top: 0; border-radius: 0 0 8px 8px; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 18px 0 8px; font-size: 15px; }
+    .meta { color: #64748b; margin: 0 0 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; }
+    td { border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
+    .empty { text-align: center; color: #64748b; padding: 24px; }
+    .footer { color: #64748b; font-size: 11px; margin-top: 16px; }
+  </style>";
+
+    private static string ReportCriterionLabel(string? criterion) => criterion switch
+    {
+        PlaybookNodeType.SourceHighRiskUsers => "Haftalik yuksek skorlu kullanici",
+        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yuksek Max Match gonderimi",
+        "top_permit_users" => "En cok Permit incident",
+        "top_block_users" => "En cok Block incident",
+        WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),
+        WeeklyFlagCriterion.HighVolume => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.HighVolume),
+        WeeklyFlagCriterion.MassiveMatches => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.MassiveMatches),
+        _ => criterion ?? "-"
+    };
+
+    private static string Encode(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
     private async Task<bool> HasDuplicateMailAsync(
         string toEmail,
         string subject,
@@ -1086,6 +1529,41 @@ public class PlaybookEngine : IPlaybookEngine
                     break;
                 }
 
+                case PlaybookNodeType.SourceHighRiskUsers:
+                {
+                    if (node.GetInt("days") is <= 0)
+                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                    if (node.GetInt("top_limit") is <= 0)
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                    var minRisk = node.GetInt("min_risk_score");
+                    if (minRisk is < 0 or > 100)
+                        result.Errors.Add($"'{node.Label}' min risk skoru 0-100 arasinda olmali.");
+                    break;
+                }
+
+                case PlaybookNodeType.SourceTopActionUsers:
+                {
+                    if (node.GetInt("days") is <= 0)
+                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                    if (node.GetInt("top_limit") is <= 0)
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                    var actionKind = node.GetString("action_kind") ?? "permit";
+                    if (actionKind is not ("permit" or "block"))
+                        result.Errors.Add($"'{node.Label}' aksiyon turu permit veya block olmali.");
+                    break;
+                }
+
+                case PlaybookNodeType.SourceHighMaxMatchTransfers:
+                {
+                    if (node.GetInt("days") is <= 0)
+                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                    if (node.GetInt("top_limit") is <= 0)
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                    if (node.GetInt("min_matches") is <= 0)
+                        result.Errors.Add($"'{node.Label}' Max Match alt siniri 0'dan buyuk olmali.");
+                    break;
+                }
+
                 case PlaybookNodeType.LogicMetricThreshold:
                 {
                     if (node.GetInt("value") is null)
@@ -1110,6 +1588,18 @@ public class PlaybookEngine : IPlaybookEngine
                     var cc = node.GetString("cc_email");
                     if (!string.IsNullOrWhiteSpace(cc) && !IsValidEmail(cc))
                         result.Errors.Add($"'{node.Label}' CC adresi geçerli değil.");
+                    break;
+                }
+
+                case PlaybookNodeType.ActionSendReportMail:
+                {
+                    var fixedRecipient = node.GetString("fixed_recipient");
+                    if (!string.IsNullOrWhiteSpace(fixedRecipient) && !IsValidEmail(fixedRecipient))
+                        result.Errors.Add($"'{node.Label}' rapor alicisi gecerli degil.");
+
+                    var cc = node.GetString("cc_email");
+                    if (!string.IsNullOrWhiteSpace(cc) && !IsValidEmail(cc))
+                        result.Errors.Add($"'{node.Label}' CC adresi gecerli degil.");
                     break;
                 }
             }
@@ -1153,7 +1643,10 @@ public class PlaybookEngine : IPlaybookEngine
                     string.Join(", ", orphans.Select(o => o.Label)));
 
             if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.SourceWeeklyFlags
-                                             or PlaybookNodeType.SourceIncidentMetric))
+                                             or PlaybookNodeType.SourceIncidentMetric
+                                             or PlaybookNodeType.SourceHighRiskUsers
+                                             or PlaybookNodeType.SourceTopActionUsers
+                                             or PlaybookNodeType.SourceHighMaxMatchTransfers))
                 result.Warnings.Add("Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.");
 
             foreach (var node in metricSources.Where(n => !metricReach.Any(id =>
@@ -1161,7 +1654,8 @@ public class PlaybookEngine : IPlaybookEngine
                 result.Warnings.Add(
                     $"'{node.Label}' bir Metrik Eşiği node'una bağlı değil; mail eşik kontrolü olmadan " +
                     "her çalıştırmada gönderilir.");
-            if (!graph.Nodes.Any(n => n.Type == PlaybookNodeType.ActionSendMail))
+            if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.ActionSendMail
+                                             or PlaybookNodeType.ActionSendReportMail))
                 result.Warnings.Add("Akışta mail gönderme adımı yok.");
             if (!graph.Nodes.Any(n => n.Type == PlaybookNodeType.OutputReport))
                 result.Warnings.Add("Akışta rapor çıktısı yok; sonuçlar yine de mail kaydına yazılır.");

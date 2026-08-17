@@ -19,6 +19,10 @@ import { RunStatusBadge } from '@/components/investigation/playbook/RunHistoryPa
 import {
   createStarterGraph,
   createIncidentMetricGraph,
+  createHighRiskUsersReportGraph,
+  createTopPermitUsersReportGraph,
+  createTopBlockUsersReportGraph,
+  createHighMaxMatchTransfersReportGraph,
   type PlaybookGraph,
   type PlaybookSummary,
 } from '@/components/investigation/playbook/types'
@@ -85,6 +89,9 @@ function PlaybooksPageContent() {
       createIncidentMetricGraph()
     ), [create])
 
+  const createReportPlaybook = useCallback((name: string, description: string, graph: PlaybookGraph) =>
+    create(name, description, graph), [create])
+
   useEffect(() => {
     fetchPlaybooks()
   }, [fetchPlaybooks])
@@ -140,6 +147,50 @@ function PlaybooksPageContent() {
             style={withDisabled(secondaryButtonStyle, creating)}
           >
             <BarChart3 size={15} /> Incident Eşik Akışı
+          </button>
+          <button
+            onClick={() => createReportPlaybook(
+              'Haftalik Yuksek Skorlu Kullanici Raporu',
+              'Haftalik bazda incelenmesi tavsiye edilen yuksek skorlu kullanicilari raporlar.',
+              createHighRiskUsersReportGraph()
+            )}
+            disabled={creating}
+            style={withDisabled(secondaryButtonStyle, creating)}
+          >
+            <BarChart3 size={15} /> Yuksek Skor Raporu
+          </button>
+          <button
+            onClick={() => createReportPlaybook(
+              'Haftalik Permit Incident Raporu',
+              'En cok Permit incident ureten kullanicilari raporlar.',
+              createTopPermitUsersReportGraph()
+            )}
+            disabled={creating}
+            style={withDisabled(secondaryButtonStyle, creating)}
+          >
+            <BarChart3 size={15} /> Permit Raporu
+          </button>
+          <button
+            onClick={() => createReportPlaybook(
+              'Haftalik Block Incident Raporu',
+              'En cok Block incident ureten kullanicilari raporlar.',
+              createTopBlockUsersReportGraph()
+            )}
+            disabled={creating}
+            style={withDisabled(secondaryButtonStyle, creating)}
+          >
+            <BarChart3 size={15} /> Block Raporu
+          </button>
+          <button
+            onClick={() => createReportPlaybook(
+              'Haftalik Yuksek Max Match Raporu',
+              'Tek seferde yuksek Max Match degeriyle veri gonderen kullanicilari raporlar.',
+              createHighMaxMatchTransfersReportGraph()
+            )}
+            disabled={creating}
+            style={withDisabled(secondaryButtonStyle, creating)}
+          >
+            <BarChart3 size={15} /> Max Match Raporu
           </button>
           <button
             onClick={() => createPlaybook('Haftalık Sorgu Akışı')}

@@ -473,6 +473,10 @@ public class PlaybooksController : ControllerBase
     {
         null => null,
         PlaybookNodeType.SourceIncidentMetric => "Incident metriği (kurum toplamı)",
+        PlaybookNodeType.SourceHighRiskUsers => "Haftalik yuksek skorlu kullanicilar",
+        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yuksek Max Match transferleri",
+        "top_permit_users" => "En cok Permit incident uretenler",
+        "top_block_users" => "En cok Block incident uretenler",
         _ => WeeklyFlagCriterion.Label(criterion)
     };
 

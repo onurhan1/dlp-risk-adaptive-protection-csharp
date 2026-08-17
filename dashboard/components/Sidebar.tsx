@@ -284,10 +284,6 @@ export default function Sidebar() {
               <Users size={20} />
               <span>{t('nav.userManagement')}</span>
             </Link>
-            <Link href="/scheduled-jobs" className={`sidebar-icon ${pathname === '/scheduled-jobs' ? 'active' : ''}`}>
-              <CalendarClock size={20} />
-              <span>{t('nav.scheduledJobs')}</span>
-            </Link>
           </>
         )}
       </div>

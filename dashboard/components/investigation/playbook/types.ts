@@ -23,10 +23,14 @@ export type PlaybookNodeType =
   | 'trigger.manual'
   | 'source.weeklyFlags'
   | 'source.incidentMetric'
+  | 'source.highRiskUsers'
+  | 'source.topActionUsers'
+  | 'source.highMaxMatchTransfers'
   | 'transform.filter'
   | 'logic.condition'
   | 'logic.metricThreshold'
   | 'action.sendMail'
+  | 'action.sendReportMail'
   | 'output.report'
 
 export interface PlaybookNode {
@@ -143,6 +147,10 @@ export const WEEKLY_FLAG_CRITERIA = [
 export function criterionLabel(value?: string | null): string {
   if (!value) return '-'
   if (value === 'source.incidentMetric') return 'Incident metriği (kurum toplamı)'
+  if (value === 'source.highRiskUsers') return 'Haftalik yuksek skorlu kullanicilar'
+  if (value === 'source.highMaxMatchTransfers') return 'Yuksek Max Match transferleri'
+  if (value === 'top_permit_users') return 'En cok Permit incident uretenler'
+  if (value === 'top_block_users') return 'En cok Block incident uretenler'
   return WEEKLY_FLAG_CRITERIA.find(c => c.value === value)?.label ?? value
 }
 
@@ -304,6 +312,39 @@ export const NODE_CATALOG: NodeDefinition[] = [
     },
   },
   {
+    type: 'source.highRiskUsers',
+    label: 'Yuksek Skorlu Kullanicilar',
+    description: 'Haftalik pencerede risk skoru belirli esigin uzerindeki kullanicilari listeler.',
+    icon: Users,
+    color: 'linear-gradient(135deg, #dc2626, #f97316)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: { days: 7, min_risk_score: 80, top_limit: 25 },
+  },
+  {
+    type: 'source.topActionUsers',
+    label: 'Top Permit / Block Kullanicilar',
+    description: 'Permit veya Block aksiyonunda en cok incident ureten kullanicilari listeler.',
+    icon: Users,
+    color: 'linear-gradient(135deg, #7c3aed, #2563eb)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: { days: 7, action_kind: 'permit', top_limit: 25 },
+  },
+  {
+    type: 'source.highMaxMatchTransfers',
+    label: 'Yuksek Max Match Transferleri',
+    description: 'Tek seferde yuksek Max Match degeriyle veri gonderen kullanicilari listeler.',
+    icon: BarChart3,
+    color: 'linear-gradient(135deg, #be123c, #e11d48)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: { days: 7, min_matches: 300, top_limit: 25 },
+  },
+  {
     type: 'logic.metricThreshold',
     label: 'Metrik Eşiği',
     description: 'Metrik belirlediğin eşiği geçerse akışı sürdürür, geçmezse durdurur.',
@@ -358,6 +399,23 @@ export const NODE_CATALOG: NodeDefinition[] = [
       cc_email: '',
       recipient_mode: 'user',
       fixed_recipient: '',
+    },
+  },
+  {
+    type: 'action.sendReportMail',
+    label: 'Rapor Maili Gonder',
+    description: 'Gelen listeyi tek HTML tablo raporuna cevirir ve servis hesabi uzerinden gonderir.',
+    icon: Mail,
+    color: 'linear-gradient(135deg, #059669, #0f766e)',
+    category: 'İşlem',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {
+      title: 'Haftalik DLP Raporu',
+      fixed_recipient: '',
+      cc_email: '',
+      subject_override: '',
+      intro: '',
     },
   },
   {
@@ -473,6 +531,15 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
       return `${metricLabel(config.metric)} · son ${config.days ?? 7} gün · ${suffix}`
     }
 
+    case 'source.highRiskUsers':
+      return `Son ${config.days ?? 7} gun · skor >= ${config.min_risk_score ?? 80} · top ${config.top_limit ?? 25}`
+
+    case 'source.topActionUsers':
+      return `Son ${config.days ?? 7} gun · ${config.action_kind === 'block' ? 'Block' : 'Permit'} · top ${config.top_limit ?? 25}`
+
+    case 'source.highMaxMatchTransfers':
+      return `Son ${config.days ?? 7} gun · Max Match >= ${config.min_matches ?? 300} · top ${config.top_limit ?? 25}`
+
     case 'logic.metricThreshold': {
       const opLabel: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' }
       return `Metrik ${opLabel[config.op] ?? '>'} ${config.value ?? 0} ise devam`
@@ -505,6 +572,9 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
       if (config.subject_override) return `${config.subject_override} → ${recipient}`
       return 'Şablon seçilmedi'
     }
+
+    case 'action.sendReportMail':
+      return `${config.title || 'Rapor'} -> ${config.fixed_recipient || 'Yonetici E-postasi'}`
 
     case 'output.report':
       return config.title || 'Rapor'
@@ -579,6 +649,27 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
       }
     }
 
+    if (['source.highRiskUsers', 'source.topActionUsers', 'source.highMaxMatchTransfers'].includes(node.type)) {
+      const days = Number(node.config?.days)
+      const topLimit = Number(node.config?.top_limit)
+      if (!Number.isFinite(days) || days <= 0) errors.push(`'${node.label}' gun sayisi 0'dan buyuk olmali.`)
+      if (!Number.isFinite(topLimit) || topLimit <= 0) errors.push(`'${node.label}' top limit 0'dan buyuk olmali.`)
+    }
+
+    if (node.type === 'source.highRiskUsers') {
+      const score = Number(node.config?.min_risk_score)
+      if (!Number.isFinite(score) || score < 0 || score > 100) errors.push(`'${node.label}' min risk skoru 0-100 arasinda olmali.`)
+    }
+
+    if (node.type === 'source.topActionUsers' && !['permit', 'block'].includes(String(node.config?.action_kind || 'permit'))) {
+      errors.push(`'${node.label}' aksiyon turu permit veya block olmali.`)
+    }
+
+    if (node.type === 'source.highMaxMatchTransfers') {
+      const minMatches = Number(node.config?.min_matches)
+      if (!Number.isFinite(minMatches) || minMatches <= 0) errors.push(`'${node.label}' Max Match alt siniri 0'dan buyuk olmali.`)
+    }
+
     if (node.type === 'logic.metricThreshold') {
       const value = node.config?.value
       if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) {
@@ -602,6 +693,14 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
 
   // Metric path rules — a metric is one organisation-wide number, so nodes downstream of a
   // metric source behave differently from the per-user path. Mirrors PlaybookEngine.ValidateAsync.
+  for (const node of graph.nodes) {
+    if (node.type !== 'action.sendReportMail') continue
+    const recipient = String(node.config?.fixed_recipient || '').trim()
+    if (recipient && !isValidEmail(recipient)) errors.push(`'${node.label}' rapor alicisi gecerli degil.`)
+    const cc = String(node.config?.cc_email || '').trim()
+    if (cc && !isValidEmail(cc)) errors.push(`'${node.label}' CC adresi gecerli degil.`)
+  }
+
   const metricSources = graph.nodes.filter(n => n.type === 'source.incidentMetric')
   const metricReach = new Set<string>()
   for (const source of metricSources) {
@@ -642,10 +741,16 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
         orphans.map(o => o.label).join(', ')
       )
     }
-    if (!graph.nodes.some(n => n.type === 'source.weeklyFlags' || n.type === 'source.incidentMetric')) {
+    if (!graph.nodes.some(n =>
+      n.type === 'source.weeklyFlags' ||
+      n.type === 'source.incidentMetric' ||
+      n.type === 'source.highRiskUsers' ||
+      n.type === 'source.topActionUsers' ||
+      n.type === 'source.highMaxMatchTransfers'
+    )) {
       warnings.push('Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.')
     }
-    if (!graph.nodes.some(n => n.type === 'action.sendMail')) {
+    if (!graph.nodes.some(n => n.type === 'action.sendMail' || n.type === 'action.sendReportMail')) {
       warnings.push('Akışta mail gönderme adımı yok.')
     }
     if (!graph.nodes.some(n => n.type === 'output.report')) {
@@ -786,4 +891,58 @@ export function createIncidentMetricGraph(): PlaybookGraph {
       { id: newId('e'), source: mail.id, target: report.id },
     ],
   }
+}
+
+function createReportGraph(sourceType: PlaybookNodeType, title: string, sourcePatch: Record<string, any> = {}): PlaybookGraph {
+  const trigger = createNode('trigger.schedule', 80, 200)
+  const source = createNode(sourceType, 380, 200)
+  const reportMail = createNode('action.sendReportMail', 680, 200)
+  const report = createNode('output.report', 980, 200)
+
+  source.config = { ...source.config, ...sourcePatch }
+  reportMail.config.title = title
+  reportMail.config.subject_override = ''
+  reportMail.config.intro = 'Agentic workflow tarafindan otomatik uretilen haftalik DLP raporu.'
+  report.config.title = title
+
+  return {
+    nodes: [trigger, source, reportMail, report],
+    edges: [
+      { id: newId('e'), source: trigger.id, target: source.id },
+      { id: newId('e'), source: source.id, target: reportMail.id },
+      { id: newId('e'), source: reportMail.id, target: report.id },
+    ],
+  }
+}
+
+export function createHighRiskUsersReportGraph(): PlaybookGraph {
+  return createReportGraph('source.highRiskUsers', 'Haftalik Yuksek Skorlu Kullanicilar', {
+    days: 7,
+    min_risk_score: 80,
+    top_limit: 25,
+  })
+}
+
+export function createTopPermitUsersReportGraph(): PlaybookGraph {
+  return createReportGraph('source.topActionUsers', 'Haftalik En Cok Permit Incident Uretenler', {
+    days: 7,
+    action_kind: 'permit',
+    top_limit: 25,
+  })
+}
+
+export function createTopBlockUsersReportGraph(): PlaybookGraph {
+  return createReportGraph('source.topActionUsers', 'Haftalik En Cok Block Incident Uretenler', {
+    days: 7,
+    action_kind: 'block',
+    top_limit: 25,
+  })
+}
+
+export function createHighMaxMatchTransfersReportGraph(): PlaybookGraph {
+  return createReportGraph('source.highMaxMatchTransfers', 'Haftalik Yuksek Max Match Veri Gonderimleri', {
+    days: 7,
+    min_matches: 300,
+    top_limit: 25,
+  })
 }

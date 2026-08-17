@@ -137,12 +137,16 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, o
         )}
         {node.type === 'source.weeklyFlags' && <WeeklyFlagsForm node={node} setConfig={setConfig} />}
         {node.type === 'source.incidentMetric' && <IncidentMetricForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.highRiskUsers' && <HighRiskUsersForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.topActionUsers' && <TopActionUsersForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.highMaxMatchTransfers' && <HighMaxMatchTransfersForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.metricThreshold' && <MetricThresholdForm node={node} setConfig={setConfig} />}
         {node.type === 'action.sendMail' && (
           <SendMailForm node={node} setConfig={setConfig} templates={templates} inMetricFlow={inMetricFlow} />
         )}
+        {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} />}
         {node.type === 'output.report' && (
           <div>
             <label style={labelStyle}>Rapor Başlığı</label>
@@ -328,6 +332,88 @@ function WeeklyFlagsForm({ node, setConfig }: { node: PlaybookNode; setConfig: (
         <p style={hintStyle}>
           Aynı kişi birden fazla kritere takılırsa yalnızca bir kez listelenir (olay sayısı yüksek olan kriterle).
         </p>
+      </div>
+    </>
+  )
+}
+
+function HighRiskUsersForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <TwoNumberFields
+        leftLabel="Geriye Donuk Gun"
+        leftValue={node.config.days ?? 7}
+        leftMin={1}
+        leftOnChange={value => setConfig({ days: value })}
+        rightLabel="Top Limit"
+        rightValue={node.config.top_limit ?? 25}
+        rightMin={1}
+        rightOnChange={value => setConfig({ top_limit: value })}
+      />
+      <div>
+        <label style={labelStyle}>Min Risk Skoru</label>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          style={inputStyle}
+          value={node.config.min_risk_score ?? 80}
+          onChange={e => setConfig({ min_risk_score: Number(e.target.value) })}
+        />
+        <p style={hintStyle}>Haftalik pencerede bu skor ve uzerindeki kullanicilar rapora girer.</p>
+      </div>
+    </>
+  )
+}
+
+function TopActionUsersForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <TwoNumberFields
+        leftLabel="Geriye Donuk Gun"
+        leftValue={node.config.days ?? 7}
+        leftMin={1}
+        leftOnChange={value => setConfig({ days: value })}
+        rightLabel="Top Limit"
+        rightValue={node.config.top_limit ?? 25}
+        rightMin={1}
+        rightOnChange={value => setConfig({ top_limit: value })}
+      />
+      <div>
+        <label style={labelStyle}>Aksiyon</label>
+        <select style={inputStyle} value={node.config.action_kind ?? 'permit'} onChange={e => setConfig({ action_kind: e.target.value })}>
+          <option value="permit">Permit / Allow / Authorized</option>
+          <option value="block">Block</option>
+        </select>
+        <p style={hintStyle}>Permit ve Block raporlarini ayri ayri uretmek icin bu node'u iki kez kullanabilirsiniz.</p>
+      </div>
+    </>
+  )
+}
+
+function HighMaxMatchTransfersForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <TwoNumberFields
+        leftLabel="Geriye Donuk Gun"
+        leftValue={node.config.days ?? 7}
+        leftMin={1}
+        leftOnChange={value => setConfig({ days: value })}
+        rightLabel="Top Limit"
+        rightValue={node.config.top_limit ?? 25}
+        rightMin={1}
+        rightOnChange={value => setConfig({ top_limit: value })}
+      />
+      <div>
+        <label style={labelStyle}>Max Match Alt Siniri</label>
+        <input
+          type="number"
+          min={1}
+          style={inputStyle}
+          value={node.config.min_matches ?? 300}
+          onChange={e => setConfig({ min_matches: Number(e.target.value) })}
+        />
+        <p style={hintStyle}>Varsayilan alt sinir 300. Tekil olaylarda bu deger ve uzeri raporlanir.</p>
       </div>
     </>
   )
@@ -550,6 +636,78 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
         Bu node yalnızca <strong>Incident Metriği</strong> girdisiyle çalışır; kullanıcı listesi taşıyan
         bir kaynağa bağlanamaz. Kullanıcı bazlı eşik için <strong>Koşul</strong> node'unu kullan.
       </div>
+    </>
+  )
+}
+
+function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  const recipient = String(node.config.fixed_recipient ?? '').trim()
+  const ccEmail = String(node.config.cc_email ?? '').trim()
+
+  return (
+    <>
+      <div>
+        <label style={labelStyle}>Rapor Basligi</label>
+        <input
+          style={inputStyle}
+          value={node.config.title ?? ''}
+          onChange={e => setConfig({ title: e.target.value })}
+          placeholder="Haftalik DLP Raporu"
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Rapor Alicisi</label>
+        <input
+          type="email"
+          style={inputStyle}
+          value={node.config.fixed_recipient ?? ''}
+          onChange={e => setConfig({ fixed_recipient: e.target.value })}
+          placeholder="Bos kalirsa Yonetici E-postasi kullanilir"
+        />
+        {recipient && !isValidEmail(recipient) && (
+          <p style={{ ...hintStyle, color: '#991b1b' }}>Gecerli bir e-posta adresi girin.</p>
+        )}
+      </div>
+
+      <div>
+        <label style={labelStyle}>CC <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(opsiyonel)</span></label>
+        <input
+          type="email"
+          style={inputStyle}
+          value={node.config.cc_email ?? ''}
+          onChange={e => setConfig({ cc_email: e.target.value })}
+          placeholder="dlp-ekip@firma.com"
+        />
+        {ccEmail && !isValidEmail(ccEmail) && (
+          <p style={{ ...hintStyle, color: '#991b1b' }}>Gecerli bir CC adresi girin.</p>
+        )}
+      </div>
+
+      <div>
+        <label style={labelStyle}>Konu <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(opsiyonel)</span></label>
+        <input
+          style={inputStyle}
+          value={node.config.subject_override ?? ''}
+          onChange={e => setConfig({ subject_override: e.target.value })}
+          placeholder="Bos kalirsa rapor basligi + tarih kullanilir"
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Giris Notu <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(opsiyonel)</span></label>
+        <textarea
+          style={{ ...inputStyle, minHeight: '76px', resize: 'vertical' }}
+          value={node.config.intro ?? ''}
+          onChange={e => setConfig({ intro: e.target.value })}
+          placeholder="Raporun basina eklenecek kisa aciklama"
+        />
+      </div>
+
+      <p style={hintStyle}>
+        Bu node gelen kullanici listesini tek HTML tablo raporuna cevirir. Workflow otomatik gonderime aciksa mail
+        servis hesabi uzerinden gider; aksi halde onay bekleyen mail olarak kaydedilir.
+      </p>
     </>
   )
 }
@@ -861,6 +1019,39 @@ function SendMailForm({
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function TwoNumberFields({
+  leftLabel,
+  leftValue,
+  leftMin,
+  leftOnChange,
+  rightLabel,
+  rightValue,
+  rightMin,
+  rightOnChange,
+}: {
+  leftLabel: string
+  leftValue: number
+  leftMin: number
+  leftOnChange: (value: number) => void
+  rightLabel: string
+  rightValue: number
+  rightMin: number
+  rightOnChange: (value: number) => void
+}) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      <div>
+        <label style={labelStyle}>{leftLabel}</label>
+        <input type="number" min={leftMin} style={inputStyle} value={leftValue} onChange={e => leftOnChange(Number(e.target.value))} />
+      </div>
+      <div>
+        <label style={labelStyle}>{rightLabel}</label>
+        <input type="number" min={rightMin} style={inputStyle} value={rightValue} onChange={e => rightOnChange(Number(e.target.value))} />
+      </div>
+    </div>
+  )
+}
 
 function listToText(value: any): string {
   if (Array.isArray(value)) return value.join(', ')
