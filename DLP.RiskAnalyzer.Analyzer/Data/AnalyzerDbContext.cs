@@ -36,6 +36,8 @@ public class AnalyzerDbContext : DbContext
     public DbSet<PlaybookRun> PlaybookRuns { get; set; }
     public DbSet<PlaybookMailLog> PlaybookMailLogs { get; set; }
     public DbSet<InvestigationQueryRecord> InvestigationQueries { get; set; }
+    public DbSet<ScheduledJob> ScheduledJobs { get; set; }
+    public DbSet<ScheduledJobRun> ScheduledJobRuns { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -668,6 +670,46 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.QueryDate);
             entity.HasIndex(e => e.QueryStatus);
             entity.HasIndex(e => e.PlaybookMailLogId);
+        });
+
+        modelBuilder.Entity<ScheduledJob>(entity =>
+        {
+            entity.ToTable("scheduled_jobs", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.Name).HasColumnName("name").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Description).HasColumnName("description").HasMaxLength(1000);
+            entity.Property(e => e.HandlerKey).HasColumnName("handler_key").IsRequired().HasMaxLength(100);
+            entity.Property(e => e.HandlerPayloadJson).HasColumnName("handler_payload_json");
+            entity.Property(e => e.CronExpression).HasColumnName("cron_expression").IsRequired().HasMaxLength(120);
+            entity.Property(e => e.Enabled).HasColumnName("enabled").IsRequired();
+            entity.Property(e => e.LastRunAt).HasColumnName("last_run_at");
+            entity.Property(e => e.NextRunAt).HasColumnName("next_run_at");
+            entity.Property(e => e.LastStatus).HasColumnName("last_status").IsRequired().HasMaxLength(30);
+            entity.Property(e => e.LastMessage).HasColumnName("last_message");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => new { e.Enabled, e.NextRunAt });
+        });
+
+        modelBuilder.Entity<ScheduledJobRun>(entity =>
+        {
+            entity.ToTable("scheduled_job_runs", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.ScheduledJobId).HasColumnName("scheduled_job_id").IsRequired();
+            entity.Property(e => e.StartedAt).HasColumnName("started_at").IsRequired();
+            entity.Property(e => e.FinishedAt).HasColumnName("finished_at");
+            entity.Property(e => e.TriggerType).HasColumnName("trigger_type").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(30);
+            entity.Property(e => e.Message).HasColumnName("message");
+            entity.Property(e => e.ResultJson).HasColumnName("result_json");
+
+            entity.HasIndex(e => new { e.ScheduledJobId, e.StartedAt });
+            entity.HasIndex(e => e.Status);
         });
 
         // Policy Inventory Configuration

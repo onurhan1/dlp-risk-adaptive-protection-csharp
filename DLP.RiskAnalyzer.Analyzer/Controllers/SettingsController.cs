@@ -59,6 +59,7 @@ public class SettingsController : ControllerBase
             int low = 10, medium = 30, high = 50;
             bool emailNotif = true;
             string reportTime = "06:00", adminEmail = "";
+            int jobHistoryPageSize = 30, hangfireMaxHistory = 100, jobHistoryLatestCount = 20;
 
             if (settingsDict.TryGetValue("risk_threshold_low", out var lowStr) && !string.IsNullOrEmpty(lowStr))
             {
@@ -87,6 +88,21 @@ public class SettingsController : ControllerBase
             {
                 adminEmail = adminEmailStr ?? "";
             }
+            if (settingsDict.TryGetValue("job_history_page_size", out var jobPageSizeStr) && !string.IsNullOrEmpty(jobPageSizeStr))
+            {
+                if (int.TryParse(jobPageSizeStr, out var parsedJobPageSize))
+                    jobHistoryPageSize = parsedJobPageSize;
+            }
+            if (settingsDict.TryGetValue("hangfire_max_history", out var maxHistoryStr) && !string.IsNullOrEmpty(maxHistoryStr))
+            {
+                if (int.TryParse(maxHistoryStr, out var parsedMaxHistory))
+                    hangfireMaxHistory = parsedMaxHistory;
+            }
+            if (settingsDict.TryGetValue("job_history_latest_count", out var latestCountStr) && !string.IsNullOrEmpty(latestCountStr))
+            {
+                if (int.TryParse(latestCountStr, out var parsedLatestCount))
+                    jobHistoryLatestCount = parsedLatestCount;
+            }
 
             _logger.LogInformation("Returning settings: Low={Low}, Medium={Medium}, High={High}, Email={Email}", low, medium, high, adminEmail);
 
@@ -97,7 +113,10 @@ public class SettingsController : ControllerBase
                 risk_threshold_high = high,
                 email_notifications = emailNotif,
                 daily_report_time = reportTime,
-                admin_email = adminEmail
+                admin_email = adminEmail,
+                job_history_page_size = jobHistoryPageSize,
+                hangfire_max_history = hangfireMaxHistory,
+                job_history_latest_count = jobHistoryLatestCount
             });
         }
         catch (Exception ex)
@@ -137,6 +156,15 @@ public class SettingsController : ControllerBase
             settingsToSave["admin_email"] = request.ContainsKey("admin_email") 
                 ? request["admin_email"]?.ToString() ?? "" 
                 : "";
+            settingsToSave["job_history_page_size"] = request.ContainsKey("job_history_page_size")
+                ? request["job_history_page_size"]?.ToString() ?? "30"
+                : "30";
+            settingsToSave["hangfire_max_history"] = request.ContainsKey("hangfire_max_history")
+                ? request["hangfire_max_history"]?.ToString() ?? "100"
+                : "100";
+            settingsToSave["job_history_latest_count"] = request.ContainsKey("job_history_latest_count")
+                ? request["job_history_latest_count"]?.ToString() ?? "20"
+                : "20";
             
             _logger.LogInformation("Settings to save: Low={Low}, Medium={Medium}, High={High}, Email={Email}", 
                 settingsToSave["risk_threshold_low"], 
@@ -219,6 +247,7 @@ public class SettingsController : ControllerBase
             int savedLow = 10, savedMedium = 30, savedHigh = 50;
             bool savedEmailNotif = true;
             string savedReportTime = "06:00", savedAdminEmail = "";
+            int savedJobHistoryPageSize = 30, savedHangfireMaxHistory = 100, savedJobHistoryLatestCount = 20;
 
             if (savedDict.TryGetValue("risk_threshold_low", out var savedLowStr) && !string.IsNullOrEmpty(savedLowStr))
                 int.TryParse(savedLowStr, out savedLow);
@@ -232,6 +261,12 @@ public class SettingsController : ControllerBase
                 savedReportTime = savedReportTimeStr;
             if (savedDict.TryGetValue("admin_email", out var savedAdminEmailStr))
                 savedAdminEmail = savedAdminEmailStr ?? "";
+            if (savedDict.TryGetValue("job_history_page_size", out var savedJobPageSizeStr) && !string.IsNullOrEmpty(savedJobPageSizeStr))
+                int.TryParse(savedJobPageSizeStr, out savedJobHistoryPageSize);
+            if (savedDict.TryGetValue("hangfire_max_history", out var savedMaxHistoryStr) && !string.IsNullOrEmpty(savedMaxHistoryStr))
+                int.TryParse(savedMaxHistoryStr, out savedHangfireMaxHistory);
+            if (savedDict.TryGetValue("job_history_latest_count", out var savedLatestCountStr) && !string.IsNullOrEmpty(savedLatestCountStr))
+                int.TryParse(savedLatestCountStr, out savedJobHistoryLatestCount);
 
             foreach (var s in savedSettings)
             {
@@ -249,7 +284,10 @@ public class SettingsController : ControllerBase
                     risk_threshold_high = savedHigh,
                     email_notifications = savedEmailNotif,
                     daily_report_time = savedReportTime,
-                    admin_email = savedAdminEmail
+                    admin_email = savedAdminEmail,
+                    job_history_page_size = savedJobHistoryPageSize,
+                    hangfire_max_history = savedHangfireMaxHistory,
+                    job_history_latest_count = savedJobHistoryLatestCount
                 }
             });
         }
@@ -310,4 +348,3 @@ public class SettingsController : ControllerBase
         }
     }
 }
-

@@ -73,10 +73,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDlpConfigurationService, DlpConfigurationService>();
         services.AddScoped<IDlpTestService, DlpTestService>();
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        services.AddScoped<IDirectorySettingsService, DirectorySettingsService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IWeeklyFlagService, WeeklyFlagService>();
         services.AddScoped<IInvestigationQueryRemediationSyncService, InvestigationQueryRemediationSyncService>();
         services.AddScoped<IPlaybookEngine, PlaybookEngine>();
+        services.AddScoped<IScheduledJobService, ScheduledJobService>();
+        services.AddScoped<IScheduledReportService, ScheduledReportService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
 
         // Dev-only seeder — harmless singleton when SeedData:Enabled = false

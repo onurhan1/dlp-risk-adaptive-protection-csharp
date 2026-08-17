@@ -72,6 +72,7 @@ builder.Services.AddRateLimiting();
 // Background Services
 builder.Services.AddHostedService<AnalyzerBackgroundService>();
 builder.Services.AddHostedService<PlaybookSchedulerService>();
+builder.Services.AddHostedService<ScheduledJobBackgroundService>();
 
 // ── Application Pipeline ─────────────────────────────────────────────────
 var app = builder.Build();

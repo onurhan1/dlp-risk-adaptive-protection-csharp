@@ -12,6 +12,7 @@ import {
   Settings,
   FileText,
   HelpCircle,
+  CalendarClock,
   User,
   LogOut,
   ChevronDown,
@@ -30,6 +31,7 @@ const getPageTitleKey = (pathname: string, search: string): string => {
   }
   if (pathname.startsWith('/user-management')) return 'nav.userManagement'
   if (pathname.startsWith('/settings')) return 'nav.settings'
+  if (pathname.startsWith('/scheduled-jobs')) return 'nav.scheduledJobs'
   if (pathname.startsWith('/faq')) return 'nav.faq'
   if (pathname.startsWith('/release-notes')) return 'nav.releaseNotes'
   return 'nav.dashboard'
@@ -106,6 +108,10 @@ function NavigationContent() {
                 <Link href="/settings" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
                   <Settings size={16} />
                   <span>{t('nav.settings')}</span>
+                </Link>
+                <Link href="/scheduled-jobs" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
+                  <CalendarClock size={16} />
+                  <span>{t('nav.scheduledJobs')}</span>
                 </Link>
                 <Link href="/release-notes" className="dropdown-item" onClick={() => setSettingsMenuOpen(false)}>
                   <FileText size={16} />
