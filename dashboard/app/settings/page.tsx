@@ -101,6 +101,7 @@ interface LdapSettings {
 
 interface ExternalUserDbSettings {
   enabled: boolean
+  provider: 'postgresql' | 'mssql'
   host: string
   port: number
   database: string
@@ -248,13 +249,14 @@ export default function SettingsPage() {
 
   const [externalDb, setExternalDb] = useState<ExternalUserDbSettings>({
     enabled: false,
+    provider: 'postgresql',
     host: '',
-    port: 1433,
+    port: 5432,
     database: '',
     username: '',
     password: '',
     password_set: false,
-    encrypt: true,
+    encrypt: false,
     trust_server_certificate: true,
     table_name: '',
     match_column: 'username',
@@ -378,13 +380,14 @@ export default function SettingsPage() {
     if (!data) return
     setExternalDb({
       enabled: data.enabled ?? false,
+      provider: data.provider === 'mssql' ? 'mssql' : 'postgresql',
       host: data.host ?? '',
-      port: Number(data.port) || 1433,
+      port: Number(data.port) || (data.provider === 'mssql' ? 1433 : 5432),
       database: data.database ?? '',
       username: data.username ?? '',
       password: '',
       password_set: data.password_set ?? false,
-      encrypt: data.encrypt ?? true,
+      encrypt: data.encrypt ?? (data.provider === 'mssql'),
       trust_server_certificate: data.trust_server_certificate ?? true,
       table_name: data.table_name ?? '',
       match_column: data.match_column ?? 'username',
@@ -606,9 +609,9 @@ export default function SettingsPage() {
       if (saved) {
         setExternalDb((prev) => ({ ...prev, ...saved, password: '' }))
       }
-      flash('success', 'MSSQL kullanici veritabani ayarlari kaydedildi')
+      flash('success', 'Harici kullanici veritabani ayarlari kaydedildi')
     } catch (error: any) {
-      flash('error', error.response?.data?.detail || error.message || 'MSSQL ayarlari kaydedilemedi')
+      flash('error', error.response?.data?.detail || error.message || 'Harici veritabani ayarlari kaydedilemedi')
     } finally {
       setExternalDbSaving(false)
     }
@@ -621,9 +624,9 @@ export default function SettingsPage() {
         ...externalDb,
         password: externalDb.password.trim() || undefined,
       }, { timeout: 30000 })
-      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'MSSQL testi tamamlandi')
+      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'Veritabani testi tamamlandi')
     } catch (error: any) {
-      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'MSSQL testi basarisiz')
+      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Veritabani testi basarisiz')
     } finally {
       setExternalDbTesting(false)
     }
@@ -722,6 +725,15 @@ export default function SettingsPage() {
     setLdap((prev) => ({ ...prev, [key]: value }))
   const updateExternalDb = <K extends keyof ExternalUserDbSettings>(key: K, value: ExternalUserDbSettings[K]) =>
     setExternalDb((prev) => ({ ...prev, [key]: value }))
+
+  const updateExternalDbProvider = (provider: ExternalUserDbSettings['provider']) =>
+    setExternalDb((prev) => ({
+      ...prev,
+      provider,
+      port: provider === 'mssql' ? 1433 : 5432,
+      encrypt: provider === 'mssql' ? prev.encrypt : false,
+      trust_server_certificate: provider === 'mssql' ? prev.trust_server_certificate : true,
+    }))
   const updateDlp = <K extends keyof DlpSettings>(key: K, value: DlpSettings[K]) =>
     setDlp((prev) => ({ ...prev, [key]: value }))
 
@@ -909,19 +921,25 @@ export default function SettingsPage() {
         </Actions>
       </AccordionSection>
 
-      <AccordionSection id="external-user-db" title="Harici Kullanici Veritabani (MSSQL)" icon={<Database size={17} />} open={open.includes('external-user-db')} onToggle={toggleSection}>
-        <InfoBar text="Incident kullanici adini harici MSSQL veritabaniyla eslestirerek ad, soyad, e-posta ve departman bilgilerini zenginlestirir." />
+      <AccordionSection id="external-user-db" title="Harici Kullanici Veritabani" icon={<Database size={17} />} open={open.includes('external-user-db')} onToggle={toggleSection}>
+        <InfoBar text="Incident kullanici adini baska sunucudaki kullanici veritabaniyla eslestirerek ad, soyad, e-posta ve departman bilgilerini zenginlestirir." />
         <Panel>
           <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-            <Toggle checked={externalDb.enabled} label="MSSQL zenginlestirme aktif" onChange={(value) => updateExternalDb('enabled', value)} />
-            <Toggle checked={externalDb.encrypt} label="Encrypt" onChange={(value) => updateExternalDb('encrypt', value)} />
-            <Toggle checked={externalDb.trust_server_certificate} label="Trust Server Certificate" onChange={(value) => updateExternalDb('trust_server_certificate', value)} />
+            <Toggle checked={externalDb.enabled} label="Veritabani zenginlestirme aktif" onChange={(value) => updateExternalDb('enabled', value)} />
+            <Toggle checked={externalDb.encrypt} label="SSL / Encrypt" onChange={(value) => updateExternalDb('encrypt', value)} />
+            <Toggle checked={externalDb.trust_server_certificate} label="Sertifikaya guven" onChange={(value) => updateExternalDb('trust_server_certificate', value)} />
           </div>
         </Panel>
         <Panel title="Baglanti Bilgileri" icon={<Cloud size={15} />}>
           <Grid>
-            <Field label="MSSQL Sunucu Adresi"><input style={inputStyle} value={externalDb.host} onChange={(e) => updateExternalDb('host', e.target.value)} placeholder="sql.company.local" /></Field>
-            <Field label="Port"><input type="number" style={inputStyle} value={externalDb.port} onChange={(e) => updateExternalDb('port', Number(e.target.value) || 1433)} /></Field>
+            <Field label="Veritabani Tipi">
+              <select style={inputStyle} value={externalDb.provider} onChange={(e) => updateExternalDbProvider(e.target.value as ExternalUserDbSettings['provider'])}>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mssql">MSSQL</option>
+              </select>
+            </Field>
+            <Field label="Sunucu Adresi"><input style={inputStyle} value={externalDb.host} onChange={(e) => updateExternalDb('host', e.target.value)} placeholder="db.company.local" /></Field>
+            <Field label="Port"><input type="number" style={inputStyle} value={externalDb.port} onChange={(e) => updateExternalDb('port', Number(e.target.value) || (externalDb.provider === 'mssql' ? 1433 : 5432))} /></Field>
             <Field label="Database"><input style={inputStyle} value={externalDb.database} onChange={(e) => updateExternalDb('database', e.target.value)} /></Field>
             <Field label="Kullanici Adi"><input style={inputStyle} value={externalDb.username} onChange={(e) => updateExternalDb('username', e.target.value)} /></Field>
             <Field label="Sifre">
@@ -938,14 +956,14 @@ export default function SettingsPage() {
         </Panel>
         <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
           <Grid>
-            <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder="dbo.Users" /></Field>
+            <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder={externalDb.provider === 'mssql' ? 'dbo.Users' : 'public.users'} /></Field>
             <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
             <Field label="Ad Kolonu"><input style={inputStyle} value={externalDb.first_name_column} onChange={(e) => updateExternalDb('first_name_column', e.target.value)} placeholder="first_name" /></Field>
             <Field label="Soyad Kolonu"><input style={inputStyle} value={externalDb.last_name_column} onChange={(e) => updateExternalDb('last_name_column', e.target.value)} placeholder="last_name" /></Field>
             <Field label="Tam Ad Kolonu"><input style={inputStyle} value={externalDb.full_name_column} onChange={(e) => updateExternalDb('full_name_column', e.target.value)} placeholder="display_name" /></Field>
             <Field label="E-posta Kolonu"><input style={inputStyle} value={externalDb.email_column} onChange={(e) => updateExternalDb('email_column', e.target.value)} placeholder="email" /></Field>
             <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
-            <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = 1" /></Field>
+            <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder={externalDb.provider === 'mssql' ? 'is_active = 1' : 'is_active = true'} /></Field>
           </Grid>
         </Panel>
         <Panel>

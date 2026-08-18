@@ -7,6 +7,7 @@ using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Npgsql;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -14,6 +15,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 {
     private const string Prefix = "external_user_db_";
     private const string EnabledKey = Prefix + "enabled";
+    private const string ProviderKey = Prefix + "provider";
     private const string HostKey = Prefix + "host";
     private const string PortKey = Prefix + "port";
     private const string DatabaseKey = Prefix + "database";
@@ -60,6 +62,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         ValidateSettings(request, allowEmptyPassword: true);
 
         await UpsertAsync(EnabledKey, request.Enabled.ToString(), ct);
+        await UpsertAsync(ProviderKey, NormalizeProvider(request.Provider), ct);
         await UpsertAsync(HostKey, request.Host.Trim(), ct);
         await UpsertAsync(PortKey, request.Port.ToString(), ct);
         await UpsertAsync(DatabaseKey, request.Database.Trim(), ct);
@@ -91,14 +94,14 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
         try
         {
-            await using var connection = CreateConnection(BuildConnectionString(request));
+            await using var connection = CreateConnection(request);
             await connection.OpenAsync(ct);
-            return Result(true, "MSSQL baglantisi basarili");
+            return Result(true, $"{DbDisplayName(request)} baglantisi basarili");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "External user DB connection test failed");
-            return Result(false, $"MSSQL baglanti testi basarisiz: {ex.Message}");
+            return Result(false, $"{DbDisplayName(request)} baglanti testi basarisiz: {ex.Message}");
         }
     }
 
@@ -121,7 +124,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "External user DB lookup test failed");
-            return Result(false, $"MSSQL kullanici testi basarisiz: {ex.Message}");
+            return Result(false, $"{DbDisplayName(request)} kullanici testi basarisiz: {ex.Message}");
         }
     }
 
@@ -153,7 +156,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
     private async Task<ExternalUserProfileDto?> LookupAsync(ExternalUserDbSettingsRequest settings, string userName, CancellationToken ct)
     {
-        await using var connection = CreateConnection(BuildConnectionString(settings));
+        await using var connection = CreateConnection(settings);
         await connection.OpenAsync(ct);
 
         var query = BuildLookupSql(settings);
@@ -188,33 +191,55 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
     private static string BuildLookupSql(ExternalUserDbSettingsRequest settings)
     {
+        var provider = NormalizeProvider(settings.Provider);
         var projections = new List<string>
         {
-            $"{QuoteIdentifier(settings.MatchColumn)} AS [user_name]"
+            $"{QuoteIdentifier(settings.MatchColumn, provider)} AS {QuoteIdentifier("user_name", provider)}"
         };
-        AddProjection(projections, settings.FirstNameColumn, "first_name");
-        AddProjection(projections, settings.LastNameColumn, "last_name");
-        AddProjection(projections, settings.FullNameColumn, "full_name");
-        AddProjection(projections, settings.EmailColumn, "email");
-        AddProjection(projections, settings.DepartmentColumn, "department");
+        AddProjection(projections, settings.FirstNameColumn, "first_name", provider);
+        AddProjection(projections, settings.LastNameColumn, "last_name", provider);
+        AddProjection(projections, settings.FullNameColumn, "full_name", provider);
+        AddProjection(projections, settings.EmailColumn, "email", provider);
+        AddProjection(projections, settings.DepartmentColumn, "department", provider);
 
-        var where = $"{QuoteIdentifier(settings.MatchColumn)} = @username";
+        var where = $"{QuoteIdentifier(settings.MatchColumn, provider)} = @username";
         if (!string.IsNullOrWhiteSpace(settings.WhereClause))
             where += $" AND ({SafeWhereClause(settings.WhereClause)})";
 
-        return $"SELECT TOP (1) {string.Join(", ", projections)} FROM {QuoteMultipartIdentifier(settings.TableName)} WHERE {where}";
+        var tableName = QuoteMultipartIdentifier(settings.TableName, provider);
+        return provider == "mssql"
+            ? $"SELECT TOP (1) {string.Join(", ", projections)} FROM {tableName} WHERE {where}"
+            : $"SELECT {string.Join(", ", projections)} FROM {tableName} WHERE {where} LIMIT 1";
     }
 
-    private static void AddProjection(List<string> projections, string column, string alias)
+    private static void AddProjection(List<string> projections, string column, string alias, string provider)
     {
         if (!string.IsNullOrWhiteSpace(column))
-            projections.Add($"{QuoteIdentifier(column)} AS [{alias}]");
+            projections.Add($"{QuoteIdentifier(column, provider)} AS {QuoteIdentifier(alias, provider)}");
         else
-            projections.Add($"CAST(NULL AS nvarchar(4000)) AS [{alias}]");
+            projections.Add(provider == "mssql"
+                ? $"CAST(NULL AS nvarchar(4000)) AS {QuoteIdentifier(alias, provider)}"
+                : $"NULL::text AS {QuoteIdentifier(alias, provider)}");
     }
 
     private static string BuildConnectionString(ExternalUserDbSettingsRequest settings)
     {
+        if (NormalizeProvider(settings.Provider) == "postgresql")
+        {
+            var npgsqlBuilder = new NpgsqlConnectionStringBuilder
+            {
+                Host = settings.Host.Trim(),
+                Port = settings.Port,
+                Database = settings.Database.Trim(),
+                Username = settings.Username.Trim(),
+                Password = settings.Password ?? string.Empty,
+                SslMode = settings.Encrypt ? SslMode.Require : SslMode.Disable,
+                Timeout = 15
+            };
+            npgsqlBuilder["Trust Server Certificate"] = settings.TrustServerCertificate;
+            return npgsqlBuilder.ConnectionString;
+        }
+
         var builder = new DbConnectionStringBuilder
         {
             ["Server"] = $"{settings.Host.Trim()},{settings.Port}",
@@ -228,14 +253,23 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         return builder.ConnectionString;
     }
 
-    private static DbConnection CreateConnection(string connectionString)
+    private static DbConnection CreateConnection(ExternalUserDbSettingsRequest settings)
+    {
+        var provider = NormalizeProvider(settings.Provider);
+        var connectionString = BuildConnectionString(settings);
+        return provider == "postgresql"
+            ? new NpgsqlConnection(connectionString)
+            : CreateSqlServerConnection(connectionString);
+    }
+
+    private static DbConnection CreateSqlServerConnection(string connectionString)
     {
         var connectionType = ResolveSqlConnectionType();
         if (connectionType == null)
         {
             throw new InvalidOperationException(
-                "MSSQL provider bulunamadi. Kapali ortamda build'in kirilmamasi icin SqlClient compile-time bagimliligi kaldirildi; " +
-                "MSSQL entegrasyonunu calistirmak icin publish ciktisinda Microsoft.Data.SqlClient ya da System.Data.SqlClient assembly'si bulunmalidir.");
+                "MSSQL provider bulunamadi. Kapali ortamda build'in kirilmamasi icin SqlClient compile-time bagimliligi yok; " +
+                "MSSQL secenegi icin publish ciktisinda Microsoft.Data.SqlClient ya da System.Data.SqlClient assembly'si bulunmalidir. PostgreSQL icin ek paket gerekmez.");
         }
 
         if (Activator.CreateInstance(connectionType, connectionString) is DbConnection connection)
@@ -332,6 +366,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
     private static ExternalUserDbSettingsResponse BuildResponse(Dictionary<string, SystemSetting> dict)
     {
         var host = Get(dict, HostKey);
+        var provider = NormalizeProvider(Get(dict, ProviderKey, "postgresql"));
         var database = Get(dict, DatabaseKey);
         var username = Get(dict, UsernameKey);
         var tableName = Get(dict, TableNameKey);
@@ -342,13 +377,14 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         return new ExternalUserDbSettingsResponse
         {
             Enabled = Bool(Get(dict, EnabledKey), false),
+            Provider = provider,
             Host = host,
-            Port = Int(Get(dict, PortKey), 1433),
+            Port = Int(Get(dict, PortKey), provider == "mssql" ? 1433 : 5432),
             Database = database,
             Username = username,
             Password = null,
             PasswordSet = passwordSet,
-            Encrypt = Bool(Get(dict, EncryptKey), true),
+            Encrypt = Bool(Get(dict, EncryptKey), provider == "mssql"),
             TrustServerCertificate = Bool(Get(dict, TrustServerCertificateKey), true),
             TableName = tableName,
             MatchColumn = matchColumn,
@@ -371,45 +407,63 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
     private static void ValidateSettings(ExternalUserDbSettingsRequest request, bool allowEmptyPassword)
     {
-        if (string.IsNullOrWhiteSpace(request.Host)) throw new ArgumentException("MSSQL sunucu adresi zorunludur");
-        if (request.Port is < 1 or > 65535) throw new ArgumentException("MSSQL port 1 ile 65535 arasinda olmalidir");
-        if (string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException("MSSQL database adi zorunludur");
-        if (string.IsNullOrWhiteSpace(request.Username)) throw new ArgumentException("MSSQL kullanici adi zorunludur");
-        if (!allowEmptyPassword && string.IsNullOrWhiteSpace(request.Password)) throw new ArgumentException("MSSQL sifresi zorunludur");
+        var provider = NormalizeProvider(request.Provider);
+        if (string.IsNullOrWhiteSpace(request.Host)) throw new ArgumentException($"{DbDisplayName(provider)} sunucu adresi zorunludur");
+        if (request.Port is < 1 or > 65535) throw new ArgumentException($"{DbDisplayName(provider)} port 1 ile 65535 arasinda olmalidir");
+        if (string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException($"{DbDisplayName(provider)} database adi zorunludur");
+        if (string.IsNullOrWhiteSpace(request.Username)) throw new ArgumentException($"{DbDisplayName(provider)} kullanici adi zorunludur");
+        if (!allowEmptyPassword && string.IsNullOrWhiteSpace(request.Password)) throw new ArgumentException($"{DbDisplayName(provider)} sifresi zorunludur");
         if (string.IsNullOrWhiteSpace(request.TableName)) throw new ArgumentException("Tablo veya view adi zorunludur");
         if (string.IsNullOrWhiteSpace(request.MatchColumn)) throw new ArgumentException("Eslesme kolonu zorunludur");
         if (string.IsNullOrWhiteSpace(request.EmailColumn)) throw new ArgumentException("Email kolonu zorunludur");
 
-        _ = QuoteMultipartIdentifier(request.TableName);
-        _ = QuoteIdentifier(request.MatchColumn);
-        ValidateOptionalIdentifier(request.FirstNameColumn);
-        ValidateOptionalIdentifier(request.LastNameColumn);
-        ValidateOptionalIdentifier(request.FullNameColumn);
-        ValidateOptionalIdentifier(request.EmailColumn);
-        ValidateOptionalIdentifier(request.DepartmentColumn);
+        _ = QuoteMultipartIdentifier(request.TableName, provider);
+        _ = QuoteIdentifier(request.MatchColumn, provider);
+        ValidateOptionalIdentifier(request.FirstNameColumn, provider);
+        ValidateOptionalIdentifier(request.LastNameColumn, provider);
+        ValidateOptionalIdentifier(request.FullNameColumn, provider);
+        ValidateOptionalIdentifier(request.EmailColumn, provider);
+        ValidateOptionalIdentifier(request.DepartmentColumn, provider);
         _ = SafeWhereClause(request.WhereClause);
     }
 
-    private static void ValidateOptionalIdentifier(string value)
+    private static void ValidateOptionalIdentifier(string value, string provider)
     {
-        if (!string.IsNullOrWhiteSpace(value)) _ = QuoteIdentifier(value);
+        if (!string.IsNullOrWhiteSpace(value)) _ = QuoteIdentifier(value, provider);
     }
 
-    private static string QuoteMultipartIdentifier(string value)
+    private static string QuoteMultipartIdentifier(string value, string provider)
     {
         var parts = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length == 0 || parts.Length > 3)
             throw new ArgumentException("Tablo/view adi gecersiz");
-        return string.Join(".", parts.Select(QuoteIdentifier));
+        return string.Join(".", parts.Select(part => QuoteIdentifier(part, provider)));
     }
 
-    private static string QuoteIdentifier(string value)
+    private static string QuoteIdentifier(string value, string provider)
     {
-        var clean = value.Trim().Trim('[', ']');
+        var clean = value.Trim().Trim('[', ']', '"');
         if (!IdentifierPart.IsMatch(clean))
             throw new ArgumentException($"Kolon veya tablo adi gecersiz: {value}");
-        return $"[{clean.Replace("]", "]]")}]";
+        return provider == "mssql"
+            ? $"[{clean.Replace("]", "]]")}]"
+            : $"\"{clean.Replace("\"", "\"\"")}\"";
     }
+
+    private static string NormalizeProvider(string? value)
+    {
+        var provider = (value ?? "postgresql").Trim().ToLowerInvariant();
+        return provider switch
+        {
+            "postgres" or "postgresql" or "pgsql" => "postgresql",
+            "sqlserver" or "sql-server" or "mssql" => "mssql",
+            _ => throw new ArgumentException("Veritabani tipi postgresql veya mssql olmalidir")
+        };
+    }
+
+    private static string DbDisplayName(ExternalUserDbSettingsRequest settings) => DbDisplayName(NormalizeProvider(settings.Provider));
+
+    private static string DbDisplayName(string provider) => provider == "mssql" ? "MSSQL" : "PostgreSQL";
 
     private static string SafeWhereClause(string value)
     {

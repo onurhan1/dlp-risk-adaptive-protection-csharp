@@ -85,12 +85,13 @@ public class LdapSettingsResponse
 public class ExternalUserDbSettingsRequest
 {
     public bool Enabled { get; set; }
+    public string Provider { get; set; } = "postgresql";
     public string Host { get; set; } = string.Empty;
-    public int Port { get; set; } = 1433;
+    public int Port { get; set; } = 5432;
     public string Database { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string? Password { get; set; }
-    public bool Encrypt { get; set; } = true;
+    public bool Encrypt { get; set; }
     public bool TrustServerCertificate { get; set; } = true;
     public string TableName { get; set; } = string.Empty;
     public string MatchColumn { get; set; } = "username";
