@@ -76,6 +76,15 @@ interface ImapSettings {
   updated_at?: string | null
 }
 
+interface ImapInboxMessage {
+  id: string
+  from: string
+  subject: string
+  date: string
+  unread: boolean
+  size: number
+}
+
 interface LdapSettings {
   enabled: boolean
   use_ldaps: boolean
@@ -86,9 +95,28 @@ interface LdapSettings {
   service_account: string
   service_password: string
   service_password_set: boolean
-  user_filter: string
-  admin_group: string
-  standard_group: string
+  is_configured: boolean
+  updated_at?: string | null
+}
+
+interface ExternalUserDbSettings {
+  enabled: boolean
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+  password_set: boolean
+  encrypt: boolean
+  trust_server_certificate: boolean
+  table_name: string
+  match_column: string
+  first_name_column: string
+  last_name_column: string
+  full_name_column: string
+  email_column: string
+  department_column: string
+  where_clause: string
   is_configured: boolean
   updated_at?: string | null
 }
@@ -123,6 +151,19 @@ const buttonBase = {
   fontWeight: 600,
 } as const
 
+const thStyle: CSSProperties = {
+  padding: '8px 10px',
+  borderBottom: '1px solid var(--border)',
+  whiteSpace: 'nowrap',
+}
+
+const tdStyle: CSSProperties = {
+  padding: '9px 10px',
+  color: 'var(--text-primary)',
+  verticalAlign: 'top',
+  whiteSpace: 'nowrap',
+}
+
 export default function SettingsPage() {
   const [open, setOpen] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -133,14 +174,21 @@ export default function SettingsPage() {
   const [emailTesting, setEmailTesting] = useState(false)
   const [imapSaving, setImapSaving] = useState(false)
   const [imapTesting, setImapTesting] = useState(false)
+  const [imapInboxLoading, setImapInboxLoading] = useState(false)
   const [ldapSaving, setLdapSaving] = useState(false)
   const [ldapTesting, setLdapTesting] = useState(false)
+  const [externalDbSaving, setExternalDbSaving] = useState(false)
+  const [externalDbTesting, setExternalDbTesting] = useState(false)
+  const [externalDbLookupTesting, setExternalDbLookupTesting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showDlpPassword, setShowDlpPassword] = useState(false)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
   const [showImapPassword, setShowImapPassword] = useState(false)
   const [showLdapPassword, setShowLdapPassword] = useState(false)
+  const [showExternalDbPassword, setShowExternalDbPassword] = useState(false)
   const [smtpTestRecipient, setSmtpTestRecipient] = useState('')
+  const [externalDbTestUsername, setExternalDbTestUsername] = useState('')
+  const [imapInboxMessages, setImapInboxMessages] = useState<ImapInboxMessage[]>([])
   const [message, setMessage] = useState<Message>(null)
 
   const [general, setGeneral] = useState<GeneralSettings>({
@@ -194,9 +242,28 @@ export default function SettingsPage() {
     service_account: '',
     service_password: '',
     service_password_set: false,
-    user_filter: '(sAMAccountName={0})',
-    admin_group: '',
-    standard_group: '',
+    is_configured: false,
+    updated_at: null,
+  })
+
+  const [externalDb, setExternalDb] = useState<ExternalUserDbSettings>({
+    enabled: false,
+    host: '',
+    port: 1433,
+    database: '',
+    username: '',
+    password: '',
+    password_set: false,
+    encrypt: true,
+    trust_server_certificate: true,
+    table_name: '',
+    match_column: 'username',
+    first_name_column: '',
+    last_name_column: '',
+    full_name_column: '',
+    email_column: 'email',
+    department_column: '',
+    where_clause: '',
     is_configured: false,
     updated_at: null,
   })
@@ -226,6 +293,7 @@ export default function SettingsPage() {
         fetchEmail(),
         fetchImap(),
         fetchLdap(),
+        fetchExternalDb(),
         fetchDlp(),
       ])
     } finally {
@@ -300,9 +368,32 @@ export default function SettingsPage() {
       service_account: data.service_account ?? '',
       service_password: '',
       service_password_set: data.service_password_set ?? false,
-      user_filter: data.user_filter ?? '(sAMAccountName={0})',
-      admin_group: data.admin_group ?? '',
-      standard_group: data.standard_group ?? '',
+      is_configured: data.is_configured ?? false,
+      updated_at: data.updated_at ?? null,
+    })
+  }
+
+  const fetchExternalDb = async () => {
+    const { data } = await axios.get(`${apiUrl}/api/settings/external-user-db`).catch(() => ({ data: null }))
+    if (!data) return
+    setExternalDb({
+      enabled: data.enabled ?? false,
+      host: data.host ?? '',
+      port: Number(data.port) || 1433,
+      database: data.database ?? '',
+      username: data.username ?? '',
+      password: '',
+      password_set: data.password_set ?? false,
+      encrypt: data.encrypt ?? true,
+      trust_server_certificate: data.trust_server_certificate ?? true,
+      table_name: data.table_name ?? '',
+      match_column: data.match_column ?? 'username',
+      first_name_column: data.first_name_column ?? '',
+      last_name_column: data.last_name_column ?? '',
+      full_name_column: data.full_name_column ?? '',
+      email_column: data.email_column ?? 'email',
+      department_column: data.department_column ?? '',
+      where_clause: data.where_clause ?? '',
       is_configured: data.is_configured ?? false,
       updated_at: data.updated_at ?? null,
     })
@@ -452,6 +543,24 @@ export default function SettingsPage() {
     }
   }
 
+  const previewImapInbox = async () => {
+    setImapInboxLoading(true)
+    try {
+      const response = await axios.post(`${apiUrl}/api/settings/imap/inbox`, {
+        ...imap,
+        password: imap.password.trim() || undefined,
+        preview_count: 20,
+      }, { timeout: 30000 })
+      const messages = Array.isArray(response.data?.messages) ? response.data.messages : []
+      setImapInboxMessages(messages)
+      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'INBOX goruntuleme tamamlandi')
+    } catch (error: any) {
+      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'INBOX goruntulenemedi')
+    } finally {
+      setImapInboxLoading(false)
+    }
+  }
+
   const saveLdap = async () => {
     setLdapSaving(true)
     try {
@@ -483,6 +592,62 @@ export default function SettingsPage() {
       flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'LDAP testi basarisiz')
     } finally {
       setLdapTesting(false)
+    }
+  }
+
+  const saveExternalDb = async () => {
+    setExternalDbSaving(true)
+    try {
+      const response = await axios.post(`${apiUrl}/api/settings/external-user-db`, {
+        ...externalDb,
+        password: externalDb.password.trim() || undefined,
+      }, { timeout: 15000 })
+      const saved = response.data?.settings
+      if (saved) {
+        setExternalDb((prev) => ({ ...prev, ...saved, password: '' }))
+      }
+      flash('success', 'MSSQL kullanici veritabani ayarlari kaydedildi')
+    } catch (error: any) {
+      flash('error', error.response?.data?.detail || error.message || 'MSSQL ayarlari kaydedilemedi')
+    } finally {
+      setExternalDbSaving(false)
+    }
+  }
+
+  const testExternalDb = async () => {
+    setExternalDbTesting(true)
+    try {
+      const response = await axios.post(`${apiUrl}/api/settings/external-user-db/test`, {
+        ...externalDb,
+        password: externalDb.password.trim() || undefined,
+      }, { timeout: 30000 })
+      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'MSSQL testi tamamlandi')
+    } catch (error: any) {
+      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'MSSQL testi basarisiz')
+    } finally {
+      setExternalDbTesting(false)
+    }
+  }
+
+  const testExternalDbLookup = async () => {
+    if (!externalDbTestUsername.trim()) {
+      flash('error', 'Test kullanici adi girin')
+      return
+    }
+    setExternalDbLookupTesting(true)
+    try {
+      const response = await axios.post(`${apiUrl}/api/settings/external-user-db/lookup`, {
+        ...externalDb,
+        password: externalDb.password.trim() || undefined,
+        test_username: externalDbTestUsername.trim(),
+      }, { timeout: 30000 })
+      const user = response.data?.user
+      const detail = user ? `: ${user.full_name || '-'} / ${user.email || '-'} / ${user.department || '-'}` : ''
+      flash(response.data?.success ? 'success' : 'error', `${response.data?.message || 'Lookup tamamlandi'}${detail}`)
+    } catch (error: any) {
+      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Lookup testi basarisiz')
+    } finally {
+      setExternalDbLookupTesting(false)
     }
   }
 
@@ -555,6 +720,8 @@ export default function SettingsPage() {
     setImap((prev) => ({ ...prev, [key]: value }))
   const updateLdap = <K extends keyof LdapSettings>(key: K, value: LdapSettings[K]) =>
     setLdap((prev) => ({ ...prev, [key]: value }))
+  const updateExternalDb = <K extends keyof ExternalUserDbSettings>(key: K, value: ExternalUserDbSettings[K]) =>
+    setExternalDb((prev) => ({ ...prev, [key]: value }))
   const updateDlp = <K extends keyof DlpSettings>(key: K, value: DlpSettings[K]) =>
     setDlp((prev) => ({ ...prev, [key]: value }))
 
@@ -664,8 +831,37 @@ export default function SettingsPage() {
         </Panel>
         <Actions>
           <ActionButton icon={<TestTube2 size={15} />} onClick={testImap} disabled={imapTesting}>{imapTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
+          <ActionButton icon={<Eye size={15} />} onClick={previewImapInbox} disabled={imapInboxLoading}>{imapInboxLoading ? 'Yukleniyor...' : 'INBOX Goruntule'}</ActionButton>
           <PrimaryButton icon={<Save size={15} />} onClick={saveImap} disabled={imapSaving}>{imapSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
         </Actions>
+        {imapInboxMessages.length > 0 && (
+          <Panel title="INBOX Onizleme" icon={<Mail size={15} />}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
+                    <th style={thStyle}>Durum</th>
+                    <th style={thStyle}>Gonderen</th>
+                    <th style={thStyle}>Konu</th>
+                    <th style={thStyle}>Tarih</th>
+                    <th style={thStyle}>Boyut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {imapInboxMessages.map((mail) => (
+                    <tr key={mail.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={tdStyle}>{mail.unread ? 'Okunmamis' : 'Okundu'}</td>
+                      <td style={tdStyle}>{mail.from || '-'}</td>
+                      <td style={{ ...tdStyle, minWidth: 260 }}>{mail.subject || '-'}</td>
+                      <td style={tdStyle}>{mail.date || '-'}</td>
+                      <td style={tdStyle}>{mail.size ? `${Math.round(mail.size / 1024)} KB` : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
       </AccordionSection>
 
       <AccordionSection id="ldap" title="LDAP / AD" icon={<ShieldCheck size={17} />} open={open.includes('ldap')} onToggle={toggleSection}>
@@ -690,9 +886,6 @@ export default function SettingsPage() {
           <Grid>
             <Field label="AD domain adi"><input style={inputStyle} value={ldap.domain} onChange={(e) => updateLdap('domain', e.target.value)} placeholder="COMPANY" /></Field>
             <Field label="LDAP arama tabani"><input style={inputStyle} value={ldap.search_base} onChange={(e) => updateLdap('search_base', e.target.value)} placeholder="DC=sirket,DC=com" /></Field>
-            <Field label="Kullanici filtresi"><input style={inputStyle} value={ldap.user_filter} onChange={(e) => updateLdap('user_filter', e.target.value)} /></Field>
-            <Field label="Admin grup DN"><input style={inputStyle} value={ldap.admin_group} onChange={(e) => updateLdap('admin_group', e.target.value)} /></Field>
-            <Field label="Standart kullanici grup DN"><input style={inputStyle} value={ldap.standard_group} onChange={(e) => updateLdap('standard_group', e.target.value)} /></Field>
           </Grid>
         </Panel>
         <Panel title="Kimlik Dogrulama" icon={<KeyRound size={15} />}>
@@ -714,6 +907,57 @@ export default function SettingsPage() {
           <ActionButton icon={<TestTube2 size={15} />} onClick={testLdap} disabled={ldapTesting}>{ldapTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
           <PrimaryButton icon={<Save size={15} />} onClick={saveLdap} disabled={ldapSaving}>{ldapSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
         </Actions>
+      </AccordionSection>
+
+      <AccordionSection id="external-user-db" title="Harici Kullanici Veritabani (MSSQL)" icon={<Database size={17} />} open={open.includes('external-user-db')} onToggle={toggleSection}>
+        <InfoBar text="Incident kullanici adini harici MSSQL veritabaniyla eslestirerek ad, soyad, e-posta ve departman bilgilerini zenginlestirir." />
+        <Panel>
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+            <Toggle checked={externalDb.enabled} label="MSSQL zenginlestirme aktif" onChange={(value) => updateExternalDb('enabled', value)} />
+            <Toggle checked={externalDb.encrypt} label="Encrypt" onChange={(value) => updateExternalDb('encrypt', value)} />
+            <Toggle checked={externalDb.trust_server_certificate} label="Trust Server Certificate" onChange={(value) => updateExternalDb('trust_server_certificate', value)} />
+          </div>
+        </Panel>
+        <Panel title="Baglanti Bilgileri" icon={<Cloud size={15} />}>
+          <Grid>
+            <Field label="MSSQL Sunucu Adresi"><input style={inputStyle} value={externalDb.host} onChange={(e) => updateExternalDb('host', e.target.value)} placeholder="sql.company.local" /></Field>
+            <Field label="Port"><input type="number" style={inputStyle} value={externalDb.port} onChange={(e) => updateExternalDb('port', Number(e.target.value) || 1433)} /></Field>
+            <Field label="Database"><input style={inputStyle} value={externalDb.database} onChange={(e) => updateExternalDb('database', e.target.value)} /></Field>
+            <Field label="Kullanici Adi"><input style={inputStyle} value={externalDb.username} onChange={(e) => updateExternalDb('username', e.target.value)} /></Field>
+            <Field label="Sifre">
+              <SecretInput
+                value={externalDb.password}
+                placeholder={externalDb.password_set ? 'Degistirmek icin yeni sifre girin' : 'Sifre girin'}
+                visible={showExternalDbPassword}
+                onToggle={() => setShowExternalDbPassword((v) => !v)}
+                onChange={(value) => updateExternalDb('password', value)}
+                saved={externalDb.password_set}
+              />
+            </Field>
+          </Grid>
+        </Panel>
+        <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
+          <Grid>
+            <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder="dbo.Users" /></Field>
+            <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
+            <Field label="Ad Kolonu"><input style={inputStyle} value={externalDb.first_name_column} onChange={(e) => updateExternalDb('first_name_column', e.target.value)} placeholder="first_name" /></Field>
+            <Field label="Soyad Kolonu"><input style={inputStyle} value={externalDb.last_name_column} onChange={(e) => updateExternalDb('last_name_column', e.target.value)} placeholder="last_name" /></Field>
+            <Field label="Tam Ad Kolonu"><input style={inputStyle} value={externalDb.full_name_column} onChange={(e) => updateExternalDb('full_name_column', e.target.value)} placeholder="display_name" /></Field>
+            <Field label="E-posta Kolonu"><input style={inputStyle} value={externalDb.email_column} onChange={(e) => updateExternalDb('email_column', e.target.value)} placeholder="email" /></Field>
+            <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
+            <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = 1" /></Field>
+          </Grid>
+        </Panel>
+        <Panel>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <Field label="Test Kullanici Adi" style={{ minWidth: 240, flex: 1 }}>
+              <input style={inputStyle} value={externalDbTestUsername} onChange={(e) => setExternalDbTestUsername(e.target.value)} placeholder="DOMAIN\\kullanici veya kullanici" />
+            </Field>
+            <ActionButton icon={<TestTube2 size={15} />} onClick={testExternalDb} disabled={externalDbTesting}>{externalDbTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
+            <ActionButton icon={<Eye size={15} />} onClick={testExternalDbLookup} disabled={externalDbLookupTesting}>{externalDbLookupTesting ? 'Araniyor...' : 'Kullanici Testi'}</ActionButton>
+            <PrimaryButton icon={<Save size={15} />} onClick={saveExternalDb} disabled={externalDbSaving}>{externalDbSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
+          </div>
+        </Panel>
       </AccordionSection>
 
       <AccordionSection id="notifications" title="Bildirim Ayarlari" icon={<Bell size={17} />} open={open.includes('notifications')} onToggle={toggleSection}>

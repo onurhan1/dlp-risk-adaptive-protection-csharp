@@ -1,6 +1,7 @@
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.AspNetCore.DataProtection;
@@ -31,9 +32,6 @@ public class DirectorySettingsService : IDirectorySettingsService
     private const string LdapSearchBaseKey = "ldap_search_base";
     private const string LdapServiceAccountKey = "ldap_service_account";
     private const string LdapServicePasswordKey = "ldap_service_password_protected";
-    private const string LdapUserFilterKey = "ldap_user_filter";
-    private const string LdapAdminGroupKey = "ldap_admin_group";
-    private const string LdapStandardGroupKey = "ldap_standard_group";
 
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
@@ -113,6 +111,78 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
     }
 
+    public async Task<ImapInboxPreviewResponse> PreviewInboxAsync(ImapInboxRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+            request.Password = await GetSecretAsync(ImapPasswordKey, ct);
+
+        ValidateImap(request, allowEmptyPassword: false);
+
+        var folder = string.IsNullOrWhiteSpace(request.Folder) ? "INBOX" : request.Folder.Trim();
+        var limit = Clamp(request.PreviewCount <= 0 ? 20 : request.PreviewCount, 1, 100);
+        var lookbackDays = Clamp(request.LookbackDays <= 0 ? 7 : request.LookbackDays, 1, 365);
+
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
+            using var stream = request.EnableSsl
+                ? await WrapSslAsync(client, request.Host.Trim(), ct)
+                : client.GetStream();
+
+            var greeting = await ReadImapAsync(stream, ct);
+            if (!greeting.Contains("* OK", StringComparison.OrdinalIgnoreCase))
+                return InboxResult(false, folder, $"IMAP sunucusu beklenen acilis yanitini vermedi: {Shorten(greeting)}");
+
+            await WriteAsync(stream, $"A001 LOGIN \"{EscapeImap(request.Username.Trim())}\" \"{EscapeImap(request.Password ?? string.Empty)}\"\r\n", ct);
+            var login = await ReadImapAsync(stream, ct, "A001");
+            if (!login.Contains("A001 OK", StringComparison.OrdinalIgnoreCase))
+                return InboxResult(false, folder, $"IMAP kimlik dogrulama basarisiz: {Shorten(login)}");
+
+            await WriteAsync(stream, $"A002 SELECT \"{EscapeImap(folder)}\"\r\n", ct);
+            var selected = await ReadImapAsync(stream, ct, "A002");
+            if (!selected.Contains("A002 OK", StringComparison.OrdinalIgnoreCase))
+                return InboxResult(false, folder, $"Klasor acilamadi: {Shorten(selected)}");
+
+            var total = ParseExists(selected);
+            var since = DateTime.UtcNow.AddDays(-lookbackDays).ToString("dd-MMM-yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            var criteria = request.UnreadOnly ? $"UNSEEN SINCE {since}" : $"SINCE {since}";
+            await WriteAsync(stream, $"A003 SEARCH {criteria}\r\n", ct);
+            var search = await ReadImapAsync(stream, ct, "A003");
+            var ids = ParseSearchIds(search)
+                .TakeLast(limit)
+                .Reverse()
+                .ToList();
+
+            var messages = new List<ImapInboxMessageDto>();
+            var tagNo = 4;
+            foreach (var id in ids)
+            {
+                var tag = $"A{tagNo++:000}";
+                await WriteAsync(stream, $"{tag} FETCH {id} (FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])\r\n", ct);
+                var fetch = await ReadImapAsync(stream, ct, tag);
+                messages.Add(ParseFetchedMessage(id, fetch));
+            }
+
+            await WriteAsync(stream, $"A{tagNo++:000} LOGOUT\r\n", ct);
+
+            return new ImapInboxPreviewResponse
+            {
+                Success = true,
+                Folder = folder,
+                TotalMessages = total,
+                ReturnedMessages = messages.Count,
+                Messages = messages,
+                Message = $"{folder} klasorunden {messages.Count} mail listelendi"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IMAP inbox preview failed");
+            return InboxResult(false, folder, $"INBOX goruntuleme basarisiz: {ex.Message}");
+        }
+    }
+
     public async Task<LdapSettingsResponse> GetLdapAsync(CancellationToken ct = default)
     {
         var dict = await LoadAsync(LdapPrefix, ct);
@@ -130,9 +200,6 @@ public class DirectorySettingsService : IDirectorySettingsService
         await UpsertAsync(LdapDomainKey, request.Domain.Trim(), ct);
         await UpsertAsync(LdapSearchBaseKey, request.SearchBase.Trim(), ct);
         await UpsertAsync(LdapServiceAccountKey, request.ServiceAccount.Trim(), ct);
-        await UpsertAsync(LdapUserFilterKey, string.IsNullOrWhiteSpace(request.UserFilter) ? "(sAMAccountName={0})" : request.UserFilter.Trim(), ct);
-        await UpsertAsync(LdapAdminGroupKey, request.AdminGroup.Trim(), ct);
-        await UpsertAsync(LdapStandardGroupKey, request.StandardGroup.Trim(), ct);
 
         if (!string.IsNullOrWhiteSpace(request.ServicePassword))
             await UpsertAsync(LdapServicePasswordKey, _protector.Protect(request.ServicePassword), ct);
@@ -244,9 +311,6 @@ public class DirectorySettingsService : IDirectorySettingsService
             SearchBase = Get(dict, LdapSearchBaseKey),
             ServiceAccount = serviceAccount,
             ServicePasswordSet = passwordSet,
-            UserFilter = Get(dict, LdapUserFilterKey, "(sAMAccountName={0})"),
-            AdminGroup = Get(dict, LdapAdminGroupKey),
-            StandardGroup = Get(dict, LdapStandardGroupKey),
             IsConfigured = !string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(serviceAccount) && passwordSet,
             UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
         };
@@ -304,6 +368,99 @@ public class DirectorySettingsService : IDirectorySettingsService
         Message = message,
         TestedAt = DateTime.UtcNow
     };
+
+    private static ImapInboxPreviewResponse InboxResult(bool success, string folder, string message) => new()
+    {
+        Success = success,
+        Folder = folder,
+        Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static int ParseExists(string response)
+    {
+        var match = Regex.Match(response, @"\*\s+(\d+)\s+EXISTS", RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var count) ? count : 0;
+    }
+
+    private static IEnumerable<string> ParseSearchIds(string response)
+    {
+        foreach (Match match in Regex.Matches(response, @"^\*\s+SEARCH\s+(.*)$", RegexOptions.IgnoreCase | RegexOptions.Multiline))
+        {
+            foreach (var id in match.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (int.TryParse(id, out _)) yield return id;
+            }
+        }
+    }
+
+    private static ImapInboxMessageDto ParseFetchedMessage(string id, string response)
+    {
+        return new ImapInboxMessageDto
+        {
+            Id = id,
+            From = DecodeMimeHeader(Header(response, "From")),
+            Subject = DecodeMimeHeader(Header(response, "Subject")),
+            Date = Header(response, "Date"),
+            Size = LongMatch(response, @"RFC822\.SIZE\s+(\d+)"),
+            Unread = !Regex.IsMatch(response, @"\\Seen\b", RegexOptions.IgnoreCase)
+        };
+    }
+
+    private static string Header(string response, string name)
+    {
+        var match = Regex.Match(response, $"^{Regex.Escape(name)}:\\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+    }
+
+    private static long LongMatch(string response, string pattern)
+    {
+        var match = Regex.Match(response, pattern, RegexOptions.IgnoreCase);
+        return match.Success && long.TryParse(match.Groups[1].Value, out var value) ? value : 0;
+    }
+
+    private static string DecodeMimeHeader(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        return Regex.Replace(value, @"=\?([^?]+)\?([bqBQ])\?([^?]+)\?=", match =>
+        {
+            try
+            {
+                var encoding = Encoding.GetEncoding(match.Groups[1].Value);
+                var mode = match.Groups[2].Value.ToUpperInvariant();
+                var payload = match.Groups[3].Value;
+                var bytes = mode == "B"
+                    ? Convert.FromBase64String(payload)
+                    : DecodeQuotedPrintableHeader(payload);
+                return encoding.GetString(bytes);
+            }
+            catch
+            {
+                return match.Value;
+            }
+        }).Trim();
+    }
+
+    private static byte[] DecodeQuotedPrintableHeader(string value)
+    {
+        value = value.Replace('_', ' ');
+        var bytes = new List<byte>();
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '=' && i + 2 < value.Length &&
+                byte.TryParse(value.Substring(i + 1, 2), System.Globalization.NumberStyles.HexNumber, null, out var b))
+            {
+                bytes.Add(b);
+                i += 2;
+            }
+            else
+            {
+                bytes.Add((byte)value[i]);
+            }
+        }
+        return bytes.ToArray();
+    }
 
     private static string Get(Dictionary<string, SystemSetting> dict, string key, string fallback = "") =>
         dict.TryGetValue(key, out var value) ? value.Value : fallback;

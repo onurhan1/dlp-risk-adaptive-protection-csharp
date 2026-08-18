@@ -10,10 +10,14 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public class WeeklyFlagService : IWeeklyFlagService
 {
     private readonly IIncidentRepository _incidentRepository;
+    private readonly IExternalUserDirectoryService _externalUserDirectory;
 
-    public WeeklyFlagService(IIncidentRepository incidentRepository)
+    public WeeklyFlagService(
+        IIncidentRepository incidentRepository,
+        IExternalUserDirectoryService externalUserDirectory)
     {
         _incidentRepository = incidentRepository;
+        _externalUserDirectory = externalUserDirectory;
     }
 
     // --- Detection thresholds (could later be moved to system_settings) ---
@@ -80,6 +84,10 @@ public class WeeklyFlagService : IWeeklyFlagService
         result.PersonalEmailSenders = result.PersonalEmailSenders.OrderByDescending(u => u.TriggerCount).ToList();
         result.HighVolume = result.HighVolume.OrderByDescending(u => u.TriggerCount).ToList();
         result.MassiveMatches = result.MassiveMatches.OrderByDescending(u => u.TriggerCount).ToList();
+
+        result.PersonalEmailSenders = await EnrichUsersAsync(result.PersonalEmailSenders);
+        result.HighVolume = await EnrichUsersAsync(result.HighVolume);
+        result.MassiveMatches = await EnrichUsersAsync(result.MassiveMatches);
 
         return result;
     }
@@ -177,4 +185,30 @@ public class WeeklyFlagService : IWeeklyFlagService
             LastSeen: incidents.Max(i => i.Timestamp),
             SampleIncidents: samples);
     }
+
+    private async Task<List<WeeklyFlagUserDto>> EnrichUsersAsync(List<WeeklyFlagUserDto> users)
+    {
+        var enriched = new List<WeeklyFlagUserDto>(users.Count);
+        foreach (var user in users)
+        {
+            var profile = await _externalUserDirectory.ResolveUserAsync(user.UserEmail);
+            if (profile == null)
+            {
+                enriched.Add(user);
+                continue;
+            }
+
+            enriched.Add(user with
+            {
+                FullName = FirstNonEmpty(profile.FullName, user.FullName),
+                Team = FirstNonEmpty(profile.Department, user.Team),
+                ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail
+            });
+        }
+
+        return enriched;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 }

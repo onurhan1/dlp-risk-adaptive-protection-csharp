@@ -44,6 +44,7 @@ public class PlaybookEngine : IPlaybookEngine
     private readonly IIncidentRepository _incidentRepository;
     private readonly IEmailService _emailService;
     private readonly IInvestigationQueryRemediationSyncService _queryRemediationSync;
+    private readonly IExternalUserDirectoryService _externalUserDirectory;
     private readonly ILogger<PlaybookEngine> _logger;
 
     public PlaybookEngine(
@@ -52,6 +53,7 @@ public class PlaybookEngine : IPlaybookEngine
         IIncidentRepository incidentRepository,
         IEmailService emailService,
         IInvestigationQueryRemediationSyncService queryRemediationSync,
+        IExternalUserDirectoryService externalUserDirectory,
         ILogger<PlaybookEngine> logger)
     {
         _context = context;
@@ -59,6 +61,7 @@ public class PlaybookEngine : IPlaybookEngine
         _incidentRepository = incidentRepository;
         _emailService = emailService;
         _queryRemediationSync = queryRemediationSync;
+        _externalUserDirectory = externalUserDirectory;
         _logger = logger;
     }
 
@@ -392,6 +395,7 @@ public class PlaybookEngine : IPlaybookEngine
                         "Risk")
                 }),
             PlaybookNodeType.SourceHighRiskUsers)).ToList();
+        items = await EnrichItemsAsync(items, ct);
 
         context.SetMessage($"Son {days} günde risk skoru {minRiskScore}+ olan {items.Count} kullanıcı listelendi");
         return items;
@@ -445,6 +449,7 @@ public class PlaybookEngine : IPlaybookEngine
             .ThenByDescending(i => i.User.SampleIncidents.Count > 0 ? i.User.SampleIncidents.Max(s => s.MaxMatches) : 0)
             .Take(topLimit)
             .ToList();
+        items = await EnrichItemsAsync(items, ct);
 
         context.SetMessage($"Son {days} günde en çok {actionKind} incident üreten {items.Count} kullanıcı listelendi");
         return items;
@@ -487,9 +492,36 @@ public class PlaybookEngine : IPlaybookEngine
             .OrderByDescending(i => i.User.TriggerCount)
             .Take(topLimit)
             .ToList();
+        items = await EnrichItemsAsync(items, ct);
 
         context.SetMessage($"Max Match {threshold}+ olan tekil gönderimlerden {items.Count} kullanıcı listelendi");
         return items;
+    }
+
+    private async Task<List<PlaybookItem>> EnrichItemsAsync(List<PlaybookItem> items, CancellationToken ct)
+    {
+        var enriched = new List<PlaybookItem>(items.Count);
+        foreach (var item in items)
+        {
+            var profile = await _externalUserDirectory.ResolveUserAsync(item.User.UserEmail, ct);
+            if (profile == null)
+            {
+                enriched.Add(item);
+                continue;
+            }
+
+            enriched.Add(item with
+            {
+                User = item.User with
+                {
+                    FullName = FirstNonEmpty(profile.FullName, item.User.FullName),
+                    Team = FirstNonEmpty(profile.Department, item.User.Team),
+                    ContactEmail = FirstNonEmpty(profile.Email, item.User.ContactEmail, item.User.UserEmail) ?? item.User.ContactEmail
+                }
+            });
+        }
+
+        return enriched;
     }
 
     private static bool IsPermitAction(string? action)
@@ -514,6 +546,9 @@ public class PlaybookEngine : IPlaybookEngine
     }
 
     private static string? FirstNonEmpty(IEnumerable<string?> values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     private static WeeklyFlagIncidentDto ToWeeklyFlagIncident(Incident incident) =>

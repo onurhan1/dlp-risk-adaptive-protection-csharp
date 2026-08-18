@@ -30,6 +30,32 @@ public class ImapSettingsResponse
     public DateTime? UpdatedAt { get; set; }
 }
 
+public class ImapInboxRequest : ImapSettingsRequest
+{
+    public int PreviewCount { get; set; } = 20;
+}
+
+public class ImapInboxMessageDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string From { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;
+    public bool Unread { get; set; }
+    public long Size { get; set; }
+}
+
+public class ImapInboxPreviewResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string Folder { get; set; } = "INBOX";
+    public int TotalMessages { get; set; }
+    public int ReturnedMessages { get; set; }
+    public List<ImapInboxMessageDto> Messages { get; set; } = new();
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class LdapSettingsRequest
 {
     public bool Enabled { get; set; }
@@ -40,9 +66,6 @@ public class LdapSettingsRequest
     public string SearchBase { get; set; } = string.Empty;
     public string ServiceAccount { get; set; } = string.Empty;
     public string? ServicePassword { get; set; }
-    public string UserFilter { get; set; } = "(sAMAccountName={0})";
-    public string AdminGroup { get; set; } = string.Empty;
-    public string StandardGroup { get; set; } = string.Empty;
 }
 
 public class LdapSettingsResponse
@@ -55,11 +78,58 @@ public class LdapSettingsResponse
     public string SearchBase { get; set; } = string.Empty;
     public string ServiceAccount { get; set; } = string.Empty;
     public bool ServicePasswordSet { get; set; }
-    public string UserFilter { get; set; } = "(sAMAccountName={0})";
-    public string AdminGroup { get; set; } = string.Empty;
-    public string StandardGroup { get; set; } = string.Empty;
     public bool IsConfigured { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+public class ExternalUserDbSettingsRequest
+{
+    public bool Enabled { get; set; }
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 1433;
+    public string Database { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string? Password { get; set; }
+    public bool Encrypt { get; set; } = true;
+    public bool TrustServerCertificate { get; set; } = true;
+    public string TableName { get; set; } = string.Empty;
+    public string MatchColumn { get; set; } = "username";
+    public string FirstNameColumn { get; set; } = string.Empty;
+    public string LastNameColumn { get; set; } = string.Empty;
+    public string FullNameColumn { get; set; } = string.Empty;
+    public string EmailColumn { get; set; } = "email";
+    public string DepartmentColumn { get; set; } = string.Empty;
+    public string WhereClause { get; set; } = string.Empty;
+}
+
+public class ExternalUserDbSettingsResponse : ExternalUserDbSettingsRequest
+{
+    public bool PasswordSet { get; set; }
+    public bool IsConfigured { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
+public class ExternalUserLookupRequest : ExternalUserDbSettingsRequest
+{
+    public string TestUsername { get; set; } = string.Empty;
+}
+
+public class ExternalUserProfileDto
+{
+    public string UserName { get; set; } = string.Empty;
+    public string? FullName { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Email { get; set; }
+    public string? Department { get; set; }
+}
+
+public class ExternalUserLookupResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public ExternalUserProfileDto? User { get; set; }
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class DirectorySettingsTestResult
