@@ -328,7 +328,8 @@ public class DirectorySettingsService : IDirectorySettingsService
             {
                 if (await TryLdapSimpleBindAsync(settings.Host.Trim(), settings.Port, settings.UseLdaps, bindName, password, ct))
                 {
-                    return LdapAuthResult(true, normalizedUsername, "LDAP kimlik dogrulama basarili", BuildEmail(normalizedUsername, settings.Domain));
+                    var email = await ResolveLdapEmailAsync(settings, normalizedUsername, username, bindName, password, ct);
+                    return LdapAuthResult(true, normalizedUsername, "LDAP kimlik dogrulama basarili", email ?? BuildEmail(normalizedUsername, settings.Domain));
                 }
             }
 
@@ -339,6 +340,84 @@ public class DirectorySettingsService : IDirectorySettingsService
             _logger.LogWarning(ex, "LDAP authentication failed for {Username}", normalizedUsername);
             return LdapAuthResult(false, normalizedUsername, $"LDAP login basarisiz: {ex.Message}");
         }
+    }
+
+    private async Task<string?> ResolveLdapEmailAsync(
+        LdapSettingsResponse settings,
+        string normalizedUsername,
+        string originalUsername,
+        string successfulBindName,
+        string userPassword,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(settings.SearchBase))
+            return null;
+
+        var servicePassword = await GetSecretAsync(LdapServicePasswordKey, ct);
+        if (!string.IsNullOrWhiteSpace(settings.ServiceAccount) && !string.IsNullOrWhiteSpace(servicePassword))
+        {
+            foreach (var bindName in BuildLdapBindCandidates(settings.ServiceAccount, settings.Domain).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var email = await TrySearchLdapUserEmailAsync(settings, bindName, servicePassword, normalizedUsername, originalUsername, ct);
+                if (!string.IsNullOrWhiteSpace(email))
+                    return email;
+            }
+        }
+
+        return await TrySearchLdapUserEmailAsync(settings, successfulBindName, userPassword, normalizedUsername, originalUsername, ct);
+    }
+
+    private async Task<string?> TrySearchLdapUserEmailAsync(
+        LdapSettingsResponse settings,
+        string bindName,
+        string password,
+        string normalizedUsername,
+        string originalUsername,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(settings.Host.Trim(), settings.Port, ct);
+            using var stream = settings.UseLdaps
+                ? await WrapSslAsync(client, settings.Host.Trim(), ct)
+                : client.GetStream();
+
+            var bindRequest = BuildLdapSimpleBindRequest(1, bindName, password);
+            await stream.WriteAsync(bindRequest, ct);
+            await stream.FlushAsync(ct);
+
+            var bindResponse = await ReadLdapResponseAsync(stream, ct);
+            if (!IsLdapBindSuccess(bindResponse))
+                return null;
+
+            var searchRequest = BuildLdapUserSearchRequest(2, settings.SearchBase, normalizedUsername, originalUsername, settings.Domain);
+            await stream.WriteAsync(searchRequest, ct);
+            await stream.FlushAsync(ct);
+
+            for (var i = 0; i < 20; i++)
+            {
+                var response = await ReadLdapResponseAsync(stream, ct);
+                var operation = GetLdapProtocolOperationTag(response);
+                if (operation == 0x64)
+                {
+                    var attributes = ParseLdapSearchResultAttributes(response);
+                    if (attributes.TryGetValue("mail", out var mail) && !string.IsNullOrWhiteSpace(mail))
+                        return mail.Trim();
+                    if (attributes.TryGetValue("userPrincipalName", out var upn) && !string.IsNullOrWhiteSpace(upn))
+                        return upn.Trim();
+                }
+
+                if (operation == 0x65)
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "LDAP user attribute lookup failed for {Username}", normalizedUsername);
+        }
+
+        return null;
     }
 
     private static async Task<bool> TryLdapSimpleBindAsync(string host, int port, bool useLdaps, string bindName, string password, CancellationToken ct)
@@ -501,10 +580,11 @@ public class DirectorySettingsService : IDirectorySettingsService
         var payload = new byte[length];
         await ReadExactlyAsync(stream, payload, timeout.Token);
 
-        var response = new byte[2 + payload.Length];
+        var encodedLength = BerLength(payload.Length);
+        var response = new byte[1 + encodedLength.Length + payload.Length];
         response[0] = header[0];
-        response[1] = header[1];
-        Buffer.BlockCopy(payload, 0, response, 2, payload.Length);
+        Buffer.BlockCopy(encodedLength, 0, response, 1, encodedLength.Length);
+        Buffer.BlockCopy(payload, 0, response, 1 + encodedLength.Length, payload.Length);
         return response;
     }
 
@@ -882,6 +962,151 @@ public class DirectorySettingsService : IDirectorySettingsService
         return $"{username}@{domain.Trim()}";
     }
 
+    private static byte[] BuildLdapUserSearchRequest(int messageId, string searchBase, string normalizedUsername, string originalUsername, string domain)
+    {
+        var attributes = BerConstructed(
+            0x30,
+            BerOctetString("mail"),
+            BerOctetString("userPrincipalName"),
+            BerOctetString("displayName"),
+            BerOctetString("givenName"),
+            BerOctetString("sn"));
+
+        var searchRequest = BerConstructed(
+            0x63,
+            BerOctetString(searchBase.Trim()),
+            BerEnumerated(2),
+            BerEnumerated(0),
+            BerInteger(1),
+            BerInteger(10),
+            BerBoolean(false),
+            BuildLdapUserSearchFilter(normalizedUsername, originalUsername, domain),
+            attributes);
+
+        return BerConstructed(0x30, BerInteger(messageId), searchRequest);
+    }
+
+    private static byte[] BuildLdapUserSearchFilter(string normalizedUsername, string originalUsername, string domain)
+    {
+        var filters = new List<byte[]>
+        {
+            BerEqualityFilter("sAMAccountName", normalizedUsername),
+            BerEqualityFilter("cn", normalizedUsername),
+            BerEqualityFilter("uid", normalizedUsername)
+        };
+
+        var trimmedOriginal = originalUsername.Trim();
+        if (!string.Equals(trimmedOriginal, normalizedUsername, StringComparison.OrdinalIgnoreCase))
+            filters.Add(BerEqualityFilter("userPrincipalName", trimmedOriginal));
+
+        if (!string.IsNullOrWhiteSpace(domain) && domain.Contains('.'))
+        {
+            var upn = $"{normalizedUsername}@{domain.Trim()}";
+            filters.Add(BerEqualityFilter("userPrincipalName", upn));
+            filters.Add(BerEqualityFilter("mail", upn));
+        }
+
+        return BerConstructed(0xA1, filters.DistinctBy(Convert.ToBase64String).ToArray());
+    }
+
+    private static byte[] BerEqualityFilter(string attribute, string value) =>
+        BerConstructed(0xA3, BerOctetString(attribute), BerOctetString(value));
+
+    private static byte GetLdapProtocolOperationTag(byte[] response)
+    {
+        var offset = 0;
+        if (!TryReadTlv(response, ref offset, out var tag, out var start, out var length) || tag != 0x30)
+            return 0;
+
+        var messageOffset = start;
+        if (!TryReadTlv(response, ref messageOffset, out _, out _, out _))
+            return 0;
+
+        return messageOffset < start + length ? response[messageOffset] : (byte)0;
+    }
+
+    private static Dictionary<string, string> ParseLdapSearchResultAttributes(byte[] response)
+    {
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var offset = 0;
+        if (!TryReadTlv(response, ref offset, out var messageTag, out var messageStart, out var messageLength) || messageTag != 0x30)
+            return attributes;
+
+        var messageOffset = messageStart;
+        if (!TryReadTlv(response, ref messageOffset, out _, out _, out _))
+            return attributes;
+        if (!TryReadTlv(response, ref messageOffset, out var entryTag, out var entryStart, out var entryLength) || entryTag != 0x64)
+            return attributes;
+
+        var entryOffset = entryStart;
+        if (!TryReadTlv(response, ref entryOffset, out _, out _, out _))
+            return attributes;
+        if (!TryReadTlv(response, ref entryOffset, out var listTag, out var listStart, out var listLength) || listTag != 0x30)
+            return attributes;
+
+        var listOffset = listStart;
+        var listEnd = Math.Min(listStart + listLength, entryStart + entryLength);
+        while (listOffset < listEnd)
+        {
+            if (!TryReadTlv(response, ref listOffset, out var attributeTag, out var attributeStart, out var attributeLength) || attributeTag != 0x30)
+                break;
+
+            var attributeOffset = attributeStart;
+            if (!TryReadTlv(response, ref attributeOffset, out var nameTag, out var nameStart, out var nameLength) || nameTag != 0x04)
+                continue;
+            var name = ReadBerString(response, nameStart, nameLength);
+
+            if (!TryReadTlv(response, ref attributeOffset, out var valuesTag, out var valuesStart, out var valuesLength) || valuesTag != 0x31)
+                continue;
+
+            var valueOffset = valuesStart;
+            var valuesEnd = valuesStart + valuesLength;
+            if (!TryReadTlv(response, ref valueOffset, out var valueTag, out var valueStart, out var valueLength) || valueTag != 0x04 || valueStart + valueLength > valuesEnd)
+                continue;
+
+            var value = ReadBerString(response, valueStart, valueLength);
+            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(value))
+                attributes[name] = value;
+        }
+
+        _ = messageLength;
+        return attributes;
+    }
+
+    private static bool TryReadTlv(byte[] data, ref int offset, out byte tag, out int valueStart, out int valueLength)
+    {
+        tag = 0;
+        valueStart = 0;
+        valueLength = 0;
+
+        if (offset >= data.Length) return false;
+        tag = data[offset++];
+        if (offset >= data.Length) return false;
+
+        var firstLengthByte = data[offset++];
+        if ((firstLengthByte & 0x80) == 0)
+        {
+            valueLength = firstLengthByte;
+        }
+        else
+        {
+            var byteCount = firstLengthByte & 0x7F;
+            if (byteCount <= 0 || byteCount > 4 || offset + byteCount > data.Length) return false;
+
+            for (var i = 0; i < byteCount; i++)
+                valueLength = (valueLength << 8) | data[offset++];
+        }
+
+        valueStart = offset;
+        offset += valueLength;
+        return valueLength >= 0 && offset <= data.Length;
+    }
+
+    private static string ReadBerString(byte[] data, int start, int length) =>
+        start < 0 || length <= 0 || start + length > data.Length
+            ? string.Empty
+            : Encoding.UTF8.GetString(data, start, length);
+
     private static byte[] BuildLdapSimpleBindRequest(int messageId, string bindName, string password)
     {
         var messageIdPart = BerInteger(messageId);
@@ -911,6 +1136,10 @@ public class DirectorySettingsService : IDirectorySettingsService
     }
 
     private static byte[] BerOctetString(string value) => BerTlv(0x04, Encoding.UTF8.GetBytes(value));
+
+    private static byte[] BerEnumerated(int value) => BerTlv(0x0A, new[] { (byte)value });
+
+    private static byte[] BerBoolean(bool value) => BerTlv(0x01, new[] { value ? (byte)0xFF : (byte)0x00 });
 
     private static byte[] BerContextString(byte tag, string value) => BerTlv((byte)(0x80 | tag), Encoding.UTF8.GetBytes(value));
 
