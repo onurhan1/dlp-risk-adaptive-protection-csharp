@@ -999,13 +999,8 @@ export default function SettingsPage() {
             </Field>
           </Grid>
         </Panel>
-        <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
-          {externalDb.provider === 'mssql' ? (
-            <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>
-              MSSQL icin kullanici eslestirme sorgusu backend kodunda sabit olarak tanimlidir.
-              Test kullanici adi `@username` parametresiyle sorguya aktarilir; tablo ve kolon adlari kod icindeki sorgudan duzenlenir.
-            </div>
-          ) : (
+        {externalDb.provider === 'postgresql' && (
+          <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
             <Grid>
               <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder="public.users" /></Field>
               <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
@@ -1016,8 +1011,8 @@ export default function SettingsPage() {
               <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
               <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = true" /></Field>
             </Grid>
-          )}
-        </Panel>
+          </Panel>
+        )}
         <Panel>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label="Test Kullanici Adi" style={{ minWidth: 240, flex: 1 }}>
