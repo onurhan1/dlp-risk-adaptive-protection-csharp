@@ -11,99 +11,6 @@ public class MailTemplatesController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
     private readonly ILogger<MailTemplatesController> _logger;
-    private static readonly DefaultMailTemplate[] DefaultTemplates =
-    {
-        new(
-            "Workflow - Standart DLP Aktivite Sorgusu",
-            "DLP Aktivite Doğrulama Talebi - {{tarih}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>DLP izleme kapsamında aşağıdaki aktivite kayıtları inceleme için tarafınıza iletilmektedir.</p>
-            <p>Lütfen bu işlemlerin bilginiz dahilinde ve iş amacıyla gerçekleşip gerçekleşmediğini yanıtlayınız.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}<br />
-            <strong>İnceleme tarihi:</strong> {{tarih}}</p>
-            <p><strong>Örnek olaylar</strong></p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>Yanıtınız güvenlik ve uyumluluk değerlendirmesi için kayıt altına alınacaktır.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """),
-        new(
-            "Workflow - Yüksek Risk Skoru İnceleme",
-            "Haftalık Yüksek Risk Skoru İncelemesi - {{kullanici}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>Haftalık DLP risk değerlendirmesinde hesabınız için yüksek risk sinyali oluşmuştur.</p>
-            <p>Aşağıdaki örnek aktiviteleri kontrol ederek işlemlerin size ait olup olmadığını ve iş gerekçesini paylaşmanızı rica ederiz.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}<br />
-            <strong>Tarih:</strong> {{tarih}}</p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>İşlemler size ait değilse veya şüpheli görünüyorsa lütfen bu e-postayı acil olarak yanıtlayınız.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """),
-        new(
-            "Workflow - Permit Incident İncelemesi",
-            "Permit Edilen DLP Olayı Hakkında Bilgi Talebi - {{tarih}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>DLP politikaları kapsamında permit edilen fakat inceleme gerektiren aktiviteleriniz tespit edilmiştir.</p>
-            <p>Bu işlemlerin iş amacı, alıcı/hedef bilgisi ve veri paylaşım gerekçesini kısaca iletmenizi rica ederiz.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}</p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>Yanıtınız sonrasında olay uygunluk açısından kapatılacak veya ek incelemeye alınacaktır.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """),
-        new(
-            "Workflow - Block Incident Bilgilendirme",
-            "Bloklanan DLP Olayı İncelemesi - {{kullanici}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>DLP güvenlik kontrolleri aşağıdaki aktiviteyi engellemiş veya blok aksiyonu üretmiştir.</p>
-            <p>İşlemin iş ihtiyacı kapsamında yapıldığını düşünüyorsanız, lütfen gerekçenizi ve gerekiyorsa alternatif güvenli paylaşım yöntemini belirtiniz.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}<br />
-            <strong>İnceleme tarihi:</strong> {{tarih}}</p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>Güvenli paylaşım ihtiyacı varsa Bilgi Güvenliği ekibi yönlendirme sağlayacaktır.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """),
-        new(
-            "Workflow - Yüksek Max Match Veri Gönderimi",
-            "Yüksek Eşleşme Sayılı Veri Gönderimi İncelemesi - {{tarih}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>Tek seferde yüksek sayıda hassas veri eşleşmesi içeren bir aktarım tespit edilmiştir.</p>
-            <p>Mevcut alt sınır 300 Max Match ve üzeri olaylar için kullanılmaktadır. Lütfen aşağıdaki aktivitenin iş gerekçesini, hedef/alıcı bilgisini ve verinin paylaşım zorunluluğunu açıklayınız.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}<br />
-            <strong>Hedef / Alıcı:</strong> {{destination}}<br />
-            <strong>Kanal:</strong> {{kanal}}<br />
-            <strong>Policy / Rule:</strong> {{policy}}<br />
-            <strong>Max Match:</strong> {{max_match}}</p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>Gerekçesi olmayan veya hatalı veri paylaşımı için ek aksiyon alınabilir.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """),
-        new(
-            "Workflow - Tek Hedefe Yüksek Veri Gönderimi",
-            "{{destination}} Hedefine Yüksek Veri Gönderimi İncelemesi - {{tarih}}",
-            """
-            <p>Merhaba {{tam_ad}},</p>
-            <p>DLP kayıtlarında tek bir hedefe/alıcıya yüksek sayıda hassas veri eşleşmesi içeren gönderim tespit edilmiştir.</p>
-            <p>Aşağıdaki hedefe yapılan aktarımın iş gerekçesini, alıcının neden gerekli olduğunu ve verinin paylaşım kapsamını açıklamanızı rica ederiz.</p>
-            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}<br />
-            <strong>Hedef / Alıcı:</strong> {{destination}}<br />
-            <strong>Kanal:</strong> {{kanal}}<br />
-            <strong>Policy / Rule:</strong> {{policy}}<br />
-            <strong>Max Match:</strong> {{max_match}}</p>
-            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
-            <p>Bu paylaşım iş amacıyla yapılmadıysa veya alıcı hatalıysa lütfen yanıtınızda açıkça belirtiniz.</p>
-            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
-            """)
-    };
 
     public MailTemplatesController(AnalyzerDbContext context, ILogger<MailTemplatesController> logger)
     {
@@ -112,7 +19,6 @@ public class MailTemplatesController : ControllerBase
     }
 
     public record MailTemplateRequest(string Name, string Subject, string Body);
-    private sealed record DefaultMailTemplate(string Name, string Subject, string Body);
 
     /// <summary>
     /// Ensure the mail_templates table exists (mirrors the runtime provisioning used for
@@ -140,35 +46,6 @@ public class MailTemplatesController : ControllerBase
         }
     }
 
-    private async Task SeedDefaultTemplatesAsync(CancellationToken ct)
-    {
-        await EnsureTableAsync(ct);
-
-        var defaultNames = DefaultTemplates.Select(t => t.Name).ToList();
-        var existingNames = await _context.MailTemplates
-            .AsNoTracking()
-            .Where(t => defaultNames.Contains(t.Name))
-            .Select(t => t.Name)
-            .ToListAsync(ct);
-        var existing = existingNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var now = DateTime.UtcNow;
-
-        foreach (var template in DefaultTemplates.Where(t => !existing.Contains(t.Name)))
-        {
-            _context.MailTemplates.Add(new MailTemplate
-            {
-                Name = template.Name,
-                Subject = template.Subject,
-                Body = template.Body,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        }
-
-        if (_context.ChangeTracker.HasChanges())
-            await _context.SaveChangesAsync(ct);
-    }
-
     private static object ToDto(MailTemplate t) => new
     {
         id = t.Id,
@@ -182,7 +59,7 @@ public class MailTemplatesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        await SeedDefaultTemplatesAsync(ct);
+        await EnsureTableAsync(ct);
         var templates = await _context.MailTemplates
             .AsNoTracking()
             .OrderByDescending(t => t.UpdatedAt)
