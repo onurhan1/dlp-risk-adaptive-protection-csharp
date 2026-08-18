@@ -1,8 +1,10 @@
+using System.Data;
+using System.Data.Common;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -89,7 +91,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
         try
         {
-            await using var connection = new SqlConnection(BuildConnectionString(request));
+            await using var connection = CreateConnection(BuildConnectionString(request));
             await connection.OpenAsync(ct);
             return Result(true, "MSSQL baglantisi basarili");
         }
@@ -151,12 +153,18 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
     private async Task<ExternalUserProfileDto?> LookupAsync(ExternalUserDbSettingsRequest settings, string userName, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(BuildConnectionString(settings));
+        await using var connection = CreateConnection(BuildConnectionString(settings));
         await connection.OpenAsync(ct);
 
         var query = BuildLookupSql(settings);
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@username", userName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.CommandType = CommandType.Text;
+
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@username";
+        parameter.Value = userName;
+        command.Parameters.Add(parameter);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
@@ -207,17 +215,68 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
 
     private static string BuildConnectionString(ExternalUserDbSettingsRequest settings)
     {
-        var builder = new SqlConnectionStringBuilder
+        var builder = new DbConnectionStringBuilder
         {
-            DataSource = $"{settings.Host.Trim()},{settings.Port}",
-            InitialCatalog = settings.Database.Trim(),
-            UserID = settings.Username.Trim(),
-            Password = settings.Password ?? string.Empty,
-            Encrypt = settings.Encrypt,
-            TrustServerCertificate = settings.TrustServerCertificate,
-            ConnectTimeout = 15
+            ["Server"] = $"{settings.Host.Trim()},{settings.Port}",
+            ["Database"] = settings.Database.Trim(),
+            ["User ID"] = settings.Username.Trim(),
+            ["Password"] = settings.Password ?? string.Empty,
+            ["Encrypt"] = settings.Encrypt,
+            ["TrustServerCertificate"] = settings.TrustServerCertificate,
+            ["Connect Timeout"] = 15
         };
         return builder.ConnectionString;
+    }
+
+    private static DbConnection CreateConnection(string connectionString)
+    {
+        var connectionType = ResolveSqlConnectionType();
+        if (connectionType == null)
+        {
+            throw new InvalidOperationException(
+                "MSSQL provider bulunamadi. Kapali ortamda build'in kirilmamasi icin SqlClient compile-time bagimliligi kaldirildi; " +
+                "MSSQL entegrasyonunu calistirmak icin publish ciktisinda Microsoft.Data.SqlClient ya da System.Data.SqlClient assembly'si bulunmalidir.");
+        }
+
+        if (Activator.CreateInstance(connectionType, connectionString) is DbConnection connection)
+            return connection;
+
+        if (Activator.CreateInstance(connectionType) is DbConnection fallback)
+        {
+            fallback.ConnectionString = connectionString;
+            return fallback;
+        }
+
+        throw new InvalidOperationException("MSSQL provider yuklendi ancak DbConnection olusturulamadi");
+    }
+
+    private static Type? ResolveSqlConnectionType()
+    {
+        var providerTypes = new[]
+        {
+            ("Microsoft.Data.SqlClient", "Microsoft.Data.SqlClient.SqlConnection"),
+            ("System.Data.SqlClient", "System.Data.SqlClient.SqlConnection")
+        };
+
+        foreach (var (assemblyName, typeName) in providerTypes)
+        {
+            var type = Type.GetType($"{typeName}, {assemblyName}", throwOnError: false);
+            if (type != null && typeof(DbConnection).IsAssignableFrom(type))
+                return type;
+
+            try
+            {
+                type = Assembly.Load(new AssemblyName(assemblyName)).GetType(typeName, throwOnError: false);
+                if (type != null && typeof(DbConnection).IsAssignableFrom(type))
+                    return type;
+            }
+            catch
+            {
+                // Provider is optional; connection tests surface a clear message when it is absent.
+            }
+        }
+
+        return null;
     }
 
     private async Task<ExternalUserDbSettingsResponse> GetCachedSettingsAsync(CancellationToken ct)
@@ -372,7 +431,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
-    private static string? Read(SqlDataReader reader, string name)
+    private static string? Read(DbDataReader reader, string name)
     {
         var ordinal = reader.GetOrdinal(name);
         return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal)?.ToString();
