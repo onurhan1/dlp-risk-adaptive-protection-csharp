@@ -185,6 +185,48 @@ const settingsData = {
     ai_api_key: 'mock-ai-key-xxxx',
 }
 
+const mockImapSettings = {
+    enabled: true,
+    host: 'imap.company.com',
+    port: 993,
+    enable_ssl: true,
+    username: 'dlp-workflow@company.com',
+    password_set: true,
+    folder: 'INBOX',
+    unread_only: false,
+    lookback_days: 7,
+    max_messages: 500,
+    is_configured: true,
+    updated_at: new Date().toISOString(),
+}
+
+const mockImapMessages = [
+    {
+        id: '101',
+        from: 'analyst@company.com',
+        subject: 'RE: DLP sorgu cevabi - yuksek match',
+        date: generateDate(0),
+        unread: true,
+        size: 18432,
+    },
+    {
+        id: '100',
+        from: 'manager@company.com',
+        subject: 'Permit incident kullanici aciklamasi',
+        date: generateDate(1),
+        unread: false,
+        size: 9216,
+    },
+    {
+        id: '99',
+        from: 'security@company.com',
+        subject: 'Haftalik inceleme listesi',
+        date: generateDate(2),
+        unread: false,
+        size: 12780,
+    },
+]
+
 // ─── Domain Features ───────────────────────────────────────────────────────────
 
 const domainColumns = [
@@ -552,6 +594,59 @@ function handleRequest(pathname, query, method, body) {
     }
     if (pathname === '/api/settings/send-test-email') {
         return { success: true, message: 'Test email sent' }
+    }
+    if (pathname === '/api/settings/imap') {
+        if (method === 'POST') {
+            Object.assign(mockImapSettings, {
+                ...body,
+                password: undefined,
+                password_set: true,
+                is_configured: true,
+                updated_at: new Date().toISOString(),
+            })
+            return { success: true, settings: mockImapSettings }
+        }
+        return mockImapSettings
+    }
+    if (pathname === '/api/settings/imap/test') {
+        return { success: true, message: 'IMAP baglantisi ve kimlik dogrulama basarili', tested_at: new Date().toISOString() }
+    }
+    if (pathname === '/api/settings/imap/inbox') {
+        const requestedFolder = body?.folder || mockImapSettings.folder
+        const messages = body?.unread_only
+            ? mockImapMessages.filter(mail => mail.unread)
+            : mockImapMessages
+        return {
+            success: true,
+            message: `${requestedFolder} klasorunden ${messages.length} mail listelendi`,
+            folder: requestedFolder,
+            total_messages: mockImapMessages.length,
+            returned_messages: messages.length,
+            messages,
+            tested_at: new Date().toISOString(),
+        }
+    }
+    if (pathname === '/api/settings/imap/message') {
+        const mail = mockImapMessages.find(item => item.id === String(body?.message_id)) || mockImapMessages[0]
+        return {
+            success: true,
+            message: 'Mail icerigi alindi',
+            id: mail.id,
+            from: mail.from,
+            subject: mail.subject,
+            date: mail.date,
+            content_type: 'text/plain',
+            body_text: [
+                'Merhaba,',
+                '',
+                'Ilgili DLP sorgu maili icin kullanici aciklamasi asagidadir.',
+                'Gonderim tek seferde yuksek match sayisina ulasmistir ve yonetici onayi beklenmektedir.',
+                '',
+                'Bu kayit mock IMAP endpoint tarafindan uretilmistir.',
+            ].join('\n'),
+            truncated: false,
+            tested_at: new Date().toISOString(),
+        }
     }
     if (pathname === '/api/settings/ai') {
         if (method === 'POST') return { success: true, message: 'AI settings saved' }
