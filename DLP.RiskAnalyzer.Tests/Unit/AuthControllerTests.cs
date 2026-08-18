@@ -1,6 +1,8 @@
 using DLP.RiskAnalyzer.Analyzer.Auth;
 using DLP.RiskAnalyzer.Analyzer.Controllers;
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
+using DLP.RiskAnalyzer.Analyzer.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -31,7 +33,17 @@ public class AuthControllerTests : IDisposable
         };
 
         var logger = new Mock<ILogger<AuthController>>();
-        _sut = new AuthController(_db, _jwt, logger.Object);
+        var directorySettingsService = new Mock<IDirectorySettingsService>();
+        directorySettingsService
+            .Setup(s => s.GetLdapAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LdapSettingsResponse { Enabled = false });
+
+        _sut = new AuthController(
+            _db,
+            _jwt,
+            logger.Object,
+            new UserService(_db),
+            directorySettingsService.Object);
 
         SeedTestUser("testuser", "TestPassword123!");
     }
