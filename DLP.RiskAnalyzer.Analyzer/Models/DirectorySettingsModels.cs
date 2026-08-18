@@ -158,3 +158,12 @@ public class DirectorySettingsTestResult
     public string Message { get; set; } = string.Empty;
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class LdapAuthenticationResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
+}

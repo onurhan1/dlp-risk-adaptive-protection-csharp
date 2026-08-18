@@ -12,4 +12,5 @@ public interface IDirectorySettingsService
     Task<LdapSettingsResponse> GetLdapAsync(CancellationToken ct = default);
     Task<LdapSettingsResponse> SaveLdapAsync(LdapSettingsRequest request, CancellationToken ct = default);
     Task<DirectorySettingsTestResult> TestLdapAsync(LdapSettingsRequest request, CancellationToken ct = default);
+    Task<LdapAuthenticationResult> AuthenticateLdapAsync(string username, string password, CancellationToken ct = default);
 }

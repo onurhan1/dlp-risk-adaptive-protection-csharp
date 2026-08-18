@@ -16,6 +16,9 @@ public class UserService : IUserService
     public UserEntity? GetByUsername(string username) =>
         _db.Users.FirstOrDefault(u => u.Username.ToLower() == username.ToLower() && u.IsActive);
 
+    public async Task<UserEntity?> GetByUsernameAsync(string username, CancellationToken ct = default) =>
+        await _db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower() && u.IsActive, ct);
+
     public bool ValidateCredentials(string username, string password, out UserEntity? user)
     {
         user = GetByUsername(username);
@@ -23,6 +26,35 @@ public class UserService : IUserService
             return false;
 
         return VerifyPassword(password, user.PasswordHash, user.PasswordSalt);
+    }
+
+    public async Task<UserEntity> GetOrCreateExternalUserAsync(string username, string? email, CancellationToken ct = default)
+    {
+        var normalized = NormalizeUsername(username);
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == normalized.ToLower(), ct);
+        if (user != null)
+        {
+            if (!string.IsNullOrWhiteSpace(email) && !string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase))
+                user.Email = email.Trim();
+            await _db.SaveChangesAsync(ct);
+            return user;
+        }
+
+        var (hash, salt) = CreatePasswordHash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
+        user = new UserEntity
+        {
+            Username = normalized,
+            Email = string.IsNullOrWhiteSpace(email) ? $"{normalized}@company.com" : email.Trim(),
+            Role = "standard",
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync(ct);
+        return user;
     }
 
     public (string Hash, string Salt) CreatePasswordHash(string password)
@@ -102,5 +134,15 @@ public class UserService : IUserService
         {
             return false;
         }
+    }
+
+    private static string NormalizeUsername(string value)
+    {
+        var normalized = value.Trim();
+        var slash = normalized.LastIndexOf('\\');
+        if (slash >= 0 && slash + 1 < normalized.Length) normalized = normalized[(slash + 1)..];
+        var at = normalized.IndexOf('@');
+        if (at > 0) normalized = normalized[..at];
+        return normalized;
     }
 }

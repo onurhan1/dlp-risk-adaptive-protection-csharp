@@ -271,10 +271,25 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     public async Task<DirectorySettingsTestResult> TestLdapAsync(LdapSettingsRequest request, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(request.ServicePassword))
+            request.ServicePassword = await GetSecretAsync(LdapServicePasswordKey, ct);
+
         ValidateLdap(request);
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(request.ServiceAccount) && !string.IsNullOrWhiteSpace(request.ServicePassword))
+            {
+                var bindCandidates = BuildLdapBindCandidates(request.ServiceAccount, request.Domain).Distinct(StringComparer.OrdinalIgnoreCase);
+                foreach (var bindName in bindCandidates)
+                {
+                    if (await TryLdapSimpleBindAsync(request.Host.Trim(), request.Port, request.UseLdaps, bindName, request.ServicePassword, ct))
+                        return Result(true, "LDAP baglantisi ve servis hesabi bind testi basarili");
+                }
+
+                return Result(false, "LDAP servis hesabi bind testi basarisiz");
+            }
+
             using var client = new TcpClient();
             await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
 
@@ -284,13 +299,62 @@ public class DirectorySettingsService : IDirectorySettingsService
                 return Result(true, "LDAPS endpoint erisilebilir ve TLS el sikismasi basarili");
             }
 
-            return Result(true, "LDAP endpoint erisilebilir");
+            return Result(true, "LDAP endpoint erisilebilir. Servis hesabi girilirse bind testi de yapilir");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "LDAP connection test failed");
             return Result(false, $"LDAP testi basarisiz: {ex.Message}");
         }
+    }
+
+    public async Task<LdapAuthenticationResult> AuthenticateLdapAsync(string username, string password, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return LdapAuthResult(false, username, "Kullanici adi ve sifre zorunludur");
+
+        var settings = await GetLdapAsync(ct);
+        if (!settings.Enabled)
+            return LdapAuthResult(false, username, "LDAP login aktif degil");
+        if (string.IsNullOrWhiteSpace(settings.Host))
+            return LdapAuthResult(false, username, "LDAP sunucu adresi yapilandirilmamis");
+
+        var normalizedUsername = NormalizeLoginUsername(username);
+        var bindCandidates = BuildLdapBindCandidates(username, settings.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        try
+        {
+            foreach (var bindName in bindCandidates)
+            {
+                if (await TryLdapSimpleBindAsync(settings.Host.Trim(), settings.Port, settings.UseLdaps, bindName, password, ct))
+                {
+                    return LdapAuthResult(true, normalizedUsername, "LDAP kimlik dogrulama basarili", BuildEmail(normalizedUsername, settings.Domain));
+                }
+            }
+
+            return LdapAuthResult(false, normalizedUsername, "LDAP kullanici adi veya sifre hatali");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LDAP authentication failed for {Username}", normalizedUsername);
+            return LdapAuthResult(false, normalizedUsername, $"LDAP login basarisiz: {ex.Message}");
+        }
+    }
+
+    private static async Task<bool> TryLdapSimpleBindAsync(string host, int port, bool useLdaps, string bindName, string password, CancellationToken ct)
+    {
+        using var client = new TcpClient();
+        await client.ConnectAsync(host, port, ct);
+        using var stream = useLdaps
+            ? await WrapSslAsync(client, host, ct)
+            : client.GetStream();
+
+        var request = BuildLdapSimpleBindRequest(1, bindName, password);
+        await stream.WriteAsync(request, ct);
+        await stream.FlushAsync(ct);
+
+        var response = await ReadLdapResponseAsync(stream, ct);
+        return IsLdapBindSuccess(response);
     }
 
     private async Task<Dictionary<string, SystemSetting>> LoadAsync(string prefix, CancellationToken ct)
@@ -424,9 +488,64 @@ public class DirectorySettingsService : IDirectorySettingsService
         return builder.ToString();
     }
 
+    private static async Task<byte[]> ReadLdapResponseAsync(Stream stream, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+
+        var header = new byte[2];
+        await ReadExactlyAsync(stream, header, timeout.Token);
+        if (header[0] != 0x30) return header;
+
+        var length = await ReadBerLengthAsync(stream, header[1], timeout.Token);
+        var payload = new byte[length];
+        await ReadExactlyAsync(stream, payload, timeout.Token);
+
+        var response = new byte[2 + payload.Length];
+        response[0] = header[0];
+        response[1] = header[1];
+        Buffer.BlockCopy(payload, 0, response, 2, payload.Length);
+        return response;
+    }
+
+    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, CancellationToken ct)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset), ct);
+            if (read <= 0) throw new IOException("LDAP sunucusundan eksik yanit alindi");
+            offset += read;
+        }
+    }
+
+    private static async Task<int> ReadBerLengthAsync(Stream stream, byte firstLengthByte, CancellationToken ct)
+    {
+        if ((firstLengthByte & 0x80) == 0) return firstLengthByte;
+
+        var byteCount = firstLengthByte & 0x7F;
+        if (byteCount <= 0 || byteCount > 4) throw new InvalidOperationException("LDAP yanit uzunlugu okunamadi");
+
+        var bytes = new byte[byteCount];
+        await ReadExactlyAsync(stream, bytes, ct);
+        var length = 0;
+        foreach (var b in bytes)
+            length = (length << 8) | b;
+        return length;
+    }
+
     private static DirectorySettingsTestResult Result(bool success, string message) => new()
     {
         Success = success,
+        Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static LdapAuthenticationResult LdapAuthResult(bool success, string username, string message, string? email = null) => new()
+    {
+        Success = success,
+        Username = NormalizeLoginUsername(username),
+        Email = email,
         Message = message,
         TestedAt = DateTime.UtcNow
     };
@@ -725,4 +844,92 @@ public class DirectorySettingsService : IDirectorySettingsService
     private static string EscapeImap(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     private static string Shorten(string value) => value.Length <= 300 ? value : value[..300];
+
+    private static List<string> BuildLdapBindCandidates(string username, string domain)
+    {
+        var trimmed = username.Trim();
+        var normalized = NormalizeLoginUsername(trimmed);
+        var candidates = new List<string>();
+
+        if (trimmed.Contains('\\') || trimmed.Contains('@') || trimmed.Contains('='))
+            candidates.Add(trimmed);
+
+        if (!string.IsNullOrWhiteSpace(domain))
+        {
+            var cleanDomain = domain.Trim();
+            candidates.Add(cleanDomain.Contains('.')
+                ? $"{normalized}@{cleanDomain}"
+                : $"{cleanDomain}\\{normalized}");
+        }
+
+        candidates.Add(normalized);
+        return candidates;
+    }
+
+    private static string NormalizeLoginUsername(string value)
+    {
+        var normalized = value.Trim();
+        var slash = normalized.LastIndexOf('\\');
+        if (slash >= 0 && slash + 1 < normalized.Length) normalized = normalized[(slash + 1)..];
+        var at = normalized.IndexOf('@');
+        if (at > 0) normalized = normalized[..at];
+        return normalized;
+    }
+
+    private static string? BuildEmail(string username, string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) return null;
+        return $"{username}@{domain.Trim()}";
+    }
+
+    private static byte[] BuildLdapSimpleBindRequest(int messageId, string bindName, string password)
+    {
+        var messageIdPart = BerInteger(messageId);
+        var versionPart = BerInteger(3);
+        var namePart = BerOctetString(bindName);
+        var passwordPart = BerContextString(0, password);
+        var bindRequest = BerConstructed(0x60, versionPart, namePart, passwordPart);
+        return BerConstructed(0x30, messageIdPart, bindRequest);
+    }
+
+    private static bool IsLdapBindSuccess(byte[] response)
+    {
+        for (var i = 0; i < response.Length - 2; i++)
+        {
+            if (response[i] == 0x0A && response[i + 1] == 0x01)
+                return response[i + 2] == 0x00;
+        }
+        return false;
+    }
+
+    private static byte[] BerInteger(int value)
+    {
+        var bytes = value <= 255
+            ? new[] { (byte)value }
+            : BitConverter.GetBytes(value).Reverse().SkipWhile(b => b == 0).ToArray();
+        return BerTlv(0x02, bytes);
+    }
+
+    private static byte[] BerOctetString(string value) => BerTlv(0x04, Encoding.UTF8.GetBytes(value));
+
+    private static byte[] BerContextString(byte tag, string value) => BerTlv((byte)(0x80 | tag), Encoding.UTF8.GetBytes(value));
+
+    private static byte[] BerConstructed(byte tag, params byte[][] children) => BerTlv(tag, children.SelectMany(x => x).ToArray());
+
+    private static byte[] BerTlv(byte tag, byte[] value)
+    {
+        var length = BerLength(value.Length);
+        var result = new byte[1 + length.Length + value.Length];
+        result[0] = tag;
+        Buffer.BlockCopy(length, 0, result, 1, length.Length);
+        Buffer.BlockCopy(value, 0, result, 1 + length.Length, value.Length);
+        return result;
+    }
+
+    private static byte[] BerLength(int length)
+    {
+        if (length < 0x80) return new[] { (byte)length };
+        var bytes = BitConverter.GetBytes(length).Reverse().SkipWhile(b => b == 0).ToArray();
+        return new[] { (byte)(0x80 | bytes.Length) }.Concat(bytes).ToArray();
+    }
 }

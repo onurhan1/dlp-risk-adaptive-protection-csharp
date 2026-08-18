@@ -19,18 +19,25 @@ public class AuthController : ControllerBase
     private readonly ILogger<AuthController> _logger;
     private readonly AnalyzerDbContext _db;
     private readonly IUserService _userService;
+    private readonly IDirectorySettingsService _directorySettingsService;
 
-    public AuthController(AnalyzerDbContext db, AuthJwtSettings jwt, ILogger<AuthController> logger, IUserService? userService = null)
+    public AuthController(
+        AnalyzerDbContext db,
+        AuthJwtSettings jwt,
+        ILogger<AuthController> logger,
+        IUserService userService,
+        IDirectorySettingsService directorySettingsService)
     {
         _db = db;
         _jwt = jwt;
         _logger = logger;
-        _userService = userService ?? new UserService(db);
+        _userService = userService;
+        _directorySettingsService = directorySettingsService;
     }
 
     [HttpPost("login")]
     [EnableRateLimiting("login")]
-    public Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         try
         {
@@ -38,38 +45,31 @@ public class AuthController : ControllerBase
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
-                return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = string.Join("; ", errors) }));
+                return BadRequest(new { detail = string.Join("; ", errors) });
             }
             
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
             {
-                return Task.FromResult<ActionResult<LoginResponse>>(BadRequest(new { detail = "Username and password are required" }));
+                return BadRequest(new { detail = "Username and password are required" });
             }
 
             // Normalize username and password to prevent encoding issues
             // Trim whitespace and ensure UTF-8 encoding
             var normalizedUsername = request.Username.Trim();
-            var normalizedPassword = request.Password.Trim();
-            
-            // Remove any zero-width characters or BOM that might cause issues
-            // Also normalize line endings and other control characters that might differ between OS
-            normalizedPassword = System.Text.RegularExpressions.Regex.Replace(normalizedPassword, @"\p{C}", string.Empty);
-            
-            // Additional normalization for Windows Server compatibility
-            // Remove any Windows-specific line endings or hidden characters
-            normalizedPassword = normalizedPassword.Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
-            
-            // Ensure consistent encoding (UTF-8)
-            normalizedPassword = System.Text.Encoding.UTF8.GetString(System.Text.Encoding.UTF8.GetBytes(normalizedPassword));
+            var normalizedPassword = NormalizePassword(request.Password);
 
             _logger.LogInformation("Login attempt - Username: '{Username}' (Length: {UserLen}), Password Length: {PassLen}", 
                 normalizedUsername, normalizedUsername.Length, normalizedPassword.Length);
+
+            var ldapSettings = await _directorySettingsService.GetLdapAsync();
+            if (ldapSettings.Enabled)
+                return await LoginWithLdapAsync(normalizedUsername, normalizedPassword);
             
             var userExists = _userService.GetByUsername(normalizedUsername);
             if (userExists == null)
             {
                 _logger.LogWarning("Login failed - User not found: {Username}", normalizedUsername);
-                return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
+                return Unauthorized(new { detail = "Invalid username or password" });
             }
             
             _logger.LogInformation("User found - Username: {Username}, HasPasswordHash: {HasHash}, HasPasswordSalt: {HasSalt}", 
@@ -78,7 +78,7 @@ public class AuthController : ControllerBase
             if (!_userService.ValidateCredentials(normalizedUsername, normalizedPassword, out var user))
             {
                 _logger.LogWarning("Login failed - Password validation failed for username: {Username}", normalizedUsername);
-                return Task.FromResult<ActionResult<LoginResponse>>(Unauthorized(new { detail = "Invalid username or password" }));
+                return Unauthorized(new { detail = "Invalid username or password" });
             }
             
             _logger.LogInformation("Password validation successful for username: {Username}", normalizedUsername);
@@ -89,18 +89,42 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("Successful login for username: {Username} with role {Role}", normalizedUsername, user.Role);
 
-            return Task.FromResult<ActionResult<LoginResponse>>(Ok(new LoginResponse
+            return Ok(new LoginResponse
             {
                 Token = token,
                 Username = normalizedUsername,
                 Role = user.Role,
                 ExpiresAt = expiresAt
-            }));
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during login");
-            return Task.FromResult<ActionResult<LoginResponse>>(StatusCode(500, new { detail = "An error occurred during login" }));
+            return StatusCode(500, new { detail = "An error occurred during login" });
+        }
+    }
+
+    [HttpPost("ldap-login")]
+    [EnableRateLimiting("login")]
+    public async Task<ActionResult<LoginResponse>> LdapLogin([FromBody] LoginRequest request)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                return BadRequest(new { detail = string.Join("; ", errors) });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new { detail = "Username and password are required" });
+
+            return await LoginWithLdapAsync(request.Username.Trim(), NormalizePassword(request.Password));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during LDAP login");
+            return StatusCode(500, new { detail = "An error occurred during LDAP login" });
         }
     }
 
@@ -181,6 +205,44 @@ public class AuthController : ControllerBase
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    private async Task<ActionResult<LoginResponse>> LoginWithLdapAsync(string username, string password)
+    {
+        var ldapResult = await _directorySettingsService.AuthenticateLdapAsync(username, password);
+        if (!ldapResult.Success)
+        {
+            _logger.LogWarning("LDAP login failed for username: {Username}. Reason: {Reason}", username, ldapResult.Message);
+            return Unauthorized(new { detail = "Invalid username or password" });
+        }
+
+        var ldapUser = await _userService.GetOrCreateExternalUserAsync(ldapResult.Username, ldapResult.Email);
+        if (!ldapUser.IsActive)
+        {
+            _logger.LogWarning("LDAP login rejected because user is inactive: {Username}", ldapUser.Username);
+            return Unauthorized(new { detail = "User is inactive" });
+        }
+
+        var token = GenerateToken(ldapUser.Username, ldapUser.Role);
+        var expiresAt = DateTime.UtcNow.AddHours(_jwt.ExpirationHours);
+
+        _logger.LogInformation("Successful LDAP login for username: {Username} with role {Role}", ldapUser.Username, ldapUser.Role);
+
+        return Ok(new LoginResponse
+        {
+            Token = token,
+            Username = ldapUser.Username,
+            Role = ldapUser.Role,
+            ExpiresAt = expiresAt
+        });
+    }
+
+    private static string NormalizePassword(string password)
+    {
+        var normalizedPassword = password.Trim();
+        normalizedPassword = System.Text.RegularExpressions.Regex.Replace(normalizedPassword, @"\p{C}", string.Empty);
+        normalizedPassword = normalizedPassword.Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+        return System.Text.Encoding.UTF8.GetString(System.Text.Encoding.UTF8.GetBytes(normalizedPassword));
+    }
 }
 
 public class LoginRequest
@@ -208,4 +270,3 @@ public class ValidateTokenRequest
 {
     public string Token { get; set; } = string.Empty;
 }
-
