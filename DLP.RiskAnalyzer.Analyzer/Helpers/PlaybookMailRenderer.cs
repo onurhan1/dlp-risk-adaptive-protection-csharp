@@ -34,6 +34,10 @@ public static class PlaybookMailRenderer
         if (string.IsNullOrEmpty(text)) return string.Empty;
 
         var incidents = user.SampleIncidents ?? new List<WeeklyFlagIncidentDto>();
+        var primary = incidents
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Timestamp)
+            .FirstOrDefault();
         var summary = string.Join("\n", incidents.Select(i =>
             $"- {i.Timestamp.ToString(DateTimeFormat)} | {Dash(i.Policy)} | {i.MaxMatches} eşleşme | {Dash(i.Destination)}"));
 
@@ -42,6 +46,14 @@ public static class PlaybookMailRenderer
             .Replace("{{tam_ad}}", user.UserEmail)
             .Replace("{{takim}}", Dash(user.Team))
             .Replace("{{tarih}}", nowUtc.ToString(DateFormat))
+            .Replace("{{destination}}", Dash(primary?.Destination))
+            .Replace("{{hedef}}", Dash(primary?.Destination))
+            .Replace("{{kanal}}", Dash(primary?.Channel))
+            .Replace("{{channel}}", Dash(primary?.Channel))
+            .Replace("{{policy}}", Dash(primary?.Policy))
+            .Replace("{{kural}}", Dash(primary?.Policy))
+            .Replace("{{max_match}}", primary?.MaxMatches.ToString() ?? "-")
+            .Replace("{{max_matches}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{olaylar}}", summary.Length > 0 ? summary : "-");
     }
 

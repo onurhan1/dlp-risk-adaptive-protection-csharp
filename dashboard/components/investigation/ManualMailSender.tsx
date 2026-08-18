@@ -31,6 +31,14 @@ function applyManualPlaceholders(text: string, recipient: string): string {
     .replaceAll('{{tam_ad}}', recipient)
     .replaceAll('{{takim}}', '-')
     .replaceAll('{{tarih}}', new Date().toLocaleDateString('tr-TR'))
+    .replaceAll('{{destination}}', '-')
+    .replaceAll('{{hedef}}', '-')
+    .replaceAll('{{kanal}}', '-')
+    .replaceAll('{{channel}}', '-')
+    .replaceAll('{{policy}}', '-')
+    .replaceAll('{{kural}}', '-')
+    .replaceAll('{{max_match}}', '-')
+    .replaceAll('{{max_matches}}', '-')
     .replaceAll('{{olaylar}}', '-')
 }
 

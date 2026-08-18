@@ -77,9 +77,30 @@ public class MailTemplatesController : ControllerBase
             <p>Tek seferde yüksek sayıda hassas veri eşleşmesi içeren bir aktarım tespit edilmiştir.</p>
             <p>Mevcut alt sınır 300 Max Match ve üzeri olaylar için kullanılmaktadır. Lütfen aşağıdaki aktivitenin iş gerekçesini, hedef/alıcı bilgisini ve verinin paylaşım zorunluluğunu açıklayınız.</p>
             <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
-            <strong>Ekip:</strong> {{takim}}</p>
+            <strong>Ekip:</strong> {{takim}}<br />
+            <strong>Hedef / Alıcı:</strong> {{destination}}<br />
+            <strong>Kanal:</strong> {{kanal}}<br />
+            <strong>Policy / Rule:</strong> {{policy}}<br />
+            <strong>Max Match:</strong> {{max_match}}</p>
             <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
             <p>Gerekçesi olmayan veya hatalı veri paylaşımı için ek aksiyon alınabilir.</p>
+            <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
+            """),
+        new(
+            "Workflow - Tek Hedefe Yüksek Veri Gönderimi",
+            "{{destination}} Hedefine Yüksek Veri Gönderimi İncelemesi - {{tarih}}",
+            """
+            <p>Merhaba {{tam_ad}},</p>
+            <p>DLP kayıtlarında tek bir hedefe/alıcıya yüksek sayıda hassas veri eşleşmesi içeren gönderim tespit edilmiştir.</p>
+            <p>Aşağıdaki hedefe yapılan aktarımın iş gerekçesini, alıcının neden gerekli olduğunu ve verinin paylaşım kapsamını açıklamanızı rica ederiz.</p>
+            <p><strong>Kullanıcı:</strong> {{kullanici}}<br />
+            <strong>Ekip:</strong> {{takim}}<br />
+            <strong>Hedef / Alıcı:</strong> {{destination}}<br />
+            <strong>Kanal:</strong> {{kanal}}<br />
+            <strong>Policy / Rule:</strong> {{policy}}<br />
+            <strong>Max Match:</strong> {{max_match}}</p>
+            <pre style="font-family: Arial, Helvetica, sans-serif; white-space: pre-wrap; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px;">{{olaylar}}</pre>
+            <p>Bu paylaşım iş amacıyla yapılmadıysa veya alıcı hatalıysa lütfen yanıtınızda açıkça belirtiniz.</p>
             <p>Teşekkürler,<br />Bilgi Güvenliği Ekibi</p>
             """)
     };

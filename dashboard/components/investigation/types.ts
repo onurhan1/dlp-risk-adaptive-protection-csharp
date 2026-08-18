@@ -38,6 +38,14 @@ export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{tam_ad}}', desc: 'Kullanıcı adı (username)' },
   { token: '{{takim}}', desc: 'Takım / departman' },
   { token: '{{tarih}}', desc: 'Bugünün tarihi' },
+  { token: '{{destination}}', desc: 'En yüksek eşleşmeli olayın hedefi' },
+  { token: '{{hedef}}', desc: 'En yüksek eşleşmeli olayın hedefi' },
+  { token: '{{kanal}}', desc: 'En yüksek eşleşmeli olayın kanalı' },
+  { token: '{{channel}}', desc: 'En yüksek eşleşmeli olayın kanalı' },
+  { token: '{{policy}}', desc: 'En yüksek eşleşmeli olayın policy/rule bilgisi' },
+  { token: '{{kural}}', desc: 'En yüksek eşleşmeli olayın policy/rule bilgisi' },
+  { token: '{{max_match}}', desc: 'En yüksek eşleşme sayısı' },
+  { token: '{{max_matches}}', desc: 'En yüksek eşleşme sayısı' },
   { token: '{{olaylar}}', desc: 'Örnek olay (incident) özeti' },
 ]
 
@@ -47,11 +55,21 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
   const incidentsSummary = (user.sample_incidents || [])
     .map(i => `- ${new Date(i.timestamp).toLocaleString('tr-TR')} | ${i.policy ?? '-'} | ${i.max_matches} eşleşme | ${i.destination ?? '-'}`)
     .join('\n')
+  const primaryIncident = [...(user.sample_incidents || [])]
+    .sort((a, b) => (b.max_matches - a.max_matches) || (new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()))[0]
   return text
     .replaceAll('{{kullanici}}', user.contact_email || user.user_email)
     .replaceAll('{{tam_ad}}', user.user_email)
     .replaceAll('{{takim}}', user.team || '-')
     .replaceAll('{{tarih}}', new Date().toLocaleDateString('tr-TR'))
+    .replaceAll('{{destination}}', primaryIncident?.destination || '-')
+    .replaceAll('{{hedef}}', primaryIncident?.destination || '-')
+    .replaceAll('{{kanal}}', primaryIncident?.channel || '-')
+    .replaceAll('{{channel}}', primaryIncident?.channel || '-')
+    .replaceAll('{{policy}}', primaryIncident?.policy || '-')
+    .replaceAll('{{kural}}', primaryIncident?.policy || '-')
+    .replaceAll('{{max_match}}', String(primaryIncident?.max_matches ?? '-'))
+    .replaceAll('{{max_matches}}', String(primaryIncident?.max_matches ?? '-'))
     .replaceAll('{{olaylar}}', incidentsSummary || '-')
 }
 
