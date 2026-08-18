@@ -893,7 +893,12 @@ export function createIncidentMetricGraph(): PlaybookGraph {
   }
 }
 
-function createReportGraph(sourceType: PlaybookNodeType, title: string, sourcePatch: Record<string, any> = {}): PlaybookGraph {
+function createReportGraph(
+  sourceType: PlaybookNodeType,
+  title: string,
+  sourcePatch: Record<string, any> = {},
+  mailPatch: Record<string, any> = {}
+): PlaybookGraph {
   const trigger = createNode('trigger.schedule', 80, 200)
   const source = createNode(sourceType, 380, 200)
   const reportMail = createNode('action.sendReportMail', 680, 200)
@@ -903,6 +908,7 @@ function createReportGraph(sourceType: PlaybookNodeType, title: string, sourcePa
   reportMail.config.title = title
   reportMail.config.subject_override = ''
   reportMail.config.intro = 'Agentic workflow tarafindan otomatik uretilen haftalik DLP raporu.'
+  reportMail.config = { ...reportMail.config, ...mailPatch }
   report.config.title = title
 
   return {
@@ -920,6 +926,8 @@ export function createHighRiskUsersReportGraph(): PlaybookGraph {
     days: 7,
     min_risk_score: 80,
     top_limit: 25,
+  }, {
+    intro: 'Bu rapor haftalik bazda risk skoru 80 ve uzeri olan, incelenmesi tavsiye edilen kullanicilari listeler.',
   })
 }
 
@@ -928,6 +936,8 @@ export function createTopPermitUsersReportGraph(): PlaybookGraph {
     days: 7,
     action_kind: 'permit',
     top_limit: 25,
+  }, {
+    intro: 'Bu rapor haftalik bazda en cok Permit aksiyonlu DLP incident ureten kullanicilari ve ornek olaylarini listeler.',
   })
 }
 
@@ -936,6 +946,8 @@ export function createTopBlockUsersReportGraph(): PlaybookGraph {
     days: 7,
     action_kind: 'block',
     top_limit: 25,
+  }, {
+    intro: 'Bu rapor haftalik bazda en cok Block aksiyonlu DLP incident ureten kullanicilari ve ornek olaylarini listeler.',
   })
 }
 
@@ -944,5 +956,7 @@ export function createHighMaxMatchTransfersReportGraph(): PlaybookGraph {
     days: 7,
     min_matches: 300,
     top_limit: 25,
+  }, {
+    intro: 'Bu rapor tek seferde 300 ve uzeri Max Match degeriyle veri gonderimi yapan kullanicilari listeler.',
   })
 }
