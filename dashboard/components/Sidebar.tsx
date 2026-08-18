@@ -133,6 +133,13 @@ export default function Sidebar() {
                     <span>Sorgulamalar</span>
                   </Link>
                   <Link
+                    href="/investigation/mailbox"
+                    className={`sidebar-subitem ${pathname === '/investigation/mailbox' ? 'active' : ''}`}
+                  >
+                    <Mail size={16} />
+                    <span>{t('nav.investigationMailbox')}</span>
+                  </Link>
+                  <Link
                     href="/investigation/agentic-workflows"
                     className={`sidebar-subitem ${pathname?.startsWith('/investigation/agentic-workflows') ? 'active' : ''}`}
                   >
