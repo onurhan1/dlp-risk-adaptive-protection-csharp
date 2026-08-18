@@ -35,6 +35,11 @@ public class ImapInboxRequest : ImapSettingsRequest
     public int PreviewCount { get; set; } = 20;
 }
 
+public class ImapMessageContentRequest : ImapSettingsRequest
+{
+    public string MessageId { get; set; } = string.Empty;
+}
+
 public class ImapInboxMessageDto
 {
     public string Id { get; set; } = string.Empty;
@@ -53,6 +58,20 @@ public class ImapInboxPreviewResponse
     public int TotalMessages { get; set; }
     public int ReturnedMessages { get; set; }
     public List<ImapInboxMessageDto> Messages { get; set; } = new();
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class ImapMessageContentResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public string From { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public string BodyText { get; set; } = string.Empty;
+    public bool Truncated { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
 

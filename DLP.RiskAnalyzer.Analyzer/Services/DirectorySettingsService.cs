@@ -1,5 +1,6 @@
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
@@ -22,6 +23,7 @@ public class DirectorySettingsService : IDirectorySettingsService
     private const string ImapUnreadOnlyKey = "imap_unread_only";
     private const string ImapLookbackDaysKey = "imap_lookback_days";
     private const string ImapMaxMessagesKey = "imap_max_messages";
+    private const int ImapMessagePreviewBytes = 200_000;
 
     private const string LdapPrefix = "ldap_";
     private const string LdapEnabledKey = "ldap_enabled";
@@ -180,6 +182,66 @@ public class DirectorySettingsService : IDirectorySettingsService
         {
             _logger.LogWarning(ex, "IMAP inbox preview failed");
             return InboxResult(false, folder, $"INBOX goruntuleme basarisiz: {ex.Message}");
+        }
+    }
+
+    public async Task<ImapMessageContentResponse> GetInboxMessageAsync(ImapMessageContentRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.MessageId) || !int.TryParse(request.MessageId, out _))
+            throw new ArgumentException("Gecerli bir IMAP mesaj id zorunludur");
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+            request.Password = await GetSecretAsync(ImapPasswordKey, ct);
+
+        ValidateImap(request, allowEmptyPassword: false);
+
+        var folder = string.IsNullOrWhiteSpace(request.Folder) ? "INBOX" : request.Folder.Trim();
+
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
+            using var stream = request.EnableSsl
+                ? await WrapSslAsync(client, request.Host.Trim(), ct)
+                : client.GetStream();
+
+            var greeting = await ReadImapAsync(stream, ct);
+            if (!greeting.Contains("* OK", StringComparison.OrdinalIgnoreCase))
+                return MessageContentResult(false, request.MessageId, $"IMAP sunucusu beklenen acilis yanitini vermedi: {Shorten(greeting)}");
+
+            await WriteAsync(stream, $"A001 LOGIN \"{EscapeImap(request.Username.Trim())}\" \"{EscapeImap(request.Password ?? string.Empty)}\"\r\n", ct);
+            var login = await ReadImapAsync(stream, ct, "A001");
+            if (!login.Contains("A001 OK", StringComparison.OrdinalIgnoreCase))
+                return MessageContentResult(false, request.MessageId, $"IMAP kimlik dogrulama basarisiz: {Shorten(login)}");
+
+            await WriteAsync(stream, $"A002 SELECT \"{EscapeImap(folder)}\"\r\n", ct);
+            var selected = await ReadImapAsync(stream, ct, "A002");
+            if (!selected.Contains("A002 OK", StringComparison.OrdinalIgnoreCase))
+                return MessageContentResult(false, request.MessageId, $"Klasor acilamadi: {Shorten(selected)}");
+
+            await WriteAsync(stream, $"A003 FETCH {request.MessageId} (BODY.PEEK[]<0.{ImapMessagePreviewBytes}>)\r\n", ct);
+            var fetch = await ReadImapAsync(stream, ct, "A003");
+            await WriteAsync(stream, "A004 LOGOUT\r\n", ct);
+
+            if (!fetch.Contains("A003 OK", StringComparison.OrdinalIgnoreCase))
+                return MessageContentResult(false, request.MessageId, $"Mail icerigi alinamadi: {Shorten(fetch)}");
+
+            var rawMessage = ExtractImapLiteral(fetch, out var truncated);
+            if (string.IsNullOrWhiteSpace(rawMessage))
+                return MessageContentResult(false, request.MessageId, "Mail icerigi bos geldi veya okunamadi");
+
+            var parsed = ParseMessageContent(request.MessageId, rawMessage);
+            parsed.Truncated = truncated || rawMessage.Length >= ImapMessagePreviewBytes;
+            parsed.Success = true;
+            parsed.Message = parsed.Truncated
+                ? "Mail icerigi onizleme limitiyle gosteriliyor"
+                : "Mail icerigi alindi";
+            return parsed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IMAP message content preview failed");
+            return MessageContentResult(false, request.MessageId, $"Mail icerigi goruntulenemedi: {ex.Message}");
         }
     }
 
@@ -355,7 +417,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         {
             var read = await stream.ReadAsync(buffer, timeout.Token);
             if (read <= 0) break;
-            builder.Append(Encoding.ASCII.GetString(buffer, 0, read));
+            builder.Append(Encoding.Latin1.GetString(buffer, 0, read));
         }
         while (untilTag != null && !builder.ToString().Contains(untilTag, StringComparison.OrdinalIgnoreCase));
 
@@ -373,6 +435,14 @@ public class DirectorySettingsService : IDirectorySettingsService
     {
         Success = success,
         Folder = folder,
+        Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static ImapMessageContentResponse MessageContentResult(bool success, string id, string message) => new()
+    {
+        Success = success,
+        Id = id,
         Message = message,
         TestedAt = DateTime.UtcNow
     };
@@ -405,6 +475,187 @@ public class DirectorySettingsService : IDirectorySettingsService
             Size = LongMatch(response, @"RFC822\.SIZE\s+(\d+)"),
             Unread = !Regex.IsMatch(response, @"\\Seen\b", RegexOptions.IgnoreCase)
         };
+    }
+
+    private static ImapMessageContentResponse ParseMessageContent(string id, string rawMessage)
+    {
+        var (headers, body) = SplitHeadersAndBody(rawMessage);
+        var contentType = Header(headers, "Content-Type");
+        var transferEncoding = Header(headers, "Content-Transfer-Encoding");
+        var bodyText = ExtractReadableBody(headers, body, contentType, transferEncoding);
+
+        return new ImapMessageContentResponse
+        {
+            Id = id,
+            From = DecodeMimeHeader(Header(headers, "From")),
+            Subject = DecodeMimeHeader(Header(headers, "Subject")),
+            Date = Header(headers, "Date"),
+            ContentType = string.IsNullOrWhiteSpace(contentType) ? "text/plain" : contentType,
+            BodyText = NormalizeBodyText(bodyText)
+        };
+    }
+
+    private static string ExtractReadableBody(string headers, string body, string contentType, string transferEncoding)
+    {
+        if (IsMultipart(contentType))
+        {
+            var boundary = Parameter(contentType, "boundary");
+            if (!string.IsNullOrWhiteSpace(boundary))
+            {
+                var parts = SplitMimeParts(body, boundary).ToList();
+                var textPart = parts.Select(ParseMimePart).FirstOrDefault(p => IsTextPlain(p.ContentType) && !p.IsAttachment);
+                if (textPart.Body != null)
+                    return DecodeMimeBody(textPart.Body, textPart.TransferEncoding, Charset(textPart.ContentType));
+
+                var htmlPart = parts.Select(ParseMimePart).FirstOrDefault(p => IsTextHtml(p.ContentType) && !p.IsAttachment);
+                if (htmlPart.Body != null)
+                    return HtmlToText(DecodeMimeBody(htmlPart.Body, htmlPart.TransferEncoding, Charset(htmlPart.ContentType)));
+            }
+        }
+
+        var decoded = DecodeMimeBody(body, transferEncoding, Charset(contentType));
+        return IsTextHtml(contentType) ? HtmlToText(decoded) : decoded;
+    }
+
+    private static string ExtractImapLiteral(string response, out bool truncated)
+    {
+        truncated = response.Contains($"<0.{ImapMessagePreviewBytes}>", StringComparison.OrdinalIgnoreCase);
+        var match = Regex.Match(response, @"\{(\d+)\}\r?\n", RegexOptions.Multiline);
+        if (!match.Success)
+        {
+            var start = response.IndexOf("\r\n", StringComparison.Ordinal);
+            return start >= 0 ? response[(start + 2)..] : response;
+        }
+
+        var declaredLength = int.TryParse(match.Groups[1].Value, out var length) ? length : 0;
+        var contentStart = match.Index + match.Length;
+        var available = Math.Max(0, response.Length - contentStart);
+        var take = declaredLength > 0 ? Math.Min(declaredLength, available) : available;
+        truncated = truncated || declaredLength >= ImapMessagePreviewBytes;
+        return response.Substring(contentStart, take);
+    }
+
+    private static (string Headers, string Body) SplitHeadersAndBody(string value)
+    {
+        var separator = value.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var separatorLength = 4;
+        if (separator < 0)
+        {
+            separator = value.IndexOf("\n\n", StringComparison.Ordinal);
+            separatorLength = 2;
+        }
+
+        return separator < 0
+            ? (value, string.Empty)
+            : (value[..separator], value[(separator + separatorLength)..]);
+    }
+
+    private static IEnumerable<string> SplitMimeParts(string body, string boundary)
+    {
+        var marker = "--" + boundary;
+        foreach (var part in body.Split(marker, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = part.Trim('\r', '\n');
+            if (trimmed == "--" || trimmed.StartsWith("--", StringComparison.Ordinal)) continue;
+            if (!string.IsNullOrWhiteSpace(trimmed)) yield return trimmed;
+        }
+    }
+
+    private static (string ContentType, string TransferEncoding, bool IsAttachment, string? Body) ParseMimePart(string part)
+    {
+        var (headers, body) = SplitHeadersAndBody(part);
+        return (
+            Header(headers, "Content-Type"),
+            Header(headers, "Content-Transfer-Encoding"),
+            Header(headers, "Content-Disposition").Contains("attachment", StringComparison.OrdinalIgnoreCase),
+            body
+        );
+    }
+
+    private static string DecodeMimeBody(string body, string transferEncoding, string charset)
+    {
+        var encoding = SafeEncoding(charset);
+        try
+        {
+            if (transferEncoding.Contains("base64", StringComparison.OrdinalIgnoreCase))
+            {
+                var compact = Regex.Replace(body, @"\s+", "");
+                return encoding.GetString(Convert.FromBase64String(compact));
+            }
+
+            if (transferEncoding.Contains("quoted-printable", StringComparison.OrdinalIgnoreCase))
+                return encoding.GetString(DecodeQuotedPrintableBody(body));
+
+            return encoding.GetString(Encoding.Latin1.GetBytes(body));
+        }
+        catch
+        {
+            return body;
+        }
+    }
+
+    private static byte[] DecodeQuotedPrintableBody(string value)
+    {
+        value = Regex.Replace(value, @"=\r?\n", "");
+        var bytes = new List<byte>();
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '=' && i + 2 < value.Length &&
+                byte.TryParse(value.Substring(i + 1, 2), System.Globalization.NumberStyles.HexNumber, null, out var b))
+            {
+                bytes.Add(b);
+                i += 2;
+            }
+            else
+            {
+                bytes.Add((byte)value[i]);
+            }
+        }
+        return bytes.ToArray();
+    }
+
+    private static string HtmlToText(string html)
+    {
+        var text = Regex.Replace(html, @"<(br|p|div|tr|li|h[1-6])\b[^>]*>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<style\b[^>]*>.*?</style>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, @"<script\b[^>]*>.*?</script>", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, "<[^>]+>", " ");
+        return WebUtility.HtmlDecode(text);
+    }
+
+    private static string NormalizeBodyText(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "Gosterilecek metin icerigi bulunamadi.";
+        var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n');
+        normalized = Regex.Replace(normalized, @"[ \t]+\n", "\n");
+        normalized = Regex.Replace(normalized, @"\n{3,}", "\n\n");
+        return normalized.Trim();
+    }
+
+    private static bool IsMultipart(string value) => value.Contains("multipart/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTextPlain(string value) => value.Contains("text/plain", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTextHtml(string value) => value.Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+    private static string Charset(string contentType) => Parameter(contentType, "charset") ?? "utf-8";
+
+    private static string? Parameter(string header, string name)
+    {
+        var match = Regex.Match(header, $@"(?:^|;)\s*{Regex.Escape(name)}\s*=\s*(""?)([^"";]+)\1", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[2].Value.Trim() : null;
+    }
+
+    private static Encoding SafeEncoding(string charset)
+    {
+        try
+        {
+            return Encoding.GetEncoding(string.IsNullOrWhiteSpace(charset) ? "utf-8" : charset);
+        }
+        catch
+        {
+            return Encoding.UTF8;
+        }
     }
 
     private static string Header(string response, string name)

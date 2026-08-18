@@ -19,6 +19,7 @@ import {
   Send,
   ShieldCheck,
   TestTube2,
+  X,
 } from 'lucide-react'
 import { getApiUrlDynamic } from '@/lib/api-config'
 
@@ -83,6 +84,13 @@ interface ImapInboxMessage {
   date: string
   unread: boolean
   size: number
+}
+
+interface ImapMessageContent extends ImapInboxMessage {
+  content_type: string
+  body_text: string
+  truncated: boolean
+  message?: string
 }
 
 interface LdapSettings {
@@ -176,6 +184,7 @@ export default function SettingsPage() {
   const [imapSaving, setImapSaving] = useState(false)
   const [imapTesting, setImapTesting] = useState(false)
   const [imapInboxLoading, setImapInboxLoading] = useState(false)
+  const [imapMessageLoadingId, setImapMessageLoadingId] = useState<string | null>(null)
   const [ldapSaving, setLdapSaving] = useState(false)
   const [ldapTesting, setLdapTesting] = useState(false)
   const [externalDbSaving, setExternalDbSaving] = useState(false)
@@ -190,6 +199,7 @@ export default function SettingsPage() {
   const [smtpTestRecipient, setSmtpTestRecipient] = useState('')
   const [externalDbTestUsername, setExternalDbTestUsername] = useState('')
   const [imapInboxMessages, setImapInboxMessages] = useState<ImapInboxMessage[]>([])
+  const [imapSelectedMessage, setImapSelectedMessage] = useState<ImapMessageContent | null>(null)
   const [message, setMessage] = useState<Message>(null)
 
   const [general, setGeneral] = useState<GeneralSettings>({
@@ -564,6 +574,35 @@ export default function SettingsPage() {
     }
   }
 
+  const viewImapMessage = async (mail: ImapInboxMessage) => {
+    setImapMessageLoadingId(mail.id)
+    try {
+      const response = await axios.post(`${apiUrl}/api/settings/imap/message`, {
+        ...imap,
+        password: imap.password.trim() || undefined,
+        message_id: mail.id,
+      }, { timeout: 30000 })
+      if (!response.data?.success) {
+        flash('error', response.data?.message || 'Mail icerigi goruntulenemedi')
+        return
+      }
+      setImapSelectedMessage({
+        ...mail,
+        from: response.data.from || mail.from,
+        subject: response.data.subject || mail.subject,
+        date: response.data.date || mail.date,
+        content_type: response.data.content_type || '',
+        body_text: response.data.body_text || '',
+        truncated: Boolean(response.data.truncated),
+        message: response.data.message,
+      })
+    } catch (error: any) {
+      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Mail icerigi goruntulenemedi')
+    } finally {
+      setImapMessageLoadingId(null)
+    }
+  }
+
   const saveLdap = async () => {
     setLdapSaving(true)
     try {
@@ -857,6 +896,7 @@ export default function SettingsPage() {
                     <th style={thStyle}>Konu</th>
                     <th style={thStyle}>Tarih</th>
                     <th style={thStyle}>Boyut</th>
+                    <th style={thStyle}>Icerik</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -867,6 +907,11 @@ export default function SettingsPage() {
                       <td style={{ ...tdStyle, minWidth: 260 }}>{mail.subject || '-'}</td>
                       <td style={tdStyle}>{mail.date || '-'}</td>
                       <td style={tdStyle}>{mail.size ? `${Math.round(mail.size / 1024)} KB` : '-'}</td>
+                      <td style={tdStyle}>
+                        <ActionButton icon={<Eye size={14} />} onClick={() => viewImapMessage(mail)} disabled={imapMessageLoadingId === mail.id}>
+                          {imapMessageLoadingId === mail.id ? 'Aciliyor...' : 'Goruntule'}
+                        </ActionButton>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1016,6 +1061,70 @@ export default function SettingsPage() {
           <PrimaryButton icon={<Save size={15} />} onClick={saveDlp} disabled={dlpSaving}>{dlpSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
         </Actions>
       </AccordionSection>
+
+      {imapSelectedMessage && (
+        <MailContentModal message={imapSelectedMessage} onClose={() => setImapSelectedMessage(null)} />
+      )}
+    </div>
+  )
+}
+
+function MailContentModal({ message, onClose }: { message: ImapMessageContent; onClose: () => void }) {
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 50,
+      background: 'rgba(15,23,42,.42)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 18,
+    }}>
+      <div style={{
+        width: 'min(920px, 100%)',
+        maxHeight: '88vh',
+        overflow: 'hidden',
+        borderRadius: 8,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-lg)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {message.subject || 'Konu yok'}
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 14, flexWrap: 'wrap', color: 'var(--text-secondary)', fontSize: 12 }}>
+              <span>{message.from || '-'}</span>
+              <span>{message.date || '-'}</span>
+              {message.truncated && <span style={{ color: '#b45309', fontWeight: 700 }}>Onizleme kisaltilmis</span>}
+            </div>
+          </div>
+          <button type="button" title="Kapat" onClick={onClose} style={{ ...buttonBase, width: 34, padding: 0, flex: '0 0 auto' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 16, overflow: 'auto', background: 'var(--background-secondary)' }}>
+          <pre style={{
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            fontSize: 13,
+            lineHeight: 1.55,
+            color: 'var(--text-primary)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: 14,
+          }}>
+            {message.body_text || 'Gosterilecek metin icerigi bulunamadi.'}
+          </pre>
+        </div>
+      </div>
     </div>
   )
 }
