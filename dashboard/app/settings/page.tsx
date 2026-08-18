@@ -1000,16 +1000,23 @@ export default function SettingsPage() {
           </Grid>
         </Panel>
         <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
-          <Grid>
-            <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder={externalDb.provider === 'mssql' ? 'dbo.Users' : 'public.users'} /></Field>
-            <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
-            <Field label="Ad Kolonu"><input style={inputStyle} value={externalDb.first_name_column} onChange={(e) => updateExternalDb('first_name_column', e.target.value)} placeholder="first_name" /></Field>
-            <Field label="Soyad Kolonu"><input style={inputStyle} value={externalDb.last_name_column} onChange={(e) => updateExternalDb('last_name_column', e.target.value)} placeholder="last_name" /></Field>
-            <Field label="Tam Ad Kolonu"><input style={inputStyle} value={externalDb.full_name_column} onChange={(e) => updateExternalDb('full_name_column', e.target.value)} placeholder="display_name" /></Field>
-            <Field label="E-posta Kolonu"><input style={inputStyle} value={externalDb.email_column} onChange={(e) => updateExternalDb('email_column', e.target.value)} placeholder="email" /></Field>
-            <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
-            <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder={externalDb.provider === 'mssql' ? 'is_active = 1' : 'is_active = true'} /></Field>
-          </Grid>
+          {externalDb.provider === 'mssql' ? (
+            <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>
+              MSSQL icin kullanici eslestirme sorgusu backend kodunda sabit olarak tanimlidir.
+              Test kullanici adi `@username` parametresiyle sorguya aktarilir; tablo ve kolon adlari kod icindeki sorgudan duzenlenir.
+            </div>
+          ) : (
+            <Grid>
+              <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder="public.users" /></Field>
+              <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
+              <Field label="Ad Kolonu"><input style={inputStyle} value={externalDb.first_name_column} onChange={(e) => updateExternalDb('first_name_column', e.target.value)} placeholder="first_name" /></Field>
+              <Field label="Soyad Kolonu"><input style={inputStyle} value={externalDb.last_name_column} onChange={(e) => updateExternalDb('last_name_column', e.target.value)} placeholder="last_name" /></Field>
+              <Field label="Tam Ad Kolonu"><input style={inputStyle} value={externalDb.full_name_column} onChange={(e) => updateExternalDb('full_name_column', e.target.value)} placeholder="display_name" /></Field>
+              <Field label="E-posta Kolonu"><input style={inputStyle} value={externalDb.email_column} onChange={(e) => updateExternalDb('email_column', e.target.value)} placeholder="email" /></Field>
+              <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
+              <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = true" /></Field>
+            </Grid>
+          )}
         </Panel>
         <Panel>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>

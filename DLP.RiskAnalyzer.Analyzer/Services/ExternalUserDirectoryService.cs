@@ -33,6 +33,109 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
     private const string WhereClauseKey = Prefix + "where_clause";
 
     private static readonly Regex IdentifierPart = new(@"^[A-Za-z_][A-Za-z0-9_ ]*$", RegexOptions.Compiled);
+    private const string MssqlManagedUserLookupSql = """
+WITH MDR AS (
+    SELECT DISTINCT
+        P.PersonId,
+        P.EmployeeNumber,
+        P.FirstName,
+        P.LastName,
+        P.FirstName + ' ' + P.LastName AS AdSoyad,
+        P.CorporateEmail,
+        P.Sex,
+        BU.UserCode,
+        P.PersonTypeId,
+        P.EmployeeTypeId,
+        O.OrganizationId,
+        O.OrganizationName,
+
+        PSupervisor.PersonId AS SupervisorPersonId,
+        PSupervisor.EmployeeNumber AS SupervisorEmployeeNumber,
+        PSupervisor.FirstName + ' ' + PSupervisor.LastName AS SupervisorFullName,
+        BUSupervisor.UserCode AS SupervisorUserCode,
+        PSupervisor.CorporateEmail AS SupervisorMail,
+
+        CASE
+            WHEN J2.Level >= 70 THEN PSupervisor.PersonId
+            ELSE PManager.PersonId
+        END AS ManagerPersonId,
+
+        CASE
+            WHEN J2.Level >= 70 THEN PSupervisor.EmployeeNumber
+            ELSE PManager.EmployeeNumber
+        END AS ManagerEmployeeNumber,
+
+        CASE
+            WHEN J2.Level >= 70 THEN PSupervisor.FirstName + ' ' + PSupervisor.LastName
+            ELSE PManager.FirstName + ' ' + PManager.LastName
+        END AS ManagerFullName
+
+    FROM [Veritabani].[sema].[PersonTable] P WITH (NOLOCK)
+
+    INNER JOIN [Veritabani].[sema].[AssignmentTable] A WITH (NOLOCK)
+        ON A.PersonID = P.PersonId
+
+    INNER JOIN [Veritabani].[sema].[OrganizationTable] O WITH (NOLOCK)
+        ON O.OrganizationId = A.OrganizationId
+
+    LEFT JOIN [Veritabani].[sema].[BusinessUserTable] BU WITH (NOLOCK)
+        ON BU.USerId = P.EmployeeNumber
+
+    LEFT JOIN [Veritabani].[sema].[PersonTable] PSupervisor WITH (NOLOCK)
+        ON PSupervisor.PersonId = A.SuperVisorId
+        AND CAST(GETDATE() AS DATE) BETWEEN PSupervisor.EffectiveStartDate AND PSupervisor.EffectiveEndDate
+
+    LEFT JOIN [Veritabani].[sema].[AssignmentTable] A2 WITH (NOLOCK)
+        ON A2.PersonID = A.SuperVisorId
+        AND A2.IsPrimary = 1
+        AND A2.AssignmentStatusTypeId IN (1,76)
+        AND A2.AssignmentType IN ('E', 'C')
+        AND CAST(GETDATE() AS DATE) BETWEEN A2.EffectiveStartDate AND A2.EffectiveEndDate
+
+    LEFT JOIN [Veritabani].[sema].[JobTable] J2 WITH (NOLOCK)
+        ON J2.JobId = A2.JobId
+
+    LEFT JOIN [Veritabani].[sema].[BusinessUserTable] BUSupervisor WITH (NOLOCK)
+        ON BUSupervisor.USerId = PSupervisor.EmployeeNumber
+
+    LEFT JOIN [Veritabani].[sema].[PersonTable] PManager WITH (NOLOCK)
+        ON PManager.PersonId = A2.SuperVisorId
+        AND CAST(GETDATE() AS DATE) BETWEEN PManager.EffectiveStartDate AND PManager.EffectiveEndDate
+
+    WHERE
+        P.PersonTypeId IN (1,2)
+        AND CAST(GETDATE() AS DATE) BETWEEN P.EffectiveStartDate AND P.EffectiveEndDate
+        AND A.IsPrimary = 1
+        AND A.AssignmentStatusTypeId IN (1,76)
+        AND A.AssignmentType IN ('E', 'C')
+        AND CAST(GETDATE() AS DATE) BETWEEN A.EffectiveStartDate AND A.EffectiveEndDate
+)
+
+SELECT TOP (1)
+    MDR.UserCode AS user_name,
+    MDR.EmployeeNumber AS employee_number,
+    MDR.FirstName AS first_name,
+    MDR.LastName AS last_name,
+    MDR.AdSoyad AS full_name,
+    MDR.CorporateEmail AS email,
+    MDR.OrganizationName AS department,
+    MDR.OrganizationName AS organization_name,
+    MDR.SupervisorUserCode AS supervisor_user_name,
+    MDR.SupervisorFullName AS supervisor_full_name,
+    MDR.SupervisorMail AS supervisor_email,
+    BUManager.UserCode AS manager_user_name,
+    MDR.ManagerFullName AS manager_full_name,
+    PManager.CorporateEmail AS manager_email
+FROM MDR
+LEFT JOIN [Veritabani].[sema].[BusinessUserTable] BUManager WITH (NOLOCK)
+    ON BUManager.USerId = MDR.ManagerEmployeeNumber
+LEFT JOIN [Veritabani].[sema].[PersonTable] PManager WITH (NOLOCK)
+    ON PManager.PersonId = MDR.ManagerPersonId
+    AND CAST(GETDATE() AS DATE) BETWEEN PManager.EffectiveStartDate AND PManager.EffectiveEndDate
+WHERE
+    MDR.UserCode = @username
+    OR MDR.EmployeeNumber = @username
+""";
 
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
@@ -172,26 +275,36 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
 
-        var firstName = Read(reader, "first_name");
-        var lastName = Read(reader, "last_name");
-        var fullName = Read(reader, "full_name");
+        var firstName = TryRead(reader, "first_name");
+        var lastName = TryRead(reader, "last_name");
+        var fullName = TryRead(reader, "full_name");
         if (string.IsNullOrWhiteSpace(fullName))
             fullName = string.Join(" ", new[] { firstName, lastName }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
         return new ExternalUserProfileDto
         {
-            UserName = Read(reader, "user_name") ?? userName,
+            UserName = TryRead(reader, "user_name") ?? userName,
+            EmployeeNumber = TryRead(reader, "employee_number"),
             FirstName = firstName,
             LastName = lastName,
             FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName,
-            Email = Read(reader, "email"),
-            Department = Read(reader, "department")
+            Email = TryRead(reader, "email"),
+            Department = TryRead(reader, "department"),
+            OrganizationName = TryRead(reader, "organization_name"),
+            ManagerUserName = TryRead(reader, "manager_user_name"),
+            ManagerFullName = TryRead(reader, "manager_full_name"),
+            ManagerEmail = TryRead(reader, "manager_email"),
+            SupervisorUserName = TryRead(reader, "supervisor_user_name"),
+            SupervisorFullName = TryRead(reader, "supervisor_full_name"),
+            SupervisorEmail = TryRead(reader, "supervisor_email")
         };
     }
 
     private static string BuildLookupSql(ExternalUserDbSettingsRequest settings)
     {
         var provider = NormalizeProvider(settings.Provider);
+        if (provider == "mssql") return MssqlManagedUserLookupSql;
+
         var projections = new List<string>
         {
             $"{QuoteIdentifier(settings.MatchColumn, provider)} AS {QuoteIdentifier("user_name", provider)}"
@@ -207,9 +320,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
             where += $" AND ({SafeWhereClause(settings.WhereClause)})";
 
         var tableName = QuoteMultipartIdentifier(settings.TableName, provider);
-        return provider == "mssql"
-            ? $"SELECT TOP (1) {string.Join(", ", projections)} FROM {tableName} WHERE {where}"
-            : $"SELECT {string.Join(", ", projections)} FROM {tableName} WHERE {where} LIMIT 1";
+        return $"SELECT {string.Join(", ", projections)} FROM {tableName} WHERE {where} LIMIT 1";
     }
 
     private static void AddProjection(List<string> projections, string column, string alias, string provider)
@@ -373,6 +484,14 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         var matchColumn = Get(dict, MatchColumnKey, "username");
         var emailColumn = Get(dict, EmailColumnKey, "email");
         var passwordSet = dict.ContainsKey(PasswordKey) && !string.IsNullOrWhiteSpace(dict[PasswordKey].Value);
+        var hasConnectionSettings = !string.IsNullOrWhiteSpace(host) &&
+                                    !string.IsNullOrWhiteSpace(database) &&
+                                    !string.IsNullOrWhiteSpace(username) &&
+                                    passwordSet;
+        var hasLookupSettings = provider == "mssql" ||
+                                (!string.IsNullOrWhiteSpace(tableName) &&
+                                 !string.IsNullOrWhiteSpace(matchColumn) &&
+                                 !string.IsNullOrWhiteSpace(emailColumn));
 
         return new ExternalUserDbSettingsResponse
         {
@@ -394,13 +513,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
             EmailColumn = emailColumn,
             DepartmentColumn = Get(dict, DepartmentColumnKey),
             WhereClause = Get(dict, WhereClauseKey),
-            IsConfigured = !string.IsNullOrWhiteSpace(host) &&
-                           !string.IsNullOrWhiteSpace(database) &&
-                           !string.IsNullOrWhiteSpace(username) &&
-                           passwordSet &&
-                           !string.IsNullOrWhiteSpace(tableName) &&
-                           !string.IsNullOrWhiteSpace(matchColumn) &&
-                           !string.IsNullOrWhiteSpace(emailColumn),
+            IsConfigured = hasConnectionSettings && hasLookupSettings,
             UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
         };
     }
@@ -413,6 +526,8 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         if (string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException($"{DbDisplayName(provider)} database adi zorunludur");
         if (string.IsNullOrWhiteSpace(request.Username)) throw new ArgumentException($"{DbDisplayName(provider)} kullanici adi zorunludur");
         if (!allowEmptyPassword && string.IsNullOrWhiteSpace(request.Password)) throw new ArgumentException($"{DbDisplayName(provider)} sifresi zorunludur");
+        if (provider == "mssql") return;
+
         if (string.IsNullOrWhiteSpace(request.TableName)) throw new ArgumentException("Tablo veya view adi zorunludur");
         if (string.IsNullOrWhiteSpace(request.MatchColumn)) throw new ArgumentException("Eslesme kolonu zorunludur");
         if (string.IsNullOrWhiteSpace(request.EmailColumn)) throw new ArgumentException("Email kolonu zorunludur");
@@ -485,9 +600,18 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
-    private static string? Read(DbDataReader reader, string name)
+    private static string? TryRead(DbDataReader reader, string name)
     {
-        var ordinal = reader.GetOrdinal(name);
+        int ordinal;
+        try
+        {
+            ordinal = reader.GetOrdinal(name);
+        }
+        catch (IndexOutOfRangeException)
+        {
+            return null;
+        }
+
         return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal)?.ToString();
     }
 

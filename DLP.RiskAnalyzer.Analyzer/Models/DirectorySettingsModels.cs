@@ -137,11 +137,19 @@ public class ExternalUserLookupRequest : ExternalUserDbSettingsRequest
 public class ExternalUserProfileDto
 {
     public string UserName { get; set; } = string.Empty;
+    public string? EmployeeNumber { get; set; }
     public string? FullName { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? Email { get; set; }
     public string? Department { get; set; }
+    public string? OrganizationName { get; set; }
+    public string? ManagerUserName { get; set; }
+    public string? ManagerFullName { get; set; }
+    public string? ManagerEmail { get; set; }
+    public string? SupervisorUserName { get; set; }
+    public string? SupervisorFullName { get; set; }
+    public string? SupervisorEmail { get; set; }
 }
 
 public class ExternalUserLookupResult
