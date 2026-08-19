@@ -219,14 +219,13 @@ public class DirectorySettingsService : IDirectorySettingsService
             if (!selected.Contains("A002 OK", StringComparison.OrdinalIgnoreCase))
                 return MessageContentResult(false, request.MessageId, $"Klasor acilamadi: {Shorten(selected)}");
 
-            await WriteAsync(stream, $"A003 FETCH {request.MessageId} (BODY.PEEK[]<0.{ImapMessagePreviewBytes}>)\r\n", ct);
-            var fetch = await ReadImapAsync(stream, ct, "A003");
-            await WriteAsync(stream, "A004 LOGOUT\r\n", ct);
+            var fetch = await FetchImapMessageAsync(stream, request.MessageId, ct);
+            await WriteAsync(stream, "A900 LOGOUT\r\n", ct);
 
-            if (!fetch.Contains("A003 OK", StringComparison.OrdinalIgnoreCase))
+            if (!IsTaggedOk(fetch))
                 return MessageContentResult(false, request.MessageId, $"Mail icerigi alinamadi: {Shorten(fetch)}");
 
-            var rawMessage = ExtractImapLiteral(fetch, out var truncated);
+            var rawMessage = ExtractImapMessageContent(fetch, out var truncated);
             if (string.IsNullOrWhiteSpace(rawMessage))
                 return MessageContentResult(false, request.MessageId, "Mail icerigi bos geldi veya okunamadi");
 
@@ -554,7 +553,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         var buffer = new byte[4096];
         var builder = new StringBuilder();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
 
         do
         {
@@ -562,9 +561,30 @@ public class DirectorySettingsService : IDirectorySettingsService
             if (read <= 0) break;
             builder.Append(Encoding.Latin1.GetString(buffer, 0, read));
         }
-        while (untilTag != null && !builder.ToString().Contains(untilTag, StringComparison.OrdinalIgnoreCase));
+        while (untilTag != null && !HasTaggedCompletion(builder.ToString(), untilTag));
 
         return builder.ToString();
+    }
+
+    private static async Task<string> FetchImapMessageAsync(Stream stream, string messageId, CancellationToken ct)
+    {
+        var attempts = new[]
+        {
+            ("A003", $"A003 FETCH {messageId} (BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.{ImapMessagePreviewBytes}>)\r\n"),
+            ("A004", $"A004 FETCH {messageId} (BODY.PEEK[]<0.{ImapMessagePreviewBytes}>)\r\n"),
+            ("A005", $"A005 FETCH {messageId} (RFC822.HEADER RFC822.TEXT)\r\n")
+        };
+
+        var lastResponse = string.Empty;
+        foreach (var (tag, command) in attempts)
+        {
+            await WriteAsync(stream, command, ct);
+            lastResponse = await ReadImapAsync(stream, ct, tag);
+            if (IsTaggedOk(lastResponse) && !string.IsNullOrWhiteSpace(ExtractImapMessageContent(lastResponse, out _)))
+                return lastResponse;
+        }
+
+        return lastResponse;
     }
 
     private static async Task<byte[]> ReadLdapResponseAsync(Stream stream, CancellationToken ct)
@@ -733,6 +753,37 @@ public class DirectorySettingsService : IDirectorySettingsService
         truncated = truncated || declaredLength >= ImapMessagePreviewBytes;
         return response.Substring(contentStart, take);
     }
+
+    private static string ExtractImapMessageContent(string response, out bool truncated)
+    {
+        truncated = response.Contains($"<0.{ImapMessagePreviewBytes}>", StringComparison.OrdinalIgnoreCase);
+        var literals = new List<string>();
+
+        foreach (Match match in Regex.Matches(response, @"\{(\d+)\}\r?\n", RegexOptions.Multiline))
+        {
+            var declaredLength = int.TryParse(match.Groups[1].Value, out var length) ? length : 0;
+            var contentStart = match.Index + match.Length;
+            var available = Math.Max(0, response.Length - contentStart);
+            var take = declaredLength > 0 ? Math.Min(declaredLength, available) : available;
+            if (take <= 0) continue;
+
+            truncated = truncated || declaredLength >= ImapMessagePreviewBytes;
+            literals.Add(response.Substring(contentStart, take));
+        }
+
+        if (literals.Count == 1)
+            return literals[0];
+        if (literals.Count > 1)
+            return string.Join("\r\n\r\n", literals.Select(part => part.Trim('\r', '\n')));
+
+        return ExtractImapLiteral(response, out truncated);
+    }
+
+    private static bool HasTaggedCompletion(string response, string tag) =>
+        Regex.IsMatch(response, $@"(^|\r?\n){Regex.Escape(tag)}\s+(OK|NO|BAD)\b", RegexOptions.IgnoreCase);
+
+    private static bool IsTaggedOk(string response) =>
+        Regex.IsMatch(response, @"(^|\r?\n)A\d+\s+OK\b", RegexOptions.IgnoreCase);
 
     private static (string Headers, string Body) SplitHeadersAndBody(string value)
     {

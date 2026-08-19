@@ -577,11 +577,18 @@ export default function SettingsPage() {
   const viewImapMessage = async (mail: ImapInboxMessage) => {
     setImapMessageLoadingId(mail.id)
     try {
-      const response = await axios.post(`${apiUrl}/api/settings/imap/message`, {
+      const payload = {
         ...imap,
         password: imap.password.trim() || undefined,
         message_id: mail.id,
-      }, { timeout: 30000 })
+      }
+      let response
+      try {
+        response = await axios.post(`${apiUrl}/api/settings/imap/message`, payload, { timeout: 30000 })
+      } catch (error: any) {
+        if (error.response?.status !== 404) throw error
+        response = await axios.post(`${apiUrl}/api/settings/imap/messages/${encodeURIComponent(mail.id)}`, payload, { timeout: 30000 })
+      }
       if (!response.data?.success) {
         flash('error', response.data?.message || 'Mail icerigi goruntulenemedi')
         return

@@ -626,8 +626,9 @@ function handleRequest(pathname, query, method, body) {
             tested_at: new Date().toISOString(),
         }
     }
-    if (pathname === '/api/settings/imap/message') {
-        const mail = mockImapMessages.find(item => item.id === String(body?.message_id)) || mockImapMessages[0]
+    if (pathname === '/api/settings/imap/message' || pathname.match(/^\/api\/settings\/imap\/messages\/[^/]+$/)) {
+        const pathMessageId = pathname.split('/').pop()
+        const mail = mockImapMessages.find(item => item.id === String(body?.message_id || pathMessageId)) || mockImapMessages[0]
         return {
             success: true,
             message: 'Mail icerigi alindi',

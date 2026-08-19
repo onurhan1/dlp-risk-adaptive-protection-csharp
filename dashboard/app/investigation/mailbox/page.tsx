@@ -145,11 +145,20 @@ export default function MailboxPage() {
     if (!settings) return
     setMessageLoadingId(mail.id)
     try {
-      const { data } = await apiClient.post('/api/settings/imap/message', {
+      const payload = {
         ...settings,
         folder: folder.trim() || 'INBOX',
         message_id: mail.id,
-      }, { timeout: 30000 })
+      }
+      let data
+      try {
+        const response = await apiClient.post('/api/settings/imap/message', payload, { timeout: 30000 })
+        data = response.data
+      } catch (error: any) {
+        if (error.response?.status !== 404) throw error
+        const response = await apiClient.post(`/api/settings/imap/messages/${encodeURIComponent(mail.id)}`, payload, { timeout: 30000 })
+        data = response.data
+      }
       if (!data.success) {
         flash('error', data.message || 'Mail icerigi goruntulenemedi')
         return

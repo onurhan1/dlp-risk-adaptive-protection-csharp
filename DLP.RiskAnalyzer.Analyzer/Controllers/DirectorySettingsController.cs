@@ -87,6 +87,25 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
+    [HttpPost("imap/messages/{messageId}")]
+    public async Task<ActionResult<ImapMessageContentResponse>> GetInboxMessageById(
+        string messageId,
+        [FromBody] ImapMessageContentRequest? request,
+        CancellationToken ct)
+    {
+        try
+        {
+            request ??= new ImapMessageContentRequest();
+            request.MessageId = messageId;
+            var result = await _settingsService.GetInboxMessageAsync(request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message, tested_at = DateTime.UtcNow });
+        }
+    }
+
     [HttpGet("ldap")]
     public async Task<ActionResult<LdapSettingsResponse>> GetLdap(CancellationToken ct) =>
         Ok(await _settingsService.GetLdapAsync(ct));
