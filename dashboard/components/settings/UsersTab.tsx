@@ -9,6 +9,8 @@ interface User {
     id: number
     username: string
     email: string
+    fullName?: string
+    full_name?: string
     role: string
     createdAt?: string
     created_at?: string
@@ -22,12 +24,14 @@ export default function UsersTab() {
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
     const [editingUser, setEditingUser] = useState<User | null>(null)
+    const [ldapPreview, setLdapPreview] = useState<{ username: string; email?: string; fullName?: string; full_name?: string } | null>(null)
+    const [ldapLookupLoading, setLdapLookupLoading] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
     const [formData, setFormData] = useState({
         username: '',
         email: '',
-        password: '',
+        fullName: '',
         role: 'standard'
     })
 
@@ -43,7 +47,7 @@ export default function UsersTab() {
             const response = await axios.get(`${apiUrl}/api/users`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             })
-            setUsers(response.data.users || [])
+            setUsers(Array.isArray(response.data) ? response.data : response.data.users || [])
         } catch (error: any) {
             console.error('Error fetching users:', error)
             setMessage({
@@ -58,7 +62,8 @@ export default function UsersTab() {
 
     const handleCreate = () => {
         setEditingUser(null)
-        setFormData({ username: '', email: '', password: '', role: 'standard' })
+        setFormData({ username: '', email: '', fullName: '', role: 'standard' })
+        setLdapPreview(null)
         setShowModal(true)
     }
 
@@ -67,10 +72,50 @@ export default function UsersTab() {
         setFormData({
             username: user.username,
             email: user.email,
-            password: '',
+            fullName: user.fullName || user.full_name || '',
             role: user.role
         })
+        setLdapPreview(null)
         setShowModal(true)
+    }
+
+    const handleLdapLookup = async () => {
+        const username = formData.username.trim()
+        if (!username) {
+            setMessage({ type: 'error', text: 'LDAP kullanici adi zorunludur' })
+            setTimeout(() => setMessage(null), 4000)
+            return
+        }
+
+        setLdapLookupLoading(true)
+        setLdapPreview(null)
+        try {
+            const token = localStorage.getItem('authToken')
+            const apiUrl = getApiUrlDynamic()
+            const response = await axios.post(
+                `${apiUrl}/api/users/ldap/lookup`,
+                { username },
+                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            const profile = {
+                username: response.data.username || username,
+                email: response.data.email || '',
+                fullName: response.data.fullName || response.data.full_name || '',
+            }
+            setLdapPreview(profile)
+            setFormData({
+                ...formData,
+                username: profile.username,
+                email: profile.email,
+                fullName: profile.fullName,
+            })
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.detail || error.message || 'LDAP kullanicisi bulunamadi'
+            setMessage({ type: 'error', text: errorMessage })
+            setTimeout(() => setMessage(null), 5000)
+        } finally {
+            setLdapLookupLoading(false)
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -84,17 +129,17 @@ export default function UsersTab() {
             if (editingUser) {
                 await axios.put(
                     `${apiUrl}/api/users/${editingUser.id}`,
-                    { username: formData.username, email: formData.email, role: formData.role },
+                    { username: formData.username, email: formData.email, fullName: formData.fullName, role: formData.role },
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 )
                 setMessage({ type: 'success', text: 'User updated successfully' })
             } else {
                 await axios.post(
-                    `${apiUrl}/api/users`,
-                    formData,
+                    `${apiUrl}/api/users/ldap`,
+                    { username: formData.username, role: formData.role },
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 )
-                setMessage({ type: 'success', text: 'User created successfully' })
+                setMessage({ type: 'success', text: 'LDAP user created successfully' })
             }
 
             setShowModal(false)
@@ -150,7 +195,7 @@ export default function UsersTab() {
                         fontSize: '13px'
                     }}
                 >
-                    + Add User
+                    + LDAP User Ekle
                 </button>
             </div>
 
@@ -173,6 +218,7 @@ export default function UsersTab() {
                         <tr style={{ borderBottom: '2px solid var(--border)' }}>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>ID</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.username')}</th>
+                            <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>Ad Soyad</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.email')}</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.role')}</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'none' }}>{t('users.status')}</th>
@@ -181,12 +227,13 @@ export default function UsersTab() {
                     </thead>
                     <tbody>
                         {users.length === 0 ? (
-                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('users.noUsers')}</td></tr>
+                            <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('users.noUsers')}</td></tr>
                         ) : (
                             users.map((user) => (
                                 <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                     <td style={{ padding: '12px' }}>{user.id}</td>
                                     <td style={{ padding: '12px', fontWeight: 500 }}>{user.username}</td>
+                                    <td style={{ padding: '12px' }}>{user.fullName || user.full_name || '-'}</td>
                                     <td style={{ padding: '12px' }}>{user.email}</td>
                                     <td style={{ padding: '12px' }}>
                                         <span style={{
@@ -227,21 +274,40 @@ export default function UsersTab() {
             {showModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }} onClick={() => setShowModal(false)}>
                     <div style={{ background: 'var(--surface)', borderRadius: '8px', padding: '24px', width: '90%', maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{editingUser ? t('users.editUser') : t('common.add')}</h3>
+                        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>{editingUser ? t('users.editUser') : 'LDAP User Ekle'}</h3>
                         <form onSubmit={handleSubmit}>
                             <div style={{ marginBottom: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.username')}</label>
-                                <input type="text" value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{editingUser ? t('users.username') : 'LDAP Kullanici Adi'}</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input type="text" value={formData.username} onChange={(e) => { setFormData({ ...formData, username: e.target.value }); setLdapPreview(null) }} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
+                                    {!editingUser && (
+                                        <button type="button" onClick={handleLdapLookup} disabled={ldapLookupLoading} style={{ padding: '0 14px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                            {ldapLookupLoading ? 'Araniyor...' : 'LDAP Getir'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
+                            {(editingUser || ldapPreview) && (
+                                <div style={{ marginBottom: '16px', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--background)' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>LDAP Bilgileri</div>
+                                    <div style={{ display: 'grid', gap: '6px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                                        <div><strong>Kullanici:</strong> {formData.username || '-'}</div>
+                                        <div><strong>Ad Soyad:</strong> {formData.fullName || '-'}</div>
+                                        <div><strong>E-posta:</strong> {formData.email || '-'}</div>
+                                    </div>
+                                </div>
+                            )}
+                            {editingUser && (
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>Ad Soyad</label>
+                                    <input type="text" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
+                                </div>
+                            )}
+                            {editingUser && (
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.email')}</label>
                                 <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
                             </div>
-                            {!editingUser && (
-                                <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.password')}</label>
-                                    <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: 'var(--background)', color: 'var(--text-primary)' }} />
-                                </div>
                             )}
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, fontSize: '12px', textTransform: 'none' }}>{t('users.role')}</label>
@@ -252,7 +318,7 @@ export default function UsersTab() {
                             </div>
                             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: 'var(--surface-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer' }}>{t('users.cancel')}</button>
-                                <button type="submit" style={{ padding: '10px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>{editingUser ? 'Update' : 'Create'}</button>
+                                <button type="submit" style={{ padding: '10px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>{editingUser ? 'Update' : 'LDAP User Ekle'}</button>
                             </div>
                         </form>
                     </div>

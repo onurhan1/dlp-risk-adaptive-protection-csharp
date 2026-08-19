@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -13,13 +14,20 @@ public class UsersController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<UsersController> _logger;
     private readonly IUserService _userService;
+    private readonly IDirectorySettingsService? _directorySettingsService;
 
-    public UsersController(AnalyzerDbContext db, IConfiguration configuration, ILogger<UsersController> logger, IUserService? userService = null)
+    public UsersController(
+        AnalyzerDbContext db,
+        IConfiguration configuration,
+        ILogger<UsersController> logger,
+        IUserService? userService = null,
+        IDirectorySettingsService? directorySettingsService = null)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
         _userService = userService ?? new UserService(db);
+        _directorySettingsService = directorySettingsService;
     }
 
     // ── Backward-compatible static helpers (delegate to UserService) ─────
@@ -96,6 +104,7 @@ public class UsersController : ControllerBase
             {
                 Username = request.Username.Trim(),
                 Email = request.Email ?? $"{request.Username.Trim()}@company.com",
+                FullName = request.FullName,
                 Role = role,
                 PasswordHash = hash,
                 PasswordSalt = salt,
@@ -112,6 +121,82 @@ public class UsersController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating user");
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    [HttpPost("ldap")]
+    public async Task<ActionResult> CreateLdapUser([FromBody] CreateLdapUserRequest request, CancellationToken ct)
+    {
+        try
+        {
+            if (_directorySettingsService == null)
+                return StatusCode(503, new { detail = "LDAP servisi hazir degil" });
+
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return BadRequest(new { detail = "LDAP kullanici adi zorunludur" });
+
+            var role = request.Role ?? "standard";
+            if (role != "admin" && role != "standard")
+                return BadRequest(new { detail = "Role must be 'admin' or 'standard'" });
+
+            var lookup = await _directorySettingsService.LookupLdapUserAsync(request.Username, ct);
+            if (!lookup.Success)
+                return BadRequest(new { detail = lookup.Message });
+
+            if (await _db.Users.AnyAsync(u => u.Username.ToLower() == lookup.Username.ToLower(), ct))
+                return Conflict(new { detail = "Username already exists" });
+
+            var (hash, salt) = _userService.CreatePasswordHash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
+            var user = new UserEntity
+            {
+                Username = lookup.Username.Trim(),
+                Email = string.IsNullOrWhiteSpace(lookup.Email) ? $"{lookup.Username.Trim()}@company.com" : lookup.Email.Trim(),
+                FullName = string.IsNullOrWhiteSpace(lookup.FullName) ? null : lookup.FullName.Trim(),
+                Role = role,
+                PasswordHash = hash,
+                PasswordSalt = salt,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation("LDAP user created: {Username} with role {Role}", user.Username, user.Role);
+            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, new
+            {
+                user = UserResponse.FromEntity(user),
+                ldap = lookup
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating LDAP user");
+            return StatusCode(500, new { detail = ex.Message });
+        }
+    }
+
+    [HttpPost("ldap/lookup")]
+    public async Task<ActionResult> LookupLdapUser([FromBody] LdapUserLookupRequest request, CancellationToken ct)
+    {
+        try
+        {
+            if (_directorySettingsService == null)
+                return StatusCode(503, new { detail = "LDAP servisi hazir degil" });
+
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return BadRequest(new { detail = "LDAP kullanici adi zorunludur" });
+
+            var lookup = await _directorySettingsService.LookupLdapUserAsync(request.Username, ct);
+            if (!lookup.Success)
+                return BadRequest(new { detail = lookup.Message });
+
+            return Ok(lookup);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error looking up LDAP user");
             return StatusCode(500, new { detail = ex.Message });
         }
     }
@@ -134,6 +219,9 @@ public class UsersController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(request.Email))
                 user.Email = request.Email;
+
+            if (request.FullName != null)
+                user.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
 
             if (!string.IsNullOrWhiteSpace(request.Role))
             {
@@ -196,13 +284,26 @@ public class CreateUserRequest
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? FullName { get; set; }
     public string? Role { get; set; } = "standard";
+}
+
+public class CreateLdapUserRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string? Role { get; set; } = "standard";
+}
+
+public class LdapUserLookupRequest
+{
+    public string Username { get; set; } = string.Empty;
 }
 
 public class UpdateUserRequest
 {
     public string? Username { get; set; }
     public string? Email { get; set; }
+    public string? FullName { get; set; }
     public string? Role { get; set; }
     public bool? IsActive { get; set; }
     public string? Password { get; set; }
@@ -213,6 +314,7 @@ public class UserResponse
     public int Id { get; set; }
     public string Username { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string? FullName { get; set; }
     public string Role { get; set; } = "standard";
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; }
@@ -222,9 +324,9 @@ public class UserResponse
         Id = e.Id,
         Username = e.Username,
         Email = e.Email,
+        FullName = e.FullName,
         Role = e.Role,
         CreatedAt = e.CreatedAt,
         IsActive = e.IsActive
     };
 }
-

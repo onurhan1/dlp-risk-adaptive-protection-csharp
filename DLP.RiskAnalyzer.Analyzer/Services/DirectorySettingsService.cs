@@ -341,6 +341,42 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
     }
 
+    public async Task<LdapUserLookupResult> LookupLdapUserAsync(string username, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return LdapLookupResult(false, username, "Kullanici adi zorunludur");
+
+        var settings = await GetLdapAsync(ct);
+        if (!settings.Enabled)
+            return LdapLookupResult(false, username, "LDAP aktif degil");
+        if (!settings.IsConfigured)
+            return LdapLookupResult(false, username, "LDAP servis hesabi yapilandirilmamis");
+        if (string.IsNullOrWhiteSpace(settings.SearchBase))
+            return LdapLookupResult(false, username, "LDAP arama tabani yapilandirilmamis");
+
+        var servicePassword = await GetSecretAsync(LdapServicePasswordKey, ct);
+        if (string.IsNullOrWhiteSpace(servicePassword))
+            return LdapLookupResult(false, username, "LDAP servis hesabi sifresi kayitli degil");
+
+        var normalizedUsername = NormalizeLoginUsername(username);
+        try
+        {
+            foreach (var bindName in BuildLdapBindCandidates(settings.ServiceAccount, settings.Domain).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var profile = await TrySearchLdapUserProfileAsync(settings, bindName, servicePassword, normalizedUsername, username, ct);
+                if (profile?.Success == true)
+                    return profile;
+            }
+
+            return LdapLookupResult(false, normalizedUsername, "LDAP kullanicisi bulunamadi");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LDAP user lookup failed for {Username}", normalizedUsername);
+            return LdapLookupResult(false, normalizedUsername, $"LDAP kullanici arama basarisiz: {ex.Message}");
+        }
+    }
+
     private async Task<string?> ResolveLdapEmailAsync(
         LdapSettingsResponse settings,
         string normalizedUsername,
@@ -366,6 +402,38 @@ public class DirectorySettingsService : IDirectorySettingsService
         return await TrySearchLdapUserEmailAsync(settings, successfulBindName, userPassword, normalizedUsername, originalUsername, ct);
     }
 
+    private async Task<LdapUserLookupResult?> TrySearchLdapUserProfileAsync(
+        LdapSettingsResponse settings,
+        string bindName,
+        string password,
+        string normalizedUsername,
+        string originalUsername,
+        CancellationToken ct)
+    {
+        var attributes = await TrySearchLdapUserAttributesAsync(settings, bindName, password, normalizedUsername, originalUsername, ct);
+        if (attributes.Count == 0)
+            return null;
+
+        var email = FirstAttribute(attributes, "mail", "userPrincipalName") ?? BuildEmail(normalizedUsername, settings.Domain);
+        var firstName = FirstAttribute(attributes, "givenName");
+        var lastName = FirstAttribute(attributes, "sn");
+        var fullName = FirstAttribute(attributes, "displayName");
+        if (string.IsNullOrWhiteSpace(fullName))
+            fullName = string.Join(' ', new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+
+        return new LdapUserLookupResult
+        {
+            Success = true,
+            Username = normalizedUsername,
+            Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim(),
+            FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName.Trim(),
+            FirstName = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim(),
+            LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim(),
+            Message = "LDAP kullanicisi bulundu",
+            TestedAt = DateTime.UtcNow
+        };
+    }
+
     private async Task<string?> TrySearchLdapUserEmailAsync(
         LdapSettingsResponse settings,
         string bindName,
@@ -376,40 +444,8 @@ public class DirectorySettingsService : IDirectorySettingsService
     {
         try
         {
-            using var client = new TcpClient();
-            await client.ConnectAsync(settings.Host.Trim(), settings.Port, ct);
-            using var stream = settings.UseLdaps
-                ? await WrapSslAsync(client, settings.Host.Trim(), ct)
-                : client.GetStream();
-
-            var bindRequest = BuildLdapSimpleBindRequest(1, bindName, password);
-            await stream.WriteAsync(bindRequest, ct);
-            await stream.FlushAsync(ct);
-
-            var bindResponse = await ReadLdapResponseAsync(stream, ct);
-            if (!IsLdapBindSuccess(bindResponse))
-                return null;
-
-            var searchRequest = BuildLdapUserSearchRequest(2, settings.SearchBase, normalizedUsername, originalUsername, settings.Domain);
-            await stream.WriteAsync(searchRequest, ct);
-            await stream.FlushAsync(ct);
-
-            for (var i = 0; i < 20; i++)
-            {
-                var response = await ReadLdapResponseAsync(stream, ct);
-                var operation = GetLdapProtocolOperationTag(response);
-                if (operation == 0x64)
-                {
-                    var attributes = ParseLdapSearchResultAttributes(response);
-                    if (attributes.TryGetValue("mail", out var mail) && !string.IsNullOrWhiteSpace(mail))
-                        return mail.Trim();
-                    if (attributes.TryGetValue("userPrincipalName", out var upn) && !string.IsNullOrWhiteSpace(upn))
-                        return upn.Trim();
-                }
-
-                if (operation == 0x65)
-                    break;
-            }
+            var attributes = await TrySearchLdapUserAttributesAsync(settings, bindName, password, normalizedUsername, originalUsername, ct);
+            return FirstAttribute(attributes, "mail", "userPrincipalName")?.Trim();
         }
         catch (Exception ex)
         {
@@ -417,6 +453,46 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
 
         return null;
+    }
+
+    private async Task<Dictionary<string, string>> TrySearchLdapUserAttributesAsync(
+        LdapSettingsResponse settings,
+        string bindName,
+        string password,
+        string normalizedUsername,
+        string originalUsername,
+        CancellationToken ct)
+    {
+        using var client = new TcpClient();
+        await client.ConnectAsync(settings.Host.Trim(), settings.Port, ct);
+        using var stream = settings.UseLdaps
+            ? await WrapSslAsync(client, settings.Host.Trim(), ct)
+            : client.GetStream();
+
+        var bindRequest = BuildLdapSimpleBindRequest(1, bindName, password);
+        await stream.WriteAsync(bindRequest, ct);
+        await stream.FlushAsync(ct);
+
+        var bindResponse = await ReadLdapResponseAsync(stream, ct);
+        if (!IsLdapBindSuccess(bindResponse))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var searchRequest = BuildLdapUserSearchRequest(2, settings.SearchBase, normalizedUsername, originalUsername, settings.Domain);
+        await stream.WriteAsync(searchRequest, ct);
+        await stream.FlushAsync(ct);
+
+        for (var i = 0; i < 20; i++)
+        {
+            var response = await ReadLdapResponseAsync(stream, ct);
+            var operation = GetLdapProtocolOperationTag(response);
+            if (operation == 0x64)
+                return ParseLdapSearchResultAttributes(response);
+
+            if (operation == 0x65)
+                break;
+        }
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static async Task<bool> TryLdapSimpleBindAsync(string host, int port, bool useLdaps, string bindName, string password, CancellationToken ct)
@@ -646,6 +722,14 @@ public class DirectorySettingsService : IDirectorySettingsService
         Success = success,
         Username = NormalizeLoginUsername(username),
         Email = email,
+        Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static LdapUserLookupResult LdapLookupResult(bool success, string username, string message) => new()
+    {
+        Success = success,
+        Username = NormalizeLoginUsername(username),
         Message = message,
         TestedAt = DateTime.UtcNow
     };
@@ -1011,6 +1095,17 @@ public class DirectorySettingsService : IDirectorySettingsService
     {
         if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) return null;
         return $"{username}@{domain.Trim()}";
+    }
+
+    private static string? FirstAttribute(Dictionary<string, string> attributes, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (attributes.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
+                return value;
+        }
+
+        return null;
     }
 
     private static byte[] BuildLdapUserSearchRequest(int messageId, string searchBase, string normalizedUsername, string originalUsername, string domain)

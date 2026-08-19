@@ -175,3 +175,15 @@ public class LdapAuthenticationResult
     public string? Email { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class LdapUserLookupResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? FullName { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
+}

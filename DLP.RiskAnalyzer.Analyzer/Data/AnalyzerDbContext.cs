@@ -440,6 +440,7 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
             entity.Property(e => e.Username).HasColumnName("username").IsRequired().HasMaxLength(100);
             entity.Property(e => e.Email).HasColumnName("email").HasMaxLength(255);
+            entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(255);
             entity.Property(e => e.Role).HasColumnName("role").IsRequired().HasMaxLength(20).HasDefaultValue("standard");
             entity.Property(e => e.PasswordHash).HasColumnName("password_hash").IsRequired();
             entity.Property(e => e.PasswordSalt).HasColumnName("password_salt").IsRequired();

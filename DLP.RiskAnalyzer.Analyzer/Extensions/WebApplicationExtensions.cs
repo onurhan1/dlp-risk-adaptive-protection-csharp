@@ -152,6 +152,8 @@ END $$;");
             sql.AppendLine($"ALTER TABLE IF EXISTS dlp.{t} SET SCHEMA auth;");
         }
 
+        sql.AppendLine("ALTER TABLE IF EXISTS auth.users ADD COLUMN IF NOT EXISTS full_name character varying(255);");
+
         // Everything else -> dlp (only from public; if already in dlp the IF EXISTS no-ops)
         foreach (var t in dlpTables)
         {

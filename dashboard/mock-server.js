@@ -260,9 +260,9 @@ const mercekData = allIncidents.slice(0, 20).map((inc, i) => ({
 // ─── Users Management ──────────────────────────────────────────────────────────
 
 const managementUsers = [
-    { id: 1, username: 'admin', email: 'admin@company.com', role: 'admin', createdAt: '2024-01-01', lastLogin: generateDate(0) },
-    { id: 2, username: 'analyst1', email: 'analyst1@company.com', role: 'analyst', createdAt: '2024-03-15', lastLogin: generateDate(1) },
-    { id: 3, username: 'viewer1', email: 'viewer1@company.com', role: 'viewer', createdAt: '2024-06-01', lastLogin: generateDate(5) },
+    { id: 1, username: 'admin', fullName: 'Sistem Yoneticisi', email: 'admin@company.com', role: 'admin', createdAt: '2024-01-01', lastLogin: generateDate(0) },
+    { id: 2, username: 'analyst1', fullName: 'Analist Kullanici', email: 'analyst1@company.com', role: 'standard', createdAt: '2024-03-15', lastLogin: generateDate(1) },
+    { id: 3, username: 'viewer1', fullName: 'Izleyici Kullanici', email: 'viewer1@company.com', role: 'standard', createdAt: '2024-06-01', lastLogin: generateDate(5) },
 ]
 
 // ─── Logs Data ─────────────────────────────────────────────────────────────────
@@ -667,6 +667,32 @@ function handleRequest(pathname, query, method, body) {
     }
 
     // Users Management
+    if (pathname === '/api/users/ldap/lookup') {
+        const username = String(body?.username || 'ldap.user').trim()
+        return {
+            success: true,
+            username,
+            email: `${username}@company.com`,
+            fullName: username.split(/[._-]/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+            firstName: username,
+            lastName: 'LDAP',
+            testedAt: new Date().toISOString(),
+        }
+    }
+    if (pathname === '/api/users/ldap') {
+        const username = String(body?.username || 'ldap.user').trim()
+        const user = {
+            id: randomInt(10, 100),
+            username,
+            fullName: username.split(/[._-]/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+            email: `${username}@company.com`,
+            role: body?.role || 'standard',
+            createdAt: new Date().toISOString(),
+            isActive: true,
+        }
+        managementUsers.push(user)
+        return { user, ldap: { success: true, ...user } }
+    }
     if (pathname === '/api/users') {
         if (method === 'POST') return { id: randomInt(10, 100), ...body, createdAt: new Date().toISOString() }
         return managementUsers
