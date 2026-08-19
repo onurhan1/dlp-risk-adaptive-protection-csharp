@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import { getApiUrlDynamic } from '@/lib/api-config'
+import MailBodyView from '@/components/investigation/MailBodyView'
 
 const AISettingsTab = dynamic(() => import('@/components/settings/AISettingsTab'), { ssr: false })
 
@@ -1117,21 +1118,7 @@ function MailContentModal({ message, onClose }: { message: ImapMessageContent; o
           </button>
         </div>
         <div style={{ padding: 16, overflow: 'auto', background: 'var(--background-secondary)' }}>
-          <pre style={{
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 1.55,
-            color: 'var(--text-primary)',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: 14,
-          }}>
-            {message.body_text || 'Gosterilecek metin icerigi bulunamadi.'}
-          </pre>
+          <MailBodyView bodyText={message.body_text} />
         </div>
       </div>
     </div>

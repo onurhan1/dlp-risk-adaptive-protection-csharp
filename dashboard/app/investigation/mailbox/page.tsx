@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, CheckCircle2, Inbox, Mail, RefreshCw, Search, Settings, XCircle } from 'lucide-react'
 import apiClient from '@/lib/axios'
+import MailBodyView from '@/components/investigation/MailBodyView'
 
 interface ImapSettings {
   enabled: boolean
@@ -324,19 +325,7 @@ export default function MailboxPage() {
                   </button>
                 </div>
                 <div style={{ padding: 14, maxHeight: 'calc(100vh - 230px)', overflow: 'auto', background: 'var(--background-secondary)' }}>
-                  <pre style={{
-                    margin: 0,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                    fontSize: 13,
-                    lineHeight: 1.55,
-                    color: 'var(--text-primary)',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: 14,
-                  }}>{selected.body_text || 'Gosterilecek metin icerigi bulunamadi.'}</pre>
+                  <MailBodyView bodyText={selected.body_text} />
                 </div>
               </>
             ) : (
