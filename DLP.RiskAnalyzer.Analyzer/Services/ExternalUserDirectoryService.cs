@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
@@ -383,34 +384,42 @@ WHERE
 
     private static DbConnection CreateSqlServerConnection(string connectionString)
     {
-        var connectionType = ResolveSqlConnectionType();
-        if (connectionType == null)
-        {
-            throw new InvalidOperationException(
-                "MSSQL provider bulunamadi. Kapali ortamda build'in kirilmamasi icin SqlClient compile-time bagimliligi yok; " +
-                "MSSQL secenegi icin publish ciktisinda Microsoft.Data.SqlClient ya da System.Data.SqlClient assembly'si bulunmalidir. PostgreSQL icin ek paket gerekmez.");
-        }
+        var errors = new List<string>();
 
-        try
+        foreach (var (connectionType, source) in ResolveSqlConnectionTypes())
         {
-            if (Activator.CreateInstance(connectionType) is DbConnection connection)
+            try
             {
-                connection.ConnectionString = connectionString;
-                return connection;
+                if (Activator.CreateInstance(connectionType) is DbConnection connection)
+                {
+                    connection.ConnectionString = connectionString;
+                    return connection;
+                }
+
+                if (Activator.CreateInstance(connectionType, connectionString) is DbConnection fallback)
+                    return fallback;
+
+                errors.Add($"{source}: DbConnection olusturulamadi");
             }
-
-            if (Activator.CreateInstance(connectionType, connectionString) is DbConnection fallback)
-                return fallback;
+            catch (Exception ex) when (IsPlatformNotSupported(ex))
+            {
+                errors.Add($"{source}: {UserFacingExceptionMessage(ex)}");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"MSSQL provider yuklendi ancak baglanti olusturulamadi: {UserFacingExceptionMessage(ex)}", UnwrapException(ex));
+            }
         }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"MSSQL provider yuklendi ancak baglanti olusturulamadi: {UserFacingExceptionMessage(ex)}", UnwrapException(ex));
-        }
 
-        throw new InvalidOperationException("MSSQL provider yuklendi ancak DbConnection olusturulamadi");
+        var detail = errors.Count > 0 ? " Denenen adaylar: " + string.Join(" | ", errors.Distinct()) : "";
+        throw new InvalidOperationException(
+            "MSSQL provider bulunamadi veya bu platform icin uygun SqlClient assembly'si yuklenemedi. " +
+            "Microsoft.Data.SqlClient.dll ile runtimes\\win\\lib\\net8.0\\Microsoft.Data.SqlClient.dll ve " +
+            "runtimes\\win-x64\\native\\Microsoft.Data.SqlClient.SNI.dll dosyalarinin calisan uygulama klasorunde oldugundan emin olun." +
+            detail);
     }
 
-    private static Type? ResolveSqlConnectionType()
+    private static IEnumerable<(Type Type, string Source)> ResolveSqlConnectionTypes()
     {
         var providerTypes = new[]
         {
@@ -420,59 +429,94 @@ WHERE
 
         foreach (var (assemblyName, typeName) in providerTypes)
         {
-            var type = Type.GetType($"{typeName}, {assemblyName}", throwOnError: false);
-            if (type != null && typeof(DbConnection).IsAssignableFrom(type))
-                return type;
+            foreach (var assembly in LoadSqlClientAssemblies(assemblyName))
+            {
+                var type = assembly.GetType(typeName, throwOnError: false);
+                if (type != null && typeof(DbConnection).IsAssignableFrom(type))
+                    yield return (type, assembly.Location);
+            }
 
+            Type? loadedType = null;
             try
             {
-                type = Assembly.Load(new AssemblyName(assemblyName)).GetType(typeName, throwOnError: false);
-                if (type != null && typeof(DbConnection).IsAssignableFrom(type))
-                    return type;
+                loadedType = Type.GetType($"{typeName}, {assemblyName}", throwOnError: false);
             }
             catch
             {
                 // Provider is optional; connection tests surface a clear message when it is absent.
             }
 
+            if (loadedType != null && typeof(DbConnection).IsAssignableFrom(loadedType))
+                yield return (loadedType, assemblyName);
+
+            loadedType = null;
             try
             {
-                type = LoadSqlClientAssembly(assemblyName)?.GetType(typeName, throwOnError: false);
-                if (type != null && typeof(DbConnection).IsAssignableFrom(type))
-                    return type;
+                loadedType = Assembly.Load(new AssemblyName(assemblyName)).GetType(typeName, throwOnError: false);
             }
             catch
             {
-                // Manually copied DLLs are optional too; continue to the next provider.
+                // Provider is optional; connection tests surface a clear message when it is absent.
             }
-        }
 
-        return null;
+            if (loadedType != null && typeof(DbConnection).IsAssignableFrom(loadedType))
+                yield return (loadedType, assemblyName);
+        }
     }
 
-    private static Assembly? LoadSqlClientAssembly(string assemblyName)
+    private static IEnumerable<Assembly> LoadSqlClientAssemblies(string assemblyName)
     {
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.dll"),
-            Path.Combine(AppContext.BaseDirectory, "runtimes", "win", "lib", "net8.0", $"{assemblyName}.dll")
-        };
-
-        foreach (var path in candidates)
+        foreach (var path in SqlClientAssemblyCandidates(assemblyName))
         {
             if (!File.Exists(path)) continue;
 
+            Assembly? assembly = null;
             try
             {
-                return Assembly.LoadFrom(path);
+                assembly = Assembly.LoadFrom(path);
             }
             catch
             {
                 // Keep probing; the final connection test returns the actionable error.
             }
+
+            if (assembly != null) yield return assembly;
+        }
+    }
+
+    private static IEnumerable<string> SqlClientAssemblyCandidates(string assemblyName)
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var runtimesDir = Path.Combine(baseDir, "runtimes");
+        var preferredRuntime = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? $"{Path.DirectorySeparatorChar}win{Path.DirectorySeparatorChar}lib{Path.DirectorySeparatorChar}"
+            : $"{Path.DirectorySeparatorChar}unix{Path.DirectorySeparatorChar}lib{Path.DirectorySeparatorChar}";
+
+        if (Directory.Exists(runtimesDir))
+        {
+            foreach (var path in Directory.GetFiles(runtimesDir, $"{assemblyName}.dll", SearchOption.AllDirectories)
+                         .Where(p => p.Contains(preferredRuntime, StringComparison.OrdinalIgnoreCase) ||
+                                     (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+                                      p.Contains($"{Path.DirectorySeparatorChar}win-", StringComparison.OrdinalIgnoreCase) &&
+                                      p.Contains($"{Path.DirectorySeparatorChar}lib{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+                         .OrderByDescending(p => p.Contains("net8.0", StringComparison.OrdinalIgnoreCase))
+                         .ThenBy(p => p.Length))
+            {
+                yield return path;
+            }
         }
 
-        return null;
+        yield return Path.Combine(baseDir, $"{assemblyName}.dll");
+
+        if (Directory.Exists(runtimesDir))
+        {
+            foreach (var path in Directory.GetFiles(runtimesDir, $"{assemblyName}.dll", SearchOption.AllDirectories)
+                         .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                                     !p.Contains($"{Path.DirectorySeparatorChar}unix{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return path;
+            }
+        }
     }
 
     private async Task<ExternalUserDbSettingsResponse> GetCachedSettingsAsync(CancellationToken ct)
@@ -692,6 +736,16 @@ WHERE
     {
         var root = UnwrapException(ex);
         return string.IsNullOrWhiteSpace(root.Message) ? ex.Message : root.Message;
+    }
+
+    private static bool IsPlatformNotSupported(Exception ex)
+    {
+        while (true)
+        {
+            if (ex is PlatformNotSupportedException) return true;
+            if (ex.InnerException == null) return false;
+            ex = ex.InnerException;
+        }
     }
 
     private static Exception UnwrapException(Exception ex)
