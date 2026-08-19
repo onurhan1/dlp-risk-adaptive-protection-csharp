@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
 [ApiController]
+[Route("api/settings")]
 public class DirectorySettingsController : ControllerBase
 {
     private readonly IDirectorySettingsService _settingsService;
@@ -21,11 +22,11 @@ public class DirectorySettingsController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("api/settings/imap")]
+    [HttpGet("imap")]
     public async Task<ActionResult<ImapSettingsResponse>> GetImap(CancellationToken ct) =>
         Ok(await _settingsService.GetImapAsync(ct));
 
-    [HttpPost("api/settings/imap")]
+    [HttpPost("imap")]
     public async Task<ActionResult> SaveImap([FromBody] ImapSettingsRequest request, CancellationToken ct)
     {
         try
@@ -44,7 +45,7 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpPost("api/settings/imap/test")]
+    [HttpPost("imap/test")]
     public async Task<ActionResult<DirectorySettingsTestResult>> TestImap([FromBody] ImapSettingsRequest request, CancellationToken ct)
     {
         try
@@ -58,7 +59,7 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpPost("api/settings/imap/inbox")]
+    [HttpPost("imap/inbox")]
     public async Task<ActionResult<ImapInboxPreviewResponse>> PreviewInbox([FromBody] ImapInboxRequest request, CancellationToken ct)
     {
         try
@@ -72,7 +73,7 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpPost("api/settings/imap/message")]
+    [HttpPost("imap/message")]
     public async Task<ActionResult<ImapMessageContentResponse>> GetInboxMessage([FromBody] ImapMessageContentRequest request, CancellationToken ct)
     {
         try
@@ -86,11 +87,11 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpGet("api/settings/ldap")]
+    [HttpGet("ldap")]
     public async Task<ActionResult<LdapSettingsResponse>> GetLdap(CancellationToken ct) =>
         Ok(await _settingsService.GetLdapAsync(ct));
 
-    [HttpPost("api/settings/ldap")]
+    [HttpPost("ldap")]
     public async Task<ActionResult> SaveLdap([FromBody] LdapSettingsRequest request, CancellationToken ct)
     {
         try
@@ -109,7 +110,7 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpPost("api/settings/ldap/test")]
+    [HttpPost("ldap/test")]
     public async Task<ActionResult<DirectorySettingsTestResult>> TestLdap([FromBody] LdapSettingsRequest request, CancellationToken ct)
     {
         try
@@ -123,11 +124,11 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpGet("api/settings/external-user-db")]
+    [HttpGet("external-user-db")]
     public async Task<ActionResult<ExternalUserDbSettingsResponse>> GetExternalUserDb(CancellationToken ct) =>
         Ok(await _externalUserDirectoryService.GetSettingsAsync(ct));
 
-    [HttpPost("api/settings/external-user-db")]
+    [HttpPost("external-user-db")]
     public async Task<ActionResult> SaveExternalUserDb([FromBody] ExternalUserDbSettingsRequest request, CancellationToken ct)
     {
         try
@@ -146,14 +147,14 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
-    [HttpPost("api/settings/external-user-db/test")]
+    [HttpPost("external-user-db/test")]
     public async Task<ActionResult<ExternalUserLookupResult>> TestExternalUserDb([FromBody] ExternalUserDbSettingsRequest request, CancellationToken ct)
     {
         var result = await _externalUserDirectoryService.TestConnectionAsync(request, ct);
         return Ok(result);
     }
 
-    [HttpPost("api/settings/external-user-db/lookup")]
+    [HttpPost("external-user-db/lookup")]
     public async Task<ActionResult<ExternalUserLookupResult>> TestExternalUserLookup([FromBody] ExternalUserLookupRequest request, CancellationToken ct)
     {
         var result = await _externalUserDirectoryService.TestLookupAsync(request, ct);
