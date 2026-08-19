@@ -653,7 +653,7 @@ export default function SettingsPage() {
     try {
       const response = await axios.post(`${apiUrl}/api/settings/external-user-db`, {
         ...externalDb,
-        password: externalDb.password.trim() || undefined,
+        password: externalDb.password || undefined,
       }, { timeout: 15000 })
       const saved = response.data?.settings
       if (saved) {
@@ -672,7 +672,7 @@ export default function SettingsPage() {
     try {
       const response = await axios.post(`${apiUrl}/api/settings/external-user-db/test`, {
         ...externalDb,
-        password: externalDb.password.trim() || undefined,
+        password: externalDb.password || undefined,
       }, { timeout: 30000 })
       flash(response.data?.success ? 'success' : 'error', response.data?.message || 'Veritabani testi tamamlandi')
     } catch (error: any) {
@@ -691,7 +691,7 @@ export default function SettingsPage() {
     try {
       const response = await axios.post(`${apiUrl}/api/settings/external-user-db/lookup`, {
         ...externalDb,
-        password: externalDb.password.trim() || undefined,
+        password: externalDb.password || undefined,
         test_username: externalDbTestUsername.trim(),
       }, { timeout: 30000 })
       const user = response.data?.user

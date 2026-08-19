@@ -405,6 +405,10 @@ WHERE
             {
                 errors.Add($"{source}: {UserFacingExceptionMessage(ex)}");
             }
+            catch (Exception ex) when (IsMissingAssembly(ex))
+            {
+                errors.Add($"{source}: eksik assembly - {UserFacingExceptionMessage(ex)}");
+            }
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"MSSQL provider yuklendi ancak baglanti olusturulamadi: {UserFacingExceptionMessage(ex)}", UnwrapException(ex));
@@ -743,6 +747,16 @@ WHERE
         while (true)
         {
             if (ex is PlatformNotSupportedException) return true;
+            if (ex.InnerException == null) return false;
+            ex = ex.InnerException;
+        }
+    }
+
+    private static bool IsMissingAssembly(Exception ex)
+    {
+        while (true)
+        {
+            if (ex is FileNotFoundException or FileLoadException) return true;
             if (ex.InnerException == null) return false;
             ex = ex.InnerException;
         }
