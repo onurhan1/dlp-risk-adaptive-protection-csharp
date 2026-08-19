@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Npgsql;
@@ -32,6 +31,7 @@ public class ExternalUserDirectoryService : IExternalUserDirectoryService
     private const string EmailColumnKey = Prefix + "email_column";
     private const string DepartmentColumnKey = Prefix + "department_column";
     private const string WhereClauseKey = Prefix + "where_clause";
+    private const string LookupSqlKey = Prefix + "lookup_sql";
 
     private static readonly Regex IdentifierPart = new(@"^[A-Za-z_][A-Za-z0-9_ ]*$", RegexOptions.Compiled);
     private const string MssqlManagedUserLookupSql = """
@@ -181,6 +181,7 @@ WHERE
         await UpsertAsync(EmailColumnKey, request.EmailColumn.Trim(), ct);
         await UpsertAsync(DepartmentColumnKey, request.DepartmentColumn.Trim(), ct);
         await UpsertAsync(WhereClauseKey, request.WhereClause.Trim(), ct);
+        await UpsertAsync(LookupSqlKey, request.LookupSql.Trim(), ct);
 
         if (!string.IsNullOrWhiteSpace(request.Password))
             await UpsertAsync(PasswordKey, _protector.Protect(request.Password), ct);
@@ -194,7 +195,7 @@ WHERE
         if (string.IsNullOrWhiteSpace(request.Password))
             request.Password = await GetSecretAsync(ct);
 
-        ValidateSettings(request, allowEmptyPassword: false);
+        ValidateSettings(request, allowEmptyPassword: false, validateLookupSql: false);
 
         try
         {
@@ -304,7 +305,12 @@ WHERE
     private static string BuildLookupSql(ExternalUserDbSettingsRequest settings)
     {
         var provider = NormalizeProvider(settings.Provider);
-        if (provider == "mssql") return MssqlManagedUserLookupSql;
+        if (provider == "mssql")
+        {
+            return string.IsNullOrWhiteSpace(settings.LookupSql)
+                ? MssqlManagedUserLookupSql
+                : settings.LookupSql.Trim();
+        }
 
         var projections = new List<string>
         {
@@ -355,13 +361,14 @@ WHERE
         var builder = new DbConnectionStringBuilder
         {
             ["Server"] = $"{settings.Host.Trim()},{settings.Port}",
-            ["Database"] = settings.Database.Trim(),
             ["User ID"] = settings.Username.Trim(),
             ["Password"] = settings.Password ?? string.Empty,
             ["Encrypt"] = settings.Encrypt,
             ["TrustServerCertificate"] = settings.TrustServerCertificate,
             ["Connect Timeout"] = 15
         };
+        if (!string.IsNullOrWhiteSpace(settings.Database))
+            builder["Database"] = settings.Database.Trim();
         return builder.ConnectionString;
     }
 
@@ -419,6 +426,42 @@ WHERE
             catch
             {
                 // Provider is optional; connection tests surface a clear message when it is absent.
+            }
+
+            try
+            {
+                type = LoadSqlClientAssembly(assemblyName)?.GetType(typeName, throwOnError: false);
+                if (type != null && typeof(DbConnection).IsAssignableFrom(type))
+                    return type;
+            }
+            catch
+            {
+                // Manually copied DLLs are optional too; continue to the next provider.
+            }
+        }
+
+        return null;
+    }
+
+    private static Assembly? LoadSqlClientAssembly(string assemblyName)
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, $"{assemblyName}.dll"),
+            Path.Combine(AppContext.BaseDirectory, "runtimes", "win", "lib", "net8.0", $"{assemblyName}.dll")
+        };
+
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+
+            try
+            {
+                return Assembly.LoadFrom(path);
+            }
+            catch
+            {
+                // Keep probing; the final connection test returns the actionable error.
             }
         }
 
@@ -484,9 +527,10 @@ WHERE
         var tableName = Get(dict, TableNameKey);
         var matchColumn = Get(dict, MatchColumnKey, "username");
         var emailColumn = Get(dict, EmailColumnKey, "email");
+        var lookupSql = Get(dict, LookupSqlKey);
         var passwordSet = dict.ContainsKey(PasswordKey) && !string.IsNullOrWhiteSpace(dict[PasswordKey].Value);
         var hasConnectionSettings = !string.IsNullOrWhiteSpace(host) &&
-                                    !string.IsNullOrWhiteSpace(database) &&
+                                    (provider == "mssql" || !string.IsNullOrWhiteSpace(database)) &&
                                     !string.IsNullOrWhiteSpace(username) &&
                                     passwordSet;
         var hasLookupSettings = provider == "mssql" ||
@@ -514,20 +558,28 @@ WHERE
             EmailColumn = emailColumn,
             DepartmentColumn = Get(dict, DepartmentColumnKey),
             WhereClause = Get(dict, WhereClauseKey),
+            LookupSql = lookupSql,
             IsConfigured = hasConnectionSettings && hasLookupSettings,
             UpdatedAt = dict.Values.OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.UpdatedAt
         };
     }
 
-    private static void ValidateSettings(ExternalUserDbSettingsRequest request, bool allowEmptyPassword)
+    private static void ValidateSettings(
+        ExternalUserDbSettingsRequest request,
+        bool allowEmptyPassword,
+        bool validateLookupSql = true)
     {
         var provider = NormalizeProvider(request.Provider);
         if (string.IsNullOrWhiteSpace(request.Host)) throw new ArgumentException($"{DbDisplayName(provider)} sunucu adresi zorunludur");
         if (request.Port is < 1 or > 65535) throw new ArgumentException($"{DbDisplayName(provider)} port 1 ile 65535 arasinda olmalidir");
-        if (string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException($"{DbDisplayName(provider)} database adi zorunludur");
+        if (provider == "postgresql" && string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException($"{DbDisplayName(provider)} database adi zorunludur");
         if (string.IsNullOrWhiteSpace(request.Username)) throw new ArgumentException($"{DbDisplayName(provider)} kullanici adi zorunludur");
         if (!allowEmptyPassword && string.IsNullOrWhiteSpace(request.Password)) throw new ArgumentException($"{DbDisplayName(provider)} sifresi zorunludur");
-        if (provider == "mssql") return;
+        if (provider == "mssql")
+        {
+            if (validateLookupSql) ValidateLookupSql(request.LookupSql);
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(request.TableName)) throw new ArgumentException("Tablo veya view adi zorunludur");
         if (string.IsNullOrWhiteSpace(request.MatchColumn)) throw new ArgumentException("Eslesme kolonu zorunludur");
@@ -588,6 +640,19 @@ WHERE
         if (trimmed.Contains(';') || trimmed.Contains("--") || trimmed.Contains("/*") || trimmed.Contains("*/"))
             throw new ArgumentException("WHERE filtresi tek bir kosul olmali; ; veya yorum karakterleri kullanilamaz");
         return trimmed;
+    }
+
+    private static void ValidateLookupSql(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+
+        var trimmed = value.TrimStart();
+        if (!trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) &&
+            !trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("MSSQL kullanici sorgusu SELECT veya WITH ile baslamalidir");
+
+        if (!Regex.IsMatch(value, @"@\busername\b", RegexOptions.IgnoreCase))
+            throw new ArgumentException("MSSQL kullanici sorgusunda @username parametresi bulunmalidir");
     }
 
     private static string? NormalizeUserName(string? value)

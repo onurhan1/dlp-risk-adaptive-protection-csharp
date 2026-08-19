@@ -120,6 +120,7 @@ public class ExternalUserDbSettingsRequest
     public string EmailColumn { get; set; } = "email";
     public string DepartmentColumn { get; set; } = string.Empty;
     public string WhereClause { get; set; } = string.Empty;
+    public string LookupSql { get; set; } = string.Empty;
 }
 
 public class ExternalUserDbSettingsResponse : ExternalUserDbSettingsRequest

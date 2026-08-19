@@ -127,6 +127,7 @@ interface ExternalUserDbSettings {
   email_column: string
   department_column: string
   where_clause: string
+  lookup_sql: string
   is_configured: boolean
   updated_at?: string | null
 }
@@ -277,6 +278,7 @@ export default function SettingsPage() {
     email_column: 'email',
     department_column: '',
     where_clause: '',
+    lookup_sql: '',
     is_configured: false,
     updated_at: null,
   })
@@ -408,6 +410,7 @@ export default function SettingsPage() {
       email_column: data.email_column ?? 'email',
       department_column: data.department_column ?? '',
       where_clause: data.where_clause ?? '',
+      lookup_sql: data.lookup_sql ?? '',
       is_configured: data.is_configured ?? false,
       updated_at: data.updated_at ?? null,
     })
@@ -993,7 +996,14 @@ export default function SettingsPage() {
             </Field>
             <Field label="Sunucu Adresi"><input style={inputStyle} value={externalDb.host} onChange={(e) => updateExternalDb('host', e.target.value)} placeholder="db.company.local" /></Field>
             <Field label="Port"><input type="number" style={inputStyle} value={externalDb.port} onChange={(e) => updateExternalDb('port', Number(e.target.value) || (externalDb.provider === 'mssql' ? 1433 : 5432))} /></Field>
-            <Field label="Database"><input style={inputStyle} value={externalDb.database} onChange={(e) => updateExternalDb('database', e.target.value)} /></Field>
+            <Field label={externalDb.provider === 'mssql' ? 'Database (opsiyonel)' : 'Database'}>
+              <input
+                style={inputStyle}
+                value={externalDb.database}
+                onChange={(e) => updateExternalDb('database', e.target.value)}
+                placeholder={externalDb.provider === 'mssql' ? 'Bos kalabilir; sorguda [DB].[schema].[table] kullan' : ''}
+              />
+            </Field>
             <Field label="Kullanici Adi"><input style={inputStyle} value={externalDb.username} onChange={(e) => updateExternalDb('username', e.target.value)} /></Field>
             <Field label="Sifre">
               <SecretInput
@@ -1019,6 +1029,19 @@ export default function SettingsPage() {
               <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
               <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = true" /></Field>
             </Grid>
+          </Panel>
+        )}
+        {externalDb.provider === 'mssql' && (
+          <Panel title="MSSQL Kullanici Sorgusu" icon={<BriefcaseBusiness size={15} />}>
+            <Field label="Lookup SQL">
+              <textarea
+                style={{ ...inputStyle, minHeight: 180, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                value={externalDb.lookup_sql}
+                onChange={(e) => updateExternalDb('lookup_sql', e.target.value)}
+                placeholder={'WITH MDR AS (...) SELECT TOP (1) ... WHERE UserCode = @username'}
+              />
+            </Field>
+            <InfoBar text="Bos birakilirsa kod icindeki varsayilan MSSQL sorgusu kullanilir. Sorgu SELECT/WITH ile baslamali, @username parametresini icermeli ve user_name, full_name, email, department gibi alias kolonlari dondurmelidir." />
           </Panel>
         )}
         <Panel>
