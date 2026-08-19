@@ -56,6 +56,7 @@ public class InvestigationController : ControllerBase
         public string? CcEmail { get; set; }
         public string Subject { get; set; } = string.Empty;
         public string BodyHtml { get; set; } = string.Empty;
+        public DateTime? IncidentTimestamp { get; set; }
     }
 
     [HttpPost("send-mail")]
@@ -112,6 +113,9 @@ public class InvestigationController : ControllerBase
                 Action = "Sorgu maili gönderildi",
                 QueryStatus = InvestigationQueryStatus.Queried,
                 Source = "manual_mail",
+                Notes = request.IncidentTimestamp.HasValue
+                    ? $"Olay tarihi: {request.IncidentTimestamp.Value:dd.MM.yyyy HH:mm}"
+                    : null,
                 CreatedAt = now,
                 UpdatedAt = now,
                 CreatedBy = actor,

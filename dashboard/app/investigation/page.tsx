@@ -188,6 +188,13 @@ function InvestigationPageContent() {
     setMailModalOpen(false)
   }, [selectedUser])
 
+  const selectedMailEvents = selectedEvent
+    ? [
+        selectedEvent,
+        ...selectedUserEvents.filter(event => String(event.id) !== String(selectedEvent.id)),
+      ]
+    : selectedUserEvents
+
   const selectedUserMailData: WeeklyFlagUser | null = selectedUser ? {
     user_email: selectedUser,
     full_name: aiAnalysis?.full_name || aiAnalysis?.fullName || null,
@@ -197,10 +204,10 @@ function InvestigationPageContent() {
     first_seen: selectedUserEvents.length > 0
       ? selectedUserEvents.reduce((earliest, event) => event.timestamp < earliest ? event.timestamp : earliest, selectedUserEvents[0].timestamp)
       : new Date().toISOString(),
-    last_seen: selectedUserEvents.length > 0
-      ? selectedUserEvents.reduce((latest, event) => event.timestamp > latest ? event.timestamp : latest, selectedUserEvents[0].timestamp)
+    last_seen: selectedMailEvents.length > 0
+      ? selectedMailEvents[0].timestamp
       : new Date().toISOString(),
-    sample_incidents: selectedUserEvents.slice(0, 10).map(event => ({
+    sample_incidents: selectedMailEvents.slice(0, 10).map(event => ({
       timestamp: event.timestamp,
       policy: event.policy || event.matched_rules?.[0] || null,
       max_matches: (event as any).max_matches || (event as any).maxMatches || 0,

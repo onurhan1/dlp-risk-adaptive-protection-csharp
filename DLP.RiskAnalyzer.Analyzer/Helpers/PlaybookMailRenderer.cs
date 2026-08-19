@@ -34,10 +34,8 @@ public static class PlaybookMailRenderer
         if (string.IsNullOrEmpty(text)) return string.Empty;
 
         var incidents = user.SampleIncidents ?? new List<WeeklyFlagIncidentDto>();
-        var primary = incidents
-            .OrderByDescending(i => i.MaxMatches)
-            .ThenByDescending(i => i.Timestamp)
-            .FirstOrDefault();
+        var primary = incidents.FirstOrDefault();
+        var incidentDate = primary?.Timestamp ?? user.LastSeen;
         var summary = string.Join("\n", incidents.Select(i =>
             $"- {i.Timestamp.ToString(DateTimeFormat)} | {Dash(i.Policy)} | {i.MaxMatches} eşleşme | {Dash(i.Destination)}"));
 
@@ -45,7 +43,9 @@ public static class PlaybookMailRenderer
             .Replace("{{kullanici}}", string.IsNullOrWhiteSpace(user.ContactEmail) ? user.UserEmail : user.ContactEmail)
             .Replace("{{tam_ad}}", user.UserEmail)
             .Replace("{{takim}}", Dash(user.Team))
-            .Replace("{{tarih}}", nowUtc.ToString(DateFormat))
+            .Replace("{{tarih}}", incidentDate.ToString(DateFormat))
+            .Replace("{{olay_tarihi}}", incidentDate.ToString(DateTimeFormat))
+            .Replace("{{olay_saati}}", incidentDate.ToString("HH:mm:ss"))
             .Replace("{{destination}}", Dash(primary?.Destination))
             .Replace("{{hedef}}", Dash(primary?.Destination))
             .Replace("{{kanal}}", Dash(primary?.Channel))

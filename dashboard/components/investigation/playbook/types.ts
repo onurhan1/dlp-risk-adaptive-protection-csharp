@@ -394,6 +394,8 @@ export const NODE_CATALOG: NodeDefinition[] = [
     outputs: [{ handle: null }],
     defaultConfig: {
       template_id: null,
+      auto_template_by_destination: true,
+      template_match_rules: [],
       subject_override: '',
       body_override: '',
       cc_email: '',
@@ -680,7 +682,18 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
     if (node.type === 'action.sendMail') {
       const templateId = Number(node.config?.template_id)
       const hasTemplate = Number.isFinite(templateId) && templateId > 0
-      if (!hasTemplate && !String(node.config?.subject_override || '').trim()) {
+      const routeTemplateIds = [
+        Number(node.config?.personal_template_id),
+        Number(node.config?.github_template_id),
+        Number(node.config?.destination_template_id),
+        ...(
+          Array.isArray(node.config?.template_match_rules)
+            ? node.config.template_match_rules.map((rule: any) => Number(rule?.template_id))
+            : []
+        ),
+      ]
+      const hasRouteTemplate = routeTemplateIds.some(id => Number.isFinite(id) && id > 0)
+      if (!hasTemplate && !hasRouteTemplate && !String(node.config?.subject_override || '').trim()) {
         errors.push(`'${node.label}' için bir şablon seçin ya da konu girin.`)
       }
       if (node.config?.recipient_mode === 'fixed' && !isValidEmail(node.config?.fixed_recipient)) {

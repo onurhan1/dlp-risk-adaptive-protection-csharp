@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import { Settings2 } from 'lucide-react'
+import { Plus, Settings2, Trash2 } from 'lucide-react'
 import { MailTemplate, TEMPLATE_PLACEHOLDERS, applyPlaceholders, toEmailHtml } from '../types'
 import type { WeeklyFlagUser } from '../types'
 import {
@@ -821,6 +821,7 @@ function SendMailForm({
   const templateId = node.config.template_id ? String(node.config.template_id) : ''
   const template = templates.find(t => String(t.id) === templateId)
   const recipientMode = node.config.recipient_mode ?? 'user'
+  const autoTemplateByDestination = node.config.auto_template_by_destination !== false
 
   const effectiveSubject = node.config.subject_override?.trim() || template?.subject || ''
   const effectiveBody = node.config.body_override?.trim() || template?.body || ''
@@ -836,9 +837,111 @@ function SendMailForm({
   )
 
   const ccEmail = String(node.config.cc_email ?? '').trim()
+  const templateMatchRules = Array.isArray(node.config.template_match_rules)
+    ? node.config.template_match_rules
+    : []
+  const setTemplateMatchRules = (nextRules: Array<Record<string, any>>) => {
+    setConfig({ template_match_rules: nextRules })
+  }
+  const updateTemplateMatchRule = (index: number, patch: Record<string, any>) => {
+    setTemplateMatchRules(templateMatchRules.map((rule, i) => i === index ? { ...rule, ...patch } : rule))
+  }
+  const addTemplateMatchRule = () => {
+    setTemplateMatchRules([...templateMatchRules, { pattern: '', template_id: null }])
+  }
+  const removeTemplateMatchRule = (index: number) => {
+    setTemplateMatchRules(templateMatchRules.filter((_, i) => i !== index))
+  }
 
   return (
     <>
+      {!inMetricFlow && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            padding: '9px 11px',
+            borderRadius: '6px',
+            background: 'var(--surface-hover)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={autoTemplateByDestination}
+            onChange={e => setConfig({ auto_template_by_destination: e.target.checked })}
+            style={{ marginTop: '2px', flexShrink: 0 }}
+          />
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Destinationa gore otomatik sablon sec
+            </div>
+            <p style={{ ...hintStyle, marginTop: '4px' }}>
+              Sahsi mail, business.github ve diger destinationlar icin olay kaydina gore sablon secilir.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!inMetricFlow && autoTemplateByDestination && (
+        <>
+          <div>
+            <label style={labelStyle}>Destination Sablon Eslesmeleri</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {templateMatchRules.map((rule, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 30px',
+                    gap: '6px',
+                    alignItems: 'center',
+                  }}
+                >
+                  <input
+                    style={inputStyle}
+                    value={rule.pattern ?? ''}
+                    onChange={e => updateTemplateMatchRule(index, { pattern: e.target.value })}
+                    placeholder="*.github.business veya CMD/Powershell"
+                  />
+                  <select
+                    style={inputStyle}
+                    value={rule.template_id ? String(rule.template_id) : ''}
+                    onChange={e => updateTemplateMatchRule(index, { template_id: e.target.value ? Number(e.target.value) : null })}
+                  >
+                    <option value="">Sablon sec</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={String(t.id)}>{t.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    title="Eslesmeyi sil"
+                    onClick={() => removeTemplateMatchRule(index)}
+                    style={iconButtonStyle}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addTemplateMatchRule}
+                style={addRuleButtonStyle}
+              >
+                <Plus size={14} />
+                Eslesme ekle
+              </button>
+            </div>
+          </div>
+          <p style={hintStyle}>
+            Pattern destination, kanal ve policy bilgisi uzerinde aranir. * wildcard, / alternatif anlamina gelir.
+            Eslesme yoksa sablon adi ve icerigi olay bilgileriyle akilli sekilde karsilastirilir.
+          </p>
+        </>
+      )}
+
       {inMetricFlow && (
         <div
           style={{
@@ -1069,4 +1172,32 @@ const panelStyle: CSSProperties = {
   background: 'var(--surface)',
   overflowY: 'auto',
   padding: '14px',
+}
+
+const iconButtonStyle: CSSProperties = {
+  width: '30px',
+  height: '30px',
+  border: '1px solid var(--border)',
+  borderRadius: '6px',
+  background: 'white',
+  color: '#ef4444',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
+const addRuleButtonStyle: CSSProperties = {
+  height: '32px',
+  border: '1px dashed var(--border)',
+  borderRadius: '6px',
+  background: 'white',
+  color: 'var(--text-primary)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  fontSize: '12px',
+  fontWeight: 600,
+  cursor: 'pointer',
 }

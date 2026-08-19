@@ -42,6 +42,7 @@ export default function SendMailModal({ user, onClose }: Props) {
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [selectedIncidentIndex, setSelectedIncidentIndex] = useState(0)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
@@ -56,13 +57,49 @@ export default function SendMailModal({ user, onClose }: Props) {
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
-  const applyTemplate = (id: string) => {
+  const incidentOptions = useMemo(() => user.sample_incidents || [], [user.sample_incidents])
+  const templateUser = useMemo<WeeklyFlagUser>(() => {
+    if (incidentOptions.length === 0) return user
+    const safeIndex = Math.min(Math.max(selectedIncidentIndex, 0), incidentOptions.length - 1)
+    const selectedIncident = incidentOptions[safeIndex]
+    return {
+      ...user,
+      sample_incidents: [
+        selectedIncident,
+        ...incidentOptions.filter((_, index) => index !== safeIndex),
+      ],
+      first_seen: selectedIncident.timestamp || user.first_seen,
+      last_seen: selectedIncident.timestamp || user.last_seen,
+    }
+  }, [incidentOptions, selectedIncidentIndex, user])
+
+  const applyTemplate = (id: string, currentUser = templateUser) => {
     setSelectedId(id)
     const tpl = templates.find(t => String(t.id) === id)
     if (tpl) {
-      setSubject(applyPlaceholders(tpl.subject, user))
-      setBody(applyPlaceholders(tpl.body, user))
+      setSubject(applyPlaceholders(tpl.subject, currentUser))
+      setBody(applyPlaceholders(tpl.body, currentUser))
     }
+  }
+
+  const changeIncident = (value: string) => {
+    const nextIndex = Number(value) || 0
+    setSelectedIncidentIndex(nextIndex)
+    if (!selectedId) return
+
+    const selectedIncident = incidentOptions[nextIndex]
+    const nextUser = selectedIncident
+      ? {
+          ...user,
+          sample_incidents: [
+            selectedIncident,
+            ...incidentOptions.filter((_, index) => index !== nextIndex),
+          ],
+          first_seen: selectedIncident.timestamp || user.first_seen,
+          last_seen: selectedIncident.timestamp || user.last_seen,
+        }
+      : user
+    applyTemplate(selectedId, nextUser)
   }
 
   const openPreview = () => {
@@ -99,6 +136,7 @@ export default function SendMailModal({ user, onClose }: Props) {
         cc_email: ccEmail.trim() || null,
         subject,
         body_html: toEmailHtml(body),
+        incident_timestamp: templateUser.sample_incidents?.[0]?.timestamp || null,
       })
       setMessage({ type: 'success', text: res.data?.message || 'Mail gönderildi' })
       setTimeout(onClose, 1200)
@@ -148,6 +186,19 @@ export default function SendMailModal({ user, onClose }: Props) {
                 <input type="email" style={inputStyle} value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="alici@firma.com" />
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{user.user_email}{user.team ? ` · ${user.team}` : ''}</div>
               </div>
+
+              {incidentOptions.length > 0 && (
+                <div>
+                  <label style={labelStyle}>Olay Kaydi</label>
+                  <select style={inputStyle} value={selectedIncidentIndex} onChange={e => changeIncident(e.target.value)}>
+                    {incidentOptions.map((incident, index) => (
+                      <option key={`${incident.timestamp}-${index}`} value={index}>
+                        {new Date(incident.timestamp).toLocaleString('tr-TR')} | {incident.policy || '-'} | Max Match: {incident.max_matches ?? '-'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label style={labelStyle}>Şablon Seç</label>

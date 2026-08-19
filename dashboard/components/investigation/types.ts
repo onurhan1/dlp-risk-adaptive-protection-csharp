@@ -37,7 +37,9 @@ export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{kullanici}}', desc: 'Kullanıcı e-postası' },
   { token: '{{tam_ad}}', desc: 'Kullanıcı adı (username)' },
   { token: '{{takim}}', desc: 'Takım / departman' },
-  { token: '{{tarih}}', desc: 'Bugünün tarihi' },
+  { token: '{{tarih}}', desc: 'Ilgili olay kaydinin tarihi' },
+  { token: '{{olay_tarihi}}', desc: 'Ilgili olay kaydinin tarih ve saati' },
+  { token: '{{olay_saati}}', desc: 'Ilgili olay kaydinin saati' },
   { token: '{{destination}}', desc: 'En yüksek eşleşmeli olayın hedefi' },
   { token: '{{hedef}}', desc: 'En yüksek eşleşmeli olayın hedefi' },
   { token: '{{kanal}}', desc: 'En yüksek eşleşmeli olayın kanalı' },
@@ -55,13 +57,15 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
   const incidentsSummary = (user.sample_incidents || [])
     .map(i => `- ${new Date(i.timestamp).toLocaleString('tr-TR')} | ${i.policy ?? '-'} | ${i.max_matches} eşleşme | ${i.destination ?? '-'}`)
     .join('\n')
-  const primaryIncident = [...(user.sample_incidents || [])]
-    .sort((a, b) => (b.max_matches - a.max_matches) || (new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()))[0]
+  const primaryIncident = (user.sample_incidents || [])[0]
+  const incidentDate = primaryIncident?.timestamp ? new Date(primaryIncident.timestamp) : new Date(user.last_seen || Date.now())
   return text
     .replaceAll('{{kullanici}}', user.contact_email || user.user_email)
     .replaceAll('{{tam_ad}}', user.user_email)
     .replaceAll('{{takim}}', user.team || '-')
-    .replaceAll('{{tarih}}', new Date().toLocaleDateString('tr-TR'))
+    .replaceAll('{{tarih}}', incidentDate.toLocaleDateString('tr-TR'))
+    .replaceAll('{{olay_tarihi}}', incidentDate.toLocaleString('tr-TR'))
+    .replaceAll('{{olay_saati}}', incidentDate.toLocaleTimeString('tr-TR'))
     .replaceAll('{{destination}}', primaryIncident?.destination || '-')
     .replaceAll('{{hedef}}', primaryIncident?.destination || '-')
     .replaceAll('{{kanal}}', primaryIncident?.channel || '-')

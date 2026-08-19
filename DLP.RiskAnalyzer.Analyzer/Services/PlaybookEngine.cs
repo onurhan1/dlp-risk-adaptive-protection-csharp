@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Mail;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
@@ -848,7 +850,9 @@ public class PlaybookEngine : IPlaybookEngine
         SendContext context,
         CancellationToken ct)
     {
-        var (subjectTemplate, bodyTemplate) = await ResolveTemplateAsync(node, ct);
+        var templateCatalog = await _context.MailTemplates.AsNoTracking().ToListAsync(ct);
+        var defaultTemplate = ResolveNodeTemplate(node, templateCatalog);
+        var templateRules = ResolveTemplateMatchRules(node, templateCatalog);
 
         var recipientMode = node.GetString("recipient_mode") ?? "user";
         var fixedRecipient = node.GetString("fixed_recipient")?.Trim();
@@ -864,8 +868,9 @@ public class PlaybookEngine : IPlaybookEngine
         // one mail per person — and there is no user address to fall back on.
         if (payload.HasMetric)
         {
+            var metricTemplate = RequireTemplate(defaultTemplate, "Metrik maili icin bir sabit sablon veya konu gerekir.");
             await SendMetricMailAsync(
-                node, payload.Metric!, subjectTemplate, bodyTemplate,
+                node, payload.Metric!, metricTemplate.Subject, metricTemplate.Body,
                 fixedRecipient, ccEmail, playbook, run, context, ct);
             return payload;
         }
@@ -880,6 +885,8 @@ public class PlaybookEngine : IPlaybookEngine
         {
             var user = item.User;
             var toEmail = recipientMode == "fixed" ? fixedRecipient! : RecipientOf(user);
+            var decision = ResolveTemplateForUser(node, item, defaultTemplate, templateCatalog, templateRules);
+            var renderUser = WithPrimaryIncident(user, decision.Incident);
 
             var entry = new PlaybookMailLog
             {
@@ -891,9 +898,9 @@ public class PlaybookEngine : IPlaybookEngine
                 Team = user.Team,
                 ToEmail = toEmail,
                 CcEmail = ccEmail,
-                Subject = PlaybookMailRenderer.ApplyPlaceholders(subjectTemplate, user, now),
+                Subject = PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
                 BodyHtml = PlaybookMailRenderer.ToEmailHtml(
-                    PlaybookMailRenderer.ApplyPlaceholders(bodyTemplate, user, now)),
+                    PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Body, renderUser, now)),
                 SourceCriterion = item.SourceCriterion,
                 TriggerCount = user.TriggerCount,
                 CreatedAt = now
@@ -1086,11 +1093,14 @@ public class PlaybookEngine : IPlaybookEngine
         var now = DateTime.UtcNow;
         var title = node.GetString("title")?.Trim();
         if (string.IsNullOrWhiteSpace(title)) title = "Agentic Workflow Raporu";
+        title = ApplyReportPlaceholders(title, payload, now);
 
         var subject = node.GetString("subject_override")?.Trim();
         if (string.IsNullOrWhiteSpace(subject)) subject = $"{title} - {now:dd.MM.yyyy}";
+        subject = ApplyReportPlaceholders(subject, payload, now);
 
-        var bodyHtml = BuildReportMailHtml(title, node.GetString("intro"), payload, now);
+        var intro = ApplyReportPlaceholders(node.GetString("intro"), payload, now);
+        var bodyHtml = BuildReportMailHtml(title, intro, payload, now);
 
         var entry = new PlaybookMailLog
         {
@@ -1182,6 +1192,10 @@ public class PlaybookEngine : IPlaybookEngine
 
     private static string BuildReportMailHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
     {
+        var introHtml = string.IsNullOrWhiteSpace(intro)
+            ? string.Empty
+            : $@"<div class=""intro"">{Encode(intro)}</div>";
+
         if (payload.HasMetric)
         {
             var metric = payload.Metric!;
@@ -1197,7 +1211,8 @@ public class PlaybookEngine : IPlaybookEngine
   <div class=""wrap"">
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
-      <p class=""meta"">{Encode(intro)}<br/>Uretim tarihi: {now:dd.MM.yyyy HH:mm}</p>
+      {introHtml}
+      <div class=""meta"">Uretim tarihi: {now:dd.MM.yyyy HH:mm}</div>
       <table>
         <tbody>
           <tr><th>Metrik</th><td>{Encode(metric.Label)}</td></tr>
@@ -1218,7 +1233,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         var rows = payload.Items.Count == 0
-            ? "<tr><td colspan=\"8\" class=\"empty\">Kayit bulunamadi.</td></tr>"
+            ? "<tr><td colspan=\"9\" class=\"empty\">Kayit bulunamadi.</td></tr>"
             : string.Join("", payload.Items.Select((item, index) =>
             {
                 var user = item.User;
@@ -1229,6 +1244,7 @@ public class PlaybookEngine : IPlaybookEngine
                        $"<td>{Encode(user.UserEmail)}</td>" +
                        $"<td>{Encode(user.Team ?? "-")}</td>" +
                        $"<td>{Encode(ReportCriterionLabel(item.SourceCriterion))}</td>" +
+                       $"<td>{(sample == null ? "-" : sample.Timestamp.ToString("dd.MM.yyyy HH:mm"))}</td>" +
                        $"<td>{user.TriggerCount:N0}</td>" +
                        $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>" +
                        $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
@@ -1242,10 +1258,11 @@ public class PlaybookEngine : IPlaybookEngine
   <div class=""wrap"">
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
-      <p class=""meta"">{Encode(intro)}<br/>Uretim tarihi: {now:dd.MM.yyyy HH:mm} · Satir: {payload.Items.Count:N0}</p>
+      {introHtml}
+      <div class=""meta"">Uretim tarihi: {now:dd.MM.yyyy HH:mm} - Satir: {payload.Items.Count:N0}</div>
       <table>
         <thead>
-          <tr><th>#</th><th>Kullanici</th><th>E-posta</th><th>Ekip</th><th>Kaynak</th><th>Sinyal</th><th>Max Match</th><th>Ornek Policy / Rule</th></tr>
+          <tr><th>#</th><th>Kullanici</th><th>E-posta</th><th>Ekip</th><th>Kaynak</th><th>Olay Tarihi</th><th>Sinyal</th><th>Max Match</th><th>Ornek Policy / Rule</th></tr>
         </thead>
         <tbody>{rows}</tbody>
       </table>
@@ -1256,15 +1273,34 @@ public class PlaybookEngine : IPlaybookEngine
 </html>";
     }
 
+    private static string ApplyReportPlaceholders(string? text, PlaybookPayload payload, DateTime now)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        var windowStart = payload.HasMetric
+            ? payload.Metric!.WindowStart
+            : payload.Items.Select(i => (DateTime?)i.User.FirstSeen).Min() ?? now;
+        var windowEnd = payload.HasMetric
+            ? payload.Metric!.WindowEnd
+            : payload.Items.Select(i => (DateTime?)i.User.LastSeen).Max() ?? now;
+
+        return text
+            .Replace("{{tarih}}", now.ToString("dd.MM.yyyy"))
+            .Replace("{{uretim_tarihi}}", now.ToString("dd.MM.yyyy HH:mm"))
+            .Replace("{{donem}}", $"{windowStart:dd.MM.yyyy} - {windowEnd:dd.MM.yyyy}")
+            .Replace("{{satir}}", payload.HasMetric ? "1" : payload.Items.Count.ToString("N0"));
+    }
+
     private static string ReportMailStyles() => @"
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #f8fafc; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
-    .header { background: #0f172a; color: #fff; padding: 18px 20px; border-radius: 8px 8px 0 0; }
-    .content { background: #fff; padding: 18px 20px; border: 1px solid #e2e8f0; border-top: 0; border-radius: 0 0 8px 8px; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #ffffff; }
+    .wrap { width: 100%; max-width: none; margin: 0; padding: 0; }
+    .header { background: #eef4ff; color: #111827; padding: 10px 12px; border-bottom: 2px solid #bfdbfe; }
+    .content { background: #fff; padding: 14px 12px 16px; border: 0; }
     h1 { margin: 0; font-size: 20px; }
     h2 { margin: 18px 0 8px; font-size: 15px; }
-    .meta { color: #64748b; margin: 0 0 16px; }
+    .intro { color: #334155; margin: 0 0 8px; line-height: 1.45; }
+    .meta { color: #64748b; margin: 0 0 14px; line-height: 1.45; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th { text-align: left; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; }
     td { border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
@@ -1363,6 +1399,439 @@ public class PlaybookEngine : IPlaybookEngine
     /// Subject/body come from a saved mail template; per-node overrides win when filled in,
     /// which is how the analyst tweaks one playbook without editing the shared template.
     /// </summary>
+    private enum MailTemplateRoute
+    {
+        Personal,
+        GitHub,
+        Destination
+    }
+
+    private readonly record struct MailTemplateContent(string Subject, string Body);
+    private readonly record struct MailTemplateDecision(MailTemplateContent Template, WeeklyFlagIncidentDto? Incident);
+    private sealed record TemplateMatchRule(string Pattern, int TemplateId, int Index);
+
+    private MailTemplateContent ResolveNodeTemplate(PlaybookNode node, IReadOnlyCollection<MailTemplate> templates)
+    {
+        var subject = node.GetString("subject_override")?.Trim();
+        var body = node.GetString("body_override");
+
+        var templateId = node.GetInt("template_id");
+        if (templateId.HasValue && templateId.Value > 0)
+        {
+            var template = templates.FirstOrDefault(t => t.Id == templateId.Value)
+                ?? throw new InvalidOperationException($"Mail sablonu bulunamadi (id: {templateId.Value})");
+
+            if (string.IsNullOrWhiteSpace(subject)) subject = template.Subject;
+            if (string.IsNullOrWhiteSpace(body)) body = template.Body;
+        }
+
+        return new MailTemplateContent(subject ?? string.Empty, body ?? string.Empty);
+    }
+
+    private MailTemplateDecision ResolveTemplateForUser(
+        PlaybookNode node,
+        PlaybookItem item,
+        MailTemplateContent defaultTemplate,
+        IReadOnlyCollection<MailTemplate> templates,
+        IReadOnlyCollection<TemplateMatchRule> rules)
+    {
+        var fallbackIncident = SelectTemplateIncident(item);
+
+        if (!node.GetBool("auto_template_by_destination", true) || HasNodeTemplateOverride(node))
+            return new MailTemplateDecision(
+                RequireTemplate(defaultTemplate, "Mail konusu bos - bir sablon secin ya da konu yazin."),
+                fallbackIncident);
+
+        var ruleMatch = SelectRuleMatchedTemplate(item.User, rules, templates);
+        if (ruleMatch != null) return ruleMatch.Value;
+
+        var incident = SelectTemplateIncidentByTemplateMatch(item, templates, node.GetInt("template_id")) ?? fallbackIncident;
+        var route = DetermineTemplateRoute(item.SourceCriterion, incident?.Destination);
+        var configured = ResolveConfiguredRouteTemplate(node, route, templates);
+        if (configured != null) return new MailTemplateDecision(FromTemplate(configured), incident);
+
+        var guessed = GuessRouteTemplate(route, incident, templates, node.GetInt("template_id"));
+        if (guessed != null) return new MailTemplateDecision(FromTemplate(guessed), incident);
+
+        return new MailTemplateDecision(
+            RequireTemplate(defaultTemplate, "Destination icin uygun mail sablonu bulunamadi."),
+            fallbackIncident);
+    }
+
+    private static MailTemplateContent RequireTemplate(MailTemplateContent template, string message)
+    {
+        if (string.IsNullOrWhiteSpace(template.Subject))
+            throw new InvalidOperationException(message);
+
+        return template;
+    }
+
+    private static bool HasNodeTemplateOverride(PlaybookNode node) =>
+        !string.IsNullOrWhiteSpace(node.GetString("subject_override")) ||
+        !string.IsNullOrWhiteSpace(node.GetString("body_override"));
+
+    private static MailTemplateContent FromTemplate(MailTemplate template) =>
+        new(template.Subject, template.Body ?? string.Empty);
+
+    private List<TemplateMatchRule> ResolveTemplateMatchRules(
+        PlaybookNode node,
+        IReadOnlyCollection<MailTemplate> templates)
+    {
+        var result = new List<TemplateMatchRule>();
+        if (!node.Config.TryGetValue("template_match_rules", out var element) ||
+            element.ValueKind != JsonValueKind.Array)
+            return result;
+
+        var index = 0;
+        foreach (var item in element.EnumerateArray())
+        {
+            index++;
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            var pattern = ReadString(item, "pattern") ?? ReadString(item, "destination") ?? ReadString(item, "match");
+            var templateId = ReadInt(item, "template_id") ?? ReadInt(item, "templateId");
+            if (string.IsNullOrWhiteSpace(pattern) || templateId is null or <= 0) continue;
+
+            if (!templates.Any(t => t.Id == templateId.Value))
+                throw new InvalidOperationException($"Mail sablonu bulunamadi (id: {templateId.Value})");
+
+            result.Add(new TemplateMatchRule(pattern.Trim(), templateId.Value, index));
+        }
+
+        return result;
+    }
+
+    private static string? ReadString(JsonElement item, string key) =>
+        item.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static int? ReadInt(JsonElement item, string key)
+    {
+        if (!item.TryGetProperty(key, out var value)) return null;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)) return number;
+        if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var parsed)) return parsed;
+        return null;
+    }
+
+    private static IEnumerable<int> ReadTemplateMatchRuleIds(PlaybookNode node)
+    {
+        if (!node.Config.TryGetValue("template_match_rules", out var element) ||
+            element.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            var templateId = ReadInt(item, "template_id") ?? ReadInt(item, "templateId");
+            if (templateId is > 0) yield return templateId.Value;
+        }
+    }
+
+    private static MailTemplateDecision? SelectRuleMatchedTemplate(
+        WeeklyFlagUserDto user,
+        IReadOnlyCollection<TemplateMatchRule> rules,
+        IReadOnlyCollection<MailTemplate> templates)
+    {
+        if (rules.Count == 0 || user.SampleIncidents.Count == 0) return null;
+
+        var match = user.SampleIncidents
+            .SelectMany(incident => rules.Select(rule => new
+            {
+                Incident = incident,
+                Rule = rule,
+                Score = ScoreRuleMatch(rule.Pattern, incident)
+            }))
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Incident.MaxMatches)
+            .ThenByDescending(x => x.Incident.Timestamp)
+            .ThenBy(x => x.Rule.Index)
+            .FirstOrDefault();
+
+        if (match == null) return null;
+
+        var template = templates.First(t => t.Id == match.Rule.TemplateId);
+        return new MailTemplateDecision(FromTemplate(template), match.Incident);
+    }
+
+    private static int ScoreRuleMatch(string pattern, WeeklyFlagIncidentDto incident)
+    {
+        var destination = Fold(incident.Destination);
+        var combined = Fold($"{incident.Destination} {incident.Channel} {incident.Policy}");
+        var best = 0;
+
+        foreach (var token in SplitPattern(pattern))
+        {
+            if (token.Length == 0) continue;
+
+            if (destination == token) best = Math.Max(best, 120 + token.Length);
+            else if (WildcardMatches(token, destination)) best = Math.Max(best, 100 + LiteralLength(token));
+            else if (WildcardMatches(token, combined)) best = Math.Max(best, 80 + LiteralLength(token));
+            else if (destination.Contains(token)) best = Math.Max(best, 70 + token.Length);
+            else if (combined.Contains(token)) best = Math.Max(best, 45 + token.Length);
+        }
+
+        return best;
+    }
+
+    private static IEnumerable<string> SplitPattern(string pattern)
+    {
+        var folded = Fold(pattern);
+        var separators = folded.Contains("://")
+            ? new[] { ',', ';', '\n', '\r' }
+            : new[] { ',', ';', '\n', '\r', '/' };
+
+        return folded
+            .Split(separators, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0);
+    }
+
+    private static bool WildcardMatches(string pattern, string target)
+    {
+        if (string.IsNullOrWhiteSpace(pattern) || string.IsNullOrWhiteSpace(target)) return false;
+        if (!pattern.Contains('*')) return target.Contains(pattern);
+
+        var regex = "^" + Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        if (Regex.IsMatch(target, regex, RegexOptions.IgnoreCase)) return true;
+        return Regex.IsMatch(target, ".*" + regex.Trim('^', '$') + ".*", RegexOptions.IgnoreCase);
+    }
+
+    private static int LiteralLength(string pattern) => pattern.Count(c => c != '*');
+
+    private static WeeklyFlagIncidentDto? SelectTemplateIncidentByTemplateMatch(
+        PlaybookItem item,
+        IReadOnlyCollection<MailTemplate> templates,
+        int? fallbackTemplateId)
+    {
+        if (templates.Count == 0 || item.User.SampleIncidents.Count == 0) return null;
+
+        var match = item.User.SampleIncidents
+            .Select(incident => new
+            {
+                Incident = incident,
+                Score = templates.Max(t => ScoreTemplateForIncident(t, incident, fallbackTemplateId))
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Incident.MaxMatches)
+            .ThenByDescending(x => x.Incident.Timestamp)
+            .FirstOrDefault();
+
+        return match?.Incident;
+    }
+
+    private static WeeklyFlagIncidentDto? SelectTemplateIncident(PlaybookItem item)
+    {
+        var incidents = item.User.SampleIncidents ?? new List<WeeklyFlagIncidentDto>();
+        if (incidents.Count == 0) return null;
+
+        var github = incidents
+            .Where(i => IsGitHubDestination(i.Destination))
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Timestamp)
+            .FirstOrDefault();
+        if (github != null) return github;
+
+        if (item.SourceCriterion == WeeklyFlagCriterion.PersonalEmailSenders)
+        {
+            return incidents
+                .OrderByDescending(i => i.Timestamp)
+                .ThenByDescending(i => i.MaxMatches)
+                .FirstOrDefault();
+        }
+
+        var personal = incidents
+            .Where(i => LooksLikePersonalDestination(i.Destination))
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Timestamp)
+            .FirstOrDefault();
+        if (personal != null) return personal;
+
+        return incidents
+            .OrderByDescending(i => i.MaxMatches)
+            .ThenByDescending(i => i.Timestamp)
+            .FirstOrDefault();
+    }
+
+    private static WeeklyFlagUserDto WithPrimaryIncident(WeeklyFlagUserDto user, WeeklyFlagIncidentDto? primary)
+    {
+        if (primary == null || user.SampleIncidents.Count == 0) return user;
+
+        var samples = new List<WeeklyFlagIncidentDto> { primary };
+        samples.AddRange(user.SampleIncidents.Where(i => !Equals(i, primary)));
+        return user with { SampleIncidents = samples };
+    }
+
+    private static MailTemplate? ResolveConfiguredRouteTemplate(
+        PlaybookNode node,
+        MailTemplateRoute route,
+        IReadOnlyCollection<MailTemplate> templates)
+    {
+        var templateId = route switch
+        {
+            MailTemplateRoute.Personal => node.GetInt("personal_template_id"),
+            MailTemplateRoute.GitHub => node.GetInt("github_template_id"),
+            _ => node.GetInt("destination_template_id")
+        };
+
+        if (templateId is null or <= 0) return null;
+
+        return templates.FirstOrDefault(t => t.Id == templateId.Value)
+            ?? throw new InvalidOperationException($"Mail sablonu bulunamadi (id: {templateId.Value})");
+    }
+
+    private static MailTemplateRoute DetermineTemplateRoute(string? criterion, string? destination)
+    {
+        if (IsGitHubDestination(destination)) return MailTemplateRoute.GitHub;
+        if (criterion == WeeklyFlagCriterion.PersonalEmailSenders || LooksLikePersonalDestination(destination))
+            return MailTemplateRoute.Personal;
+
+        return MailTemplateRoute.Destination;
+    }
+
+    private static bool IsGitHubDestination(string? destination)
+    {
+        var value = Fold(destination);
+        return value.Contains("business.github") || value.Contains("github");
+    }
+
+    private static bool LooksLikePersonalDestination(string? destination)
+    {
+        var value = Fold(destination);
+        if (!value.Contains('@')) return false;
+
+        var personalDomains = new[]
+        {
+            "@gmail.", "@hotmail.", "@outlook.", "@yahoo.", "@icloud.",
+            "@live.", "@msn.", "@yandex.", "@proton.", "@me.com"
+        };
+        return personalDomains.Any(value.Contains);
+    }
+
+    private static MailTemplate? GuessRouteTemplate(
+        MailTemplateRoute route,
+        WeeklyFlagIncidentDto? incident,
+        IReadOnlyCollection<MailTemplate> templates,
+        int? fallbackTemplateId)
+    {
+        return templates
+            .Select(t => new { Template = t, Score = ScoreRouteTemplate(t, route, incident, fallbackTemplateId) })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Template.Id)
+            .Select(x => x.Template)
+            .FirstOrDefault();
+    }
+
+    private static int ScoreRouteTemplate(
+        MailTemplate template,
+        MailTemplateRoute route,
+        WeeklyFlagIncidentDto? incident,
+        int? fallbackTemplateId)
+    {
+        var haystack = Fold($"{template.Name} {template.Subject} {template.Body}");
+        var score = 0;
+        var destination = incident?.Destination;
+
+        if (route == MailTemplateRoute.GitHub)
+        {
+            if (haystack.Contains("business.github")) score += 50;
+            if (haystack.Contains("github")) score += 35;
+            if (ContainsDestinationToken(haystack)) score += 5;
+        }
+        else if (route == MailTemplateRoute.Personal)
+        {
+            if (haystack.Contains("sahsi")) score += 35;
+            if (haystack.Contains("kisisel")) score += 30;
+            if (haystack.Contains("personal")) score += 30;
+            if (ContainsDestinationToken(haystack)) score += 5;
+        }
+        else
+        {
+            var foldedDestination = Fold(destination);
+            if (!string.IsNullOrWhiteSpace(foldedDestination) && haystack.Contains(foldedDestination)) score += 45;
+            if (ContainsDestinationToken(haystack)) score += 30;
+            if (haystack.Contains("destination")) score += 12;
+            if (haystack.Contains("hedef")) score += 12;
+            if (haystack.Contains("generic") || haystack.Contains("genel")) score += 8;
+        }
+
+        score += ScoreTemplateForIncident(template, incident, fallbackTemplateId);
+        if (fallbackTemplateId.HasValue && template.Id == fallbackTemplateId.Value) score += 1;
+        return score;
+    }
+
+    private static int ScoreTemplateForIncident(
+        MailTemplate template,
+        WeeklyFlagIncidentDto? incident,
+        int? fallbackTemplateId)
+    {
+        if (incident == null) return fallbackTemplateId.HasValue && template.Id == fallbackTemplateId.Value ? 1 : 0;
+
+        var haystack = Fold($"{template.Name} {template.Subject} {template.Body}");
+        var destination = Fold(incident.Destination);
+        var channel = Fold(incident.Channel);
+        var policy = Fold(incident.Policy);
+        var score = 0;
+
+        if (!string.IsNullOrWhiteSpace(destination) && haystack.Contains(destination)) score += 60;
+        if (!string.IsNullOrWhiteSpace(channel) && haystack.Contains(channel)) score += 35;
+
+        var tokens = DestinationTokens(incident)
+            .Where(token => token.Length >= 3)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        score += tokens.Where(haystack.Contains).Sum(token => Math.Min(16, token.Length + 4));
+
+        if (!string.IsNullOrWhiteSpace(policy))
+        {
+            var policyTokens = Regex.Split(policy, @"[^a-z0-9]+")
+                .Where(token => token.Length >= 4 && !CommonTemplateTokens.Contains(token))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            score += policyTokens.Where(haystack.Contains).Sum(_ => 4);
+        }
+
+        if (ContainsDestinationToken(haystack)) score += 4;
+        return score;
+    }
+
+    private static IEnumerable<string> DestinationTokens(WeeklyFlagIncidentDto incident)
+    {
+        var text = Fold($"{incident.Destination} {incident.Channel}");
+        return Regex.Split(text, @"[^a-z0-9]+")
+            .Where(token => token.Length > 0 && !CommonTemplateTokens.Contains(token));
+    }
+
+    private static readonly HashSet<string> CommonTemplateTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "com", "net", "org", "www", "mail", "email", "http", "https", "the", "and", "ve", "icin", "ile"
+    };
+
+    private static bool ContainsDestinationToken(string haystack) =>
+        haystack.Contains("{{destination}}") || haystack.Contains("{{hedef}}");
+
+    private static string Fold(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return value.Trim()
+            .ToLowerInvariant()
+            .Replace('ı', 'i')
+            .Replace('İ', 'i')
+            .Replace('ş', 's')
+            .Replace('Ş', 's')
+            .Replace('ğ', 'g')
+            .Replace('Ğ', 'g')
+            .Replace('ü', 'u')
+            .Replace('Ü', 'u')
+            .Replace('ö', 'o')
+            .Replace('Ö', 'o')
+            .Replace('ç', 'c')
+            .Replace('Ç', 'c');
+    }
+
     private async Task<(string Subject, string Body)> ResolveTemplateAsync(PlaybookNode node, CancellationToken ct)
     {
         var subject = node.GetString("subject_override")?.Trim();
@@ -1609,12 +2078,26 @@ public class PlaybookEngine : IPlaybookEngine
                 case PlaybookNodeType.ActionSendMail:
                 {
                     var templateId = node.GetInt("template_id");
+                    var routeTemplateIds = new List<int?>
+                    {
+                        node.GetInt("personal_template_id"),
+                        node.GetInt("github_template_id"),
+                        node.GetInt("destination_template_id")
+                    };
+                    routeTemplateIds.AddRange(ReadTemplateMatchRuleIds(node).Select(id => (int?)id));
+                    var hasRouteTemplate = routeTemplateIds.Any(id => id is > 0);
                     var hasOverride = !string.IsNullOrWhiteSpace(node.GetString("subject_override"));
-                    if ((templateId is null or <= 0) && !hasOverride)
+                    if ((templateId is null or <= 0) && !hasRouteTemplate && !hasOverride)
                         result.Errors.Add($"'{node.Label}' için bir şablon seçin ya da konu girin.");
                     else if (templateId is > 0 &&
                              !await _context.MailTemplates.AnyAsync(t => t.Id == templateId.Value, ct))
                         result.Errors.Add($"'{node.Label}' seçili şablon artık mevcut değil.");
+
+                    foreach (var routeTemplateId in routeTemplateIds.Where(id => id is > 0).Select(id => id!.Value).Distinct())
+                    {
+                        if (!await _context.MailTemplates.AnyAsync(t => t.Id == routeTemplateId, ct))
+                            result.Errors.Add($"'{node.Label}' rota sablonu artik mevcut degil (id: {routeTemplateId}).");
+                    }
 
                     if (node.GetString("recipient_mode") == "fixed" &&
                         !IsValidEmail(node.GetString("fixed_recipient")))

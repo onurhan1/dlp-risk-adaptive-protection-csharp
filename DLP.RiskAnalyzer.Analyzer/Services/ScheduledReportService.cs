@@ -212,17 +212,21 @@ public class ScheduledReportService : IScheduledReportService
         var bodyRows = rows.Count == 0
             ? $"<tr><td colspan=\"{headers.Count}\" class=\"empty\">Kayit bulunamadi.</td></tr>"
             : string.Join("", rows.Select(row => $"<tr>{string.Join("", row.Select(cell => $"<td>{Encode(cell)}</td>"))}</tr>"));
+        var introHtml = string.IsNullOrWhiteSpace(description)
+            ? string.Empty
+            : $@"<div class=""intro"">{Encode(description)}</div>";
 
         return $@"
 <html>
 <head>
   <style>
-    body {{ font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }}
-    .wrap {{ max-width: 1100px; margin: 0 auto; padding: 20px; }}
-    .header {{ background: #0f172a; color: #fff; padding: 18px 20px; border-radius: 8px 8px 0 0; }}
-    .content {{ background: #fff; padding: 18px 20px; border: 1px solid #e2e8f0; border-top: 0; border-radius: 0 0 8px 8px; }}
+    body {{ margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #ffffff; }}
+    .wrap {{ width: 100%; max-width: none; margin: 0; padding: 0; }}
+    .header {{ background: #eef4ff; color: #111827; padding: 10px 12px; border-bottom: 2px solid #bfdbfe; }}
+    .content {{ background: #fff; padding: 14px 12px 16px; border: 0; }}
     h1 {{ margin: 0; font-size: 20px; }}
-    .meta {{ color: #64748b; margin: 8px 0 16px; }}
+    .intro {{ color: #334155; margin: 0 0 8px; line-height: 1.45; }}
+    .meta {{ color: #64748b; margin: 0 0 14px; line-height: 1.45; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
     th {{ text-align: left; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; }}
     td {{ border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }}
@@ -234,7 +238,8 @@ public class ScheduledReportService : IScheduledReportService
   <div class=""wrap"">
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
-      <div class=""meta"">{Encode(description)}<br/>Donem: {start:dd.MM.yyyy HH:mm} - {end:dd.MM.yyyy HH:mm}</div>
+      {introHtml}
+      <div class=""meta"">Donem: {start:dd.MM.yyyy HH:mm} - {end:dd.MM.yyyy HH:mm}</div>
       <table>
         <thead><tr>{headerCells}</tr></thead>
         <tbody>{bodyRows}</tbody>
