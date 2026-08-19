@@ -206,7 +206,7 @@ WHERE
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "External user DB connection test failed");
-            return Result(false, $"{DbDisplayName(request)} baglanti testi basarisiz: {ex.Message}");
+            return Result(false, $"{DbDisplayName(request)} baglanti testi basarisiz: {UserFacingExceptionMessage(ex)}");
         }
     }
 
@@ -229,7 +229,7 @@ WHERE
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "External user DB lookup test failed");
-            return Result(false, $"{DbDisplayName(request)} kullanici testi basarisiz: {ex.Message}");
+            return Result(false, $"{DbDisplayName(request)} kullanici testi basarisiz: {UserFacingExceptionMessage(ex)}");
         }
     }
 
@@ -360,15 +360,15 @@ WHERE
 
         var builder = new DbConnectionStringBuilder
         {
-            ["Server"] = $"{settings.Host.Trim()},{settings.Port}",
+            ["Data Source"] = $"{settings.Host.Trim()},{settings.Port}",
             ["User ID"] = settings.Username.Trim(),
             ["Password"] = settings.Password ?? string.Empty,
-            ["Encrypt"] = settings.Encrypt,
-            ["TrustServerCertificate"] = settings.TrustServerCertificate,
+            ["Encrypt"] = settings.Encrypt ? "True" : "False",
+            ["Trust Server Certificate"] = settings.TrustServerCertificate ? "True" : "False",
             ["Connect Timeout"] = 15
         };
         if (!string.IsNullOrWhiteSpace(settings.Database))
-            builder["Database"] = settings.Database.Trim();
+            builder["Initial Catalog"] = settings.Database.Trim();
         return builder.ConnectionString;
     }
 
@@ -391,13 +391,20 @@ WHERE
                 "MSSQL secenegi icin publish ciktisinda Microsoft.Data.SqlClient ya da System.Data.SqlClient assembly'si bulunmalidir. PostgreSQL icin ek paket gerekmez.");
         }
 
-        if (Activator.CreateInstance(connectionType, connectionString) is DbConnection connection)
-            return connection;
-
-        if (Activator.CreateInstance(connectionType) is DbConnection fallback)
+        try
         {
-            fallback.ConnectionString = connectionString;
-            return fallback;
+            if (Activator.CreateInstance(connectionType) is DbConnection connection)
+            {
+                connection.ConnectionString = connectionString;
+                return connection;
+            }
+
+            if (Activator.CreateInstance(connectionType, connectionString) is DbConnection fallback)
+                return fallback;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"MSSQL provider yuklendi ancak baglanti olusturulamadi: {UserFacingExceptionMessage(ex)}", UnwrapException(ex));
         }
 
         throw new InvalidOperationException("MSSQL provider yuklendi ancak DbConnection olusturulamadi");
@@ -679,6 +686,20 @@ WHERE
         }
 
         return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal)?.ToString();
+    }
+
+    private static string UserFacingExceptionMessage(Exception ex)
+    {
+        var root = UnwrapException(ex);
+        return string.IsNullOrWhiteSpace(root.Message) ? ex.Message : root.Message;
+    }
+
+    private static Exception UnwrapException(Exception ex)
+    {
+        while (ex is TargetInvocationException && ex.InnerException != null)
+            ex = ex.InnerException;
+
+        return ex.GetBaseException();
     }
 
     private static ExternalUserLookupResult Result(bool success, string message, ExternalUserProfileDto? user = null) => new()
