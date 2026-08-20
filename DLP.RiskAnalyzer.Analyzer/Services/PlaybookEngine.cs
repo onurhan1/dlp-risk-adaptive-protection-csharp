@@ -1247,6 +1247,11 @@ public class PlaybookEngine : IPlaybookEngine
             {
                 var user = item.User;
                 var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
+                var maxMatchInfo = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(sample?.ViolationTriggers);
+                var policyStr = maxMatchInfo.PolicyName != null 
+                    ? $"{maxMatchInfo.PolicyName} / {maxMatchInfo.RuleName}" 
+                    : (sample?.Policy ?? "-");
+                
                 return "<tr>" +
                        $"<td>{index + 1}</td>" +
                        $"<td>{Encode(user.FullName ?? user.UserEmail)}</td>" +
@@ -1256,7 +1261,7 @@ public class PlaybookEngine : IPlaybookEngine
                        $"<td>{(sample == null ? "-" : sample.Timestamp.ToString("dd.MM.yyyy HH:mm"))}</td>" +
                        $"<td>{Encode(sample?.Destination ?? "-")}</td>" +
                        $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>" +
-                       $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
+                       $"<td>{Encode(policyStr)}</td>" +
                        "</tr>";
             }));
 

@@ -167,6 +167,72 @@ public static class ViolationTriggerParser
         return (firstRuleName, maxMatches);
     }
 
+    /// <summary>
+    /// Parses a ViolationTriggers JSON string and returns the policy name and rule name
+    /// associated with the trigger that contains the highest number of classifier matches.
+    /// </summary>
+    public static (string? PolicyName, string? RuleName) ExtractMaxMatchPolicyAndRule(string? violationTriggersJson)
+    {
+        if (string.IsNullOrEmpty(violationTriggersJson)) return (null, null);
+
+        string? maxPolicyName = null;
+        string? maxRuleName = null;
+        int maxMatches = -1; // Use -1 to ensure even 0 matches gets picked if it's the only one
+
+        try
+        {
+            using var doc = JsonDocument.Parse(violationTriggersJson);
+            var root = doc.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Array) return (null, null);
+
+            foreach (var trigger in root.EnumerateArray())
+            {
+                int currentTriggerMax = 0;
+                bool hasClassifiers = false;
+
+                if (trigger.TryGetProperty("Classifiers", out var classifiers) ||
+                    trigger.TryGetProperty("classifiers", out classifiers))
+                {
+                    if (classifiers.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var classifier in classifiers.EnumerateArray())
+                        {
+                            JsonElement matchesElement;
+                            if (classifier.TryGetProperty("NumberMatches", out matchesElement) ||
+                                classifier.TryGetProperty("number_matches", out matchesElement) ||
+                                classifier.TryGetProperty("numberMatches", out matchesElement))
+                            {
+                                if (matchesElement.ValueKind == JsonValueKind.Number)
+                                {
+                                    hasClassifiers = true;
+                                    var matches = matchesElement.GetInt32();
+                                    if (matches > currentTriggerMax) currentTriggerMax = matches;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (hasClassifiers && currentTriggerMax > maxMatches)
+                {
+                    maxMatches = currentTriggerMax;
+                    maxPolicyName = GetStringProperty(trigger, "PolicyName", "policy_name", "policyName");
+                    maxRuleName = GetStringProperty(trigger, "RuleName", "rule_name", "ruleName");
+                }
+                else if (maxMatches == -1) // Fallback to first trigger if no classifiers have matches
+                {
+                    maxMatches = 0;
+                    maxPolicyName = GetStringProperty(trigger, "PolicyName", "policy_name", "policyName");
+                    maxRuleName = GetStringProperty(trigger, "RuleName", "rule_name", "ruleName");
+                }
+            }
+        }
+        catch (JsonException) { /* Intentionally empty — malformed JSON returns safe default */ }
+
+        return (maxPolicyName, maxRuleName);
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     private static string? GetStringProperty(JsonElement element, params string[] propertyNames)

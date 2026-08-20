@@ -176,7 +176,8 @@ public class ScheduledReportService : IScheduledReportService
             .Select(i => new
             {
                 Incident = i,
-                MaxMatches = EffectiveMaxMatches(i)
+                MaxMatches = EffectiveMaxMatches(i),
+                MaxMatchInfo = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(i.ViolationTriggers)
             })
             .Where(x => x.MaxMatches >= options.MaxMatchThreshold)
             .OrderByDescending(x => x.MaxMatches)
@@ -188,8 +189,8 @@ public class ScheduledReportService : IScheduledReportService
                 x.Incident.Team ?? x.Incident.Department,
                 x.Incident.Action,
                 x.Incident.Channel,
-                x.Incident.Policy,
-                x.Incident.RuleName,
+                x.MaxMatchInfo.PolicyName ?? x.Incident.Policy,
+                x.MaxMatchInfo.RuleName ?? x.Incident.RuleName,
                 x.Incident.Destination,
                 x.Incident.FileName,
                 x.MaxMatches,
