@@ -70,14 +70,19 @@ function firstNamePart(fullName: string): string {
   return parts.slice(0, -1).join(' ')
 }
 
+function removeDirectorySuffix(fullName: string): string {
+  return fullName.split('/')[0].trim()
+}
+
 function salutationName(user: WeeklyFlagUser): string {
   const fullName = (user.full_name || '').trim()
   if (!fullName) return user.user_email
 
   const gender = normalizeGender(user.gender)
-  if (gender === 'male') return `${firstNamePart(fullName)} Bey`
-  if (gender === 'female') return `${firstNamePart(fullName)} Hanım`
-  return fullName
+  const firstNames = firstNamePart(removeDirectorySuffix(fullName))
+  if (gender === 'male') return `${firstNames} Bey`
+  if (gender === 'female') return `${firstNames} Hanım`
+  return firstNames
 }
 
 function honorific(user: WeeklyFlagUser): string {

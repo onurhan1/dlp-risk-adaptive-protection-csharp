@@ -59,12 +59,13 @@ public static class PlaybookMailRenderer
     private static string SalutationName(WeeklyFlagUserDto user)
     {
         if (string.IsNullOrWhiteSpace(user.FullName)) return user.UserEmail;
+        var firstNames = FirstNamePart(RemoveDirectorySuffix(user.FullName));
 
         return NormalizeGender(user.Gender) switch
         {
-            "male" => $"{FirstNamePart(user.FullName)} Bey",
-            "female" => $"{FirstNamePart(user.FullName)} Hanım",
-            _ => user.FullName
+            "male" => $"{firstNames} Bey",
+            "female" => $"{firstNames} Hanım",
+            _ => firstNames
         };
     }
 
@@ -80,6 +81,15 @@ public static class PlaybookMailRenderer
     {
         var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length <= 1 ? fullName.Trim() : string.Join(' ', parts.Take(parts.Length - 1));
+    }
+
+    private static string RemoveDirectorySuffix(string fullName)
+    {
+        var slashIndex = fullName.IndexOf(" / ", StringComparison.Ordinal);
+        if (slashIndex < 0)
+            slashIndex = fullName.IndexOf('/', StringComparison.Ordinal);
+
+        return slashIndex < 0 ? fullName.Trim() : fullName[..slashIndex].Trim();
     }
 
     private static string? NormalizeGender(string? value)
