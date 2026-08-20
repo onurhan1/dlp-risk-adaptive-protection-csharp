@@ -13,6 +13,45 @@ import { WeeklyFlagsResult, WeeklyFlagUser } from '@/components/investigation/ty
 
 const EMPTY: WeeklyFlagsResult = { personal_email_senders: [], high_volume: [], massive_matches: [] }
 
+function normalizeWeeklyFlags(payload: any): WeeklyFlagsResult {
+  const source = payload?.data ?? payload ?? {}
+  return {
+    personal_email_senders: normalizeUsers(source.personal_email_senders ?? source.personalEmailSenders),
+    high_volume: normalizeUsers(source.high_volume ?? source.highVolume),
+    massive_matches: normalizeUsers(source.massive_matches ?? source.massiveMatches),
+  }
+}
+
+function normalizeUsers(value: any): WeeklyFlagUser[] {
+  if (!Array.isArray(value)) return []
+  return value.map(normalizeUser)
+}
+
+function normalizeUser(user: any): WeeklyFlagUser {
+  return {
+    user_email: user?.user_email ?? user?.userEmail ?? '',
+    full_name: user?.full_name ?? user?.fullName ?? null,
+    team: user?.team ?? null,
+    contact_email: user?.contact_email ?? user?.contactEmail ?? user?.user_email ?? user?.userEmail ?? '',
+    gender: user?.gender ?? null,
+    trigger_count: Number(user?.trigger_count ?? user?.triggerCount ?? 0),
+    first_seen: user?.first_seen ?? user?.firstSeen ?? '',
+    last_seen: user?.last_seen ?? user?.lastSeen ?? '',
+    sample_incidents: normalizeIncidents(user?.sample_incidents ?? user?.sampleIncidents),
+  }
+}
+
+function normalizeIncidents(value: any) {
+  if (!Array.isArray(value)) return []
+  return value.map((incident: any) => ({
+    timestamp: incident?.timestamp ?? '',
+    policy: incident?.policy ?? null,
+    max_matches: Number(incident?.max_matches ?? incident?.maxMatches ?? 0),
+    destination: incident?.destination ?? null,
+    channel: incident?.channel ?? null,
+  }))
+}
+
 export default function WeeklyReviewPage() {
   const [data, setData] = useState<WeeklyFlagsResult>(EMPTY)
   const [loading, setLoading] = useState(true)
@@ -24,7 +63,7 @@ export default function WeeklyReviewPage() {
     setError(null)
     try {
       const res = await apiClient.get('/api/investigation/weekly-flags', { params: { days: 7 } })
-      setData(res.data || EMPTY)
+      setData(normalizeWeeklyFlags(res.data))
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'Veriler alınamadı')
       setData(EMPTY)
