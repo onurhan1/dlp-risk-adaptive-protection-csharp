@@ -1,0 +1,17 @@
+
+> dlp-risk-dashboard@1.0.0 dev
+> next dev -H 0.0.0.0 -p 3002 --hostname 127.0.0.1 --port 3017
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://127.0.0.1:3017
+- Network:       http://127.0.0.1:3017
+- Experiments (use with caution):
+  · optimizePackageImports
+
+✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\abdul\\Desktop\\dlp-risk-adaptive-protection-csharp-main\\dashboard',
+  testMode: true
+}
+✓ Ready in 1808ms
+ GET /investigation 200 in 3.2s (compile: 2.7s, render: 574ms)

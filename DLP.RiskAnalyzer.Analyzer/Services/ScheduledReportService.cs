@@ -134,19 +134,23 @@ public class ScheduledReportService : IScheduledReportService
 
         var rows = incidents
             .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new
+            .Select(g =>
             {
-                UserEmail = g.Key,
-                Team = g.Max(i => i.Team ?? i.Department),
-                Count = g.Count(),
-                MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
-                MaxMatches = g.Max(EffectiveMaxMatches),
-                LastIncident = g.Max(i => i.Timestamp)
+                var topIncident = g.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).First();
+                return new
+                {
+                    UserEmail = g.Key,
+                    Team = g.Max(i => i.Team ?? i.Department),
+                    Destination = topIncident.Destination,
+                    MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
+                    MaxMatches = EffectiveMaxMatches(topIncident),
+                    LastIncident = g.Max(i => i.Timestamp)
+                };
             })
-            .OrderByDescending(x => x.Count)
-            .ThenByDescending(x => x.MaxMatches)
+            .OrderByDescending(x => x.MaxMatches)
+            .ThenByDescending(x => x.LastIncident)
             .Take(Math.Clamp(options.TopLimit, 1, 200))
-            .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Count, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
+            .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Destination, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
             .ToList();
 
         var title = actionKind == "permit"
@@ -155,8 +159,8 @@ public class ScheduledReportService : IScheduledReportService
 
         return new ScheduledReportData(
             title,
-            "Haftalık olay kaydı adedine göre kullanıcı sıralaması.",
-            ["Kullanıcı", "E-posta", "Ekip", "Olay Kaydı Sayısı", "Maksimum Risk", "Maksimum Eşleşme", "Son Olay"],
+            "Haftalık maksimum eşleşme sayısına göre kullanıcı sıralaması.",
+            ["Kullanıcı", "E-posta", "Ekip", "Hedef", "Maksimum Risk", "Maksimum Eşleşme", "Son Olay"],
             await BuildTopActionReportRowsAsync(rows, ct));
     }
 
@@ -195,7 +199,7 @@ public class ScheduledReportService : IScheduledReportService
         return new ScheduledReportData(
             "Haftalık Tek Seferde Yüksek Eşleşmeli Veri Gönderimleri",
             $"Maksimum eşleşme alt sınırı {options.MaxMatchThreshold} ve üzeri olan tekil olaylar.",
-            ["Tarih", "Kullanıcı", "E-posta", "Aksiyon", "Kanal", "Politika / Kural", "Hedef", "Dosya", "Maksimum Eşleşme", "Risk"],
+            ["Tarih", "Kullanıcı", "E-posta", "Aksiyon", "Kanal", "Politika / Kural", "Hedef", "Dosya Adı", "Maksimum Eşleşme", "Risk Skoru"],
             await BuildHighMaxMatchReportRowsAsync(rows, ct));
     }
 
@@ -209,7 +213,7 @@ public class ScheduledReportService : IScheduledReportService
                 DisplayName(user.FullName, x.UserEmail),
                 user.Email,
                 user.Team ?? "-",
-                x.Count.ToString("N0"),
+                x.Destination ?? "-",
                 x.MaxRiskScore.ToString("N0"),
                 x.MaxMatches.ToString("N0"),
                 x.LastIncident.ToString("dd.MM.yyyy HH:mm")
@@ -329,7 +333,7 @@ public class ScheduledReportService : IScheduledReportService
 public record TopActionReportRow(
     string UserEmail,
     string? Team,
-    int Count,
+    string? Destination,
     int MaxRiskScore,
     int MaxMatches,
     DateTime LastIncident);
