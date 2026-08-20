@@ -173,7 +173,18 @@ public class WeeklyFlagService : IWeeklyFlagService
         var contact = newestFirst.Select(i => i.EmailAddress).FirstOrDefault(e => !string.IsNullOrWhiteSpace(e)) ?? userEmail;
         var samples = newestFirst
             .Take(MaxSampleIncidents)
-            .Select(i => new WeeklyFlagIncidentDto(i.Timestamp, i.Policy, EffectiveMaxMatches(i), i.Destination, i.Channel))
+            .Select(i => 
+            {
+                var maxMatchInfo = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(i.ViolationTriggers);
+                var policyStr = maxMatchInfo.PolicyName != null 
+                    ? $"{maxMatchInfo.PolicyName} / {maxMatchInfo.RuleName}"
+                    : (string.IsNullOrWhiteSpace(i.Policy)
+                        ? i.RuleName
+                        : string.IsNullOrWhiteSpace(i.RuleName)
+                            ? i.Policy
+                            : $"{i.Policy} / {i.RuleName}");
+                return new WeeklyFlagIncidentDto(i.Timestamp, policyStr, EffectiveMaxMatches(i), i.Destination, i.Channel);
+            })
             .ToList();
 
         return new WeeklyFlagUserDto(

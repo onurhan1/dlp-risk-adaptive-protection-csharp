@@ -556,19 +556,26 @@ public class PlaybookEngine : IPlaybookEngine
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
-    private static WeeklyFlagIncidentDto ToWeeklyFlagIncident(Incident incident) =>
-        new(
-            incident.Timestamp,
-            string.IsNullOrWhiteSpace(incident.Policy)
+    private static WeeklyFlagIncidentDto ToWeeklyFlagIncident(Incident incident)
+    {
+        var maxMatchInfo = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(incident.ViolationTriggers);
+        var policyStr = maxMatchInfo.PolicyName != null 
+            ? $"{maxMatchInfo.PolicyName} / {maxMatchInfo.RuleName}"
+            : (string.IsNullOrWhiteSpace(incident.Policy)
                 ? incident.RuleName
                 : string.IsNullOrWhiteSpace(incident.RuleName)
                     ? incident.Policy
-                    : $"{incident.Policy} / {incident.RuleName}",
+                    : $"{incident.Policy} / {incident.RuleName}");
+
+        return new(
+            incident.Timestamp,
+            policyStr,
             EffectiveMaxMatches(incident),
             incident.Destination,
             string.IsNullOrWhiteSpace(incident.Action)
                 ? incident.Channel
                 : $"{incident.Channel ?? "-"} · {incident.Action}");
+    }
 
     private static int EffectiveMaxMatches(Incident incident)
     {
@@ -1247,10 +1254,6 @@ public class PlaybookEngine : IPlaybookEngine
             {
                 var user = item.User;
                 var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
-                var maxMatchInfo = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(sample?.ViolationTriggers);
-                var policyStr = maxMatchInfo.PolicyName != null 
-                    ? $"{maxMatchInfo.PolicyName} / {maxMatchInfo.RuleName}" 
-                    : (sample?.Policy ?? "-");
                 
                 return "<tr>" +
                        $"<td>{index + 1}</td>" +
@@ -1261,7 +1264,7 @@ public class PlaybookEngine : IPlaybookEngine
                        $"<td>{(sample == null ? "-" : sample.Timestamp.ToString("dd.MM.yyyy HH:mm"))}</td>" +
                        $"<td>{Encode(sample?.Destination ?? "-")}</td>" +
                        $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>" +
-                       $"<td>{Encode(policyStr)}</td>" +
+                       $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
                        "</tr>";
             }));
 
