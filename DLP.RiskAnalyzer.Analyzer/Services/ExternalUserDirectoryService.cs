@@ -142,17 +142,20 @@ WHERE
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
     private readonly IMemoryCache _cache;
+    private readonly IDirectorySettingsService _directorySettingsService;
     private readonly ILogger<ExternalUserDirectoryService> _logger;
 
     public ExternalUserDirectoryService(
         AnalyzerDbContext context,
         IDataProtectionProvider dataProtectionProvider,
         IMemoryCache cache,
+        IDirectorySettingsService directorySettingsService,
         ILogger<ExternalUserDirectoryService> logger)
     {
         _context = context;
         _protector = dataProtectionProvider.CreateProtector("ExternalUserDb.SettingsProtector");
         _cache = cache;
+        _directorySettingsService = directorySettingsService;
         _logger = logger;
     }
 
@@ -202,6 +205,7 @@ WHERE
         {
             await using var connection = CreateConnection(request);
             await connection.OpenAsync(ct);
+
             return Result(true, $"{DbDisplayName(request)} baglantisi basarili");
         }
         catch (Exception ex)
@@ -239,23 +243,49 @@ WHERE
         var normalized = NormalizeUserName(userName);
         if (string.IsNullOrWhiteSpace(normalized)) return null;
 
-        var settings = await GetCachedSettingsAsync(ct);
-        if (!settings.Enabled || !settings.IsConfigured) return null;
-
-        var cacheKey = $"external-user-db:user:{normalized.ToLowerInvariant()}";
+        var cacheKey = $"external-user-directory:user:{normalized.ToLowerInvariant()}";
         if (_cache.TryGetValue(cacheKey, out ExternalUserProfileDto? cached)) return cached;
 
+        ExternalUserProfileDto? user = null;
         try
         {
-            settings.Password = await GetSecretAsync(ct);
-            var user = await LookupAsync(settings, normalized, ct);
-            _cache.Set(cacheKey, user, TimeSpan.FromMinutes(user == null ? 5 : 30));
-            return user;
+            var settings = await GetCachedSettingsAsync(ct);
+            if (settings.Enabled && settings.IsConfigured)
+            {
+                settings.Password = await GetSecretAsync(ct);
+                user = await LookupAsync(settings, normalized, ct);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "External user DB lookup failed for {UserName}", normalized);
-            _cache.Set<ExternalUserProfileDto?>(cacheKey, null, TimeSpan.FromMinutes(5));
+        }
+
+        user ??= await ResolveLdapUserAsync(normalized, ct);
+        _cache.Set(cacheKey, user, TimeSpan.FromMinutes(user == null ? 5 : 30));
+        return user;
+    }
+
+    private async Task<ExternalUserProfileDto?> ResolveLdapUserAsync(string userName, CancellationToken ct)
+    {
+        try
+        {
+            var ldap = await _directorySettingsService.LookupLdapUserAsync(userName, ct);
+            if (!ldap.Success) return null;
+
+            return new ExternalUserProfileDto
+            {
+                UserName = ldap.Username,
+                FirstName = ldap.FirstName,
+                LastName = ldap.LastName,
+                FullName = ldap.FullName,
+                Email = ldap.Email,
+                Department = ldap.Department
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LDAP user lookup fallback failed for {UserName}", userName);
             return null;
         }
     }
@@ -265,6 +295,11 @@ WHERE
         await using var connection = CreateConnection(settings);
         await connection.OpenAsync(ct);
 
+        return await ReadUserProfileAsync(connection, settings, userName, ct);
+    }
+
+    private static async Task<ExternalUserProfileDto?> ReadUserProfileAsync(DbConnection connection, ExternalUserDbSettingsRequest settings, string userName, CancellationToken ct)
+    {
         var query = BuildLookupSql(settings);
         await using var command = connection.CreateCommand();
         command.CommandText = query;
@@ -368,6 +403,7 @@ WHERE
             ["Trust Server Certificate"] = settings.TrustServerCertificate ? "True" : "False",
             ["Connect Timeout"] = 15
         };
+
         if (!string.IsNullOrWhiteSpace(settings.Database))
             builder["Initial Catalog"] = settings.Database.Trim();
         return builder.ConnectionString;

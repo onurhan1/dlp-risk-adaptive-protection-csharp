@@ -1,6 +1,7 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Filters;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using DLP.RiskAnalyzer.Shared.Services;
@@ -16,17 +17,20 @@ public class IncidentsController : ControllerBase
     private readonly IDatabaseService _dbService;
     private readonly DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer _riskAnalyzer;
     private readonly AnalyzerDbContext _context;
+    private readonly IExternalUserDirectoryService _externalUserDirectory;
     private readonly ILogger<IncidentsController> _logger;
 
     public IncidentsController(
         IDatabaseService dbService,
         DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer,
         AnalyzerDbContext context,
+        IExternalUserDirectoryService externalUserDirectory,
         ILogger<IncidentsController> logger)
     {
         _dbService    = dbService;
         _riskAnalyzer = riskAnalyzer;
         _context      = context;
+        _externalUserDirectory = externalUserDirectory;
         _logger       = logger;
     }
 
@@ -112,7 +116,8 @@ public class IncidentsController : ControllerBase
         [FromQuery] string?   user,
         [FromQuery] string?   department,
         [FromQuery] int       limit   = 100,
-        [FromQuery] string    orderBy = "timestamp_desc")
+        [FromQuery] string    orderBy = "timestamp_desc",
+        [FromQuery(Name = "include_directory")] bool includeDirectory = true)
     {
         try
         {
@@ -122,8 +127,9 @@ public class IncidentsController : ControllerBase
             var incidents = await _dbService.GetIncidentsAsync(
                 startDate, endDate, user, department, safeLimitValue, orderBy);
 
-            // M-01: enrichment + mapping delegated to the single factory method
-            var enrichedIncidents = incidents.Select(incident => EnrichAndMap(incident)).ToList();
+            var enrichedIncidents = includeDirectory
+                ? await EnrichAndMapAsync(incidents)
+                : incidents.Select(incident => EnrichAndMap(incident)).ToList();
 
             return Ok(enrichedIncidents);
         }
@@ -147,7 +153,7 @@ public class IncidentsController : ControllerBase
             if (incident == null)
                 return NotFound();
 
-            return Ok(EnrichAndMap(incident));
+            return Ok(await EnrichAndMapAsync(incident));
         }
         catch (Exception ex)
         {
@@ -161,6 +167,50 @@ public class IncidentsController : ControllerBase
     // Returns aggregated incident counts per policy_name + rule_name
     // by parsing ViolationTriggers JSON directly in PostgreSQL
     // ─────────────────────────────────────────────────────────────────────────
+
+    [HttpGet("user-directory")]
+    public async Task<ActionResult<IncidentUserDirectoryResponse>> GetUserDirectory([FromQuery] string? user)
+    {
+        if (string.IsNullOrWhiteSpace(user))
+            return BadRequest(new { detail = "User is required" });
+
+        try
+        {
+            var incidents = await _dbService.GetIncidentsAsync(
+                startDate: null,
+                endDate: null,
+                user: user,
+                department: null,
+                limit: 1,
+                orderBy: "timestamp_desc");
+
+            var incident = incidents.FirstOrDefault();
+            var lookupKey = incident == null
+                ? user
+                : ResolveIncidentUserLookupKey(incident) ?? user;
+
+            var profile = await _externalUserDirectory.ResolveUserAsync(lookupKey);
+
+            return Ok(new IncidentUserDirectoryResponse
+            {
+                UserName = profile?.UserName ?? lookupKey.Trim(),
+                FullName = profile?.FullName,
+                EmailAddress = profile?.Email ?? incident?.EmailAddress ?? incident?.UserEmail ?? user.Trim(),
+                LoginName = incident?.LoginName ?? profile?.UserName,
+                Team = profile?.Department ?? incident?.Team,
+                Department = profile?.Department ?? incident?.Department,
+                ManagerName = profile?.ManagerFullName ?? incident?.FullName,
+                ManagerEmail = profile?.ManagerEmail,
+                IsDirectoryEnriched = profile != null,
+                Source = profile == null ? "fallback" : "directory"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving user directory profile for {User}", user);
+            return StatusCode(500, new { detail = "An error occurred while resolving user directory profile" });
+        }
+    }
 
     [HttpGet("exception-stats")]
     public async Task<ActionResult<List<ExceptionIncidentStats>>> GetExceptionIncidentStats(
@@ -187,12 +237,76 @@ public class IncidentsController : ControllerBase
     /// Computes enrichment values and delegates mapping to <see cref="IncidentResponseMapper"/>.
     /// Previously this block was duplicated verbatim in both GetIncidents and GetIncident.
     /// </summary>
-    private IncidentResponse EnrichAndMap(Incident incident)
+    private async Task<List<IncidentResponse>> EnrichAndMapAsync(List<Incident> incidents)
+    {
+        var profiles = new Dictionary<string, ExternalUserProfileDto?>(StringComparer.OrdinalIgnoreCase);
+        var userKeys = incidents
+            .Select(ResolveIncidentUserLookupKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var key in userKeys)
+            profiles[key!] = await _externalUserDirectory.ResolveUserAsync(key);
+
+        return incidents
+            .Select(incident =>
+            {
+                var key = ResolveIncidentUserLookupKey(incident);
+                profiles.TryGetValue(key ?? string.Empty, out var profile);
+                return EnrichAndMap(incident, profile);
+            })
+            .ToList();
+    }
+
+    private async Task<IncidentResponse> EnrichAndMapAsync(Incident incident)
+    {
+        var key = ResolveIncidentUserLookupKey(incident);
+        var profile = string.IsNullOrWhiteSpace(key)
+            ? null
+            : await _externalUserDirectory.ResolveUserAsync(key);
+
+        return EnrichAndMap(incident, profile);
+    }
+
+    private IncidentResponse EnrichAndMap(Incident incident, ExternalUserProfileDto? profile = null)
     {
         var riskLevel         = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
         var recommendedAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? string.Empty);
         var iobs              = _riskAnalyzer.DetectIOB(incident);
 
-        return IncidentResponseMapper.Map(incident, riskLevel, recommendedAction, iobs);
+        return IncidentResponseMapper.Map(
+            incident,
+            riskLevel,
+            recommendedAction,
+            iobs,
+            profile?.FullName,
+            profile?.Email,
+            profile?.Department);
+    }
+
+    private static string? ResolveIncidentUserLookupKey(Incident incident)
+    {
+        if (!string.IsNullOrWhiteSpace(incident.UserEmail) &&
+            !incident.UserEmail.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+            return incident.UserEmail;
+
+        if (!string.IsNullOrWhiteSpace(incident.LoginName)) return incident.LoginName;
+        if (!string.IsNullOrWhiteSpace(incident.EmailAddress)) return incident.EmailAddress;
+        return null;
+    }
+
+    public sealed class IncidentUserDirectoryResponse
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string? FullName { get; set; }
+        public string? EmailAddress { get; set; }
+        public string? LoginName { get; set; }
+        public string? Team { get; set; }
+        public string? Department { get; set; }
+        public string? ManagerName { get; set; }
+        public string? ManagerEmail { get; set; }
+        public bool IsDirectoryEnriched { get; set; }
+        public string Source { get; set; } = "fallback";
     }
 }

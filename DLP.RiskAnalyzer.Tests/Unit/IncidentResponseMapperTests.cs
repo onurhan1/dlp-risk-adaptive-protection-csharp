@@ -33,7 +33,7 @@ public class IncidentResponseMapperTests
         HostName          = "PC-001",
         EmailAddress      = "john.doe@company.com",
         ViolationTriggers = "[{\"RuleName\":\"Credit Card\"}]",
-        FullName          = "John Doe",
+        FullName          = "Jane Manager",
         Team              = "Risk Team",
         IsRemediated      = true,
         RemediatedAt      = new DateTime(2025, 6, 16, 9, 0, 0, DateTimeKind.Utc),
@@ -76,7 +76,8 @@ public class IncidentResponseMapperTests
         response.HostName.Should().Be(incident.HostName);
         response.EmailAddress.Should().Be(incident.EmailAddress);
         response.ViolationTriggers.Should().Be(incident.ViolationTriggers);
-        response.FullName.Should().Be(incident.FullName);
+        response.FullName.Should().BeNull();
+        response.ManagerName.Should().Be(incident.FullName);
         response.Team.Should().Be(incident.Team);
     }
 
@@ -102,11 +103,18 @@ public class IncidentResponseMapperTests
         var response = IncidentResponseMapper.Map(incident,
             riskLevel:         "High",
             recommendedAction: "Encrypt",
-            iobs:              iobs);
+            iobs:              iobs,
+            userFullName:      "John Doe",
+            userEmailAddress:  "john.doe@company.com",
+            userTeam:          "Finance Ops");
 
         response.RiskLevel.Should().Be("High");
         response.RecommendedAction.Should().Be("Encrypt");
         response.IOBs.Should().BeEquivalentTo(iobs);
+        response.FullName.Should().Be("John Doe");
+        response.EmailAddress.Should().Be("john.doe@company.com");
+        response.Team.Should().Be("Finance Ops");
+        response.ManagerName.Should().Be(incident.FullName);
     }
 
     [Fact]

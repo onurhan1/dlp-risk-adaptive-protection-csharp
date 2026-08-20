@@ -8,15 +8,18 @@ public class ScheduledReportService : IScheduledReportService
 {
     private readonly AnalyzerDbContext _context;
     private readonly IEmailService _emailService;
+    private readonly IExternalUserDirectoryService _externalUserDirectory;
     private readonly ILogger<ScheduledReportService> _logger;
 
     public ScheduledReportService(
         AnalyzerDbContext context,
         IEmailService emailService,
+        IExternalUserDirectoryService externalUserDirectory,
         ILogger<ScheduledReportService> logger)
     {
         _context = context;
         _emailService = emailService;
+        _externalUserDirectory = externalUserDirectory;
         _logger = logger;
     }
 
@@ -71,7 +74,6 @@ public class ScheduledReportService : IScheduledReportService
             .Select(g => new
             {
                 UserEmail = g.Key,
-                FullName = g.Max(s => s.FullName),
                 Team = g.Max(s => s.Team),
                 MaxScore = g.Max(s => s.DailyRiskScore),
                 AvgScore = g.Average(s => s.DailyRiskScore),
@@ -86,22 +88,28 @@ public class ScheduledReportService : IScheduledReportService
             .Take(Math.Clamp(options.TopLimit, 1, 200))
             .ToListAsync(ct);
 
-        return new ScheduledReportData(
-            "Haftalik Incelenmesi Tavsiye Edilen Yuksek Skorlu Kullanicilar",
-            $"Haftalik bazda maksimum risk skoru {options.MinRiskScore} ve uzeri olan kullanicilar.",
-            ["Kullanici", "E-posta", "Ekip", "Max Skor", "Ort. Skor", "Incident", "Block", "Permit", "Max Match"],
-            rows.Select(x => new[]
-            {
-                DisplayName(x.FullName, x.UserEmail),
-                x.UserEmail,
-                x.Team ?? "-",
+        var reportRows = new List<string[]>(rows.Count);
+        foreach (var x in rows)
+        {
+            var user = await ResolveReportUserAsync(x.UserEmail, x.UserEmail, x.Team, ct);
+            reportRows.Add([
+                DisplayName(user.FullName, x.UserEmail),
+                user.Email,
+                user.Team ?? "-",
                 x.MaxScore.ToString("N1"),
                 x.AvgScore.ToString("N1"),
                 x.IncidentCount.ToString("N0"),
                 x.BlockCount.ToString("N0"),
                 x.PermitCount.ToString("N0"),
                 x.MaxMatches.ToString("N0")
-            }).ToList());
+            ]);
+        }
+
+        return new ScheduledReportData(
+            "Haftalik Incelenmesi Tavsiye Edilen Yuksek Skorlu Kullanicilar",
+            $"Haftalik bazda maksimum risk skoru {options.MinRiskScore} ve uzeri olan kullanicilar.",
+            ["Kullanici", "E-posta", "Ekip", "Max Skor", "Ort. Skor", "Incident", "Block", "Permit", "Max Match"],
+            reportRows);
     }
 
     private async Task<ScheduledReportData> BuildTopActionUsersAsync(DateTime start, DateTime end, ScheduledReportOptions options, string actionKind, CancellationToken ct)
@@ -114,12 +122,11 @@ public class ScheduledReportService : IScheduledReportService
             ? query.Where(i => i.Action != null && (i.Action.ToUpper().Contains("PERMIT") || i.Action.ToUpper().Contains("AUTHORIZE") || i.Action.ToUpper().Contains("ALLOW")))
             : query.Where(i => i.Action != null && i.Action.ToUpper().Contains("BLOCK"));
 
-        var rows = await query
+        var rawRows = await query
             .GroupBy(i => i.UserEmail)
             .Select(g => new
             {
                 UserEmail = g.Key,
-                FullName = g.Max(i => i.FullName),
                 Team = g.Max(i => i.Team ?? i.Department),
                 Count = g.Count(),
                 MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
@@ -130,6 +137,9 @@ public class ScheduledReportService : IScheduledReportService
             .ThenByDescending(x => x.MaxMatches)
             .Take(Math.Clamp(options.TopLimit, 1, 200))
             .ToListAsync(ct);
+        var rows = rawRows
+            .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Count, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
+            .ToList();
 
         var title = actionKind == "permit"
             ? "Haftalik En Cok Permit Incident Ureten Kullanicilar"
@@ -139,21 +149,12 @@ public class ScheduledReportService : IScheduledReportService
             title,
             "Haftalik incident adedine gore kullanici siralamasi.",
             ["Kullanici", "E-posta", "Ekip", "Incident", "Max Risk", "Max Match", "Son Olay"],
-            rows.Select(x => new[]
-            {
-                DisplayName(x.FullName, x.UserEmail),
-                x.UserEmail,
-                x.Team ?? "-",
-                x.Count.ToString("N0"),
-                x.MaxRiskScore.ToString("N0"),
-                x.MaxMatches.ToString("N0"),
-                x.LastIncident.ToString("dd.MM.yyyy HH:mm")
-            }).ToList());
+            await BuildTopActionReportRowsAsync(rows, ct));
     }
 
     private async Task<ScheduledReportData> BuildHighMaxMatchTransfersAsync(DateTime start, DateTime end, ScheduledReportOptions options, CancellationToken ct)
     {
-        var rows = await _context.Incidents
+        var rawRows = await _context.Incidents
             .AsNoTracking()
             .Where(i => i.Timestamp >= start && i.Timestamp <= end && i.MaxMatches >= options.MaxMatchThreshold)
             .OrderByDescending(i => i.MaxMatches)
@@ -163,7 +164,6 @@ public class ScheduledReportService : IScheduledReportService
             {
                 i.Timestamp,
                 i.UserEmail,
-                i.FullName,
                 Team = i.Team ?? i.Department,
                 i.Action,
                 i.Channel,
@@ -175,16 +175,58 @@ public class ScheduledReportService : IScheduledReportService
                 RiskScore = i.RiskScore ?? 0
             })
             .ToListAsync(ct);
+        var rows = rawRows
+            .Select(x => new HighMaxMatchReportRow(
+                x.Timestamp,
+                x.UserEmail,
+                x.Team,
+                x.Action,
+                x.Channel,
+                x.Policy,
+                x.RuleName,
+                x.Destination,
+                x.FileName,
+                x.MaxMatches,
+                x.RiskScore))
+            .ToList();
 
         return new ScheduledReportData(
             "Haftalik Tek Seferde Yuksek Max Match Veri Gonderimleri",
             $"Max Match alt siniri {options.MaxMatchThreshold} ve uzeri olan tekil olaylar.",
             ["Tarih", "Kullanici", "E-posta", "Aksiyon", "Kanal", "Policy / Rule", "Hedef", "Dosya", "Max Match", "Risk"],
-            rows.Select(x => new[]
-            {
+            await BuildHighMaxMatchReportRowsAsync(rows, ct));
+    }
+
+    private async Task<List<string[]>> BuildTopActionReportRowsAsync(IReadOnlyList<TopActionReportRow> rows, CancellationToken ct)
+    {
+        var result = new List<string[]>(rows.Count);
+        foreach (var x in rows)
+        {
+            var user = await ResolveReportUserAsync(x.UserEmail, x.UserEmail, x.Team, ct);
+            result.Add([
+                DisplayName(user.FullName, x.UserEmail),
+                user.Email,
+                user.Team ?? "-",
+                x.Count.ToString("N0"),
+                x.MaxRiskScore.ToString("N0"),
+                x.MaxMatches.ToString("N0"),
+                x.LastIncident.ToString("dd.MM.yyyy HH:mm")
+            ]);
+        }
+
+        return result;
+    }
+
+    private async Task<List<string[]>> BuildHighMaxMatchReportRowsAsync(IReadOnlyList<HighMaxMatchReportRow> rows, CancellationToken ct)
+    {
+        var result = new List<string[]>(rows.Count);
+        foreach (var x in rows)
+        {
+            var user = await ResolveReportUserAsync(x.UserEmail, x.UserEmail, x.Team, ct);
+            result.Add([
                 x.Timestamp.ToString("dd.MM.yyyy HH:mm"),
-                DisplayName(x.FullName, x.UserEmail),
-                x.UserEmail,
+                DisplayName(user.FullName, x.UserEmail),
+                user.Email,
                 x.Action ?? "-",
                 x.Channel ?? "-",
                 $"{x.Policy ?? "-"} / {x.RuleName ?? "-"}",
@@ -192,7 +234,23 @@ public class ScheduledReportService : IScheduledReportService
                 x.FileName ?? "-",
                 x.MaxMatches.ToString("N0"),
                 x.RiskScore.ToString("N0")
-            }).ToList());
+            ]);
+        }
+
+        return result;
+    }
+
+    private async Task<(string? FullName, string Email, string? Team)> ResolveReportUserAsync(
+        string userEmail,
+        string? fallbackEmail,
+        string? fallbackTeam,
+        CancellationToken ct)
+    {
+        var profile = await _externalUserDirectory.ResolveUserAsync(userEmail, ct);
+        return (
+            profile?.FullName,
+            FirstNonEmpty(profile?.Email, fallbackEmail, userEmail) ?? userEmail,
+            FirstNonEmpty(profile?.Department, fallbackTeam));
     }
 
     private async Task<string?> ResolveRecipientAsync(string? requested, CancellationToken ct)
@@ -254,8 +312,32 @@ public class ScheduledReportService : IScheduledReportService
     private static string DisplayName(string? fullName, string fallback) =>
         string.IsNullOrWhiteSpace(fullName) ? fallback : fullName;
 
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
     private static string Encode(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
+
+public record TopActionReportRow(
+    string UserEmail,
+    string? Team,
+    int Count,
+    int MaxRiskScore,
+    int MaxMatches,
+    DateTime LastIncident);
+
+public record HighMaxMatchReportRow(
+    DateTime Timestamp,
+    string UserEmail,
+    string? Team,
+    string? Action,
+    string? Channel,
+    string? Policy,
+    string? RuleName,
+    string? Destination,
+    string? FileName,
+    int MaxMatches,
+    int RiskScore);
 
 public static class ScheduledReportTypes
 {

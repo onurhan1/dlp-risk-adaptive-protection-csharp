@@ -8,11 +8,10 @@ import InvestigationUsersList from '@/components/InvestigationUsersList'
 import InvestigationTimeline from '@/components/InvestigationTimeline'
 import InvestigationAlertDetails from '@/components/InvestigationAlertDetails'
 import UserInsightsModal from '@/components/UserInsightsModal'
-import EntityDetailModal from '@/components/EntityDetailModal'
 import SendMailModal from '@/components/investigation/SendMailModal'
 import type { WeeklyFlagUser } from '@/components/investigation/types'
 import { useTranslation } from '@/components/LanguageProvider'
-import { Zap, Brain, Mail } from 'lucide-react'
+import { Zap } from 'lucide-react'
 
 interface TimelineEvent {
   id: number
@@ -39,7 +38,24 @@ interface TimelineEvent {
   userEmail?: string
   riskScore?: number
   policy?: string
+  fullName?: string
+  managerName?: string
+  team?: string
+  department?: string
+  loginName?: string
+  emailAddress?: string
   violationTriggers?: string
+}
+
+interface UserDirectoryInfo {
+  name: string
+  email: string
+  loginName?: string
+  department?: string
+  managerName?: string
+  managerEmail?: string
+  risk: number
+  isDirectoryEnriched: boolean
 }
 
 export default function InvestigationPage() {
@@ -61,12 +77,10 @@ function InvestigationPageContent() {
   const [initialUserLoaded, setInitialUserLoaded] = useState(false)
   const [filterRisk, setFilterRisk] = useState<string>('all')
   const [filterClassification, setFilterClassification] = useState<string>('all')
-  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
-  const [loadingAI, setLoadingAI] = useState(false)
   const [userInsightsOpen, setUserInsightsOpen] = useState(false)
-  const [aiDetailModalOpen, setAiDetailModalOpen] = useState(false)
   const [mailModalOpen, setMailModalOpen] = useState(false)
   const [selectedUserEvents, setSelectedUserEvents] = useState<TimelineEvent[]>([])
+  const [selectedUserDirectory, setSelectedUserDirectory] = useState<UserDirectoryInfo | null>(null)
 
   // Alerts tab state
   const [alerts, setAlerts] = useState<TimelineEvent[]>([])
@@ -100,34 +114,6 @@ function InvestigationPageContent() {
     } catch (error) {
       console.error('Error fetching user risk score:', error)
       setSelectedUserRiskScore(0)
-    }
-  }
-
-  // Load AI Behavioral Analysis when user is selected
-  useEffect(() => {
-    if (selectedUser) {
-      fetchAIAnalysis(selectedUser)
-    } else {
-      setAiAnalysis(null)
-    }
-  }, [selectedUser])
-
-  const fetchAIAnalysis = async (userEmail: string) => {
-    setLoadingAI(true)
-    try {
-      // Use /detail endpoint for consistency with EntityDetailModal scores
-      const response = await apiClient.get(`/api/ai-behavioral/entity/user/${encodeURIComponent(userEmail)}/detail`, {
-        params: { lookbackDays: 30 }
-      })
-      setAiAnalysis(response.data)
-    } catch (error: any) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Error fetching AI analysis:', error)
-      }
-      // Silently fail - AI analysis is optional
-      setAiAnalysis(null)
-    } finally {
-      setLoadingAI(false)
     }
   }
 
@@ -185,6 +171,7 @@ function InvestigationPageContent() {
   useEffect(() => {
     setSelectedEvent(undefined)
     setSelectedUserEvents([])
+    setSelectedUserDirectory(null)
     setMailModalOpen(false)
   }, [selectedUser])
 
@@ -194,12 +181,15 @@ function InvestigationPageContent() {
         ...selectedUserEvents.filter(event => String(event.id) !== String(selectedEvent.id)),
       ]
     : selectedUserEvents
+  const directoryEvent = selectedMailEvents.find(event =>
+    event.fullName || event.emailAddress || event.team || event.department || event.managerName || event.loginName
+  )
 
   const selectedUserMailData: WeeklyFlagUser | null = selectedUser ? {
     user_email: selectedUser,
-    full_name: aiAnalysis?.full_name || aiAnalysis?.fullName || null,
-    team: aiAnalysis?.team || aiAnalysis?.department || null,
-    contact_email: selectedUser,
+    full_name: selectedUserDirectory?.name || directoryEvent?.fullName || null,
+    team: selectedUserDirectory?.department || directoryEvent?.team || directoryEvent?.department || null,
+    contact_email: selectedUserDirectory?.email || directoryEvent?.emailAddress || selectedUser,
     trigger_count: selectedUserEvents.length,
     first_seen: selectedUserEvents.length > 0
       ? selectedUserEvents.reduce((earliest, event) => event.timestamp < earliest ? event.timestamp : earliest, selectedUserEvents[0].timestamp)
@@ -264,7 +254,13 @@ function InvestigationPageContent() {
         violationTriggers: incident.violation_triggers || incident.violationTriggers,
         riskLevel: incident.risk_level || incident.riskLevel,
         riskScore: calculateRiskScore(incident),
-        userEmail: incident.user_email || incident.userEmail
+        userEmail: incident.user_email || incident.userEmail,
+        fullName: incident.fullName || incident.full_name,
+        managerName: incident.managerName || incident.manager_name,
+        team: incident.team,
+        department: incident.department,
+        loginName: incident.loginName || incident.login_name,
+        emailAddress: incident.emailAddress || incident.email_address
       }))
 
       // Apply risk filter
@@ -687,114 +683,6 @@ function InvestigationPageContent() {
             </div>
           </div>
 
-          {/* AI Behavioral Analysis Card - Only show in Users tab */}
-          {activeTab === 'users' && selectedUser && (
-            <div style={{
-              margin: '16px',
-              padding: '16px',
-              background: 'var(--surface)',
-              borderRadius: '8px',
-              border: '1px solid var(--border)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {t('investigation.aiBehavioral')}
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => setMailModalOpen(true)}
-                    style={{
-                      padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--primary)',
-                      background: 'transparent', color: 'var(--primary)', fontSize: '12px', fontWeight: '600',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
-                    }}
-                  >
-                    <Mail size={14} /> {t('investigation.sendMail')}
-                  </button>
-                  <button
-                    onClick={() => setAiDetailModalOpen(true)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      background: 'var(--primary)',
-                      color: 'white',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = '0.9'
-                      e.currentTarget.style.transform = 'scale(1.02)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = '1'
-                      e.currentTarget.style.transform = 'scale(1)'
-                    }}
-                  >
-                    <Brain size={14} /> {t('investigation.viewAIAnalysis')}
-                  </button>
-                </div>
-              </div>
-              {loadingAI ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  {t('investigation.analyzingBehavior')}
-                </div>
-              ) : aiAnalysis ? (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.riskScore')}</div>
-                      <div style={{
-                        fontSize: '24px',
-                        fontWeight: '700',
-                        color: (aiAnalysis.risk_score ?? aiAnalysis.riskScore) >= 80 ? '#dc2626' : (aiAnalysis.risk_score ?? aiAnalysis.riskScore) >= 50 ? '#f59e0b' : '#10b981'
-                      }}>
-                        {aiAnalysis.risk_score ?? aiAnalysis.riskScore}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.anomalyLevel')}</div>
-                      <div style={{
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        color: (aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel) === 'high' ? '#dc2626' : (aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel) === 'medium' ? '#f59e0b' : '#10b981'
-                      }}>
-                        {(aiAnalysis.anomaly_level || aiAnalysis.anomalyLevel || '').toUpperCase()}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{t('investigation.referenceIncidents')}</div>
-                      <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {(aiAnalysis.reference_incident_ids || aiAnalysis.referenceIncidentIds)?.length || 0}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{t('investigation.aiExplanation')}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {aiAnalysis.ai_explanation || aiAnalysis.aiExplanation}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{t('investigation.aiRecommendation')}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                      {aiAnalysis.ai_recommendation || aiAnalysis.aiRecommendation}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                  {t('investigation.noAIAnalysis')}
-                </div>
-              )}
-            </div>
-          )}
-
           {activeTab === 'users' ? (
             <InvestigationTimeline
               userEmail={selectedUser}
@@ -802,7 +690,9 @@ function InvestigationPageContent() {
               onEventSelect={handleEventSelect}
               selectedEventId={selectedEvent?.id}
               onEventsLoaded={handleEventsLoaded}
+              onUserDirectoryLoaded={setSelectedUserDirectory}
               onUserInsightsClick={() => setUserInsightsOpen(true)}
+              onSendMailClick={() => setMailModalOpen(true)}
             />
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
@@ -963,18 +853,8 @@ function InvestigationPageContent() {
         isOpen={userInsightsOpen}
         onClose={() => setUserInsightsOpen(false)}
         userEmail={selectedUser || ''}
-        userName={aiAnalysis?.full_name || aiAnalysis?.fullName}
+        userName={selectedUserDirectory?.name || directoryEvent?.fullName}
       />
-
-      {/* AI Entity Detail Modal */}
-      {selectedUser && (
-        <EntityDetailModal
-          isOpen={aiDetailModalOpen}
-          onClose={() => setAiDetailModalOpen(false)}
-          entityType="user"
-          entityId={selectedUser}
-        />
-      )}
 
       {mailModalOpen && selectedUserMailData && (
         <SendMailModal

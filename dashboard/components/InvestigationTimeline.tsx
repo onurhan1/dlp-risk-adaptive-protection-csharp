@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import type { ReactNode } from 'react'
 import { format } from 'date-fns'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Building2, Mail, ShieldCheck, UserRound, UserRoundCheck } from 'lucide-react'
 
-import { getApiUrlDynamic } from '@/lib/api-config'
+import apiClient from '@/lib/axios'
 import { useTranslation } from '@/components/LanguageProvider'
 
 interface TimelineEvent {
@@ -28,7 +28,40 @@ interface TimelineEvent {
   fileName?: string
   loginName?: string
   emailAddress?: string
+  fullName?: string
+  managerName?: string
+  team?: string
+  department?: string
   violationTriggers?: string
+}
+
+interface UserDirectoryInfo {
+  name: string
+  email: string
+  loginName?: string
+  department?: string
+  managerName?: string
+  managerEmail?: string
+  risk: number
+  isDirectoryEnriched: boolean
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  return ''
+}
+
+function buildNameFromEmail(email: string) {
+  return email
+    .split('@')[0]
+    .split(/[._-]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || email
 }
 
 interface InvestigationTimelineProps {
@@ -37,7 +70,9 @@ interface InvestigationTimelineProps {
   onEventSelect: (event: TimelineEvent) => void
   selectedEventId?: number
   onEventsLoaded?: (events: TimelineEvent[]) => void
+  onUserDirectoryLoaded?: (info: UserDirectoryInfo | null) => void
   onUserInsightsClick?: () => void
+  onSendMailClick?: () => void
 }
 
 export default function InvestigationTimeline({
@@ -46,12 +81,14 @@ export default function InvestigationTimeline({
   onEventSelect,
   selectedEventId,
   onEventsLoaded,
-  onUserInsightsClick
+  onUserDirectoryLoaded,
+  onUserInsightsClick,
+  onSendMailClick
 }: InvestigationTimelineProps) {
   const { t } = useTranslation()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(false)
-  const [userInfo, setUserInfo] = useState<{ name: string; title: string; risk: number; department?: string } | null>(null)
+  const [userInfo, setUserInfo] = useState<UserDirectoryInfo | null>(null)
   // Pagination state for timeline events
   const [currentPage, setCurrentPage] = useState(1)
   const eventsPerPage = 20
@@ -67,6 +104,7 @@ export default function InvestigationTimeline({
     } else {
       setEvents([])
       setUserInfo(null)
+      onUserDirectoryLoaded?.(null)
       setCurrentPage(1)
     }
   }, [userEmail, userRiskScore])
@@ -75,47 +113,47 @@ export default function InvestigationTimeline({
     if (!userEmail) return
 
     try {
-      const apiUrl = getApiUrlDynamic()
-      // Fetch user's department from user-list endpoint
-      const userListResponse = await axios.get(`${apiUrl}/api/risk/user-list`, {
-        params: { page: 1, page_size: 5000 }
+      const response = await apiClient.get('/api/incidents/user-directory', {
+        params: { user: userEmail }
       })
 
-      const user = userListResponse.data.users?.find((u: any) => u.user_email === userEmail)
-      const department = user?.department || null
-
-      // If department not found in user-list, try to get from incidents
-      let finalDepartment = department
-      if (!finalDepartment) {
-        const incidentsResponse = await axios.get(`${apiUrl}/api/incidents`, {
-          params: { user: userEmail, limit: 1 }
-        })
-        finalDepartment = incidentsResponse.data?.[0]?.department || null
+      const data = response.data || {}
+      const fullName = firstText(data.full_name, data.fullName)
+      const email = firstText(data.email_address, data.emailAddress, data.email, userEmail)
+      const loginName = firstText(data.login_name, data.loginName, data.user_name, data.userName)
+      const department = firstText(data.team, data.department)
+      const managerName = firstText(data.manager_name, data.managerName)
+      const managerEmail = firstText(data.manager_email, data.managerEmail)
+      const directoryFlag = data.is_directory_enriched ?? data.isDirectoryEnriched
+      const info = {
+        name: fullName || buildNameFromEmail(userEmail),
+        email: email || userEmail,
+        loginName: loginName || undefined,
+        department: department || undefined,
+        managerName: managerName || undefined,
+        managerEmail: managerEmail || undefined,
+        risk: riskScore,
+        isDirectoryEnriched: typeof directoryFlag === 'boolean'
+          ? directoryFlag
+          : Boolean(fullName || loginName || department || managerName)
       }
 
-      // Extract name from email (e.g., "sercan.dincer@kuveytturk.com.tr" -> "Sercan Dincer")
-      const emailParts = userEmail.split('@')[0].split('.')
-      const name = emailParts.map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
-
-      setUserInfo({
-        name: name,
-        title: finalDepartment || '',
-        risk: riskScore,
-        department: finalDepartment || undefined
-      })
+      setUserInfo(info)
+      onUserDirectoryLoaded?.(info)
     } catch (error) {
       if (process.env.NODE_ENV !== 'production') {
         console.error('Error fetching user info:', error)
       }
-      // Fallback: extract name from email only
-      const emailParts = userEmail.split('@')[0].split('.')
-      const name = emailParts.map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
 
-      setUserInfo({
-        name: name,
-        title: '',
-        risk: riskScore
-      })
+      const info = {
+        name: buildNameFromEmail(userEmail),
+        email: userEmail,
+        risk: riskScore,
+        isDirectoryEnriched: false
+      }
+
+      setUserInfo(info)
+      onUserDirectoryLoaded?.(info)
     }
   }
 
@@ -124,12 +162,12 @@ export default function InvestigationTimeline({
 
     setLoading(true)
     try {
-      const apiUrl = getApiUrlDynamic()
-      const response = await axios.get(`${apiUrl}/api/incidents`, {
+      const response = await apiClient.get('/api/incidents', {
         params: {
           user: userEmail,
           limit: 200,
-          order_by: 'timestamp_desc'
+          order_by: 'timestamp_desc',
+          include_directory: false
         },
         timeout: 45000 // 45 second timeout for larger data loads
       })
@@ -166,6 +204,10 @@ export default function InvestigationTimeline({
         fileName: incident.fileName || incident.file_name,
         loginName: incident.loginName || incident.login_name,
         emailAddress: incident.emailAddress || incident.email_address,
+        fullName: incident.fullName || incident.full_name,
+        managerName: incident.managerName || incident.manager_name,
+        team: incident.team,
+        department: incident.department,
         violationTriggers: incident.violationTriggers || incident.violation_triggers,
         // Remediation fields
         isRemediated: incident.isRemediated || incident.is_remediated || false,
@@ -237,6 +279,31 @@ export default function InvestigationTimeline({
     return '#10b981' // Green - Low
   }
 
+  const renderDirectoryField = (label: string, value?: string, icon?: ReactNode) => (
+    <div style={{
+      minWidth: 0,
+      padding: '8px 10px',
+      border: '1px solid var(--border)',
+      borderRadius: '8px',
+      background: 'var(--surface)'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div title={value || '-'} style={{
+        fontSize: '13px',
+        color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+        fontWeight: 600,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}>
+        {value || '-'}
+      </div>
+    </div>
+  )
+
   // Pagination calculations
   const totalPages = Math.ceil(events.length / eventsPerPage)
   const paginatedEvents = events.slice((currentPage - 1) * eventsPerPage, currentPage * eventsPerPage)
@@ -261,11 +328,11 @@ export default function InvestigationTimeline({
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* User Profile Header */}
+      {/* User Directory Header */}
       {userInfo && (
-        <div style={{ padding: '12px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ padding: '14px 16px', background: 'var(--background-secondary)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
               <div style={{ position: 'relative', width: '48px', height: '48px' }}>
                 <svg style={{ width: '48px', height: '48px', transform: 'rotate(-90deg)' }}>
                   <circle cx="24" cy="24" r="20" fill="none" stroke="var(--border)" strokeWidth="4" />
@@ -286,43 +353,95 @@ export default function InvestigationTimeline({
                   </span>
                 </div>
               </div>
-              <div>
-                <h3 style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{userInfo.name}</h3>
-                {userInfo.title && (
-                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{userInfo.title}</p>
-                )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <h3 style={{ margin: 0, fontWeight: '700', color: 'var(--text-primary)', fontSize: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userInfo.name}</h3>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 8px',
+                    borderRadius: '999px',
+                    background: userInfo.isDirectoryEnriched ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.14)',
+                    color: userInfo.isDirectoryEnriched ? '#059669' : 'var(--text-secondary)',
+                    fontSize: '11px',
+                    fontWeight: 700
+                  }}>
+                    <ShieldCheck size={12} /> {userInfo.isDirectoryEnriched ? 'LDAP' : 'Fallback'}
+                  </span>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: '8px'
+                }}>
+                  {renderDirectoryField('E-posta', userInfo.email, <Mail size={12} />)}
+                  {renderDirectoryField('Login', userInfo.loginName, <UserRound size={12} />)}
+                  {renderDirectoryField('Ekip / Departman', userInfo.department, <Building2 size={12} />)}
+                  {renderDirectoryField('Manager', userInfo.managerName, <UserRoundCheck size={12} />)}
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => {
-                if (onUserInsightsClick) {
-                  onUserInsightsClick()
-                }
-              }}
-              style={{
-                padding: '6px 12px',
-                background: 'rgba(0, 168, 232, 0.1)',
-                color: 'var(--primary)',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '500',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
-              }}
-            >
-              <span><BarChart3 size={14} /></span>
-              {t('timeline.userInsights')}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              {onSendMailClick && (
+                <button
+                  onClick={onSendMailClick}
+                  style={{
+                    padding: '6px 12px',
+                    background: 'transparent',
+                    color: 'var(--primary)',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    border: '1px solid var(--primary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <Mail size={14} />
+                  {t('investigation.sendMail')}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (onUserInsightsClick) {
+                    onUserInsightsClick()
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  background: 'rgba(0, 168, 232, 0.1)',
+                  color: 'var(--primary)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 168, 232, 0.2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 168, 232, 0.1)'
+                }}
+              >
+                <BarChart3 size={14} />
+                {t('timeline.userInsights')}
+              </button>
+            </div>
           </div>
         </div>
       )}

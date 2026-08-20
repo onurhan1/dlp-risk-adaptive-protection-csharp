@@ -25,7 +25,7 @@ public class Incident
     public string? FileName { get; set; }  // File name with size
     public string? LoginName { get; set; }  // User login name (e.g., KUVEYTTURK\nyigit)
     public string? HostName { get; set; }   // Hostname (e.g., TRIST-L-1234)
-    public string? FullName { get; set; }   // Full user name (taken from Manager field e.g., Mustafa Zeybek)
+    public string? FullName { get; set; }   // Legacy DLP Manager name field; represents manager in current imports
     public string? Team { get; set; }       // Team/Department name (taken from Manager field e.g., Kuveyt Turk...)
     public string? EmailAddress { get; set; }  // Email address (if available)
     public string? ViolationTriggers { get; set; }  // JSON: [{policy_name, rule_name, classifiers}]
@@ -85,6 +85,7 @@ public class IncidentResponse
 
     // Display fields
     public string? FullName { get; set; }
+    public string? ManagerName { get; set; }
     public string? Team { get; set; }
 }
 

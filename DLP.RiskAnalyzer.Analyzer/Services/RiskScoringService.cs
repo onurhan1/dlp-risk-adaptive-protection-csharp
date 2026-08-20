@@ -80,12 +80,10 @@ public class RiskScoringService : IRiskScoringService
             var maxMaxMatches = dailyIncidents.Max(i => i.MaxMatches);
             var avgMaxMatches = incidentCount > 0 ? dailyIncidents.Average(i => (double)i.MaxMatches) : 0;
             
-            // Get team, full_name and email_address from first incident that has them
+            // Incident.FullName is a legacy manager field in current imports; user name is enriched from LDAP/directory services.
             var firstWithTeam = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.Team) || !string.IsNullOrEmpty(i.Department));
-            var firstWithName = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.FullName));
             var firstWithEmail = dailyIncidents.FirstOrDefault(i => !string.IsNullOrEmpty(i.EmailAddress));
             var team = firstWithTeam?.Team ?? firstWithTeam?.Department;
-            var fullName = firstWithName?.FullName;
             var incidentEmailAddress = firstWithEmail?.EmailAddress;
             
             // Normalized daily score (0-100 scale)
@@ -115,7 +113,6 @@ public class RiskScoringService : IRiskScoringService
                 existingRecord.MaxMaxMatches = maxMaxMatches;
                 existingRecord.AvgMaxMatches = avgMaxMatches;
                 if (!string.IsNullOrEmpty(team)) existingRecord.Team = team;
-                if (!string.IsNullOrEmpty(fullName)) existingRecord.FullName = fullName;
                 if (!string.IsNullOrEmpty(incidentEmailAddress)) existingRecord.EmailAddress = incidentEmailAddress;
                 // CreatedAt remains original
             }
@@ -136,7 +133,7 @@ public class RiskScoringService : IRiskScoringService
                     MaxMaxMatches = maxMaxMatches,
                     AvgMaxMatches = avgMaxMatches,
                     Team = team,
-                    FullName = fullName,
+                    FullName = null,
                     EmailAddress = incidentEmailAddress,
                     CreatedAt = DateTime.UtcNow
                 };

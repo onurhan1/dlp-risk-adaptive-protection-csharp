@@ -21,13 +21,16 @@ public static class IncidentResponseMapper
         Incident incident,
         string? riskLevel = null,
         string? recommendedAction = null,
-        List<string>? iobs = null)
+        List<string>? iobs = null,
+        string? userFullName = null,
+        string? userEmailAddress = null,
+        string? userTeam = null)
     {
         return new IncidentResponse
         {
             // ── Core fields ─────────────────────────────────────────────────
             Id                = incident.Id,
-            UserEmail         = GetValidUserIdentifier(incident.UserEmail, incident.EmailAddress, incident.FullName) ?? "unknown",
+            UserEmail         = GetValidUserIdentifier(incident.UserEmail, userEmailAddress ?? incident.EmailAddress) ?? "unknown",
             Department        = incident.Department,
             Severity          = incident.Severity,
             DataType          = incident.DataType,
@@ -44,12 +47,13 @@ public static class IncidentResponseMapper
             Action            = incident.Action,
             Destination       = incident.Destination,
             FileName          = incident.FileName,
-            LoginName         = GetValidUserIdentifier(incident.LoginName, incident.EmailAddress, incident.FullName),
+            LoginName         = GetValidUserIdentifier(incident.LoginName, userEmailAddress ?? incident.EmailAddress),
             HostName          = incident.HostName,
-            EmailAddress      = incident.EmailAddress,
+            EmailAddress      = userEmailAddress ?? incident.EmailAddress,
             ViolationTriggers = incident.ViolationTriggers,
-            FullName          = incident.FullName,
-            Team              = incident.Team,
+            FullName          = userFullName,
+            ManagerName       = incident.FullName,
+            Team              = userTeam ?? incident.Team,
 
             // ── Enriched / computed fields ───────────────────────────────────
             RiskLevel         = riskLevel,
@@ -69,7 +73,7 @@ public static class IncidentResponseMapper
     /// Returns the best available user identifier. If the primary value is null, empty, 
     /// or "unknown", it falls back to emailAddress, then fullName.
     /// </summary>
-    private static string? GetValidUserIdentifier(string? primary, string? emailAddress, string? fullName)
+    private static string? GetValidUserIdentifier(string? primary, string? emailAddress)
     {
         bool isInvalid = string.IsNullOrWhiteSpace(primary) || 
                          primary.Equals("unknown", StringComparison.OrdinalIgnoreCase);
@@ -77,7 +81,6 @@ public static class IncidentResponseMapper
         if (!isInvalid) return primary;
 
         if (!string.IsNullOrWhiteSpace(emailAddress)) return emailAddress;
-        if (!string.IsNullOrWhiteSpace(fullName)) return fullName;
         
         return primary; // fallback to the original value (e.g. "unknown" or null)
     }

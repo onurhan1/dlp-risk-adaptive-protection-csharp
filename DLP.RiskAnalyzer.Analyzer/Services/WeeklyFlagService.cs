@@ -177,7 +177,7 @@ public class WeeklyFlagService : IWeeklyFlagService
 
         return new WeeklyFlagUserDto(
             UserEmail: userEmail,
-            FullName: newestFirst.Select(i => i.FullName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)),
+            FullName: null,
             Team: newestFirst.Select(i => i.Team).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t)),
             ContactEmail: contact,
             TriggerCount: triggerCount,

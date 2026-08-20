@@ -186,5 +186,6 @@ public class LdapUserLookupResult
     public string? FullName { get; set; }
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? Department { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }

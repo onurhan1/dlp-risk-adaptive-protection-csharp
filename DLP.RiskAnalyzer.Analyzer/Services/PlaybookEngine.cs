@@ -360,7 +360,7 @@ public class PlaybookEngine : IPlaybookEngine
                 return new
                 {
                     UserEmail = g.Key,
-                    best.FullName,
+                    FullName = (string?)null,
                     Team = best.Team,
                     ContactEmail = string.IsNullOrWhiteSpace(best.EmailAddress) ? g.Key : best.EmailAddress!,
                     MaxScore = maxScore,
@@ -438,7 +438,7 @@ public class PlaybookEngine : IPlaybookEngine
                 return new PlaybookItem(
                     new WeeklyFlagUserDto(
                         g.Key,
-                        FirstNonEmpty(list.Select(i => i.FullName)),
+                        null,
                         FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
                         ResolveContactEmail(best),
                         list.Count,
@@ -482,7 +482,7 @@ public class PlaybookEngine : IPlaybookEngine
                 return new PlaybookItem(
                     new WeeklyFlagUserDto(
                         g.Key,
-                        FirstNonEmpty(list.Select(i => i.FullName)),
+                        null,
                         FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
                         ResolveContactEmail(best),
                         best.MaxMatches,
