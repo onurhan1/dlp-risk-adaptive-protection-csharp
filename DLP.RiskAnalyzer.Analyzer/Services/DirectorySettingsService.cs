@@ -377,6 +377,50 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
     }
 
+    public async Task<LdapAttributeDumpResult> DumpLdapUserAttributesAsync(string username, bool includeOperational = false, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return LdapAttributeDump(false, username, "Kullanici adi zorunludur");
+
+        var settings = await GetLdapAsync(ct);
+        if (!settings.Enabled)
+            return LdapAttributeDump(false, username, "LDAP aktif degil");
+        if (!settings.IsConfigured)
+            return LdapAttributeDump(false, username, "LDAP servis hesabi yapilandirilmamis");
+        if (string.IsNullOrWhiteSpace(settings.SearchBase))
+            return LdapAttributeDump(false, username, "LDAP arama tabani yapilandirilmamis");
+
+        var servicePassword = await GetSecretAsync(LdapServicePasswordKey, ct);
+        if (string.IsNullOrWhiteSpace(servicePassword))
+            return LdapAttributeDump(false, username, "LDAP servis hesabi sifresi kayitli degil");
+
+        var normalizedUsername = NormalizeLoginUsername(username);
+        try
+        {
+            foreach (var bindName in BuildLdapBindCandidates(settings.ServiceAccount, settings.Domain).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var attributes = await TryDumpLdapUserAttributesAsync(
+                    settings,
+                    bindName,
+                    servicePassword,
+                    normalizedUsername,
+                    username,
+                    includeOperational,
+                    ct);
+
+                if (attributes.Any())
+                    return LdapAttributeDump(true, normalizedUsername, "LDAP attribute listesi alindi", attributes);
+            }
+
+            return LdapAttributeDump(false, normalizedUsername, "LDAP kullanicisi bulunamadi");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LDAP attribute dump failed for {Username}", normalizedUsername);
+            return LdapAttributeDump(false, normalizedUsername, $"LDAP attribute okuma basarisiz: {ex.Message}");
+        }
+    }
+
     private async Task<string?> ResolveLdapEmailAsync(
         LdapSettingsResponse settings,
         string normalizedUsername,
@@ -457,6 +501,54 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
 
         return null;
+    }
+
+    private async Task<Dictionary<string, List<string>>> TryDumpLdapUserAttributesAsync(
+        LdapSettingsResponse settings,
+        string bindName,
+        string password,
+        string normalizedUsername,
+        string originalUsername,
+        bool includeOperational,
+        CancellationToken ct)
+    {
+        using var client = new TcpClient();
+        await client.ConnectAsync(settings.Host.Trim(), settings.Port, ct);
+        using var stream = settings.UseLdaps
+            ? await WrapSslAsync(client, settings.Host.Trim(), ct)
+            : client.GetStream();
+
+        var bindRequest = BuildLdapSimpleBindRequest(1, bindName, password);
+        await stream.WriteAsync(bindRequest, ct);
+        await stream.FlushAsync(ct);
+
+        var bindResponse = await ReadLdapResponseAsync(stream, ct);
+        if (!IsLdapBindSuccess(bindResponse))
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        var searchRequest = BuildLdapUserAttributeDumpSearchRequest(
+            2,
+            settings.SearchBase,
+            normalizedUsername,
+            originalUsername,
+            settings.Domain,
+            includeOperational);
+
+        await stream.WriteAsync(searchRequest, ct);
+        await stream.FlushAsync(ct);
+
+        for (var i = 0; i < 20; i++)
+        {
+            var response = await ReadLdapResponseAsync(stream, ct);
+            var operation = GetLdapProtocolOperationTag(response);
+            if (operation == 0x64)
+                return ParseLdapSearchResultAttributeValues(response);
+
+            if (operation == 0x65)
+                break;
+        }
+
+        return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<Dictionary<string, string>> TrySearchLdapUserAttributesAsync(
@@ -735,6 +827,19 @@ public class DirectorySettingsService : IDirectorySettingsService
         Success = success,
         Username = NormalizeLoginUsername(username),
         Message = message,
+        TestedAt = DateTime.UtcNow
+    };
+
+    private static LdapAttributeDumpResult LdapAttributeDump(
+        bool success,
+        string username,
+        string message,
+        Dictionary<string, List<string>>? attributes = null) => new()
+    {
+        Success = success,
+        Username = NormalizeLoginUsername(username),
+        Message = message,
+        Attributes = attributes ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase),
         TestedAt = DateTime.UtcNow
     };
 
@@ -1129,6 +1234,32 @@ public class DirectorySettingsService : IDirectorySettingsService
             BerOctetString("sex"),
             BerOctetString("personalTitle"));
 
+        return BuildLdapUserSearchRequest(messageId, searchBase, normalizedUsername, originalUsername, domain, attributes);
+    }
+
+    private static byte[] BuildLdapUserAttributeDumpSearchRequest(
+        int messageId,
+        string searchBase,
+        string normalizedUsername,
+        string originalUsername,
+        string domain,
+        bool includeOperational)
+    {
+        var attributes = includeOperational
+            ? BerConstructed(0x30, BerOctetString("*"), BerOctetString("+"))
+            : BerConstructed(0x30);
+
+        return BuildLdapUserSearchRequest(messageId, searchBase, normalizedUsername, originalUsername, domain, attributes);
+    }
+
+    private static byte[] BuildLdapUserSearchRequest(
+        int messageId,
+        string searchBase,
+        string normalizedUsername,
+        string originalUsername,
+        string domain,
+        byte[] attributes)
+    {
         var searchRequest = BerConstructed(
             0x63,
             BerOctetString(searchBase.Trim()),
@@ -1184,23 +1315,30 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static Dictionary<string, string> ParseLdapSearchResultAttributes(byte[] response)
     {
-        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        return ParseLdapSearchResultAttributeValues(response)
+            .Where(pair => pair.Value.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Value[0], StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, List<string>> ParseLdapSearchResultAttributeValues(byte[] response)
+    {
         var offset = 0;
         if (!TryReadTlv(response, ref offset, out var messageTag, out var messageStart, out var messageLength) || messageTag != 0x30)
-            return attributes;
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         var messageOffset = messageStart;
         if (!TryReadTlv(response, ref messageOffset, out _, out _, out _))
-            return attributes;
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         if (!TryReadTlv(response, ref messageOffset, out var entryTag, out var entryStart, out var entryLength) || entryTag != 0x64)
-            return attributes;
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         var entryOffset = entryStart;
         if (!TryReadTlv(response, ref entryOffset, out _, out _, out _))
-            return attributes;
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         if (!TryReadTlv(response, ref entryOffset, out var listTag, out var listStart, out var listLength) || listTag != 0x30)
-            return attributes;
+            return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
+        var attributes = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var listOffset = listStart;
         var listEnd = Math.Min(listStart + listLength, entryStart + entryLength);
         while (listOffset < listEnd)
@@ -1218,12 +1356,23 @@ public class DirectorySettingsService : IDirectorySettingsService
 
             var valueOffset = valuesStart;
             var valuesEnd = valuesStart + valuesLength;
-            if (!TryReadTlv(response, ref valueOffset, out var valueTag, out var valueStart, out var valueLength) || valueTag != 0x04 || valueStart + valueLength > valuesEnd)
-                continue;
+            while (valueOffset < valuesEnd)
+            {
+                if (!TryReadTlv(response, ref valueOffset, out var valueTag, out var valueStart, out var valueLength) || valueTag != 0x04 || valueStart + valueLength > valuesEnd)
+                    break;
 
-            var value = ReadBerString(response, valueStart, valueLength);
-            if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(value))
-                attributes[name] = value;
+                var value = ReadBerString(response, valueStart, valueLength);
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(value))
+                {
+                    if (!attributes.TryGetValue(name, out var values))
+                    {
+                        values = new List<string>();
+                        attributes[name] = values;
+                    }
+
+                    values.Add(value);
+                }
+            }
         }
 
         _ = messageLength;

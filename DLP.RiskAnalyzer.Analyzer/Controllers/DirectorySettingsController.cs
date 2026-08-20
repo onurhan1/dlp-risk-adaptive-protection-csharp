@@ -143,6 +143,16 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
+    [HttpGet("ldap/attributes")]
+    public async Task<ActionResult<LdapAttributeDumpResult>> DumpLdapAttributes(
+        [FromQuery] string username,
+        [FromQuery(Name = "include_operational")] bool includeOperational,
+        CancellationToken ct)
+    {
+        var result = await _settingsService.DumpLdapUserAttributesAsync(username, includeOperational, ct);
+        return Ok(result);
+    }
+
     [HttpGet("external-user-db")]
     public async Task<ActionResult<ExternalUserDbSettingsResponse>> GetExternalUserDb(CancellationToken ct) =>
         Ok(await _externalUserDirectoryService.GetSettingsAsync(ct));

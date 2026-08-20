@@ -191,3 +191,13 @@ public class LdapUserLookupResult
     public string? Gender { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class LdapAttributeDumpResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public Dictionary<string, List<string>> Attributes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public int AttributeCount => Attributes.Count;
+    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
+}
