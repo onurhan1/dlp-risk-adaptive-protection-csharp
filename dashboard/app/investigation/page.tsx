@@ -37,6 +37,7 @@ interface TimelineEvent {
   iob_number?: string
   userEmail?: string
   riskScore?: number
+  maxMatches?: number
   policy?: string
   fullName?: string
   managerName?: string
@@ -54,6 +55,7 @@ interface UserDirectoryInfo {
   department?: string
   managerName?: string
   managerEmail?: string
+  gender?: string | null
   risk: number
   isDirectoryEnriched: boolean
 }
@@ -190,6 +192,7 @@ function InvestigationPageContent() {
     full_name: selectedUserDirectory?.name || directoryEvent?.fullName || null,
     team: selectedUserDirectory?.department || directoryEvent?.team || directoryEvent?.department || null,
     contact_email: selectedUserDirectory?.email || directoryEvent?.emailAddress || selectedUser,
+    gender: selectedUserDirectory?.gender || null,
     trigger_count: selectedUserEvents.length,
     first_seen: selectedUserEvents.length > 0
       ? selectedUserEvents.reduce((earliest, event) => event.timestamp < earliest ? event.timestamp : earliest, selectedUserEvents[0].timestamp)
@@ -200,7 +203,7 @@ function InvestigationPageContent() {
     sample_incidents: selectedMailEvents.slice(0, 10).map(event => ({
       timestamp: event.timestamp,
       policy: event.policy || event.matched_rules?.[0] || null,
-      max_matches: (event as any).max_matches || (event as any).maxMatches || 0,
+      max_matches: (event as any).max_matches ?? (event as any).maxMatches ?? 0,
       destination: event.destination || null,
       channel: event.channel || null,
     })),
@@ -254,6 +257,7 @@ function InvestigationPageContent() {
         violationTriggers: incident.violation_triggers || incident.violationTriggers,
         riskLevel: incident.risk_level || incident.riskLevel,
         riskScore: calculateRiskScore(incident),
+        maxMatches: incident.maxMatches ?? incident.max_matches ?? 0,
         userEmail: incident.user_email || incident.userEmail,
         fullName: incident.fullName || incident.full_name,
         managerName: incident.managerName || incident.manager_name,

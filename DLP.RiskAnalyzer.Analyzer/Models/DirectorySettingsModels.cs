@@ -144,6 +144,7 @@ public class ExternalUserProfileDto
     public string? LastName { get; set; }
     public string? Email { get; set; }
     public string? Department { get; set; }
+    public string? Gender { get; set; }
     public string? OrganizationName { get; set; }
     public string? ManagerUserName { get; set; }
     public string? ManagerFullName { get; set; }
@@ -187,5 +188,6 @@ public class LdapUserLookupResult
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? Department { get; set; }
+    public string? Gender { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }

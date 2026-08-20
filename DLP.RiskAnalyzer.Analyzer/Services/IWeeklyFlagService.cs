@@ -15,7 +15,8 @@ public record WeeklyFlagUserDto(
     int TriggerCount,
     DateTime FirstSeen,
     DateTime LastSeen,
-    List<WeeklyFlagIncidentDto> SampleIncidents);
+    List<WeeklyFlagIncidentDto> SampleIncidents,
+    string? Gender = null);
 
 public class WeeklyFlagsResult
 {

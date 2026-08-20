@@ -23,12 +23,7 @@ public static class PlaybookMailRenderer
 
     private static readonly Regex HtmlDocument = new(@"<html[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>
-    /// Substitutes the template placeholders for a flagged user.
-    /// Note that <c>{{tam_ad}}</c> intentionally resolves to the user's account address rather
-    /// than their display name — that is what the dashboard does, and the placeholder is
-    /// documented there as "Kullanıcı adı (username)".
-    /// </summary>
+    /// <summary>Substitutes the template placeholders for a flagged user.</summary>
     public static string ApplyPlaceholders(string? text, WeeklyFlagUserDto user, DateTime nowUtc)
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
@@ -36,12 +31,16 @@ public static class PlaybookMailRenderer
         var incidents = user.SampleIncidents ?? new List<WeeklyFlagIncidentDto>();
         var primary = incidents.FirstOrDefault();
         var incidentDate = primary?.Timestamp ?? user.LastSeen;
+        var fullName = string.IsNullOrWhiteSpace(user.FullName) ? user.UserEmail : user.FullName;
         var summary = string.Join("\n", incidents.Select(i =>
             $"- {i.Timestamp.ToString(DateTimeFormat)} | {Dash(i.Policy)} | {i.MaxMatches} eşleşme | {Dash(i.Destination)}"));
 
         return text
             .Replace("{{kullanici}}", string.IsNullOrWhiteSpace(user.ContactEmail) ? user.UserEmail : user.ContactEmail)
-            .Replace("{{tam_ad}}", user.UserEmail)
+            .Replace("{{tam_ad}}", SalutationName(user))
+            .Replace("{{ad_soyad}}", fullName)
+            .Replace("{{full_name}}", fullName)
+            .Replace("{{hitap}}", Honorific(user))
             .Replace("{{takim}}", Dash(user.Team))
             .Replace("{{tarih}}", incidentDate.ToString(DateFormat))
             .Replace("{{olay_tarihi}}", incidentDate.ToString(DateTimeFormat))
@@ -55,6 +54,44 @@ public static class PlaybookMailRenderer
             .Replace("{{max_match}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{max_matches}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{olaylar}}", summary.Length > 0 ? summary : "-");
+    }
+
+    private static string SalutationName(WeeklyFlagUserDto user)
+    {
+        if (string.IsNullOrWhiteSpace(user.FullName)) return user.UserEmail;
+
+        return NormalizeGender(user.Gender) switch
+        {
+            "male" => $"{FirstNamePart(user.FullName)} Bey",
+            "female" => $"{FirstNamePart(user.FullName)} Hanım",
+            _ => user.FullName
+        };
+    }
+
+    private static string Honorific(WeeklyFlagUserDto user) =>
+        NormalizeGender(user.Gender) switch
+        {
+            "male" => "Bey",
+            "female" => "Hanım",
+            _ => string.Empty
+        };
+
+    private static string FirstNamePart(string fullName)
+    {
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 1 ? fullName.Trim() : string.Join(' ', parts.Take(parts.Length - 1));
+    }
+
+    private static string? NormalizeGender(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "m" or "male" or "man" or "erkek" or "e" => "male",
+            "f" or "female" or "woman" or "kadin" or "kadın" or "k" => "female",
+            _ => null
+        };
     }
 
     /// <summary>

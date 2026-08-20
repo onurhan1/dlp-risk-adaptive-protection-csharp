@@ -419,6 +419,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         var lastName = FirstAttribute(attributes, "sn");
         var fullName = FirstAttribute(attributes, "displayName");
         var department = FirstAttribute(attributes, "department", "company", "physicalDeliveryOfficeName", "title");
+        var gender = FirstAttribute(attributes, "gender", "sex", "personalTitle");
         if (string.IsNullOrWhiteSpace(fullName))
             fullName = string.Join(' ', new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
 
@@ -431,6 +432,7 @@ public class DirectorySettingsService : IDirectorySettingsService
             FirstName = string.IsNullOrWhiteSpace(firstName) ? null : firstName.Trim(),
             LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim(),
             Department = string.IsNullOrWhiteSpace(department) ? null : department.Trim(),
+            Gender = string.IsNullOrWhiteSpace(gender) ? null : gender.Trim(),
             Message = "LDAP kullanicisi bulundu",
             TestedAt = DateTime.UtcNow
         };
@@ -1122,7 +1124,10 @@ public class DirectorySettingsService : IDirectorySettingsService
             BerOctetString("department"),
             BerOctetString("company"),
             BerOctetString("physicalDeliveryOfficeName"),
-            BerOctetString("title"));
+            BerOctetString("title"),
+            BerOctetString("gender"),
+            BerOctetString("sex"),
+            BerOctetString("personalTitle"));
 
         var searchRequest = BerConstructed(
             0x63,

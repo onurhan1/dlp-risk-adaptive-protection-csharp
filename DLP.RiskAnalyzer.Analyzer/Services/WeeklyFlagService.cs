@@ -202,7 +202,8 @@ public class WeeklyFlagService : IWeeklyFlagService
             {
                 FullName = FirstNonEmpty(profile.FullName, user.FullName),
                 Team = FirstNonEmpty(profile.Department, user.Team),
-                ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail
+                ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail,
+                Gender = FirstNonEmpty(profile.Gender, user.Gender)
             });
         }
 

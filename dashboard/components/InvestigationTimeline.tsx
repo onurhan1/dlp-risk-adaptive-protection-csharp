@@ -23,6 +23,7 @@ interface TimelineEvent {
   policy?: string
   riskLevel?: string
   riskScore?: number
+  maxMatches?: number
   // New extended fields
   destination?: string
   fileName?: string
@@ -42,6 +43,7 @@ interface UserDirectoryInfo {
   department?: string
   managerName?: string
   managerEmail?: string
+  gender?: string | null
   risk: number
   isDirectoryEnriched: boolean
 }
@@ -124,6 +126,7 @@ export default function InvestigationTimeline({
       const department = firstText(data.team, data.department)
       const managerName = firstText(data.manager_name, data.managerName)
       const managerEmail = firstText(data.manager_email, data.managerEmail)
+      const gender = firstText(data.gender)
       const directoryFlag = data.is_directory_enriched ?? data.isDirectoryEnriched
       const info = {
         name: fullName || buildNameFromEmail(userEmail),
@@ -132,6 +135,7 @@ export default function InvestigationTimeline({
         department: department || undefined,
         managerName: managerName || undefined,
         managerEmail: managerEmail || undefined,
+        gender: gender || null,
         risk: riskScore,
         isDirectoryEnriched: typeof directoryFlag === 'boolean'
           ? directoryFlag
@@ -199,6 +203,7 @@ export default function InvestigationTimeline({
         policy: incident.policy || incident.policy,
         riskLevel: incident.riskLevel || incident.risk_level,
         riskScore: incident.riskScore || incident.risk_score,
+        maxMatches: incident.maxMatches ?? incident.max_matches ?? 0,
         // New extended fields
         destination: incident.destination,
         fileName: incident.fileName || incident.file_name,

@@ -518,7 +518,8 @@ public class PlaybookEngine : IPlaybookEngine
                 {
                     FullName = FirstNonEmpty(profile.FullName, item.User.FullName),
                     Team = FirstNonEmpty(profile.Department, item.User.Team),
-                    ContactEmail = FirstNonEmpty(profile.Email, item.User.ContactEmail, item.User.UserEmail) ?? item.User.ContactEmail
+                    ContactEmail = FirstNonEmpty(profile.Email, item.User.ContactEmail, item.User.UserEmail) ?? item.User.ContactEmail,
+                    Gender = FirstNonEmpty(profile.Gender, item.User.Gender)
                 }
             });
         }

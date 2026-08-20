@@ -120,6 +120,7 @@ SELECT TOP (1)
     MDR.LastName AS last_name,
     MDR.AdSoyad AS full_name,
     MDR.CorporateEmail AS email,
+    MDR.Sex AS gender,
     MDR.OrganizationName AS department,
     MDR.OrganizationName AS organization_name,
     MDR.SupervisorUserCode AS supervisor_user_name,
@@ -280,7 +281,8 @@ WHERE
                 LastName = ldap.LastName,
                 FullName = ldap.FullName,
                 Email = ldap.Email,
-                Department = ldap.Department
+                Department = ldap.Department,
+                Gender = ldap.Gender
             };
         }
         catch (Exception ex)
@@ -328,6 +330,7 @@ WHERE
             FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName,
             Email = TryRead(reader, "email"),
             Department = TryRead(reader, "department"),
+            Gender = FirstNonEmpty(TryRead(reader, "gender"), TryRead(reader, "sex")),
             OrganizationName = TryRead(reader, "organization_name"),
             ManagerUserName = TryRead(reader, "manager_user_name"),
             ManagerFullName = TryRead(reader, "manager_full_name"),
@@ -771,6 +774,9 @@ WHERE
 
         return reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal)?.ToString();
     }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     private static string UserFacingExceptionMessage(Exception ex)
     {

@@ -20,6 +20,7 @@ export interface WeeklyFlagUser {
   full_name: string | null
   team: string | null
   contact_email: string
+  gender?: string | null
   trigger_count: number
   first_seen: string
   last_seen: string
@@ -35,7 +36,10 @@ export interface WeeklyFlagsResult {
 /** Placeholders supported in mail templates, filled from the flagged user. */
 export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{kullanici}}', desc: 'Kullanıcı e-postası' },
-  { token: '{{tam_ad}}', desc: 'Kullanıcı adı (username)' },
+  { token: '{{tam_ad}}', desc: 'LDAP adıyla hitap' },
+  { token: '{{ad_soyad}}', desc: 'LDAP ad soyad' },
+  { token: '{{full_name}}', desc: 'LDAP ad soyad' },
+  { token: '{{hitap}}', desc: 'Bey / Hanım' },
   { token: '{{takim}}', desc: 'Takım / departman' },
   { token: '{{tarih}}', desc: 'Ilgili olay kaydinin tarihi' },
   { token: '{{olay_tarihi}}', desc: 'Ilgili olay kaydinin tarih ve saati' },
@@ -51,6 +55,37 @@ export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{olaylar}}', desc: 'Örnek olay (incident) özeti' },
 ]
 
+function normalizeGender(value?: string | null): 'male' | 'female' | null {
+  const normalized = (value || '').trim().toLocaleLowerCase('tr-TR')
+  if (!normalized) return null
+  if (['m', 'male', 'man', 'erkek', 'e'].includes(normalized)) return 'male'
+  if (['f', 'female', 'woman', 'kadin', 'kadın', 'k'].includes(normalized)) return 'female'
+  return null
+}
+
+function firstNamePart(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return fullName.trim()
+  return parts.slice(0, -1).join(' ')
+}
+
+function salutationName(user: WeeklyFlagUser): string {
+  const fullName = (user.full_name || '').trim()
+  if (!fullName) return user.user_email
+
+  const gender = normalizeGender(user.gender)
+  if (gender === 'male') return `${firstNamePart(fullName)} Bey`
+  if (gender === 'female') return `${firstNamePart(fullName)} Hanım`
+  return fullName
+}
+
+function honorific(user: WeeklyFlagUser): string {
+  const gender = normalizeGender(user.gender)
+  if (gender === 'male') return 'Bey'
+  if (gender === 'female') return 'Hanım'
+  return ''
+}
+
 export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): string {
   if (!text) return ''
   if (!user) return text
@@ -59,9 +94,13 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
     .join('\n')
   const primaryIncident = (user.sample_incidents || [])[0]
   const incidentDate = primaryIncident?.timestamp ? new Date(primaryIncident.timestamp) : new Date(user.last_seen || Date.now())
+  const fullName = user.full_name || user.user_email
   return text
     .replaceAll('{{kullanici}}', user.contact_email || user.user_email)
-    .replaceAll('{{tam_ad}}', user.user_email)
+    .replaceAll('{{tam_ad}}', salutationName(user))
+    .replaceAll('{{ad_soyad}}', fullName)
+    .replaceAll('{{full_name}}', fullName)
+    .replaceAll('{{hitap}}', honorific(user))
     .replaceAll('{{takim}}', user.team || '-')
     .replaceAll('{{tarih}}', incidentDate.toLocaleDateString('tr-TR'))
     .replaceAll('{{olay_tarihi}}', incidentDate.toLocaleString('tr-TR'))

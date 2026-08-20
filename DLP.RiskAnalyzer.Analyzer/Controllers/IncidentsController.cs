@@ -201,6 +201,7 @@ public class IncidentsController : ControllerBase
                 Department = profile?.Department ?? incident?.Department,
                 ManagerName = profile?.ManagerFullName ?? incident?.FullName,
                 ManagerEmail = profile?.ManagerEmail,
+                Gender = profile?.Gender,
                 IsDirectoryEnriched = profile != null,
                 Source = profile == null ? "fallback" : "directory"
             });
@@ -306,6 +307,7 @@ public class IncidentsController : ControllerBase
         public string? Department { get; set; }
         public string? ManagerName { get; set; }
         public string? ManagerEmail { get; set; }
+        public string? Gender { get; set; }
         public bool IsDirectoryEnriched { get; set; }
         public string Source { get; set; } = "fallback";
     }
