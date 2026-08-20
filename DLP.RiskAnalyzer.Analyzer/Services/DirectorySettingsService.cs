@@ -463,7 +463,8 @@ public class DirectorySettingsService : IDirectorySettingsService
         var lastName = FirstAttribute(attributes, "sn");
         var fullName = FirstAttribute(attributes, "displayName");
         var department = FirstAttribute(attributes, "department", "company", "physicalDeliveryOfficeName", "title");
-        var gender = FirstAttribute(attributes, "gender", "sex", "personalTitle");
+        var gender = FirstAttribute(attributes, "gender", "sex", "personalTitle")
+            ?? InferGenderFromMemberOf(FirstAttribute(attributes, "memberOf"));
         if (string.IsNullOrWhiteSpace(fullName))
             fullName = string.Join(' ', new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
 
@@ -1232,7 +1233,8 @@ public class DirectorySettingsService : IDirectorySettingsService
             BerOctetString("title"),
             BerOctetString("gender"),
             BerOctetString("sex"),
-            BerOctetString("personalTitle"));
+            BerOctetString("personalTitle"),
+            BerOctetString("memberOf"));
 
         return BuildLdapUserSearchRequest(messageId, searchBase, normalizedUsername, originalUsername, domain, attributes);
     }
@@ -1317,7 +1319,56 @@ public class DirectorySettingsService : IDirectorySettingsService
     {
         return ParseLdapSearchResultAttributeValues(response)
             .Where(pair => pair.Value.Count > 0)
-            .ToDictionary(pair => pair.Key, pair => pair.Value[0], StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(pair => pair.Key, pair => string.Join("\n", pair.Value), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? InferGenderFromMemberOf(string? memberOf)
+    {
+        if (string.IsNullOrWhiteSpace(memberOf)) return null;
+
+        var hasFemale = false;
+        var hasMale = false;
+        foreach (var group in memberOf.Split(new[] { '\r', '\n', ';' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var normalized = NormalizeGenderSourceText(group);
+            if (normalized.Contains("bayan", StringComparison.Ordinal) ||
+                normalized.Contains("kadin", StringComparison.Ordinal))
+            {
+                hasFemale = true;
+            }
+
+            if (normalized.Contains("erkek", StringComparison.Ordinal) ||
+                Regex.IsMatch(normalized, @"(^|[^a-z])bay(lar)?([^a-z]|$)", RegexOptions.IgnoreCase))
+            {
+                hasMale = true;
+            }
+        }
+
+        return (hasMale, hasFemale) switch
+        {
+            (true, false) => "male",
+            (false, true) => "female",
+            _ => null
+        };
+    }
+
+    private static string NormalizeGenderSourceText(string value)
+    {
+        return value
+            .Trim()
+            .ToLowerInvariant()
+            .Replace('ı', 'i')
+            .Replace('İ', 'i')
+            .Replace('ş', 's')
+            .Replace('Ş', 's')
+            .Replace('ğ', 'g')
+            .Replace('Ğ', 'g')
+            .Replace('ü', 'u')
+            .Replace('Ü', 'u')
+            .Replace('ö', 'o')
+            .Replace('Ö', 'o')
+            .Replace('ç', 'c')
+            .Replace('Ç', 'c');
     }
 
     private static Dictionary<string, List<string>> ParseLdapSearchResultAttributeValues(byte[] response)

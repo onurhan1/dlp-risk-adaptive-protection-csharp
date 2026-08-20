@@ -58,7 +58,8 @@ export const TEMPLATE_PLACEHOLDERS = [
 function normalizeGender(value?: string | null): 'male' | 'female' | null {
   const normalized = (value || '').trim().toLocaleLowerCase('tr-TR')
   if (!normalized) return null
-  if (['m', 'male', 'man', 'erkek', 'e'].includes(normalized)) return 'male'
+  if (normalized === 'bayan') return 'female'
+  if (['m', 'male', 'man', 'erkek', 'bay', 'e'].includes(normalized)) return 'male'
   if (['f', 'female', 'woman', 'kadin', 'kadın', 'k'].includes(normalized)) return 'female'
   return null
 }

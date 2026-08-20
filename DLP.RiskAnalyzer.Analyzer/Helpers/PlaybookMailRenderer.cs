@@ -86,9 +86,10 @@ public static class PlaybookMailRenderer
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         var normalized = value.Trim().ToLowerInvariant();
+        if (normalized == "bayan") return "female";
         return normalized switch
         {
-            "m" or "male" or "man" or "erkek" or "e" => "male",
+            "m" or "male" or "man" or "erkek" or "bay" or "e" => "male",
             "f" or "female" or "woman" or "kadin" or "kadın" or "k" => "female",
             _ => null
         };
