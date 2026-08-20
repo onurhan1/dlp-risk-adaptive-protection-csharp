@@ -391,7 +391,7 @@ public class PlaybookEngine : IPlaybookEngine
                 {
                     new(
                         x.LastSeen,
-                        $"Max risk: {x.MaxScore:0.#} | Incident: {x.IncidentCount} | Block: {x.BlockCount} | Permit: {x.PermitCount}",
+                        $"Maksimum risk: {x.MaxScore:0.#} | Olay kaydı: {x.IncidentCount} | Block: {x.BlockCount} | Permit: {x.PermitCount}",
                         x.MaxMatches,
                         null,
                         "Risk")
@@ -428,7 +428,7 @@ public class PlaybookEngine : IPlaybookEngine
             {
                 var list = g.OrderByDescending(i => i.Timestamp).ToList();
                 var topSamples = list
-                    .OrderByDescending(i => i.MaxMatches)
+                    .OrderByDescending(EffectiveMaxMatches)
                     .ThenByDescending(i => i.Timestamp)
                     .Take(3)
                     .Select(ToWeeklyFlagIncident)
@@ -467,17 +467,19 @@ public class PlaybookEngine : IPlaybookEngine
 
         var incidents = await _context.Incidents
             .AsNoTracking()
-            .Where(i => i.Timestamp >= start && i.Timestamp <= end && i.MaxMatches >= threshold)
-            .OrderByDescending(i => i.MaxMatches)
-            .ThenByDescending(i => i.Timestamp)
+            .Where(i => i.Timestamp >= start && i.Timestamp <= end)
+            .OrderByDescending(i => i.Timestamp)
             .Take(MetricRowCap)
             .ToListAsync(ct);
 
         var items = incidents
+            .Where(i => EffectiveMaxMatches(i) >= threshold)
+            .OrderByDescending(EffectiveMaxMatches)
+            .ThenByDescending(i => i.Timestamp)
             .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
             .Select(g =>
             {
-                var list = g.OrderByDescending(i => i.MaxMatches).ThenByDescending(i => i.Timestamp).ToList();
+                var list = g.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).ToList();
                 var best = list.First();
                 return new PlaybookItem(
                     new WeeklyFlagUserDto(
@@ -485,7 +487,7 @@ public class PlaybookEngine : IPlaybookEngine
                         null,
                         FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
                         ResolveContactEmail(best),
-                        best.MaxMatches,
+                        EffectiveMaxMatches(best),
                         list.Min(i => i.Timestamp),
                         list.Max(i => i.Timestamp),
                         list.Take(3).Select(ToWeeklyFlagIncident).ToList()),
@@ -496,7 +498,7 @@ public class PlaybookEngine : IPlaybookEngine
             .ToList();
         items = await EnrichItemsAsync(items, ct);
 
-        context.SetMessage($"Max Match {threshold}+ olan tekil gönderimlerden {items.Count} kullanıcı listelendi");
+        context.SetMessage($"Maksimum eşleşme {threshold}+ olan tekil gönderimlerden {items.Count} kullanıcı listelendi");
         return items;
     }
 
@@ -562,11 +564,17 @@ public class PlaybookEngine : IPlaybookEngine
                 : string.IsNullOrWhiteSpace(incident.RuleName)
                     ? incident.Policy
                     : $"{incident.Policy} / {incident.RuleName}",
-            incident.MaxMatches,
+            EffectiveMaxMatches(incident),
             incident.Destination,
             string.IsNullOrWhiteSpace(incident.Action)
                 ? incident.Channel
                 : $"{incident.Channel ?? "-"} · {incident.Action}");
+
+    private static int EffectiveMaxMatches(Incident incident)
+    {
+        if (incident.MaxMatches > 0) return incident.MaxMatches;
+        return ViolationTriggerParser.ExtractMaxMatches(incident.ViolationTriggers);
+    }
 
     private static List<PlaybookItem> ApplyFilter(PlaybookNode node, List<PlaybookItem> input, SendContext context)
     {
@@ -680,7 +688,7 @@ public class PlaybookEngine : IPlaybookEngine
             (severities.Count == 0 || severities.Contains(i.Severity.ToString())) &&
             (!minSeverity.HasValue || i.Severity >= minSeverity.Value) &&
             (!minRiskScore.HasValue || (i.RiskScore ?? 0) >= minRiskScore.Value) &&
-            (!minMatches.HasValue || i.MaxMatches >= minMatches.Value) &&
+            (!minMatches.HasValue || EffectiveMaxMatches(i) >= minMatches.Value) &&
             Contains(i.Policy, policyContains) &&
             Contains(i.Team ?? i.Department, teamContains) &&
             Contains(i.Destination, destinationContains)
@@ -1082,16 +1090,16 @@ public class PlaybookEngine : IPlaybookEngine
             fixedRecipient = await ResolveAdminEmailAsync(ct);
 
         if (string.IsNullOrWhiteSpace(fixedRecipient))
-            throw new InvalidOperationException("Rapor maili icin alici bulunamadi. Node uzerinde alici girin veya Ayarlar > Yonetici E-postasi alanini doldurun.");
+            throw new InvalidOperationException("Rapor maili için alıcı bulunamadı. Node üzerinde alıcı girin veya Ayarlar > Yönetici E-postası alanını doldurun.");
         if (fixedRecipient.Contains('@') && !IsValidEmail(fixedRecipient))
-            throw new InvalidOperationException("Rapor alicisi gecerli degil.");
+            throw new InvalidOperationException("Rapor alıcısı geçerli değil.");
 
         var ccEmail = node.GetString("cc_email")?.Trim();
         if (string.IsNullOrWhiteSpace(ccEmail)) ccEmail = null;
         if (!string.IsNullOrWhiteSpace(ccEmail) && !IsValidEmail(ccEmail))
-            throw new InvalidOperationException("Rapor CC adresi gecerli degil.");
+            throw new InvalidOperationException("Rapor CC adresi geçerli değil.");
 
-        var now = DateTime.UtcNow;
+        var now = RadarTimeZone.NowTurkey();
         var title = node.GetString("title")?.Trim();
         if (string.IsNullOrWhiteSpace(title)) title = "Agentic Workflow Raporu";
         title = ApplyReportPlaceholders(title, payload, now);
@@ -1126,13 +1134,13 @@ public class PlaybookEngine : IPlaybookEngine
         if (!fixedRecipient.Contains('@'))
         {
             entry.Status = PlaybookMailStatus.Pending;
-            entry.ErrorMessage = "Alici adresinde @ yok; manuel gonderim icin bekliyor.";
+            entry.ErrorMessage = "Alıcı adresinde @ yok; manuel gönderim için bekliyor.";
             syncToQueries = true;
         }
         else if (await HasDuplicateMailAsync(fixedRecipient!, entry.Subject, entry.BodyHtml, null, ct))
         {
             entry.Status = PlaybookMailStatus.Skipped;
-            entry.ErrorMessage = "Ayni aliciya ayni rapor son 30 dakika icinde hazirlanmis veya gonderilmis.";
+            entry.ErrorMessage = "Aynı alıcıya aynı rapor son 30 dakika içinde hazırlanmış veya gönderilmiş.";
         }
         else if (!context.TryReserveRecipient(fixedRecipient!))
         {
@@ -1163,7 +1171,7 @@ public class PlaybookEngine : IPlaybookEngine
             else
             {
                 entry.Status = PlaybookMailStatus.Failed;
-                entry.ErrorMessage = "SMTP gonderimi basarisiz (yapilandirmayi ve loglari kontrol edin)";
+                entry.ErrorMessage = "SMTP gönderimi başarısız (yapılandırmayı ve logları kontrol edin)";
             }
         }
 
@@ -1173,10 +1181,10 @@ public class PlaybookEngine : IPlaybookEngine
 
         context.SetMessage(entry.Status switch
         {
-            PlaybookMailStatus.Pending => $"Rapor maili onay icin hazirlandi -> {fixedRecipient}",
-            PlaybookMailStatus.Sent => $"Rapor maili gonderildi -> {fixedRecipient}",
-            PlaybookMailStatus.Skipped => entry.ErrorMessage ?? "Rapor maili atlandi",
-            _ => "Rapor maili gonderilemedi"
+            PlaybookMailStatus.Pending => $"Rapor maili onay için hazırlandı -> {fixedRecipient}",
+            PlaybookMailStatus.Sent => $"Rapor maili gönderildi -> {fixedRecipient}",
+            PlaybookMailStatus.Skipped => entry.ErrorMessage ?? "Rapor maili atlandı",
+            _ => "Rapor maili gönderilemedi"
         });
 
         return payload;
@@ -1201,7 +1209,7 @@ public class PlaybookEngine : IPlaybookEngine
         {
             var metric = payload.Metric!;
             var breakdownRows = metric.Breakdown.Count == 0
-                ? "<tr><td colspan=\"2\" class=\"empty\">Kirilim yok.</td></tr>"
+                ? "<tr><td colspan=\"2\" class=\"empty\">Kırılım yok.</td></tr>"
                 : string.Join("", metric.Breakdown.Select(b =>
                     $"<tr><td>{Encode(b.Label)}</td><td>{b.Count:N0}</td></tr>"));
 
@@ -1213,20 +1221,20 @@ public class PlaybookEngine : IPlaybookEngine
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
       {introHtml}
-      <div class=""meta"">Uretim tarihi: {now:dd.MM.yyyy HH:mm}</div>
+      <div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})</div>
       <table>
         <tbody>
           <tr><th>Metrik</th><td>{Encode(metric.Label)}</td></tr>
-          <tr><th>Deger</th><td>{metric.Value:0.##}</td></tr>
-          <tr><th>Donem</th><td>{metric.WindowStart:dd.MM.yyyy} - {metric.WindowEnd:dd.MM.yyyy}</td></tr>
-          <tr><th>Toplam Incident</th><td>{metric.TotalIncidents:N0}</td></tr>
-          <tr><th>Kullanici Sayisi</th><td>{metric.UniqueUsers:N0}</td></tr>
+          <tr><th>Değer</th><td>{metric.Value:0.##}</td></tr>
+          <tr><th>Dönem</th><td>{metric.WindowStart:dd.MM.yyyy} - {metric.WindowEnd:dd.MM.yyyy}</td></tr>
+          <tr><th>Toplam Olay Kaydı</th><td>{metric.TotalIncidents:N0}</td></tr>
+          <tr><th>Kullanıcı Sayısı</th><td>{metric.UniqueUsers:N0}</td></tr>
           <tr><th>Filtreler</th><td>{Encode(metric.FilterSummary)}</td></tr>
         </tbody>
       </table>
-      <h2>Kirilim</h2>
+      <h2>Kırılım</h2>
       <table><thead><tr><th>Alan</th><th>Adet</th></tr></thead><tbody>{breakdownRows}</tbody></table>
-      <div class=""footer"">Bu rapor agentic workflow tarafindan servis hesabi uzerinden uretilmistir.</div>
+      <div class=""footer"">Bu rapor agentic workflow tarafından servis hesabı üzerinden üretilmiştir.</div>
     </div>
   </div>
 </body>
@@ -1234,7 +1242,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         var rows = payload.Items.Count == 0
-            ? "<tr><td colspan=\"9\" class=\"empty\">Kayit bulunamadi.</td></tr>"
+            ? "<tr><td colspan=\"9\" class=\"empty\">Kayıt bulunamadı.</td></tr>"
             : string.Join("", payload.Items.Select((item, index) =>
             {
                 var user = item.User;
@@ -1260,14 +1268,14 @@ public class PlaybookEngine : IPlaybookEngine
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
       {introHtml}
-      <div class=""meta"">Uretim tarihi: {now:dd.MM.yyyy HH:mm} - Satir: {payload.Items.Count:N0}</div>
+      <div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Satır sayısı: {payload.Items.Count:N0}</div>
       <table>
         <thead>
-          <tr><th>#</th><th>Kullanici</th><th>E-posta</th><th>Ekip</th><th>Kaynak</th><th>Olay Tarihi</th><th>Sinyal</th><th>Max Match</th><th>Ornek Policy / Rule</th></tr>
+          <tr><th>#</th><th>Kullanıcı</th><th>Kullanıcı Adı</th><th>Ekip</th><th>Kaynak</th><th>Olay Tarihi</th><th>Olay Kaydı Sayısı</th><th>Maksimum Eşleşme</th><th>Örnek Politika / Kural</th></tr>
         </thead>
         <tbody>{rows}</tbody>
       </table>
-      <div class=""footer"">Bu rapor agentic workflow tarafindan servis hesabi uzerinden uretilmistir.</div>
+      <div class=""footer"">Bu rapor agentic workflow tarafından servis hesabı üzerinden üretilmiştir.</div>
     </div>
   </div>
 </body>
@@ -1296,12 +1304,12 @@ public class PlaybookEngine : IPlaybookEngine
   <style>
     body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; background: #ffffff; }
     .wrap { width: 100%; max-width: none; margin: 0; padding: 0; }
-    .header { background: #eef4ff; color: #111827; padding: 10px 12px; border-bottom: 2px solid #bfdbfe; }
-    .content { background: #fff; padding: 14px 12px 16px; border: 0; }
+    .header { background: #eef4ff; color: #111827; padding: 14px 16px; border-bottom: 2px solid #bfdbfe; }
+    .content { background: #fff; padding: 18px 16px 20px; border: 0; }
     h1 { margin: 0; font-size: 20px; }
     h2 { margin: 18px 0 8px; font-size: 15px; }
-    .intro { color: #334155; margin: 0 0 8px; line-height: 1.45; }
-    .meta { color: #64748b; margin: 0 0 14px; line-height: 1.45; }
+    .intro { color: #334155; margin: 0 0 12px; line-height: 1.55; }
+    .meta { color: #475569; margin: 0 0 18px; line-height: 1.55; background: #f8fafc; border-left: 3px solid #bfdbfe; padding: 8px 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th { text-align: left; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; }
     td { border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
@@ -1311,10 +1319,10 @@ public class PlaybookEngine : IPlaybookEngine
 
     private static string ReportCriterionLabel(string? criterion) => criterion switch
     {
-        PlaybookNodeType.SourceHighRiskUsers => "Haftalik yuksek skorlu kullanici",
-        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yuksek Max Match gonderimi",
-        "top_permit_users" => "En cok Permit incident",
-        "top_block_users" => "En cok Block incident",
+        PlaybookNodeType.SourceHighRiskUsers => "Haftalık yüksek skorlu kullanıcı",
+        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yüksek maksimum eşleşmeli gönderim",
+        "top_permit_users" => "En çok Permit olay kaydı",
+        "top_block_users" => "En çok Block olay kaydı",
         WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),
         WeeklyFlagCriterion.HighVolume => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.HighVolume),
         WeeklyFlagCriterion.MassiveMatches => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.MassiveMatches),
@@ -2037,9 +2045,9 @@ public class PlaybookEngine : IPlaybookEngine
                 case PlaybookNodeType.SourceHighRiskUsers:
                 {
                     if (node.GetInt("days") is <= 0)
-                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' gün sayısı 0'dan büyük olmalı.");
                     if (node.GetInt("top_limit") is <= 0)
-                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan büyük olmalı.");
                     var minRisk = node.GetInt("min_risk_score");
                     if (minRisk is < 0 or > 100)
                         result.Errors.Add($"'{node.Label}' min risk skoru 0-100 arasinda olmali.");
@@ -2049,9 +2057,9 @@ public class PlaybookEngine : IPlaybookEngine
                 case PlaybookNodeType.SourceTopActionUsers:
                 {
                     if (node.GetInt("days") is <= 0)
-                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' gün sayısı 0'dan büyük olmalı.");
                     if (node.GetInt("top_limit") is <= 0)
-                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan büyük olmalı.");
                     var actionKind = node.GetString("action_kind") ?? "permit";
                     if (actionKind is not ("permit" or "block"))
                         result.Errors.Add($"'{node.Label}' aksiyon turu permit veya block olmali.");
@@ -2061,11 +2069,11 @@ public class PlaybookEngine : IPlaybookEngine
                 case PlaybookNodeType.SourceHighMaxMatchTransfers:
                 {
                     if (node.GetInt("days") is <= 0)
-                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' gün sayısı 0'dan büyük olmalı.");
                     if (node.GetInt("top_limit") is <= 0)
-                        result.Errors.Add($"'{node.Label}' top limit 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' top limit 0'dan büyük olmalı.");
                     if (node.GetInt("min_matches") is <= 0)
-                        result.Errors.Add($"'{node.Label}' Max Match alt siniri 0'dan buyuk olmali.");
+                        result.Errors.Add($"'{node.Label}' maksimum eşleşme alt sınırı 0'dan büyük olmalı.");
                     break;
                 }
 
@@ -2114,11 +2122,11 @@ public class PlaybookEngine : IPlaybookEngine
                 {
                     var fixedRecipient = node.GetString("fixed_recipient");
                     if (!string.IsNullOrWhiteSpace(fixedRecipient) && !IsValidEmail(fixedRecipient))
-                        result.Errors.Add($"'{node.Label}' rapor alicisi gecerli degil.");
+                        result.Errors.Add($"'{node.Label}' rapor alıcısı geçerli değil.");
 
                     var cc = node.GetString("cc_email");
                     if (!string.IsNullOrWhiteSpace(cc) && !IsValidEmail(cc))
-                        result.Errors.Add($"'{node.Label}' CC adresi gecerli degil.");
+                        result.Errors.Add($"'{node.Label}' CC adresi geçerli değil.");
                     break;
                 }
             }

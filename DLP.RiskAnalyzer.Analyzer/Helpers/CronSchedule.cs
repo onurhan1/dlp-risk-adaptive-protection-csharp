@@ -105,6 +105,56 @@ public static class CronSchedule
         return null;
     }
 
+    /// <summary>
+    /// First matching time strictly after <paramref name="fromUtc"/>, interpreting cron fields
+    /// in <paramref name="timeZone"/> and returning UTC for storage/comparison.
+    /// </summary>
+    public static DateTime? Next(string? expression, DateTime fromUtc, TimeZoneInfo timeZone)
+    {
+        if (!TryParse(expression, out var cron, out _) || cron == null) return null;
+
+        var normalizedUtc = fromUtc.Kind == DateTimeKind.Utc
+            ? fromUtc
+            : DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
+        var fromLocal = TimeZoneInfo.ConvertTimeFromUtc(normalizedUtc, timeZone);
+
+        var candidate = new DateTime(fromLocal.Year, fromLocal.Month, fromLocal.Day,
+                                     fromLocal.Hour, fromLocal.Minute, 0, DateTimeKind.Unspecified)
+                        .AddMinutes(1);
+        var limit = candidate.AddDays(MaxSearchDays);
+
+        while (candidate < limit)
+        {
+            if (!cron.Months.Contains(candidate.Month))
+            {
+                candidate = new DateTime(candidate.Year, candidate.Month, 1, 0, 0, 0, DateTimeKind.Unspecified).AddMonths(1);
+                continue;
+            }
+
+            if (!cron.MatchesDay(candidate))
+            {
+                candidate = candidate.Date.AddDays(1);
+                continue;
+            }
+
+            if (!cron.Hours.Contains(candidate.Hour))
+            {
+                candidate = candidate.Date.AddHours(candidate.Hour + 1);
+                continue;
+            }
+
+            if (!cron.Minutes.Contains(candidate.Minute))
+            {
+                candidate = candidate.AddMinutes(1);
+                continue;
+            }
+
+            return TimeZoneInfo.ConvertTimeToUtc(candidate, timeZone);
+        }
+
+        return null;
+    }
+
     /// <summary>Human-readable Turkish summary, used in the playbook list and node card.</summary>
     public static string Describe(string? expression)
     {
@@ -127,22 +177,22 @@ public static class CronSchedule
         if (dowField != "*" && domField == "*" && cron.Hours.Count == 1 && cron.Minutes.Count == 1)
         {
             var dayNames = cron.DaysOfWeek.OrderBy(d => d == 0 ? 7 : d).Select(TurkishDayName);
-            return $"Her {string.Join(", ", dayNames)} {TimeOfDay()}";
+            return $"Her {string.Join(", ", dayNames)} {TimeOfDay()} ({RadarTimeZone.DisplayName})";
         }
 
         // Daily: every day, fixed hour and minute.
         if (dowField == "*" && domField == "*" && cron.Hours.Count == 1 && cron.Minutes.Count == 1)
-            return $"Her gün {TimeOfDay()}";
+            return $"Her gün {TimeOfDay()} ({RadarTimeZone.DisplayName})";
 
         // Hourly: every hour at a fixed minute.
         if (dowField == "*" && domField == "*" && hourField == "*" && cron.Minutes.Count == 1)
-            return $"Her saat :{cron.Minutes.First():D2}";
+            return $"Her saat :{cron.Minutes.First():D2} ({RadarTimeZone.DisplayName})";
 
         // Every N minutes.
         if (minuteField.StartsWith("*/") && hourField == "*" && domField == "*" && dowField == "*")
             return $"Her {minuteField[2..]} dakikada";
 
-        return $"Cron: {cron.Raw}";
+        return $"Cron: {cron.Raw} ({RadarTimeZone.DisplayName})";
     }
 
     private static string TurkishDayName(int dayOfWeek) => dayOfWeek switch

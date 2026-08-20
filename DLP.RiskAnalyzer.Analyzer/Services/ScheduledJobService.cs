@@ -67,7 +67,7 @@ public class ScheduledJobService : IScheduledJobService
             HandlerPayloadJson = BuildPayload(request),
             CronExpression = request.CronExpression.Trim(),
             Enabled = request.Enabled,
-            NextRunAt = request.Enabled ? CronSchedule.Next(request.CronExpression, now) : null,
+            NextRunAt = request.Enabled ? CronSchedule.Next(request.CronExpression, now, RadarTimeZone.Turkey) : null,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -93,7 +93,7 @@ public class ScheduledJobService : IScheduledJobService
         job.HandlerPayloadJson = BuildPayload(request);
         job.CronExpression = request.CronExpression.Trim();
         job.Enabled = request.Enabled;
-        job.NextRunAt = request.Enabled ? CronSchedule.Next(request.CronExpression, now) : null;
+        job.NextRunAt = request.Enabled ? CronSchedule.Next(request.CronExpression, now, RadarTimeZone.Turkey) : null;
         job.UpdatedAt = now;
 
         await _context.SaveChangesAsync(ct);
@@ -108,7 +108,7 @@ public class ScheduledJobService : IScheduledJobService
                   ?? throw new KeyNotFoundException("Zamanlanmis is bulunamadi");
 
         job.Enabled = !job.Enabled;
-        job.NextRunAt = job.Enabled ? CronSchedule.Next(job.CronExpression, DateTime.UtcNow) : null;
+        job.NextRunAt = job.Enabled ? CronSchedule.Next(job.CronExpression, DateTime.UtcNow, RadarTimeZone.Turkey) : null;
         job.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(ct);
@@ -155,7 +155,7 @@ public class ScheduledJobService : IScheduledJobService
 
         foreach (var job in dueJobs)
         {
-            job.NextRunAt = CronSchedule.Next(job.CronExpression, now);
+            job.NextRunAt = CronSchedule.Next(job.CronExpression, now, RadarTimeZone.Turkey);
             job.UpdatedAt = now;
             await _context.SaveChangesAsync(ct);
             await ExecuteAsync(job, ScheduledJobTriggerType.Schedule, ct);

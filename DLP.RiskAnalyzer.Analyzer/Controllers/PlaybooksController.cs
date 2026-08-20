@@ -398,7 +398,7 @@ public class PlaybooksController : ControllerBase
         var cron = BuildCronFor(graph);
         playbook.ScheduleCron = cron;
         playbook.Enabled = enabled && !string.IsNullOrWhiteSpace(cron);
-        playbook.NextRunAt = playbook.Enabled ? CronSchedule.Next(cron, nowUtc) : null;
+        playbook.NextRunAt = playbook.Enabled ? CronSchedule.Next(cron, nowUtc, RadarTimeZone.Turkey) : null;
     }
 
     private static string? BuildCronFor(PlaybookGraph graph)
@@ -472,11 +472,11 @@ public class PlaybooksController : ControllerBase
     private static string? CriterionLabel(string? criterion) => criterion switch
     {
         null => null,
-        PlaybookNodeType.SourceIncidentMetric => "Incident metriği (kurum toplamı)",
-        PlaybookNodeType.SourceHighRiskUsers => "Haftalik yuksek skorlu kullanicilar",
-        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yuksek Max Match transferleri",
-        "top_permit_users" => "En cok Permit incident uretenler",
-        "top_block_users" => "En cok Block incident uretenler",
+        PlaybookNodeType.SourceIncidentMetric => "Olay kaydı metriği (kurum toplamı)",
+        PlaybookNodeType.SourceHighRiskUsers => "Haftalık yüksek skorlu kullanıcılar",
+        PlaybookNodeType.SourceHighMaxMatchTransfers => "Yüksek maksimum eşleşmeli transferler",
+        "top_permit_users" => "En çok Permit olay kaydı üretenler",
+        "top_block_users" => "En çok Block olay kaydı üretenler",
         _ => WeeklyFlagCriterion.Label(criterion)
     };
 

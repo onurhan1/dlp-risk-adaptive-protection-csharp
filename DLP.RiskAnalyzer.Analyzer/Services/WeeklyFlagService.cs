@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
 
@@ -130,7 +131,7 @@ public class WeeklyFlagService : IWeeklyFlagService
         int run = 0;
         for (int i = 0; i < sorted.Count; i++)
         {
-            if (sorted[i].MaxMatches >= MassiveMatchesThreshold)
+            if (EffectiveMaxMatches(sorted[i]) >= MassiveMatchesThreshold)
             {
                 run++;
                 if (run >= MassiveMatchesConsecutive)
@@ -172,7 +173,7 @@ public class WeeklyFlagService : IWeeklyFlagService
         var contact = newestFirst.Select(i => i.EmailAddress).FirstOrDefault(e => !string.IsNullOrWhiteSpace(e)) ?? userEmail;
         var samples = newestFirst
             .Take(MaxSampleIncidents)
-            .Select(i => new WeeklyFlagIncidentDto(i.Timestamp, i.Policy, i.MaxMatches, i.Destination, i.Channel))
+            .Select(i => new WeeklyFlagIncidentDto(i.Timestamp, i.Policy, EffectiveMaxMatches(i), i.Destination, i.Channel))
             .ToList();
 
         return new WeeklyFlagUserDto(
@@ -212,4 +213,10 @@ public class WeeklyFlagService : IWeeklyFlagService
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static int EffectiveMaxMatches(Incident incident)
+    {
+        if (incident.MaxMatches > 0) return incident.MaxMatches;
+        return ViolationTriggerParser.ExtractMaxMatches(incident.ViolationTriggers);
+    }
 }

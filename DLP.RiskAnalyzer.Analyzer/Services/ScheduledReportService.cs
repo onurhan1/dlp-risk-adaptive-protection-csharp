@@ -1,4 +1,5 @@
 using System.Net;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +7,8 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 public class ScheduledReportService : IScheduledReportService
 {
+    private const int ReportRowCap = 500_000;
+
     private readonly AnalyzerDbContext _context;
     private readonly IEmailService _emailService;
     private readonly IExternalUserDirectoryService _externalUserDirectory;
@@ -27,11 +30,13 @@ public class ScheduledReportService : IScheduledReportService
     {
         var recipient = await ResolveRecipientAsync(options.RecipientEmail, ct);
         if (string.IsNullOrWhiteSpace(recipient))
-            throw new InvalidOperationException("Rapor alicisi bulunamadi. Job uzerinde alici girin veya Ayarlar > Yonetici E-postasi alanini doldurun.");
+            throw new InvalidOperationException("Rapor alıcısı bulunamadı. Job üzerinde alıcı girin veya Ayarlar > Yönetici E-postası alanını doldurun.");
 
-        var now = DateTime.UtcNow;
-        var start = now.Date.AddDays(-Math.Max(1, options.LookbackDays));
-        var end = now;
+        var nowTurkey = RadarTimeZone.NowTurkey();
+        var startTurkey = nowTurkey.Date.AddDays(-Math.Max(1, options.LookbackDays));
+        var endTurkey = nowTurkey;
+        var start = startTurkey;
+        var end = endTurkey;
 
         var report = reportType switch
         {
@@ -42,12 +47,12 @@ public class ScheduledReportService : IScheduledReportService
             _ => throw new InvalidOperationException($"Desteklenmeyen rapor tipi: {reportType}")
         };
 
-        var subject = $"{report.Title} - {start:dd.MM.yyyy} / {end:dd.MM.yyyy}";
-        var body = BuildMailHtml(report.Title, report.Description, start, end, report.Headers, report.Rows);
+        var subject = $"{report.Title} - {startTurkey:dd.MM.yyyy} / {endTurkey:dd.MM.yyyy}";
+        var body = BuildMailHtml(report.Title, report.Description, startTurkey, endTurkey, report.Headers, report.Rows);
         var sent = await _emailService.SendEmailAsync(recipient, subject, body, isHtml: true, ccEmail: options.CcEmail);
 
         if (!sent)
-            throw new InvalidOperationException("Rapor maili gonderilemedi. SMTP ayarlarini ve servis hesabi bilgilerini kontrol edin.");
+            throw new InvalidOperationException("Rapor maili gönderilemedi. SMTP ayarlarını ve servis hesabı bilgilerini kontrol edin.");
 
         _logger.LogInformation("Scheduled report {ReportType} sent to {Recipient} ({Rows} rows)", reportType, recipient, report.Rows.Count);
 
@@ -58,7 +63,7 @@ public class ScheduledReportService : IScheduledReportService
             RecipientEmail = recipient,
             Subject = subject,
             RowCount = report.Rows.Count,
-            Message = $"{report.Title} gonderildi ({report.Rows.Count} kayit)"
+            Message = $"{report.Title} gönderildi ({report.Rows.Count} kayıt)"
         };
     }
 
@@ -106,9 +111,9 @@ public class ScheduledReportService : IScheduledReportService
         }
 
         return new ScheduledReportData(
-            "Haftalik Incelenmesi Tavsiye Edilen Yuksek Skorlu Kullanicilar",
-            $"Haftalik bazda maksimum risk skoru {options.MinRiskScore} ve uzeri olan kullanicilar.",
-            ["Kullanici", "E-posta", "Ekip", "Max Skor", "Ort. Skor", "Incident", "Block", "Permit", "Max Match"],
+            "Haftalık İncelenmesi Tavsiye Edilen Yüksek Skorlu Kullanıcılar",
+            $"Haftalık bazda maksimum risk skoru {options.MinRiskScore} ve üzeri olan kullanıcılar.",
+            ["Kullanıcı", "E-posta", "Ekip", "Maksimum Skor", "Ortalama Skor", "Olay Kaydı", "Block", "Permit", "Maksimum Eşleşme"],
             reportRows);
     }
 
@@ -122,78 +127,75 @@ public class ScheduledReportService : IScheduledReportService
             ? query.Where(i => i.Action != null && (i.Action.ToUpper().Contains("PERMIT") || i.Action.ToUpper().Contains("AUTHORIZE") || i.Action.ToUpper().Contains("ALLOW")))
             : query.Where(i => i.Action != null && i.Action.ToUpper().Contains("BLOCK"));
 
-        var rawRows = await query
-            .GroupBy(i => i.UserEmail)
+        var incidents = await query
+            .OrderByDescending(i => i.Timestamp)
+            .Take(ReportRowCap)
+            .ToListAsync(ct);
+
+        var rows = incidents
+            .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
             .Select(g => new
             {
                 UserEmail = g.Key,
                 Team = g.Max(i => i.Team ?? i.Department),
                 Count = g.Count(),
                 MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
-                MaxMatches = g.Max(i => i.MaxMatches),
+                MaxMatches = g.Max(EffectiveMaxMatches),
                 LastIncident = g.Max(i => i.Timestamp)
             })
             .OrderByDescending(x => x.Count)
             .ThenByDescending(x => x.MaxMatches)
             .Take(Math.Clamp(options.TopLimit, 1, 200))
-            .ToListAsync(ct);
-        var rows = rawRows
             .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Count, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
             .ToList();
 
         var title = actionKind == "permit"
-            ? "Haftalik En Cok Permit Incident Ureten Kullanicilar"
-            : "Haftalik En Cok Block Incident Ureten Kullanicilar";
+            ? "Haftalık En Çok Permit Olay Kaydı Üreten Kullanıcılar"
+            : "Haftalık En Çok Block Olay Kaydı Üreten Kullanıcılar";
 
         return new ScheduledReportData(
             title,
-            "Haftalik incident adedine gore kullanici siralamasi.",
-            ["Kullanici", "E-posta", "Ekip", "Incident", "Max Risk", "Max Match", "Son Olay"],
+            "Haftalık olay kaydı adedine göre kullanıcı sıralaması.",
+            ["Kullanıcı", "E-posta", "Ekip", "Olay Kaydı Sayısı", "Maksimum Risk", "Maksimum Eşleşme", "Son Olay"],
             await BuildTopActionReportRowsAsync(rows, ct));
     }
 
     private async Task<ScheduledReportData> BuildHighMaxMatchTransfersAsync(DateTime start, DateTime end, ScheduledReportOptions options, CancellationToken ct)
     {
-        var rawRows = await _context.Incidents
+        var incidents = await _context.Incidents
             .AsNoTracking()
-            .Where(i => i.Timestamp >= start && i.Timestamp <= end && i.MaxMatches >= options.MaxMatchThreshold)
-            .OrderByDescending(i => i.MaxMatches)
-            .ThenByDescending(i => i.Timestamp)
-            .Take(Math.Clamp(options.TopLimit, 1, 200))
+            .Where(i => i.Timestamp >= start && i.Timestamp <= end)
+            .OrderByDescending(i => i.Timestamp)
+            .Take(ReportRowCap)
+            .ToListAsync(ct);
+        var rows = incidents
             .Select(i => new
             {
-                i.Timestamp,
-                i.UserEmail,
-                Team = i.Team ?? i.Department,
-                i.Action,
-                i.Channel,
-                i.Policy,
-                i.RuleName,
-                i.Destination,
-                i.FileName,
-                i.MaxMatches,
-                RiskScore = i.RiskScore ?? 0
+                Incident = i,
+                MaxMatches = EffectiveMaxMatches(i)
             })
-            .ToListAsync(ct);
-        var rows = rawRows
+            .Where(x => x.MaxMatches >= options.MaxMatchThreshold)
+            .OrderByDescending(x => x.MaxMatches)
+            .ThenByDescending(x => x.Incident.Timestamp)
+            .Take(Math.Clamp(options.TopLimit, 1, 200))
             .Select(x => new HighMaxMatchReportRow(
-                x.Timestamp,
-                x.UserEmail,
-                x.Team,
-                x.Action,
-                x.Channel,
-                x.Policy,
-                x.RuleName,
-                x.Destination,
-                x.FileName,
+                x.Incident.Timestamp,
+                x.Incident.UserEmail,
+                x.Incident.Team ?? x.Incident.Department,
+                x.Incident.Action,
+                x.Incident.Channel,
+                x.Incident.Policy,
+                x.Incident.RuleName,
+                x.Incident.Destination,
+                x.Incident.FileName,
                 x.MaxMatches,
-                x.RiskScore))
+                x.Incident.RiskScore ?? 0))
             .ToList();
 
         return new ScheduledReportData(
-            "Haftalik Tek Seferde Yuksek Max Match Veri Gonderimleri",
-            $"Max Match alt siniri {options.MaxMatchThreshold} ve uzeri olan tekil olaylar.",
-            ["Tarih", "Kullanici", "E-posta", "Aksiyon", "Kanal", "Policy / Rule", "Hedef", "Dosya", "Max Match", "Risk"],
+            "Haftalık Tek Seferde Yüksek Eşleşmeli Veri Gönderimleri",
+            $"Maksimum eşleşme alt sınırı {options.MaxMatchThreshold} ve üzeri olan tekil olaylar.",
+            ["Tarih", "Kullanıcı", "E-posta", "Aksiyon", "Kanal", "Politika / Kural", "Hedef", "Dosya", "Maksimum Eşleşme", "Risk"],
             await BuildHighMaxMatchReportRowsAsync(rows, ct));
     }
 
@@ -268,7 +270,7 @@ public class ScheduledReportService : IScheduledReportService
     {
         var headerCells = string.Join("", headers.Select(h => $"<th>{Encode(h)}</th>"));
         var bodyRows = rows.Count == 0
-            ? $"<tr><td colspan=\"{headers.Count}\" class=\"empty\">Kayit bulunamadi.</td></tr>"
+            ? $"<tr><td colspan=\"{headers.Count}\" class=\"empty\">Kayıt bulunamadı.</td></tr>"
             : string.Join("", rows.Select(row => $"<tr>{string.Join("", row.Select(cell => $"<td>{Encode(cell)}</td>"))}</tr>"));
         var introHtml = string.IsNullOrWhiteSpace(description)
             ? string.Empty
@@ -280,11 +282,11 @@ public class ScheduledReportService : IScheduledReportService
   <style>
     body {{ margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #ffffff; }}
     .wrap {{ width: 100%; max-width: none; margin: 0; padding: 0; }}
-    .header {{ background: #eef4ff; color: #111827; padding: 10px 12px; border-bottom: 2px solid #bfdbfe; }}
-    .content {{ background: #fff; padding: 14px 12px 16px; border: 0; }}
+    .header {{ background: #eef4ff; color: #111827; padding: 14px 16px; border-bottom: 2px solid #bfdbfe; }}
+    .content {{ background: #fff; padding: 18px 16px 20px; border: 0; }}
     h1 {{ margin: 0; font-size: 20px; }}
-    .intro {{ color: #334155; margin: 0 0 8px; line-height: 1.45; }}
-    .meta {{ color: #64748b; margin: 0 0 14px; line-height: 1.45; }}
+    .intro {{ color: #334155; margin: 0 0 12px; line-height: 1.55; }}
+    .meta {{ color: #475569; margin: 0 0 18px; line-height: 1.55; background: #f8fafc; border-left: 3px solid #bfdbfe; padding: 8px 10px; }}
     table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
     th {{ text-align: left; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; }}
     td {{ border-bottom: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }}
@@ -297,12 +299,12 @@ public class ScheduledReportService : IScheduledReportService
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
       {introHtml}
-      <div class=""meta"">Donem: {start:dd.MM.yyyy HH:mm} - {end:dd.MM.yyyy HH:mm}</div>
+      <div class=""meta"">Dönem: {start:dd.MM.yyyy HH:mm} - {end:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})</div>
       <table>
         <thead><tr>{headerCells}</tr></thead>
         <tbody>{bodyRows}</tbody>
       </table>
-      <div class=""footer"">Bu rapor DLP Risk Radar zamanlanmis isleri tarafindan otomatik uretilmistir.</div>
+      <div class=""footer"">Bu rapor DLP Risk Radar zamanlanmış işleri tarafından otomatik üretilmiştir.</div>
     </div>
   </div>
 </body>
@@ -314,6 +316,12 @@ public class ScheduledReportService : IScheduledReportService
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static int EffectiveMaxMatches(DLP.RiskAnalyzer.Shared.Models.Incident incident)
+    {
+        if (incident.MaxMatches > 0) return incident.MaxMatches;
+        return ViolationTriggerParser.ExtractMaxMatches(incident.ViolationTriggers);
+    }
 
     private static string Encode(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }

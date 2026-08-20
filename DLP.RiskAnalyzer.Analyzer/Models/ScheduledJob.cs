@@ -60,10 +60,10 @@ public static class ScheduledJobHandlerKeys
         [PolicyExceptionSync] = "Policy Exception Sync",
         [IsolationForest] = "Isolation Forest Analizi",
         [LogCleanup] = "Log Cleanup",
-        [WeeklyHighScoreUsersReport] = "Rapor: Haftalik Yuksek Skorlu Kullanicilar",
-        [TopPermitUsersReport] = "Rapor: En Cok Permit Incident Uretenler",
-        [TopBlockUsersReport] = "Rapor: En Cok Block Incident Uretenler",
-        [HighMaxMatchTransfersReport] = "Rapor: Yuksek Max Match Veri Gonderimleri"
+        [WeeklyHighScoreUsersReport] = "Rapor: Haftalık Yüksek Skorlu Kullanıcılar",
+        [TopPermitUsersReport] = "Rapor: En Çok Permit Olay Kaydı Üretenler",
+        [TopBlockUsersReport] = "Rapor: En Çok Block Olay Kaydı Üretenler",
+        [HighMaxMatchTransfersReport] = "Rapor: Yüksek Maksimum Eşleşmeli Veri Gönderimleri"
     };
 
     public static bool IsReport(string handlerKey) =>

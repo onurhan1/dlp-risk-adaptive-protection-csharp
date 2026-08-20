@@ -79,7 +79,7 @@ public class PlaybookSchedulerService : BackgroundService
         {
             // Advance the schedule before running: if the run throws, the playbook still moves on
             // to its next slot instead of retrying in a tight loop every 60 seconds.
-            playbook.NextRunAt = CronSchedule.Next(playbook.ScheduleCron, now);
+            playbook.NextRunAt = CronSchedule.Next(playbook.ScheduleCron, now, RadarTimeZone.Turkey);
             playbook.UpdatedAt = now;
 
             if (playbook.NextRunAt == null)
