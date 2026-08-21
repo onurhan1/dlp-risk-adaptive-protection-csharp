@@ -1263,6 +1263,8 @@ public class PlaybookEngine : IPlaybookEngine
 </html>";
         }
 
+        var isTopAction = payload.Items.Any(i => i.SourceCriterion == PlaybookNodeType.SourceTopActionUsers);
+
         var rows = payload.Items.Count == 0
             ? "<tr><td colspan=\"9\" class=\"empty\">Kayıt bulunamadı.</td></tr>"
             : string.Join("", payload.Items.Select((item, index) =>
@@ -1270,13 +1272,18 @@ public class PlaybookEngine : IPlaybookEngine
                 var user = item.User;
                 var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
                 
+                var dateTd = isTopAction ? "" : $"<td>{(sample == null ? "-" : sample.Timestamp.ToString("dd.MM.yyyy HH:mm"))}</td>";
+                var maxMatchTd = isTopAction ? "" : $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>";
+
                 return "<tr>" +
                        $"<td>{index + 1}</td>" +
                        $"<td>{Encode(user.FullName ?? user.UserEmail)}</td>" +
                        $"<td>{Encode(user.UserEmail)}</td>" +
                        $"<td>{Encode(user.Team ?? "-")}</td>" +
                        $"<td>{Encode(ReportCriterionLabel(item.SourceCriterion))}</td>" +
+                       dateTd +
                        $"<td>{user.TriggerCount.ToString("N0")}</td>" +
+                       maxMatchTd +
                        $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
                        "</tr>";
             }));
@@ -1292,7 +1299,13 @@ public class PlaybookEngine : IPlaybookEngine
       <div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Satır sayısı: {payload.Items.Count:N0}</div>
       <table>
         <thead>
-          <tr><th>#</th><th>Kullanıcı</th><th>Kullanıcı Adı</th><th>Ekip</th><th>Kaynak</th><th>Olay Kaydı Sayısı</th><th>Örnek Politika / Kural</th></tr>
+          <tr>
+            <th>#</th><th>Kullanıcı</th><th>Kullanıcı Adı</th><th>Ekip</th><th>Kaynak</th>
+            {(isTopAction ? "" : "<th>Olay Tarihi</th>")}
+            <th>Olay Kaydı Sayısı</th>
+            {(isTopAction ? "" : "<th>Maksimum Eşleşme</th>")}
+            <th>Örnek Politika / Kural</th>
+          </tr>
         </thead>
         <tbody>{rows}</tbody>
       </table>
