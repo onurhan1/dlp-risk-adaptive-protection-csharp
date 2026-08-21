@@ -427,13 +427,28 @@ public class PlaybookEngine : IPlaybookEngine
             .Select(g =>
             {
                 var list = g.OrderByDescending(i => i.Timestamp).ToList();
-                var topSamples = list
-                    .OrderByDescending(EffectiveMaxMatches)
-                    .ThenByDescending(i => i.Timestamp)
-                    .Take(3)
-                    .Select(ToWeeklyFlagIncident)
+                var top5Policies = list
+                    .Select(i => ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(i.ViolationTriggers))
+                    .Where(p => p.PolicyName != null)
+                    .GroupBy(p => $"{p.PolicyName} / {p.RuleName}")
+                    .OrderByDescending(grp => grp.Count())
+                    .Take(5)
+                    .Select(grp => $"{grp.Key} ({grp.Count()})")
                     .ToList();
+                
+                var top5Str = top5Policies.Count > 0 ? string.Join(", ", top5Policies) : "-";
                 var best = list.First();
+                
+                var topSamples = new List<WeeklyFlagIncidentDto> 
+                {
+                    new(
+                        best.Timestamp,
+                        top5Str,
+                        EffectiveMaxMatches(best),
+                        best.Destination,
+                        best.Channel
+                    )
+                };
 
                 return new PlaybookItem(
                     new WeeklyFlagUserDto(
@@ -1262,8 +1277,7 @@ public class PlaybookEngine : IPlaybookEngine
                        $"<td>{Encode(user.Team ?? "-")}</td>" +
                        $"<td>{Encode(ReportCriterionLabel(item.SourceCriterion))}</td>" +
                        $"<td>{(sample == null ? "-" : sample.Timestamp.ToString("dd.MM.yyyy HH:mm"))}</td>" +
-                       $"<td>{Encode(sample?.Destination ?? "-")}</td>" +
-                       $"<td>{sample?.MaxMatches.ToString("N0") ?? "-"}</td>" +
+                       $"<td>{user.TriggerCount.ToString("N0")}</td>" +
                        $"<td>{Encode(sample?.Policy ?? "-")}</td>" +
                        "</tr>";
             }));
@@ -1279,7 +1293,7 @@ public class PlaybookEngine : IPlaybookEngine
       <div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Satır sayısı: {payload.Items.Count:N0}</div>
       <table>
         <thead>
-          <tr><th>#</th><th>Kullanıcı</th><th>Kullanıcı Adı</th><th>Ekip</th><th>Kaynak</th><th>Olay Tarihi</th><th>Hedef</th><th>Maksimum Eşleşme</th><th>Örnek Politika / Kural</th></tr>
+          <tr><th>#</th><th>Kullanıcı</th><th>Kullanıcı Adı</th><th>Ekip</th><th>Kaynak</th><th>Olay Tarihi</th><th>Olay Kaydı Sayısı</th><th>Örnek Politika / Kural</th></tr>
         </thead>
         <tbody>{rows}</tbody>
       </table>
