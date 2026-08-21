@@ -49,26 +49,11 @@ public static class ScheduledJobHandlerKeys
     public const string PolicyExceptionSync = "policy_exception_sync";
     public const string IsolationForest = "isolation_forest";
     public const string LogCleanup = "log_cleanup";
-    public const string WeeklyHighScoreUsersReport = "report_weekly_high_score_users";
-    public const string TopPermitUsersReport = "report_top_permit_users";
-    public const string TopBlockUsersReport = "report_top_block_users";
-    public const string HighMaxMatchTransfersReport = "report_high_max_match_transfers";
-
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
     {
         [ReleasedIncidentSync] = "Released Incident Sync",
         [PolicyExceptionSync] = "Policy Exception Sync",
         [IsolationForest] = "Isolation Forest Analizi",
-        [LogCleanup] = "Log Cleanup",
-        [WeeklyHighScoreUsersReport] = "Rapor: Haftalık Yüksek Skorlu Kullanıcılar",
-        [TopPermitUsersReport] = "Rapor: En Çok Permit Olay Kaydı Üretenler",
-        [TopBlockUsersReport] = "Rapor: En Çok Block Olay Kaydı Üretenler",
-        [HighMaxMatchTransfersReport] = "Rapor: Yüksek Maksimum Eşleşmeli Veri Gönderimleri"
+        [LogCleanup] = "Log Cleanup"
     };
-
-    public static bool IsReport(string handlerKey) =>
-        handlerKey == WeeklyHighScoreUsersReport ||
-        handlerKey == TopPermitUsersReport ||
-        handlerKey == TopBlockUsersReport ||
-        handlerKey == HighMaxMatchTransfersReport;
 }

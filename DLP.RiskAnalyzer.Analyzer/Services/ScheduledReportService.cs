@@ -141,16 +141,16 @@ public class ScheduledReportService : IScheduledReportService
                 {
                     UserEmail = g.Key,
                     Team = g.Max(i => i.Team ?? i.Department),
-                    Destination = topIncident.Destination,
+                    Count = g.Count(),
                     MaxRiskScore = g.Max(i => i.RiskScore ?? 0),
                     MaxMatches = EffectiveMaxMatches(topIncident),
                     LastIncident = g.Max(i => i.Timestamp)
                 };
             })
-            .OrderByDescending(x => x.MaxMatches)
-            .ThenByDescending(x => x.LastIncident)
+            .OrderByDescending(x => x.Count)
+            .ThenByDescending(x => x.MaxMatches)
             .Take(Math.Clamp(options.TopLimit, 1, 200))
-            .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Destination, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
+            .Select(x => new TopActionReportRow(x.UserEmail, x.Team, x.Count, x.MaxRiskScore, x.MaxMatches, x.LastIncident))
             .ToList();
 
         var title = actionKind == "permit"
@@ -159,8 +159,8 @@ public class ScheduledReportService : IScheduledReportService
 
         return new ScheduledReportData(
             title,
-            "Haftalık maksimum eşleşme sayısına göre kullanıcı sıralaması.",
-            ["Kullanıcı", "E-posta", "Ekip", "Hedef", "Maksimum Risk", "Maksimum Eşleşme", "Son Olay"],
+            "Haftalık olay kaydı adedine göre kullanıcı sıralaması.",
+            ["Kullanıcı", "E-posta", "Ekip", "Olay Kaydı Sayısı", "Maksimum Risk", "Maksimum Eşleşme", "Son Olay"],
             await BuildTopActionReportRowsAsync(rows, ct));
     }
 
@@ -214,7 +214,7 @@ public class ScheduledReportService : IScheduledReportService
                 DisplayName(user.FullName, x.UserEmail),
                 user.Email,
                 user.Team ?? "-",
-                x.Destination ?? "-",
+                x.Count.ToString("N0"),
                 x.MaxRiskScore.ToString("N0"),
                 x.MaxMatches.ToString("N0"),
                 x.LastIncident.ToString("dd.MM.yyyy HH:mm")
@@ -334,7 +334,7 @@ public class ScheduledReportService : IScheduledReportService
 public record TopActionReportRow(
     string UserEmail,
     string? Team,
-    string? Destination,
+    int Count,
     int MaxRiskScore,
     int MaxMatches,
     DateTime LastIncident);

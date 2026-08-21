@@ -250,24 +250,7 @@ public class ScheduledJobService : IScheduledJobService
                 return ($"Log cleanup tamamlandi: {auditDeleted + activityDeleted} kayit silindi",
                     JsonSerializer.Serialize(new { retention_days = retentionDays, audit_deleted = auditDeleted, activity_deleted = activityDeleted }));
             }
-            case ScheduledJobHandlerKeys.WeeklyHighScoreUsersReport:
-            case ScheduledJobHandlerKeys.TopPermitUsersReport:
-            case ScheduledJobHandlerKeys.TopBlockUsersReport:
-            case ScheduledJobHandlerKeys.HighMaxMatchTransfersReport:
-            {
-                var reportService = _serviceProvider.GetRequiredService<IScheduledReportService>();
-                var options = new ScheduledReportOptions
-                {
-                    RecipientEmail = GetString(payload, "recipient_email"),
-                    CcEmail = GetString(payload, "cc_email"),
-                    LookbackDays = GetInt(payload, "lookback_days", 7),
-                    TopLimit = GetInt(payload, "top_limit", 25),
-                    MinRiskScore = GetInt(payload, "min_risk_score", 80),
-                    MaxMatchThreshold = GetInt(payload, "max_match_threshold", 300)
-                };
-                var result = await reportService.SendReportAsync(job.HandlerKey, options, ct);
-                return (result.Message, JsonSerializer.Serialize(result));
-            }
+
             default:
                 throw new InvalidOperationException($"Desteklenmeyen is tipi: {job.HandlerKey}");
         }
