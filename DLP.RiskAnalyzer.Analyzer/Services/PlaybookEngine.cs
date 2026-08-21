@@ -1263,7 +1263,7 @@ public class PlaybookEngine : IPlaybookEngine
 </html>";
         }
 
-        var isTopAction = payload.Items.Any(i => i.SourceCriterion == PlaybookNodeType.SourceTopActionUsers);
+        var isTopAction = payload.Items.Any(i => i.SourceCriterion == "top_block_users" || i.SourceCriterion == "top_permit_users");
 
         var rows = payload.Items.Count == 0
             ? "<tr><td colspan=\"9\" class=\"empty\">Kayıt bulunamadı.</td></tr>"
