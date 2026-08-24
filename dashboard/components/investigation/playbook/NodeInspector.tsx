@@ -456,6 +456,28 @@ function IncidentUsersForm({ node, setConfig }: { node: PlaybookNode; setConfig:
         <label style={labelStyle}>Politika / Kural Icerir</label>
         <input style={inputStyle} value={node.config.policy_contains ?? ''} onChange={e => setConfig({ policy_contains: e.target.value })} placeholder="Kaynak Kod" />
       </div>
+      <div>
+        <label style={labelStyle}>Kanal</label>
+        <input style={inputStyle} value={listToText(node.config.channels)} onChange={e => setConfig({ channels: textToList(e.target.value) })} placeholder="Email, Endpoint" />
+      </div>
+      <div>
+        <label style={labelStyle}>Veri Tipi</label>
+        <input style={inputStyle} value={listToText(node.config.data_types)} onChange={e => setConfig({ data_types: textToList(e.target.value) })} placeholder="PII, PCI" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div>
+          <label style={labelStyle}>Minimum Siddet</label>
+          <input type="number" min={1} max={5} style={inputStyle} value={node.config.min_severity ?? ''} onChange={e => setConfig({ min_severity: e.target.value === '' ? null : Number(e.target.value) })} />
+        </div>
+        <div>
+          <label style={labelStyle}>Siddetler</label>
+          <input style={inputStyle} value={listToText(node.config.severities)} onChange={e => setConfig({ severities: textToList(e.target.value) })} placeholder="3, 4, 5" />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Ekip / Departman Icerir</label>
+        <input style={inputStyle} value={node.config.team_contains ?? ''} onChange={e => setConfig({ team_contains: e.target.value })} placeholder="Bilgi Guvenligi" />
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div>
           <label style={labelStyle}>Sirala</label>
@@ -706,7 +728,8 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
   const reportColumns = [
     ['full_name', 'Kullanici'], ['user_name', 'Kullanici adi'], ['team', 'Ekip'], ['source', 'Kaynak'],
     ['incident_count', 'Olay kaydi sayisi'], ['max_risk_score', 'Maksimum risk skoru'], ['max_matches', 'Maksimum eslesme'], ['last_seen', 'Son olay tarihi'],
-    ['policy', 'Ornek politika / kural'], ['destination', 'Hedef'], ['channel', 'Kanal'],
+    ['policy', 'Ornek politika / kural'], ['destination', 'Hedef'], ['channel', 'Kanal'], ['action', 'Aksiyon'],
+    ['data_type', 'Veri tipi'], ['severity', 'Siddet'],
   ] as const
   const toggleColumn = (column: string) => setConfig({
     columns: columns.includes(column) ? columns.filter((value: string) => value !== column) : [...columns, column],

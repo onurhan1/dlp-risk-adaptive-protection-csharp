@@ -486,8 +486,13 @@ public class PlaybookEngine : IPlaybookEngine
         var minRiskScore = node.GetInt("min_risk_score");
         var minMatches = node.GetInt("min_matches");
         var actions = node.GetStringList("actions");
+        var channels = node.GetStringList("channels");
+        var dataTypes = node.GetStringList("data_types");
+        var severities = node.GetStringList("severities");
+        var minSeverity = node.GetInt("min_severity");
         var destinationContains = node.GetString("destination_contains")?.Trim();
         var policyContains = node.GetString("policy_contains")?.Trim();
+        var teamContains = node.GetString("team_contains")?.Trim();
         var sortBy = node.GetString("sort_by") ?? "incident_count";
         var sortDirection = node.GetString("sort_direction") ?? "desc";
         var end = DateTime.UtcNow;
@@ -502,10 +507,15 @@ public class PlaybookEngine : IPlaybookEngine
 
         var filtered = incidents.Where(i =>
             (actions.Count == 0 || actions.Any(a => ActionMatches(i.Action, a))) &&
+            MatchesAny(channels, i.Channel) &&
+            MatchesAny(dataTypes, i.DataType) &&
+            (severities.Count == 0 || severities.Contains(i.Severity.ToString())) &&
+            (!minSeverity.HasValue || i.Severity >= minSeverity.Value) &&
             (!minRiskScore.HasValue || (i.RiskScore ?? 0) >= minRiskScore.Value) &&
             (!minMatches.HasValue || EffectiveMaxMatches(i) >= minMatches.Value) &&
             Contains(i.Destination, destinationContains) &&
-            (Contains(i.Policy, policyContains) || Contains(i.RuleName, policyContains))).ToList();
+            (Contains(i.Policy, policyContains) || Contains(i.RuleName, policyContains)) &&
+            Contains(i.Team ?? i.Department, teamContains)).ToList();
 
         var items = filtered
             .Where(i => !string.IsNullOrWhiteSpace(i.UserEmail) && !i.UserEmail.Equals("unknown", StringComparison.OrdinalIgnoreCase))
@@ -693,7 +703,10 @@ public class PlaybookEngine : IPlaybookEngine
         EffectiveMaxMatches(incident),
         incident.Destination,
         incident.Channel,
-        incident.RiskScore);
+        incident.RiskScore,
+        incident.Action,
+        incident.DataType,
+        incident.Severity);
 
     private static int EffectiveMaxMatches(Incident incident)
     {
@@ -1460,7 +1473,7 @@ public class PlaybookEngine : IPlaybookEngine
 </html>";
     }
 
-    private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel";
+    private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel" or "action" or "data_type" or "severity";
 
     private static string ReportColumnLabel(string column) => column switch
     {
@@ -1475,6 +1488,9 @@ public class PlaybookEngine : IPlaybookEngine
         "policy" => "\u00d6rnek Politika / Kural",
         "destination" => "Hedef",
         "channel" => "Kanal",
+        "action" => "Aksiyon",
+        "data_type" => "Veri Tipi",
+        "severity" => "Siddet",
         _ => column
     };
 
@@ -1491,6 +1507,9 @@ public class PlaybookEngine : IPlaybookEngine
         "policy" => Encode(sample?.Policy ?? "-"),
         "destination" => Encode(sample?.Destination ?? "-"),
         "channel" => Encode(sample?.Channel ?? "-"),
+        "action" => Encode(sample?.Action ?? "-"),
+        "data_type" => Encode(sample?.DataType ?? "-"),
+        "severity" => sample?.Severity?.ToString() ?? "-",
         _ => "-"
     };
 

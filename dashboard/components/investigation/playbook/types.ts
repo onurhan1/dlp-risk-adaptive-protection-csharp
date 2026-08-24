@@ -324,10 +324,15 @@ export const NODE_CATALOG: NodeDefinition[] = [
     defaultConfig: {
       days: 7,
       actions: [],
+      channels: [],
+      data_types: [],
+      severities: [],
+      min_severity: null,
       min_risk_score: null,
       min_matches: null,
       destination_contains: '',
       policy_contains: '',
+      team_contains: '',
       sort_by: 'incident_count',
       sort_direction: 'desc',
       top_limit: 25,
@@ -1004,6 +1009,6 @@ export function createHighMaxMatchTransfersReportGraph(): PlaybookGraph {
     top_limit: 25,
   }, {
     intro: 'Bu rapor tek seferde 300 ve uzeri Max Match degeriyle veri gonderimi yapan kullanicilari listeler.',
-    columns: ['full_name', 'user_name', 'team', 'max_matches', 'last_seen', 'destination', 'channel', 'policy'],
+    columns: ['full_name', 'user_name', 'team', 'max_matches', 'action', 'last_seen', 'destination', 'channel', 'policy'],
   })
 }
