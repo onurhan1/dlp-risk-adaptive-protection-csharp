@@ -255,6 +255,9 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourceIncidentMetric:
                 return SingleOutput(PlaybookPayload.OfMetric(await LoadIncidentMetricAsync(node, context)));
 
+            case PlaybookNodeType.SourceIncidentUsers:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadIncidentUsersAsync(node, context, ct)));
+
             case PlaybookNodeType.SourceHighRiskUsers:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadHighRiskUsersAsync(node, context, ct)));
 
@@ -472,6 +475,83 @@ public class PlaybookEngine : IPlaybookEngine
         return items;
     }
 
+    /// <summary>
+    /// Configurable incident aggregation source. Report definitions belong to the playbook graph:
+    /// action, thresholds and ordering are node settings rather than named backend reports.
+    /// </summary>
+    private async Task<List<PlaybookItem>> LoadIncidentUsersAsync(PlaybookNode node, SendContext context, CancellationToken ct)
+    {
+        var days = Math.Max(1, node.GetInt("days") ?? 7);
+        var topLimit = Math.Clamp(node.GetInt("top_limit") ?? 25, 1, 200);
+        var minRiskScore = node.GetInt("min_risk_score");
+        var minMatches = node.GetInt("min_matches");
+        var actions = node.GetStringList("actions");
+        var destinationContains = node.GetString("destination_contains")?.Trim();
+        var policyContains = node.GetString("policy_contains")?.Trim();
+        var sortBy = node.GetString("sort_by") ?? "incident_count";
+        var sortDirection = node.GetString("sort_direction") ?? "desc";
+        var end = DateTime.UtcNow;
+        var start = end.Date.AddDays(-days);
+
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .Where(i => i.Timestamp >= start && i.Timestamp <= end)
+            .OrderByDescending(i => i.Timestamp)
+            .Take(MetricRowCap)
+            .ToListAsync(ct);
+
+        var filtered = incidents.Where(i =>
+            (actions.Count == 0 || actions.Any(a => ActionMatches(i.Action, a))) &&
+            (!minRiskScore.HasValue || (i.RiskScore ?? 0) >= minRiskScore.Value) &&
+            (!minMatches.HasValue || EffectiveMaxMatches(i) >= minMatches.Value) &&
+            Contains(i.Destination, destinationContains) &&
+            (Contains(i.Policy, policyContains) || Contains(i.RuleName, policyContains))).ToList();
+
+        var items = filtered
+            .Where(i => !string.IsNullOrWhiteSpace(i.UserEmail) && !i.UserEmail.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(i => i.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var list = g.OrderByDescending(i => i.Timestamp).ToList();
+                var best = list.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).First();
+                var sampleIncidents = sortBy == "max_risk_score"
+                    ? list.OrderByDescending(i => i.RiskScore ?? 0).ThenByDescending(i => i.Timestamp).Take(3)
+                    : list.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).Take(3);
+                return new PlaybookItem(
+                    new WeeklyFlagUserDto(
+                        g.Key,
+                        null,
+                        FirstNonEmpty(list.Select(i => i.Team ?? i.Department)),
+                        ResolveContactEmail(best),
+                        list.Count,
+                        list.Min(i => i.Timestamp),
+                        list.Max(i => i.Timestamp),
+                        sampleIncidents.Select(ToWorkflowReportIncident).ToList()),
+                    PlaybookNodeType.SourceIncidentUsers);
+            })
+            .ToList();
+
+        items = sortBy switch
+        {
+            "max_risk_score" => sortDirection == "asc"
+                ? items.OrderBy(i => MaxRiskScoreOf(i.User)).ToList()
+                : items.OrderByDescending(i => MaxRiskScoreOf(i.User)).ToList(),
+            "max_matches" => sortDirection == "asc"
+                ? items.OrderBy(i => MaxMatchesOf(i.User)).ToList()
+                : items.OrderByDescending(i => MaxMatchesOf(i.User)).ToList(),
+            "last_seen" => sortDirection == "asc"
+                ? items.OrderBy(i => i.User.LastSeen).ToList()
+                : items.OrderByDescending(i => i.User.LastSeen).ToList(),
+            _ => sortDirection == "asc"
+                ? items.OrderBy(i => i.User.TriggerCount).ToList()
+                : items.OrderByDescending(i => i.User.TriggerCount).ToList()
+        };
+
+        items = await EnrichItemsAsync(items.Take(topLimit).ToList(), ct);
+        context.SetMessage($"Son {days} günde {filtered.Count} olay kaydından {items.Count} kullanıcı listelendi");
+        return items;
+    }
+
     private async Task<List<PlaybookItem>> LoadHighMaxMatchTransfersAsync(PlaybookNode node, SendContext context, CancellationToken ct)
     {
         var days = Math.Max(1, node.GetInt("days") ?? 7);
@@ -557,6 +637,21 @@ public class PlaybookEngine : IPlaybookEngine
         return action.Trim().ToUpperInvariant().Contains("BLOCK");
     }
 
+    private static bool ActionMatches(string? action, string requested) => requested.Trim().ToLowerInvariant() switch
+    {
+        "permit" => IsPermitAction(action),
+        "block" => IsBlockAction(action),
+        _ => !string.IsNullOrWhiteSpace(action) && action.Equals(requested, StringComparison.OrdinalIgnoreCase)
+    };
+
+    private static int MaxMatchesOf(WeeklyFlagUserDto user) => user.SampleIncidents?.Count > 0
+        ? user.SampleIncidents.Max(i => i.MaxMatches)
+        : 0;
+
+    private static int MaxRiskScoreOf(WeeklyFlagUserDto user) => user.SampleIncidents?.Count > 0
+        ? user.SampleIncidents.Max(i => i.RiskScore ?? 0)
+        : 0;
+
     private static string ResolveContactEmail(Incident incident)
     {
         if (!string.IsNullOrWhiteSpace(incident.EmailAddress)) return incident.EmailAddress.Trim();
@@ -591,6 +686,14 @@ public class PlaybookEngine : IPlaybookEngine
                 ? incident.Channel
                 : $"{incident.Channel ?? "-"} · {incident.Action}");
     }
+
+    private static WeeklyFlagIncidentDto ToWorkflowReportIncident(Incident incident) => new(
+        incident.Timestamp,
+        FirstNonEmpty(incident.Policy, incident.RuleName),
+        EffectiveMaxMatches(incident),
+        incident.Destination,
+        incident.Channel,
+        incident.RiskScore);
 
     private static int EffectiveMaxMatches(Incident incident)
     {
@@ -1131,7 +1234,7 @@ public class PlaybookEngine : IPlaybookEngine
         subject = ApplyReportPlaceholders(subject, payload, now);
 
         var intro = ApplyReportPlaceholders(node.GetString("intro"), payload, now);
-        var bodyHtml = BuildReportMailHtml(title, intro, payload, now);
+        var bodyHtml = BuildConfiguredReportMailHtml(title, intro, payload, now, node.GetStringList("columns"));
 
         var entry = new PlaybookMailLog
         {
@@ -1315,6 +1418,81 @@ public class PlaybookEngine : IPlaybookEngine
 </body>
 </html>";
     }
+
+    private static string BuildConfiguredReportMailHtml(string title, string? intro, PlaybookPayload payload, DateTime now, List<string> columns)
+    {
+        if (payload.HasMetric || columns.Count == 0)
+            return BuildReportMailHtml(title, intro, payload, now);
+
+        var selectedColumns = columns.Where(IsReportColumn).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (selectedColumns.Count == 0)
+            return BuildReportMailHtml(title, intro, payload, now);
+
+        var introHtml = string.IsNullOrWhiteSpace(intro)
+            ? string.Empty
+            : $@"<div class=""intro"">{Encode(intro)}</div>";
+        var headerCells = string.Join("", selectedColumns.Select(column => $"<th>{ReportColumnLabel(column)}</th>"));
+        var rows = payload.Items.Count == 0
+            ? $"<tr><td colspan=\"{selectedColumns.Count + 1}\" class=\"empty\">Kay\u0131t bulunamad\u0131.</td></tr>"
+            : string.Join("", payload.Items.Select((item, index) =>
+            {
+                var user = item.User;
+                var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
+                var cells = string.Join("", selectedColumns.Select(column =>
+                    $"<td>{ReportColumnValue(column, user, item.SourceCriterion, sample)}</td>"));
+                return $"<tr><td>{index + 1}</td>{cells}</tr>";
+            }));
+
+        return $@"
+<html>
+<head>{ReportMailStyles()}</head>
+<body>
+  <div class=""wrap"">
+    <div class=""header""><h1>{Encode(title)}</h1></div>
+    <div class=""content"">
+      {introHtml}
+      <div class=""meta"">\u00dcretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Sat\u0131r say\u0131s\u0131: {payload.Items.Count:N0}</div>
+      <table><thead><tr><th>#</th>{headerCells}</tr></thead><tbody>{rows}</tbody></table>
+      <div class=""footer"">Bu rapor agentic workflow taraf\u0131ndan servis hesab\u0131 \u00fczerinden \u00fcretilmi\u015ftir.</div>
+    </div>
+  </div>
+</body>
+</html>";
+    }
+
+    private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel";
+
+    private static string ReportColumnLabel(string column) => column switch
+    {
+        "full_name" => "Kullan\u0131c\u0131",
+        "user_name" => "Kullan\u0131c\u0131 Ad\u0131",
+        "team" => "Ekip",
+        "source" => "Kaynak",
+        "incident_count" => "Olay Kayd\u0131 Say\u0131s\u0131",
+        "max_risk_score" => "Maksimum Risk Skoru",
+        "max_matches" => "Maksimum E\u015fle\u015fme",
+        "last_seen" => "Son Olay Tarihi",
+        "policy" => "\u00d6rnek Politika / Kural",
+        "destination" => "Hedef",
+        "channel" => "Kanal",
+        _ => column
+    };
+
+    private static string ReportColumnValue(string column, WeeklyFlagUserDto user, string source, WeeklyFlagIncidentDto? sample) => column switch
+    {
+        "full_name" => Encode(user.FullName ?? user.UserEmail),
+        "user_name" => Encode(user.UserEmail),
+        "team" => Encode(user.Team ?? "-"),
+        "source" => Encode(ReportCriterionLabel(source)),
+        "incident_count" => user.TriggerCount.ToString("N0"),
+        "max_risk_score" => sample?.RiskScore?.ToString("N0") ?? "-",
+        "max_matches" => sample?.MaxMatches.ToString("N0") ?? "-",
+        "last_seen" => user.LastSeen.ToString("dd.MM.yyyy HH:mm"),
+        "policy" => Encode(sample?.Policy ?? "-"),
+        "destination" => Encode(sample?.Destination ?? "-"),
+        "channel" => Encode(sample?.Channel ?? "-"),
+        _ => "-"
+    };
 
     private static string ApplyReportPlaceholders(string? text, PlaybookPayload payload, DateTime now)
     {

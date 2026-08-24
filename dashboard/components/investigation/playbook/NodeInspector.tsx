@@ -137,6 +137,7 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, o
         )}
         {node.type === 'source.weeklyFlags' && <WeeklyFlagsForm node={node} setConfig={setConfig} />}
         {node.type === 'source.incidentMetric' && <IncidentMetricForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.incidentUsers' && <IncidentUsersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.highRiskUsers' && <HighRiskUsersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.topActionUsers' && <TopActionUsersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.highMaxMatchTransfers' && <HighMaxMatchTransfersForm node={node} setConfig={setConfig} />}
@@ -419,6 +420,64 @@ function HighMaxMatchTransfersForm({ node, setConfig }: { node: PlaybookNode; se
   )
 }
 
+function IncidentUsersForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <TwoNumberFields
+        leftLabel="Geriye Donuk Gun"
+        leftValue={node.config.days ?? 7}
+        leftMin={1}
+        leftOnChange={value => setConfig({ days: value })}
+        rightLabel="Top Limit"
+        rightValue={node.config.top_limit ?? 25}
+        rightMin={1}
+        rightOnChange={value => setConfig({ top_limit: value })}
+      />
+      <div>
+        <label style={labelStyle}>Aksiyonlar</label>
+        <input style={inputStyle} value={listToText(node.config.actions)} onChange={e => setConfig({ actions: textToList(e.target.value) })} placeholder="permit, block" />
+        <p style={hintStyle}>Bos birakilirsa tum aksiyonlar gelir. Permit ve block genel aksiyon gruplaridir.</p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div>
+          <label style={labelStyle}>Minimum Risk Skoru</label>
+          <input type="number" min={0} style={inputStyle} value={node.config.min_risk_score ?? ''} onChange={e => setConfig({ min_risk_score: e.target.value === '' ? null : Number(e.target.value) })} />
+        </div>
+        <div>
+          <label style={labelStyle}>Minimum Max Match</label>
+          <input type="number" min={0} style={inputStyle} value={node.config.min_matches ?? ''} onChange={e => setConfig({ min_matches: e.target.value === '' ? null : Number(e.target.value) })} />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Hedef Icerir</label>
+        <input style={inputStyle} value={node.config.destination_contains ?? ''} onChange={e => setConfig({ destination_contains: e.target.value })} placeholder="github.com" />
+      </div>
+      <div>
+        <label style={labelStyle}>Politika / Kural Icerir</label>
+        <input style={inputStyle} value={node.config.policy_contains ?? ''} onChange={e => setConfig({ policy_contains: e.target.value })} placeholder="Kaynak Kod" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div>
+          <label style={labelStyle}>Sirala</label>
+          <select style={inputStyle} value={node.config.sort_by ?? 'incident_count'} onChange={e => setConfig({ sort_by: e.target.value })}>
+            <option value="incident_count">Olay kaydi sayisi</option>
+            <option value="max_risk_score">Maksimum risk skoru</option>
+            <option value="max_matches">Maksimum eslesme</option>
+            <option value="last_seen">Son olay tarihi</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Yon</label>
+          <select style={inputStyle} value={node.config.sort_direction ?? 'desc'} onChange={e => setConfig({ sort_direction: e.target.value })}>
+            <option value="desc">Azalan</option>
+            <option value="asc">Artan</option>
+          </select>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function IncidentMetricForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
   const filterCount = countMetricFilters(node.config || {})
 
@@ -643,6 +702,15 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
 function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
+  const columns = Array.isArray(node.config.columns) ? node.config.columns : []
+  const reportColumns = [
+    ['full_name', 'Kullanici'], ['user_name', 'Kullanici adi'], ['team', 'Ekip'], ['source', 'Kaynak'],
+    ['incident_count', 'Olay kaydi sayisi'], ['max_risk_score', 'Maksimum risk skoru'], ['max_matches', 'Maksimum eslesme'], ['last_seen', 'Son olay tarihi'],
+    ['policy', 'Ornek politika / kural'], ['destination', 'Hedef'], ['channel', 'Kanal'],
+  ] as const
+  const toggleColumn = (column: string) => setConfig({
+    columns: columns.includes(column) ? columns.filter((value: string) => value !== column) : [...columns, column],
+  })
 
   return (
     <>
@@ -702,6 +770,19 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
           onChange={e => setConfig({ intro: e.target.value })}
           placeholder="Raporun basina eklenecek kisa aciklama"
         />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Rapor Sutunlari</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 10px' }}>
+          {reportColumns.map(([value, label]) => (
+            <label key={value} style={{ display: 'flex', gap: '7px', alignItems: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <input type="checkbox" checked={columns.includes(value)} onChange={() => toggleColumn(value)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <p style={hintStyle}>Sutun secilmezse mevcut varsayilan tablo duzeni kullanilir.</p>
       </div>
 
       <p style={hintStyle}>

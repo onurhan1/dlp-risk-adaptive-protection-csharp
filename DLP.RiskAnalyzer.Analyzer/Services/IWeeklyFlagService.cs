@@ -5,7 +5,8 @@ public record WeeklyFlagIncidentDto(
     string? Policy,
     int MaxMatches,
     string? Destination,
-    string? Channel);
+    string? Channel,
+    int? RiskScore = null);
 
 public record WeeklyFlagUserDto(
     string UserEmail,

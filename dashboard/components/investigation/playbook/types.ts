@@ -23,6 +23,7 @@ export type PlaybookNodeType =
   | 'trigger.manual'
   | 'source.weeklyFlags'
   | 'source.incidentMetric'
+  | 'source.incidentUsers'
   | 'source.highRiskUsers'
   | 'source.topActionUsers'
   | 'source.highMaxMatchTransfers'
@@ -309,6 +310,27 @@ export const NODE_CATALOG: NodeDefinition[] = [
       policy_contains: '',
       team_contains: '',
       destination_contains: '',
+    },
+  },
+  {
+    type: 'source.incidentUsers',
+    label: 'Olay Kaydi Kullanicilari',
+    description: 'Filtre, esik ve siralamaya gore olay kaydi ureten kullanicilari dinamik olarak raporlar.',
+    icon: Users,
+    color: 'linear-gradient(135deg, #2563eb, #0f766e)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {
+      days: 7,
+      actions: [],
+      min_risk_score: null,
+      min_matches: null,
+      destination_contains: '',
+      policy_contains: '',
+      sort_by: 'incident_count',
+      sort_direction: 'desc',
+      top_limit: 25,
     },
   },
   {
@@ -935,41 +957,53 @@ function createReportGraph(
 }
 
 export function createHighRiskUsersReportGraph(): PlaybookGraph {
-  return createReportGraph('source.highRiskUsers', 'Haftalik Yuksek Skorlu Kullanicilar', {
+  return createReportGraph('source.incidentUsers', 'Haftalik Yuksek Skorlu Kullanicilar', {
     days: 7,
     min_risk_score: 80,
+    sort_by: 'max_risk_score',
+    sort_direction: 'desc',
     top_limit: 25,
   }, {
     intro: 'Bu rapor haftalik bazda risk skoru 80 ve uzeri olan, incelenmesi tavsiye edilen kullanicilari listeler.',
+    columns: ['full_name', 'user_name', 'team', 'max_risk_score', 'incident_count', 'max_matches', 'last_seen', 'policy'],
   })
 }
 
 export function createTopPermitUsersReportGraph(): PlaybookGraph {
-  return createReportGraph('source.topActionUsers', 'Haftalik En Cok Permit Incident Uretenler', {
+  return createReportGraph('source.incidentUsers', 'Haftalik En Cok Permit Incident Uretenler', {
     days: 7,
-    action_kind: 'permit',
+    actions: ['permit'],
+    sort_by: 'incident_count',
+    sort_direction: 'desc',
     top_limit: 25,
   }, {
     intro: 'Bu rapor haftalik bazda en cok Permit aksiyonlu DLP incident ureten kullanicilari ve ornek olaylarini listeler.',
+    columns: ['full_name', 'user_name', 'team', 'incident_count', 'max_matches', 'last_seen', 'policy'],
   })
 }
 
 export function createTopBlockUsersReportGraph(): PlaybookGraph {
-  return createReportGraph('source.topActionUsers', 'Haftalik En Cok Block Incident Uretenler', {
+  return createReportGraph('source.incidentUsers', 'Haftalik En Cok Block Incident Uretenler', {
     days: 7,
-    action_kind: 'block',
+    actions: ['block'],
+    sort_by: 'incident_count',
+    sort_direction: 'desc',
     top_limit: 25,
   }, {
     intro: 'Bu rapor haftalik bazda en cok Block aksiyonlu DLP incident ureten kullanicilari ve ornek olaylarini listeler.',
+    columns: ['full_name', 'user_name', 'team', 'incident_count', 'max_matches', 'last_seen', 'policy'],
   })
 }
 
 export function createHighMaxMatchTransfersReportGraph(): PlaybookGraph {
-  return createReportGraph('source.highMaxMatchTransfers', 'Haftalik Yuksek Max Match Veri Gonderimleri', {
+  return createReportGraph('source.incidentUsers', 'Haftalik Yuksek Max Match Veri Gonderimleri', {
     days: 7,
     min_matches: 300,
+    sort_by: 'max_matches',
+    sort_direction: 'desc',
     top_limit: 25,
   }, {
     intro: 'Bu rapor tek seferde 300 ve uzeri Max Match degeriyle veri gonderimi yapan kullanicilari listeler.',
+    columns: ['full_name', 'user_name', 'team', 'max_matches', 'last_seen', 'destination', 'channel', 'policy'],
   })
 }

@@ -54,6 +54,7 @@ public static class PlaybookNodeType
     public const string TriggerManual = "trigger.manual";
     public const string SourceWeeklyFlags = "source.weeklyFlags";
     public const string SourceIncidentMetric = "source.incidentMetric";
+    public const string SourceIncidentUsers = "source.incidentUsers";
     public const string SourceHighRiskUsers = "source.highRiskUsers";
     public const string SourceTopActionUsers = "source.topActionUsers";
     public const string SourceHighMaxMatchTransfers = "source.highMaxMatchTransfers";
@@ -66,7 +67,7 @@ public static class PlaybookNodeType
 
     public static readonly string[] All =
     {
-        TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric,
+        TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
         SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers,
         TransformFilter, LogicCondition, LogicMetricThreshold,
         ActionSendMail, ActionSendReportMail, OutputReport
