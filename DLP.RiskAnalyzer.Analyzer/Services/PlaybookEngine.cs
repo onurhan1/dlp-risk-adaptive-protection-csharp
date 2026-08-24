@@ -449,7 +449,11 @@ public class PlaybookEngine : IPlaybookEngine
                         top5Str,
                         EffectiveMaxMatches(best),
                         best.Destination,
-                        best.Channel
+                        best.Channel,
+                        best.RiskScore,
+                        FirstNonEmpty(best.Action, best.RemediationAction),
+                        best.DataType,
+                        best.Severity
                     )
                 };
 
@@ -595,7 +599,7 @@ public class PlaybookEngine : IPlaybookEngine
                         EffectiveMaxMatches(best),
                         list.Min(i => i.Timestamp),
                         list.Max(i => i.Timestamp),
-                        list.Take(3).Select(ToWeeklyFlagIncident).ToList()),
+                        list.Take(3).Select(ToWorkflowReportIncident).ToList()),
                     PlaybookNodeType.SourceHighMaxMatchTransfers);
             })
             .OrderByDescending(i => i.User.TriggerCount)
@@ -704,7 +708,7 @@ public class PlaybookEngine : IPlaybookEngine
         incident.Destination,
         incident.Channel,
         incident.RiskScore,
-        incident.Action,
+        FirstNonEmpty(incident.Action, incident.RemediationAction),
         incident.DataType,
         incident.Severity);
 

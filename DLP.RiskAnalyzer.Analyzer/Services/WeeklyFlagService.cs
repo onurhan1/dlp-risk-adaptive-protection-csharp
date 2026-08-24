@@ -183,7 +183,16 @@ public class WeeklyFlagService : IWeeklyFlagService
                         : string.IsNullOrWhiteSpace(i.RuleName)
                             ? i.Policy
                             : $"{i.Policy} / {i.RuleName}");
-                return new WeeklyFlagIncidentDto(i.Timestamp, policyStr, EffectiveMaxMatches(i), i.Destination, i.Channel);
+                return new WeeklyFlagIncidentDto(
+                    i.Timestamp,
+                    policyStr,
+                    EffectiveMaxMatches(i),
+                    i.Destination,
+                    i.Channel,
+                    i.RiskScore,
+                    FirstNonEmpty(i.Action, i.RemediationAction),
+                    i.DataType,
+                    i.Severity);
             })
             .ToList();
 

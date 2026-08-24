@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import { Plus, Settings2, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Info, Plus, Settings2, Trash2 } from 'lucide-react'
 import { MailTemplate, TEMPLATE_PLACEHOLDERS, applyPlaceholders, toEmailHtml } from '../types'
 import type { WeeklyFlagUser } from '../types'
 import {
@@ -726,14 +726,34 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
   const ccEmail = String(node.config.cc_email ?? '').trim()
   const columns = Array.isArray(node.config.columns) ? node.config.columns : []
   const reportColumns = [
-    ['full_name', 'Kullanici'], ['user_name', 'Kullanici adi'], ['team', 'Ekip'], ['source', 'Kaynak'],
-    ['incident_count', 'Olay kaydi sayisi'], ['max_risk_score', 'Maksimum risk skoru'], ['max_matches', 'Maksimum eslesme'], ['last_seen', 'Son olay tarihi'],
-    ['policy', 'Ornek politika / kural'], ['destination', 'Hedef'], ['channel', 'Kanal'], ['action', 'Aksiyon'],
-    ['data_type', 'Veri tipi'], ['severity', 'Siddet'],
+    ['full_name', 'Kullanici', 'LDAP bilgisindeki ad ve soyad; bulunamazsa kullanici adi.'],
+    ['user_name', 'Kullanici adi', 'Olay kaydindaki kullanici adi veya e-posta degeri.'],
+    ['team', 'Ekip', 'LDAP veya olay kaydindan gelen ekip/departman bilgisi.'],
+    ['source', 'Kaynak', 'Kullanicinin rapora dahil olma kaynagi veya kriteri.'],
+    ['incident_count', 'Olay kaydi sayisi', 'Secilen zaman araliginda filtreyi gecen olay kaydi adedi.'],
+    ['max_risk_score', 'Maksimum risk skoru', 'Kullanici icin rapora giren olaylardaki en yuksek risk skoru.'],
+    ['max_matches', 'Maksimum eslesme', 'Kullanici icin rapora giren tek bir olay kaydindaki en yuksek Max Match degeri.'],
+    ['last_seen', 'Son olay tarihi', 'Rapor kapsamina giren en son olay kaydinin tarihi.'],
+    ['policy', 'Ornek politika / kural', 'En yuksek Max Match degerine sahip olaydan politika ve kural bilgisi.'],
+    ['destination', 'Hedef', 'Ornek olay kaydinin hedefi; e-posta adresi, web adresi, sunucu veya cihaz olabilir.'],
+    ['channel', 'Kanal', 'Ornek olay kaydinin DLP kanali.'],
+    ['action', 'Aksiyon', 'Ornek olay kaydinin aksiyonu: PERMIT, BLOCK, QUARANTINE vb.'],
+    ['data_type', 'Veri tipi', 'Ornek olay kaydinda tespit edilen veri sinifi.'],
+    ['severity', 'Siddet', 'Ornek olay kaydinin siddet seviyesi.'],
   ] as const
   const toggleColumn = (column: string) => setConfig({
     columns: columns.includes(column) ? columns.filter((value: string) => value !== column) : [...columns, column],
   })
+  const moveColumn = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= columns.length) return
+    const next = [...columns]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setConfig({ columns: next })
+  }
+  const columnByValue = new Map<string, { label: string; description: string }>(
+    reportColumns.map(([value, label, description]) => [value, { label, description }])
+  )
 
   return (
     <>
@@ -798,14 +818,36 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
       <div>
         <label style={labelStyle}>Rapor Sutunlari</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 10px' }}>
-          {reportColumns.map(([value, label]) => (
+          {reportColumns.map(([value, label, description]) => (
             <label key={value} style={{ display: 'flex', gap: '7px', alignItems: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
               <input type="checkbox" checked={columns.includes(value)} onChange={() => toggleColumn(value)} />
               {label}
+              <span title={description} aria-label={`${label} bilgisi`} style={{ display: 'inline-flex', color: 'var(--text-muted)', cursor: 'help' }}><Info size={13} /></span>
             </label>
           ))}
         </div>
-        <p style={hintStyle}>Sutun secilmezse mevcut varsayilan tablo duzeni kullanilir.</p>
+        {columns.length > 0 && (
+          <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+            <div style={{ ...labelStyle, marginBottom: '7px' }}>Sutun Sirasi</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {columns.map((value: string, index: number) => {
+                const definition = columnByValue.get(value)
+                if (!definition) return null
+                const { label, description } = definition
+                return (
+                  <div key={value} style={{ display: 'flex', alignItems: 'center', gap: '7px', minHeight: '30px', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: '5px', fontSize: '12px' }}>
+                    <span style={{ width: '18px', color: 'var(--text-muted)', textAlign: 'center' }}>{index + 1}</span>
+                    <span style={{ flex: 1, color: 'var(--text-primary)' }}>{label}</span>
+                    <span title={description} aria-label={`${label} bilgisi`} style={{ display: 'inline-flex', color: 'var(--text-muted)', cursor: 'help' }}><Info size={13} /></span>
+                    <button type="button" title="Yukari tasi" aria-label={`${label} sutununu yukari tasi`} onClick={() => moveColumn(index, -1)} disabled={index === 0} style={columnOrderButtonStyle}><ArrowUp size={14} /></button>
+                    <button type="button" title="Asagi tasi" aria-label={`${label} sutununu asagi tasi`} onClick={() => moveColumn(index, 1)} disabled={index === columns.length - 1} style={columnOrderButtonStyle}><ArrowDown size={14} /></button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        <p style={hintStyle}>Sutun secilmezse mevcut varsayilan tablo duzeni kullanilir. Secili sutunlar, listelendikleri sirayla mail tablosunda gorunur.</p>
       </div>
 
       <p style={hintStyle}>
@@ -1285,6 +1327,20 @@ const iconButtonStyle: CSSProperties = {
   borderRadius: '6px',
   background: 'white',
   color: '#ef4444',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
+const columnOrderButtonStyle: CSSProperties = {
+  width: '24px',
+  height: '24px',
+  padding: 0,
+  border: '1px solid var(--border)',
+  borderRadius: '4px',
+  background: 'var(--surface)',
+  color: 'var(--text-secondary)',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
