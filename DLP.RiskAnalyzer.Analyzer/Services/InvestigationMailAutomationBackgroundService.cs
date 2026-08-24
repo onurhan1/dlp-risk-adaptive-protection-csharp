@@ -22,8 +22,12 @@ public class InvestigationMailAutomationBackgroundService : BackgroundService
             {
                 using var scope = _serviceProvider.CreateScope();
                 var automation = scope.ServiceProvider.GetRequiredService<IInvestigationMailAutomationService>();
-                await automation.ProcessInboxAsync(stoppingToken);
-                await automation.MarkUnansweredRemindersAsync(stoppingToken);
+                var inboxResult = await automation.ProcessInboxAsync(stoppingToken);
+                var reminderResult = await automation.MarkUnansweredRemindersAsync(stoppingToken);
+                _logger.LogInformation(
+                    "Investigation mail automation completed: {InboxResult}; {ReminderResult}",
+                    inboxResult.Message,
+                    reminderResult.Message);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

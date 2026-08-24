@@ -69,6 +69,7 @@ export default function MailboxPage() {
   const [selected, setSelected] = useState<ImapMessageContent | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [processingAutomation, setProcessingAutomation] = useState(false)
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null)
   const [folder, setFolder] = useState('INBOX')
   const [lookbackDays, setLookbackDays] = useState(7)
@@ -181,6 +182,19 @@ export default function MailboxPage() {
     }
   }
 
+  const processInboxAutomation = async () => {
+    setProcessingAutomation(true)
+    try {
+      const { data } = await apiClient.post('/api/investigation/queries/automation/process-inbox', null, { timeout: 60000 })
+      flash('success', data?.message || 'Gelen kutusu islemi tamamlandi')
+      await fetchInbox()
+    } catch (error: any) {
+      flash('error', error.response?.data?.detail || error.message || 'Gelen kutusu otomasyonu calistirilamadi')
+    } finally {
+      setProcessingAutomation(false)
+    }
+  }
+
   const flash = (type: 'success' | 'error', text: string) => {
     setNotice({ type, text })
     window.setTimeout(() => setNotice(null), 4500)
@@ -249,6 +263,14 @@ export default function MailboxPage() {
               </label>
               <button style={{ ...buttonStyle, background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }} onClick={() => fetchInbox()} disabled={refreshing}>
                 <RefreshCw size={15} /> {refreshing ? 'Yenileniyor...' : 'Yenile'}
+              </button>
+              <button
+                style={{ ...buttonStyle, background: '#0f766e', borderColor: '#0f766e', color: '#fff' }}
+                onClick={processInboxAutomation}
+                disabled={processingAutomation}
+                title="Rapor taleplerini ve sorgu cevaplarini simdi isle"
+              >
+                <Mail size={15} /> {processingAutomation ? 'Isleniyor...' : 'Gelen Kutusunu Isle'}
               </button>
             </div>
 
