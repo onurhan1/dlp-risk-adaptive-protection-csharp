@@ -1438,12 +1438,12 @@ public class PlaybookEngine : IPlaybookEngine
 
     private static string BuildConfiguredReportMailHtml(string title, string? intro, PlaybookPayload payload, DateTime now, List<string> columns)
     {
-        if (payload.HasMetric || columns.Count == 0)
+        if (payload.HasMetric)
             return BuildReportMailHtml(title, intro, payload, now);
 
         var selectedColumns = columns.Where(IsReportColumn).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (selectedColumns.Count == 0)
-            return BuildReportMailHtml(title, intro, payload, now);
+            selectedColumns = DefaultReportColumns.ToList();
 
         var introHtml = string.IsNullOrWhiteSpace(intro)
             ? string.Empty
@@ -1476,6 +1476,12 @@ public class PlaybookEngine : IPlaybookEngine
 </body>
 </html>";
     }
+
+    private static readonly string[] DefaultReportColumns =
+    {
+        "full_name", "user_name", "team", "source", "incident_count",
+        "max_matches", "action", "last_seen", "policy"
+    };
 
     private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel" or "action" or "data_type" or "severity";
 

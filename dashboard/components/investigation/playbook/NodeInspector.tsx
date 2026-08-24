@@ -724,7 +724,8 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
 function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
-  const columns = Array.isArray(node.config.columns) ? node.config.columns : []
+  const defaultColumns = ['full_name', 'user_name', 'team', 'source', 'incident_count', 'max_matches', 'action', 'last_seen', 'policy']
+  const columns = Array.isArray(node.config.columns) && node.config.columns.length > 0 ? node.config.columns : defaultColumns
   const reportColumns = [
     ['full_name', 'Kullanici', 'LDAP bilgisindeki ad ve soyad; bulunamazsa kullanici adi.'],
     ['user_name', 'Kullanici adi', 'Olay kaydindaki kullanici adi veya e-posta degeri.'],
