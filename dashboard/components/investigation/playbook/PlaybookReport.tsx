@@ -35,6 +35,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'to_email', header: 'Alıcı', width: 30 },
   { key: 'cc_email', header: 'CC', width: 26 },
   { key: 'subject', header: 'Mail Konusu', width: 44 },
+  { key: 'template_name', header: 'Sablon', width: 28 },
+  { key: 'template_match_reason', header: 'Sablon Eslesmesi', width: 36 },
   { key: 'source_criterion_label', header: 'Kriter', width: 32 },
   { key: 'trigger_count', header: 'Olay Sayısı', width: 12 },
   { key: 'status_label', header: 'Durum', width: 14 },
@@ -262,6 +264,7 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
                   <Th>Kullanıcı</Th>
                   <Th>Alıcı</Th>
                   <Th>Mail Konusu</Th>
+                  <Th>Sablon</Th>
                   <Th>Kriter</Th>
                   <Th align="right">Olay</Th>
                   <Th>Durum</Th>
@@ -285,6 +288,14 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
                         {row.cc_email && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>CC: {row.cc_email}</div>}
                       </Td>
                       <Td>{row.subject}</Td>
+                      <Td>
+                        <div title={row.template_match_reason ?? undefined}>{row.template_name ?? '-'}</div>
+                        {row.template_match_reason && (
+                          <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '2px' }}>
+                            {row.template_match_reason}
+                          </div>
+                        )}
+                      </Td>
                       <Td>{row.source_criterion_label ?? '-'}</Td>
                       <Td align="right">{row.trigger_count}</Td>
                       <Td nowrap>
@@ -357,6 +368,8 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
 }
 
 function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () => void }) {
+  const incident = parseIncidentSummary(row.incident_summary_json)
+
   return (
     <div
       onClick={onClose}
@@ -396,6 +409,8 @@ function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () 
             <PreviewRow label="Alıcı" value={row.to_email} />
             {row.cc_email && <PreviewRow label="CC" value={row.cc_email} />}
             <PreviewRow label="Konu" value={row.subject} />
+            <PreviewRow label="Sablon" value={row.template_name ?? 'Node icerigi'} />
+            <PreviewRow label="Eslesme" value={row.template_match_reason ?? 'Kayitli eslesme bilgisi yok'} />
             <PreviewRow label="Kriter" value={row.source_criterion_label ?? '-'} />
             <PreviewRow label="Oluşturma" value={new Date(row.created_at).toLocaleString('tr-TR')} />
             <PreviewRow
@@ -405,6 +420,23 @@ function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () 
             />
             {row.error_message && <PreviewRow label="Not" value={row.error_message} last />}
           </div>
+
+          {incident && (
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '5px' }}>Maili Doguran Olay</div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                <PreviewRow label="Olay tarihi" value={formatIncidentDate(incident.timestamp)} />
+                <PreviewRow label="Hedef" value={displayValue(incident.destination)} />
+                <PreviewRow label="Aksiyon" value={displayValue(incident.action)} />
+                <PreviewRow label="Kanal" value={displayValue(incident.channel)} />
+                <PreviewRow label="Politika" value={displayValue(incident.policy)} />
+                <PreviewRow label="Max Match" value={displayValue(incident.max_matches)} />
+                <PreviewRow label="Veri tipi" value={displayValue(incident.data_type)} />
+                <PreviewRow label="Siddet" value={displayValue(incident.severity)} />
+                <PreviewRow label="Risk skoru" value={displayValue(incident.risk_score)} last />
+              </div>
+            </div>
+          )}
 
           <div>
             <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '5px' }}>İçerik</div>
@@ -427,6 +459,28 @@ function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () 
       </div>
     </div>
   )
+}
+
+type IncidentSummary = Record<string, string | number | null | undefined>
+
+function parseIncidentSummary(value?: string | null): IncidentSummary | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function displayValue(value: unknown): string {
+  return value === null || value === undefined || value === '' ? '-' : String(value)
+}
+
+function formatIncidentDate(value: unknown): string {
+  if (!value) return '-'
+  const parsed = new Date(String(value))
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString('tr-TR')
 }
 
 function PreviewRow({ label, value, last }: { label: string; value: string; last?: boolean }) {

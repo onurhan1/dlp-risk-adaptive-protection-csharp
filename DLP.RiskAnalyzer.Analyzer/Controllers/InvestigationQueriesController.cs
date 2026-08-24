@@ -13,15 +13,18 @@ public class InvestigationQueriesController : ControllerBase
 {
     private readonly AnalyzerDbContext _context;
     private readonly IInvestigationQueryRemediationSyncService _remediationSync;
+    private readonly IInvestigationMailAutomationService _mailAutomation;
     private readonly ILogger<InvestigationQueriesController> _logger;
 
     public InvestigationQueriesController(
         AnalyzerDbContext context,
         IInvestigationQueryRemediationSyncService remediationSync,
+        IInvestigationMailAutomationService mailAutomation,
         ILogger<InvestigationQueriesController> logger)
     {
         _context = context;
         _remediationSync = remediationSync;
+        _mailAutomation = mailAutomation;
         _logger = logger;
     }
 
@@ -54,7 +57,7 @@ public class InvestigationQueriesController : ControllerBase
             join playbook in _context.Playbooks.AsNoTracking()
                 on mail.PlaybookId equals playbook.Id into playbooks
             from playbook in playbooks.DefaultIfEmpty()
-            where mail.SourceCriterion == PlaybookNodeType.SourceIncidentMetric
+            where mail.UserEmail == "(rapor)" || mail.SourceCriterion == PlaybookNodeType.SourceIncidentMetric
             orderby (mail.SentAt ?? mail.CreatedAt) descending
             select new
             {
@@ -77,6 +80,19 @@ public class InvestigationQueriesController : ControllerBase
         return Ok(rows);
     }
 
+    [HttpPost("automation/process-inbox")]
+    public async Task<ActionResult> ProcessInbox(CancellationToken ct = default) =>
+        Ok(await _mailAutomation.ProcessInboxAsync(ct));
+
+    [HttpGet("reply-review-count")]
+    public async Task<ActionResult> GetReplyReviewCount(CancellationToken ct = default)
+    {
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
+        var count = await _context.InvestigationQueries
+            .CountAsync(q => q.QueryStatus == InvestigationQueryStatus.ReplyReview, ct);
+        return Ok(new { count });
+    }
+
     [HttpPost("bulk")]
     public async Task<ActionResult> SaveBulk([FromBody] BulkQueryRequest request, CancellationToken ct = default)
     {
@@ -85,10 +101,29 @@ public class InvestigationQueriesController : ControllerBase
         var now = DateTime.UtcNow;
         var actor = User?.Identity?.Name ?? "System";
         var saved = 0;
+        var skippedDuplicates = 0;
         var changedRows = new List<InvestigationQueryRecord>();
+        var existingKeys = (await _context.InvestigationQueries
+                .AsNoTracking()
+                .Select(q => new { q.UserCode, q.FullName, q.QueryDate })
+                .ToListAsync(ct))
+            .Select(q => DuplicateKey(q.UserCode, q.FullName, q.QueryDate))
+            .Where(key => key != null)
+            .Select(key => key!)
+            .ToHashSet(StringComparer.Ordinal);
+        var requestKeys = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var row in request.Rows)
         {
+            var duplicateKey = DuplicateKey(row.UserCode, row.FullName, row.QueryDate);
+            var isExistingRecord = row.Id.HasValue && row.Id.Value > 0;
+            if (!isExistingRecord && duplicateKey != null &&
+                (!requestKeys.Add(duplicateKey) || existingKeys.Contains(duplicateKey)))
+            {
+                skippedDuplicates++;
+                continue;
+            }
+
             InvestigationQueryRecord entity;
             if (row.Id.HasValue && row.Id.Value > 0)
             {
@@ -103,12 +138,13 @@ public class InvestigationQueriesController : ControllerBase
 
             Apply(row, entity, now, actor);
             changedRows.Add(entity);
+            if (duplicateKey != null) existingKeys.Add(duplicateKey);
             saved++;
         }
 
         var remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
         await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, saved, remediationsSynced });
+        return Ok(new { success = true, saved, skippedDuplicates, remediationsSynced });
     }
 
     [HttpPost]
@@ -152,6 +188,33 @@ public class InvestigationQueriesController : ControllerBase
         return Ok(new { success = true });
     }
 
+    [HttpPost("{id:int}/review-reply")]
+    public async Task<ActionResult> ReviewReply(int id, [FromBody] ReplyReviewRequest request, CancellationToken ct = default)
+    {
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
+        var entity = await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.Id == id, ct);
+        if (entity == null) return NotFound(new { detail = "Sorgu kaydi bulunamadi" });
+        if (entity.ReplyReceivedAt == null)
+            return BadRequest(new { detail = "Bu sorgu icin incelenecek bir cevap bulunamadi" });
+
+        var now = DateTime.UtcNow;
+        entity.ReviewNote = request.Note?.Trim();
+        entity.QueryStatus = request.IsSufficient
+            ? InvestigationQueryStatus.Completed
+            : InvestigationQueryStatus.Queried;
+        entity.ResponseStatus = request.IsSufficient
+            ? "Cevap yeterli bulundu"
+            : "Cevap yetersiz bulundu";
+        entity.Action = request.IsSufficient
+            ? "Analist cevabi yeterli buldu ve sorguyu kapatti"
+            : "Analist ek aksiyon veya tekrar sorgulama bekliyor";
+        entity.UpdatedAt = now;
+        entity.UpdatedBy = User?.Identity?.Name ?? "Analist";
+        await _remediationSync.SyncAsync([entity], entity.UpdatedBy, now, ct);
+        await _context.SaveChangesAsync(ct);
+        return Ok(entity);
+    }
+
     private static void Apply(QueryRecordRequest row, InvestigationQueryRecord entity, DateTime now, string actor)
     {
         var mail = row.MailAddress?.Trim() ?? string.Empty;
@@ -172,6 +235,17 @@ public class InvestigationQueriesController : ControllerBase
         entity.ExtraJson = string.IsNullOrWhiteSpace(row.ExtraJson) ? "{}" : row.ExtraJson;
         entity.UpdatedAt = now;
         entity.UpdatedBy = actor;
+    }
+
+    private static string? DuplicateKey(string? userCode, string? fullName, DateTime? queryDate)
+    {
+        if (string.IsNullOrWhiteSpace(userCode) || string.IsNullOrWhiteSpace(fullName) || !queryDate.HasValue)
+            return null;
+
+        return string.Join('|',
+            userCode.Trim().ToUpperInvariant(),
+            fullName.Trim().ToUpperInvariant(),
+            queryDate.Value.Date.ToString("yyyy-MM-dd"));
     }
 }
 
@@ -196,4 +270,10 @@ public class QueryRecordRequest
     public string? Notes { get; set; }
     public int? PlaybookMailLogId { get; set; }
     public string? ExtraJson { get; set; }
+}
+
+public class ReplyReviewRequest
+{
+    public bool IsSufficient { get; set; }
+    public string? Note { get; set; }
 }

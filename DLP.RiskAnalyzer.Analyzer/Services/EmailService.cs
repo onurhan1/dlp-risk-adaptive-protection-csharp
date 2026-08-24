@@ -44,6 +44,30 @@ public class EmailService : IEmailService
         string? toName = null,
         string? ccEmail = null)
     {
+        return await SendCoreAsync(toEmail, subject, body, [], isHtml, toName, ccEmail);
+    }
+
+    public async Task<bool> SendEmailWithAttachmentsAsync(
+        string toEmail,
+        string subject,
+        string body,
+        IReadOnlyCollection<EmailAttachment> attachments,
+        bool isHtml = true,
+        string? toName = null,
+        string? ccEmail = null)
+    {
+        return await SendCoreAsync(toEmail, subject, body, attachments, isHtml, toName, ccEmail);
+    }
+
+    private async Task<bool> SendCoreAsync(
+        string toEmail,
+        string subject,
+        string body,
+        IReadOnlyCollection<EmailAttachment> attachments,
+        bool isHtml,
+        string? toName,
+        string? ccEmail)
+    {
         var config = await GetConfigAsync();
         if (!config.IsConfigured || string.IsNullOrEmpty(config.Password))
         {
@@ -74,6 +98,15 @@ public class EmailService : IEmailService
                 !string.Equals(ccEmail, toEmail, StringComparison.OrdinalIgnoreCase))
             {
                 message.CC.Add(new MailAddress(ccEmail));
+            }
+
+            foreach (var attachment in attachments)
+            {
+                if (attachment.Content.Length == 0 || string.IsNullOrWhiteSpace(attachment.FileName)) continue;
+                message.Attachments.Add(new Attachment(
+                    new MemoryStream(attachment.Content, writable: false),
+                    attachment.FileName,
+                    attachment.ContentType));
             }
 
             await client.SendMailAsync(message);
@@ -129,4 +162,3 @@ public class EmailService : IEmailService
         return await SendEmailAsync(toEmail, subject, body, isHtml: true);
     }
 }
-

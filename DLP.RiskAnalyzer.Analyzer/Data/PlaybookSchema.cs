@@ -69,6 +69,11 @@ public static class PlaybookSchema
             sent_at TIMESTAMP,
             error_message TEXT
         );
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS template_id INTEGER;
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS template_name VARCHAR(255);
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS template_match_reason VARCHAR(500);
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS incident_summary_json TEXT;
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS correlation_code VARCHAR(80);
         CREATE INDEX IF NOT EXISTS ix_playbook_mail_log_run
             ON dlp.playbook_mail_log (run_id);
         CREATE INDEX IF NOT EXISTS ix_playbook_mail_log_playbook_created

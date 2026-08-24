@@ -161,7 +161,7 @@ public class DirectorySettingsService : IDirectorySettingsService
             foreach (var id in ids)
             {
                 var tag = $"A{tagNo++:000}";
-                await WriteAsync(stream, $"{tag} FETCH {id} (FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])\r\n", ct);
+                await WriteAsync(stream, $"{tag} FETCH {id} (FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES)])\r\n", ct);
                 var fetch = await ReadImapAsync(stream, ct, tag);
                 messages.Add(ParseFetchedMessage(id, fetch));
             }
@@ -882,6 +882,9 @@ public class DirectorySettingsService : IDirectorySettingsService
         return new ImapInboxMessageDto
         {
             Id = id,
+            MessageId = Header(response, "Message-ID"),
+            InReplyTo = Header(response, "In-Reply-To"),
+            References = Header(response, "References"),
             From = DecodeMimeHeader(Header(response, "From")),
             Subject = DecodeMimeHeader(Header(response, "Subject")),
             Date = Header(response, "Date"),
@@ -900,6 +903,9 @@ public class DirectorySettingsService : IDirectorySettingsService
         return new ImapMessageContentResponse
         {
             Id = id,
+            MessageId = Header(headers, "Message-ID"),
+            InReplyTo = Header(headers, "In-Reply-To"),
+            References = Header(headers, "References"),
             From = DecodeMimeHeader(Header(headers, "From")),
             Subject = DecodeMimeHeader(Header(headers, "Subject")),
             Date = Header(headers, "Date"),

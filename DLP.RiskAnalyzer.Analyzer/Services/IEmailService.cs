@@ -4,5 +4,8 @@ public interface IEmailService
 {
     Task<bool> IsConfiguredAsync();
     Task<bool> SendEmailAsync(string toEmail, string subject, string body, bool isHtml = true, string? toName = null, string? ccEmail = null);
+    Task<bool> SendEmailWithAttachmentsAsync(string toEmail, string subject, string body, IReadOnlyCollection<EmailAttachment> attachments, bool isHtml = true, string? toName = null, string? ccEmail = null);
     Task<bool> SendTestEmailAsync(string toEmail);
 }
+
+public sealed record EmailAttachment(string FileName, byte[] Content, string ContentType);

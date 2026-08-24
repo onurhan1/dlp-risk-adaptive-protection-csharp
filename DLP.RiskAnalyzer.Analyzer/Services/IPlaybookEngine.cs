@@ -7,7 +7,11 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 /// weekly-flag DTO plus the criterion that put this user into the flow, so the mail log can
 /// report "why was this person queried".
 /// </summary>
-public record PlaybookItem(WeeklyFlagUserDto User, string SourceCriterion);
+public record PlaybookItem(
+    WeeklyFlagUserDto User,
+    string SourceCriterion,
+    int? InvestigationQueryId = null,
+    string? ExistingCorrelationCode = null);
 
 /// <summary>One row of a metric's breakdown, e.g. "Email: 214".</summary>
 public record PlaybookMetricBreakdown(string Label, int Count);

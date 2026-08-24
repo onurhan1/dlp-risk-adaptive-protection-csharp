@@ -141,6 +141,12 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, o
         {node.type === 'source.highRiskUsers' && <HighRiskUsersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.topActionUsers' && <TopActionUsersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.highMaxMatchTransfers' && <HighMaxMatchTransfersForm node={node} setConfig={setConfig} />}
+        {node.type === 'source.pendingQueryReminders' && (
+          <p style={hintStyle}>
+            Ilk sorgu mailinin uzerinden en az 7 gun gecen ve henuz cevap gelmeyen kayitlari getirir.
+            Sonrasina bir Mail Gonder node'u ekleyip hazirlayacaginiz hatirlatma sablonunu secin.
+          </p>
+        )}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.metricThreshold' && <MetricThresholdForm node={node} setConfig={setConfig} />}
@@ -1025,7 +1031,8 @@ function SendMailForm({
               Destinationa gore otomatik sablon sec
             </div>
             <p style={{ ...hintStyle, marginTop: '4px' }}>
-              Sahsi mail, business.github ve diger destinationlar icin olay kaydina gore sablon secilir.
+              Sahsi mail, business.github ve diger destinationlar icin olay kaydina gore sablon secilir. Eslesme
+              bulunamazsa asagidaki secili sablon, o da yoksa adi Genel, Generic veya Default olan sablon kullanilir.
             </p>
           </div>
         </div>

@@ -58,6 +58,7 @@ public static class PlaybookNodeType
     public const string SourceHighRiskUsers = "source.highRiskUsers";
     public const string SourceTopActionUsers = "source.topActionUsers";
     public const string SourceHighMaxMatchTransfers = "source.highMaxMatchTransfers";
+    public const string SourcePendingQueryReminders = "source.pendingQueryReminders";
     public const string TransformFilter = "transform.filter";
     public const string LogicCondition = "logic.condition";
     public const string LogicMetricThreshold = "logic.metricThreshold";
@@ -68,7 +69,7 @@ public static class PlaybookNodeType
     public static readonly string[] All =
     {
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
-        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers,
+        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders,
         TransformFilter, LogicCondition, LogicMetricThreshold,
         ActionSendMail, ActionSendReportMail, OutputReport
     };

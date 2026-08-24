@@ -43,6 +43,9 @@ public class ImapMessageContentRequest : ImapSettingsRequest
 public class ImapInboxMessageDto
 {
     public string Id { get; set; } = string.Empty;
+    public string MessageId { get; set; } = string.Empty;
+    public string InReplyTo { get; set; } = string.Empty;
+    public string References { get; set; } = string.Empty;
     public string From { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;
@@ -66,6 +69,9 @@ public class ImapMessageContentResponse
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public string Id { get; set; } = string.Empty;
+    public string MessageId { get; set; } = string.Empty;
+    public string InReplyTo { get; set; } = string.Empty;
+    public string References { get; set; } = string.Empty;
     public string From { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;

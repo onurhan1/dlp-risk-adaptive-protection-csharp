@@ -27,6 +27,7 @@ export type PlaybookNodeType =
   | 'source.highRiskUsers'
   | 'source.topActionUsers'
   | 'source.highMaxMatchTransfers'
+  | 'source.pendingQueryReminders'
   | 'transform.filter'
   | 'logic.condition'
   | 'logic.metricThreshold'
@@ -101,6 +102,10 @@ export interface PlaybookMailRow {
   cc_email?: string | null
   subject: string
   body_html: string
+  template_id?: number | null
+  template_name?: string | null
+  template_match_reason?: string | null
+  incident_summary_json?: string | null
   source_criterion?: string | null
   source_criterion_label?: string | null
   trigger_count: number
@@ -370,6 +375,17 @@ export const NODE_CATALOG: NodeDefinition[] = [
     inputs: 1,
     outputs: [{ handle: null }],
     defaultConfig: { days: 7, min_matches: 300, top_limit: 25 },
+  },
+  {
+    type: 'source.pendingQueryReminders',
+    label: 'Cevap Bekleyen Sorgular',
+    description: 'Ilk mailden en az 7 gun sonra cevap gelmeyen sorgulari hatirlatma icin listeler.',
+    icon: Mail,
+    color: 'linear-gradient(135deg, #d97706, #ea580c)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {},
   },
   {
     type: 'logic.metricThreshold',

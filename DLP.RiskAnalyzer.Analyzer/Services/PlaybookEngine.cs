@@ -267,6 +267,9 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourceHighMaxMatchTransfers:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadHighMaxMatchTransfersAsync(node, context, ct)));
 
+            case PlaybookNodeType.SourcePendingQueryReminders:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadPendingQueryRemindersAsync(context, ct)));
+
             case PlaybookNodeType.TransformFilter:
                 return SingleOutput(PlaybookPayload.OfItems(ApplyFilter(node, input.Items, context)));
 
@@ -497,6 +500,9 @@ public class PlaybookEngine : IPlaybookEngine
         var destinationContains = node.GetString("destination_contains")?.Trim();
         var policyContains = node.GetString("policy_contains")?.Trim();
         var teamContains = node.GetString("team_contains")?.Trim();
+        var summarizeTopPolicies = actions.Any(a =>
+            a.Equals("permit", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("block", StringComparison.OrdinalIgnoreCase));
         var sortBy = node.GetString("sort_by") ?? "incident_count";
         var sortDirection = node.GetString("sort_direction") ?? "desc";
         var end = DateTime.UtcNow;
@@ -531,6 +537,21 @@ public class PlaybookEngine : IPlaybookEngine
                 var sampleIncidents = sortBy == "max_risk_score"
                     ? list.OrderByDescending(i => i.RiskScore ?? 0).ThenByDescending(i => i.Timestamp).Take(3)
                     : list.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).Take(3);
+                var samples = sampleIncidents.Select(ToWorkflowReportIncident).ToList();
+
+                if (summarizeTopPolicies && samples.Count > 0)
+                {
+                    var policySummary = list
+                        .Select(PolicyRuleLabel)
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .GroupBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .OrderByDescending(group => group.Count())
+                        .ThenBy(group => group.Key)
+                        .Take(5)
+                        .Select(group => $"{group.Key} ({group.Count()} olay kaydı)");
+
+                    samples[0] = samples[0] with { Policy = string.Join(", ", policySummary) };
+                }
                 return new PlaybookItem(
                     new WeeklyFlagUserDto(
                         g.Key,
@@ -540,7 +561,7 @@ public class PlaybookEngine : IPlaybookEngine
                         list.Count,
                         list.Min(i => i.Timestamp),
                         list.Max(i => i.Timestamp),
-                        sampleIncidents.Select(ToWorkflowReportIncident).ToList()),
+                        samples),
                     PlaybookNodeType.SourceIncidentUsers);
             })
             .ToList();
@@ -608,6 +629,39 @@ public class PlaybookEngine : IPlaybookEngine
         items = await EnrichItemsAsync(items, ct);
 
         context.SetMessage($"Maksimum eşleşme {threshold}+ olan tekil gönderimlerden {items.Count} kullanıcı listelendi");
+        return items;
+    }
+
+    private async Task<List<PlaybookItem>> LoadPendingQueryRemindersAsync(SendContext context, CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-7);
+        var due = await _context.InvestigationQueries
+            .AsNoTracking()
+            .Where(q => q.QueryStatus == InvestigationQueryStatus.Queried &&
+                        q.ReplyReceivedAt == null &&
+                        q.ReminderCount == 0 &&
+                        q.FirstSentAt != null &&
+                        q.FirstSentAt <= cutoff &&
+                        q.MailAddress.Contains("@"))
+            .OrderBy(q => q.FirstSentAt)
+            .Take(MaxRecipientsPerRun)
+            .ToListAsync(ct);
+
+        var items = due.Select(q => new PlaybookItem(
+            new WeeklyFlagUserDto(
+                q.UserCode,
+                q.FullName,
+                q.Team,
+                q.MailAddress,
+                1,
+                q.QueryDate ?? q.FirstSentAt ?? q.CreatedAt,
+                q.QueryDate ?? q.FirstSentAt ?? q.CreatedAt,
+                new List<WeeklyFlagIncidentDto>()),
+            PlaybookNodeType.SourcePendingQueryReminders,
+            q.Id,
+            q.CorrelationCode)).ToList();
+
+        context.SetMessage($"Ilk mailden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
         return items;
     }
 
@@ -711,6 +765,18 @@ public class PlaybookEngine : IPlaybookEngine
         FirstNonEmpty(incident.Action, incident.RemediationAction),
         incident.DataType,
         incident.Severity);
+
+    private static string? PolicyRuleLabel(Incident incident)
+    {
+        var parsed = ViolationTriggerParser.ExtractMaxMatchPolicyAndRule(incident.ViolationTriggers);
+        if (!string.IsNullOrWhiteSpace(parsed.PolicyName))
+            return string.IsNullOrWhiteSpace(parsed.RuleName) ? parsed.PolicyName : $"{parsed.PolicyName} / {parsed.RuleName}";
+
+        if (!string.IsNullOrWhiteSpace(incident.Policy))
+            return string.IsNullOrWhiteSpace(incident.RuleName) ? incident.Policy : $"{incident.Policy} / {incident.RuleName}";
+
+        return incident.RuleName;
+    }
 
     private static int EffectiveMaxMatches(Incident incident)
     {
@@ -1038,6 +1104,7 @@ public class PlaybookEngine : IPlaybookEngine
             var toEmail = recipientMode == "fixed" ? fixedRecipient! : RecipientOf(user);
             var decision = ResolveTemplateForUser(node, item, defaultTemplate, templateCatalog, templateRules);
             var renderUser = WithPrimaryIncident(user, decision.Incident);
+            var correlationCode = item.ExistingCorrelationCode ?? NewCorrelationCode();
 
             var entry = new PlaybookMailLog
             {
@@ -1049,9 +1116,16 @@ public class PlaybookEngine : IPlaybookEngine
                 Team = user.Team,
                 ToEmail = toEmail,
                 CcEmail = ccEmail,
-                Subject = PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
+                Subject = AppendCorrelationCode(
+                    PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
+                    correlationCode),
                 BodyHtml = PlaybookMailRenderer.ToEmailHtml(
                     PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Body, renderUser, now)),
+                TemplateId = decision.TemplateId,
+                TemplateName = decision.TemplateName,
+                TemplateMatchReason = decision.MatchReason,
+                IncidentSummaryJson = BuildIncidentSummaryJson(decision.Incident),
+                CorrelationCode = correlationCode,
                 SourceCriterion = item.SourceCriterion,
                 TriggerCount = user.TriggerCount,
                 CreatedAt = now
@@ -1114,7 +1188,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         await _context.SaveChangesAsync(ct);
-        await UpsertQueryRecordsForMailLogsAsync(queryLogEntries, ct);
+        await SyncQueryRecordsSafelyAsync(queryLogEntries, ct);
 
         var verb = context.DryRun ? "onay için hazırlandı" : "gönderildi";
         var message = $"{processed.Count} mail {verb}";
@@ -1272,12 +1346,10 @@ public class PlaybookEngine : IPlaybookEngine
             CreatedAt = now
         };
 
-        var syncToQueries = false;
         if (!fixedRecipient.Contains('@'))
         {
             entry.Status = PlaybookMailStatus.Pending;
             entry.ErrorMessage = "Alıcı adresinde @ yok; manuel gönderim için bekliyor.";
-            syncToQueries = true;
         }
         else if (await HasDuplicateMailAsync(fixedRecipient!, entry.Subject, entry.BodyHtml, null, ct))
         {
@@ -1292,7 +1364,6 @@ public class PlaybookEngine : IPlaybookEngine
         else if (context.DryRun)
         {
             entry.Status = PlaybookMailStatus.Pending;
-            syncToQueries = true;
         }
         else
         {
@@ -1308,7 +1379,6 @@ public class PlaybookEngine : IPlaybookEngine
             {
                 entry.Status = PlaybookMailStatus.Sent;
                 entry.SentAt = DateTime.UtcNow;
-                syncToQueries = true;
             }
             else
             {
@@ -1319,7 +1389,6 @@ public class PlaybookEngine : IPlaybookEngine
 
         _context.PlaybookMailLogs.Add(entry);
         await _context.SaveChangesAsync(ct);
-        if (syncToQueries) await UpsertQueryRecordsForMailLogsAsync(new[] { entry }, ct);
 
         context.SetMessage(entry.Status switch
         {
@@ -1340,6 +1409,32 @@ public class PlaybookEngine : IPlaybookEngine
 
         return setting?.Value;
     }
+
+    /// <summary>
+    /// Mail delivery is the primary action. A later failure while mirroring that result into the
+    /// investigation-query view must not turn an already-sent mail into a failed workflow run.
+    /// </summary>
+    private async Task SyncQueryRecordsSafelyAsync(IEnumerable<PlaybookMailLog> mailLogs, CancellationToken ct)
+    {
+        // Report and metric mail are workflow artefacts, not user investigation queries.
+        var entries = mailLogs.Where(IsInvestigationQueryMail).ToList();
+        if (entries.Count == 0) return;
+
+        try
+        {
+            await UpsertQueryRecordsForMailLogsAsync(entries, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Playbook mail logs were saved but investigation query synchronization failed for {Count} entries",
+                entries.Count);
+        }
+    }
+
+    private static bool IsInvestigationQueryMail(PlaybookMailLog mail) =>
+        !string.Equals(mail.UserEmail, "(rapor)", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(mail.UserEmail, MetricSubjectLabel, StringComparison.OrdinalIgnoreCase);
 
     private static string BuildReportMailHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
     {
@@ -1600,8 +1695,31 @@ public class PlaybookEngine : IPlaybookEngine
 
         foreach (var mail in mailLogs.Where(m => m.Id > 0))
         {
-            var query = await _context.InvestigationQueries
-                .FirstOrDefaultAsync(q => q.PlaybookMailLogId == mail.Id, ct);
+            var isReminder = mail.SourceCriterion == PlaybookNodeType.SourcePendingQueryReminders;
+            var query = isReminder && !string.IsNullOrWhiteSpace(mail.CorrelationCode)
+                ? await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.CorrelationCode == mail.CorrelationCode, ct)
+                : await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.PlaybookMailLogId == mail.Id, ct);
+
+            if (isReminder && query != null)
+            {
+                if (mail.Status == PlaybookMailStatus.Sent)
+                {
+                    query.ReminderCount++;
+                    query.ReminderSentAt = mail.SentAt ?? now;
+                    query.ResponseStatus = "Hatirlatma gonderildi";
+                    query.Action = "Ilk hatirlatma maili gonderildi";
+                }
+                else
+                {
+                    query.ResponseStatus = "Hatirlatma gonderim onayi bekliyor";
+                    query.Action = mail.ErrorMessage ?? "Hatirlatma maili hazirlandi";
+                }
+
+                query.UpdatedAt = now;
+                query.UpdatedBy = "Agentic Workflow";
+                changedRows.Add(query);
+                continue;
+            }
 
             if (query == null)
             {
@@ -1619,6 +1737,8 @@ public class PlaybookEngine : IPlaybookEngine
             query.MailAddress = mail.ToEmail;
             query.Subject = mail.Subject;
             query.QueryDate = mail.SentAt ?? mail.CreatedAt;
+            query.CorrelationCode = mail.CorrelationCode;
+            query.FirstSentAt ??= mail.SentAt;
             query.ResponseStatus = mail.Status == PlaybookMailStatus.Sent ? "Mail gönderildi" : "Manuel gönderim bekliyor";
             query.Action = mail.ErrorMessage ?? (mail.Status == PlaybookMailStatus.Sent ? "Sorgu maili gönderildi" : "Sorgu maili hazırlandı");
             query.QueryStatus = mail.Status == PlaybookMailStatus.Sent
@@ -1645,6 +1765,16 @@ public class PlaybookEngine : IPlaybookEngine
         return candidate.Contains('@') ? string.Empty : candidate;
     }
 
+    private static string NewCorrelationCode() => $"RADAR-Q-{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+
+    private static string AppendCorrelationCode(string subject, string correlationCode)
+    {
+        var suffix = $" [{correlationCode}]";
+        return subject.Contains(correlationCode, StringComparison.OrdinalIgnoreCase)
+            ? subject
+            : string.Concat(subject, suffix);
+    }
+
     /// <summary>
     /// Subject/body come from a saved mail template; per-node overrides win when filled in,
     /// which is how the analyst tweaks one playbook without editing the shared template.
@@ -1657,7 +1787,12 @@ public class PlaybookEngine : IPlaybookEngine
     }
 
     private readonly record struct MailTemplateContent(string Subject, string Body);
-    private readonly record struct MailTemplateDecision(MailTemplateContent Template, WeeklyFlagIncidentDto? Incident);
+    private readonly record struct MailTemplateDecision(
+        MailTemplateContent Template,
+        WeeklyFlagIncidentDto? Incident,
+        int? TemplateId,
+        string? TemplateName,
+        string MatchReason);
     private sealed record TemplateMatchRule(string Pattern, int TemplateId, int Index);
 
     private MailTemplateContent ResolveNodeTemplate(PlaybookNode node, IReadOnlyCollection<MailTemplate> templates)
@@ -1686,11 +1821,15 @@ public class PlaybookEngine : IPlaybookEngine
         IReadOnlyCollection<TemplateMatchRule> rules)
     {
         var fallbackIncident = SelectTemplateIncident(item);
+        var fallbackTemplate = FindFallbackTemplate(node, templates);
 
         if (!node.GetBool("auto_template_by_destination", true) || HasNodeTemplateOverride(node))
             return new MailTemplateDecision(
                 RequireTemplate(defaultTemplate, "Mail konusu bos - bir sablon secin ya da konu yazin."),
-                fallbackIncident);
+                fallbackIncident,
+                node.GetInt("template_id"),
+                fallbackTemplate?.Name ?? "Node sablonu",
+                "Node uzerinde secilen sablon veya icerik");
 
         var ruleMatch = SelectRuleMatchedTemplate(item.User, rules, templates);
         if (ruleMatch != null) return ruleMatch.Value;
@@ -1698,14 +1837,20 @@ public class PlaybookEngine : IPlaybookEngine
         var incident = SelectTemplateIncidentByTemplateMatch(item, templates, node.GetInt("template_id")) ?? fallbackIncident;
         var route = DetermineTemplateRoute(item.SourceCriterion, incident?.Destination);
         var configured = ResolveConfiguredRouteTemplate(node, route, templates);
-        if (configured != null) return new MailTemplateDecision(FromTemplate(configured), incident);
+        if (configured != null) return DecisionFromTemplate(configured, incident, "Destination icin tanimli sablon eslesmesi");
 
         var guessed = GuessRouteTemplate(route, incident, templates, node.GetInt("template_id"));
-        if (guessed != null) return new MailTemplateDecision(FromTemplate(guessed), incident);
+        if (guessed != null) return DecisionFromTemplate(guessed, incident, "Sablon adi ve olay hedefi benzerligi");
+
+        if (fallbackTemplate != null)
+            return DecisionFromTemplate(fallbackTemplate, fallbackIncident, "Genel sablon fallback");
 
         return new MailTemplateDecision(
             RequireTemplate(defaultTemplate, "Destination icin uygun mail sablonu bulunamadi."),
-            fallbackIncident);
+            fallbackIncident,
+            node.GetInt("template_id"),
+            "Node sablonu",
+            "Node uzerinde secilen fallback sablon");
     }
 
     private static MailTemplateContent RequireTemplate(MailTemplateContent template, string message)
@@ -1722,6 +1867,24 @@ public class PlaybookEngine : IPlaybookEngine
 
     private static MailTemplateContent FromTemplate(MailTemplate template) =>
         new(template.Subject, template.Body ?? string.Empty);
+
+    private static MailTemplateDecision DecisionFromTemplate(MailTemplate template, WeeklyFlagIncidentDto? incident, string reason) =>
+        new(FromTemplate(template), incident, template.Id, template.Name, reason);
+
+    private static MailTemplate? FindFallbackTemplate(PlaybookNode node, IReadOnlyCollection<MailTemplate> templates)
+    {
+        var selectedId = node.GetInt("template_id");
+        if (selectedId is > 0)
+            return templates.FirstOrDefault(template => template.Id == selectedId.Value);
+
+        return templates
+            .OrderBy(template => template.Id)
+            .FirstOrDefault(template =>
+            {
+                var name = Fold(template.Name);
+                return name.Contains("genel") || name.Contains("generic") || name.Contains("default");
+            });
+    }
 
     private List<TemplateMatchRule> ResolveTemplateMatchRules(
         PlaybookNode node,
@@ -1802,7 +1965,7 @@ public class PlaybookEngine : IPlaybookEngine
         if (match == null) return null;
 
         var template = templates.First(t => t.Id == match.Rule.TemplateId);
-        return new MailTemplateDecision(FromTemplate(template), match.Incident);
+        return DecisionFromTemplate(template, match.Incident, $"Tanimli eslesme kurali: {match.Rule.Pattern}");
     }
 
     private static int ScoreRuleMatch(string pattern, WeeklyFlagIncidentDto incident)
@@ -1903,6 +2066,24 @@ public class PlaybookEngine : IPlaybookEngine
             .OrderByDescending(i => i.MaxMatches)
             .ThenByDescending(i => i.Timestamp)
             .FirstOrDefault();
+    }
+
+    private static string? BuildIncidentSummaryJson(WeeklyFlagIncidentDto? incident)
+    {
+        if (incident == null) return null;
+
+        return JsonSerializer.Serialize(new
+        {
+            timestamp = incident.Timestamp,
+            policy = incident.Policy,
+            max_matches = incident.MaxMatches,
+            destination = incident.Destination,
+            channel = incident.Channel,
+            action = incident.Action,
+            data_type = incident.DataType,
+            severity = incident.Severity,
+            risk_score = incident.RiskScore
+        });
     }
 
     private static WeeklyFlagUserDto WithPrimaryIncident(WeeklyFlagUserDto user, WeeklyFlagIncidentDto? primary)
@@ -2175,7 +2356,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         await _context.SaveChangesAsync(ct);
-        await UpsertQueryRecordsForMailLogsAsync(queryUpdates, ct);
+        await SyncQueryRecordsSafelyAsync(queryUpdates, ct);
 
         run.MailsSent = await CountAsync(runId, PlaybookMailStatus.Sent, ct);
         run.MailsPending = await CountAsync(runId, PlaybookMailStatus.Pending, ct);
@@ -2318,6 +2499,9 @@ public class PlaybookEngine : IPlaybookEngine
                     break;
                 }
 
+                case PlaybookNodeType.SourcePendingQueryReminders:
+                    break;
+
                 case PlaybookNodeType.LogicMetricThreshold:
                 {
                     if (node.GetInt("value") is null)
@@ -2414,7 +2598,8 @@ public class PlaybookEngine : IPlaybookEngine
                                              or PlaybookNodeType.SourceIncidentMetric
                                              or PlaybookNodeType.SourceHighRiskUsers
                                              or PlaybookNodeType.SourceTopActionUsers
-                                             or PlaybookNodeType.SourceHighMaxMatchTransfers))
+                                             or PlaybookNodeType.SourceHighMaxMatchTransfers
+                                             or PlaybookNodeType.SourcePendingQueryReminders))
                 result.Warnings.Add("Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.");
 
             foreach (var node in metricSources.Where(n => !metricReach.Any(id =>

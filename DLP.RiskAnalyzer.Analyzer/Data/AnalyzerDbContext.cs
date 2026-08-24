@@ -36,6 +36,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<PlaybookRun> PlaybookRuns { get; set; }
     public DbSet<PlaybookMailLog> PlaybookMailLogs { get; set; }
     public DbSet<InvestigationQueryRecord> InvestigationQueries { get; set; }
+    public DbSet<InvestigationInboundMail> InvestigationInboundMails { get; set; }
     public DbSet<ScheduledJob> ScheduledJobs { get; set; }
     public DbSet<ScheduledJobRun> ScheduledJobRuns { get; set; }
 
@@ -630,6 +631,11 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.CcEmail).HasColumnName("cc_email").HasMaxLength(255);
             entity.Property(e => e.Subject).HasColumnName("subject").IsRequired().HasMaxLength(500);
             entity.Property(e => e.BodyHtml).HasColumnName("body_html").IsRequired();
+            entity.Property(e => e.CorrelationCode).HasColumnName("correlation_code").HasMaxLength(80);
+            entity.Property(e => e.TemplateId).HasColumnName("template_id");
+            entity.Property(e => e.TemplateName).HasColumnName("template_name").HasMaxLength(255);
+            entity.Property(e => e.TemplateMatchReason).HasColumnName("template_match_reason").HasMaxLength(500);
+            entity.Property(e => e.IncidentSummaryJson).HasColumnName("incident_summary_json");
             entity.Property(e => e.SourceCriterion).HasColumnName("source_criterion").HasMaxLength(60);
             entity.Property(e => e.TriggerCount).HasColumnName("trigger_count").IsRequired();
             entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20);
@@ -660,6 +666,14 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Team).HasColumnName("team").HasMaxLength(255);
             entity.Property(e => e.Notes).HasColumnName("notes");
             entity.Property(e => e.PlaybookMailLogId).HasColumnName("playbook_mail_log_id");
+            entity.Property(e => e.CorrelationCode).HasColumnName("correlation_code").HasMaxLength(80);
+            entity.Property(e => e.FirstSentAt).HasColumnName("first_sent_at");
+            entity.Property(e => e.ReplyReceivedAt).HasColumnName("reply_received_at");
+            entity.Property(e => e.ReplyMessageId).HasColumnName("reply_message_id").HasMaxLength(500);
+            entity.Property(e => e.ReplyPreview).HasColumnName("reply_preview");
+            entity.Property(e => e.ReviewNote).HasColumnName("review_note");
+            entity.Property(e => e.ReminderSentAt).HasColumnName("reminder_sent_at");
+            entity.Property(e => e.ReminderCount).HasColumnName("reminder_count").HasDefaultValue(0);
             entity.Property(e => e.ExtraJson).HasColumnName("extra_json").IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -671,6 +685,25 @@ public class AnalyzerDbContext : DbContext
             entity.HasIndex(e => e.QueryDate);
             entity.HasIndex(e => e.QueryStatus);
             entity.HasIndex(e => e.PlaybookMailLogId);
+            entity.HasIndex(e => e.CorrelationCode);
+        });
+
+        modelBuilder.Entity<InvestigationInboundMail>(entity =>
+        {
+            entity.ToTable("investigation_inbound_mails", t => t.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.MessageKey).HasColumnName("message_key").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.RfcMessageId).HasColumnName("rfc_message_id").HasMaxLength(500);
+            entity.Property(e => e.FromEmail).HasColumnName("from_email").IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Subject).HasColumnName("subject").IsRequired().HasMaxLength(500);
+            entity.Property(e => e.ReceivedAt).HasColumnName("received_at");
+            entity.Property(e => e.BodyPreview).HasColumnName("body_preview");
+            entity.Property(e => e.InvestigationQueryId).HasColumnName("investigation_query_id");
+            entity.Property(e => e.ProcessingResult).HasColumnName("processing_result").IsRequired().HasMaxLength(80);
+            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at").IsRequired();
+            entity.HasIndex(e => e.MessageKey).IsUnique();
+            entity.HasIndex(e => e.InvestigationQueryId);
         });
 
         modelBuilder.Entity<ScheduledJob>(entity =>

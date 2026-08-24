@@ -34,6 +34,14 @@ type QueryRow = {
   notes?: string
   extra_json?: string
   playbook_mail_log_id?: number
+  correlation_code?: string
+  first_sent_at?: string
+  reply_received_at?: string
+  reply_message_id?: string
+  reply_preview?: string
+  review_note?: string
+  reminder_sent_at?: string
+  reminder_count?: number
   [key: string]: any
 }
 
@@ -84,6 +92,8 @@ const DEFAULT_COLUMNS = [
 const STATUS_OPTIONS = [
   { value: 'bekliyor', label: 'Bekliyor', color: '#64748b' },
   { value: 'sorgulandi', label: 'Sorgulandi', color: '#3b82f6' },
+  { value: 'cevap_inceleme_bekliyor', label: 'Cevap Inceleme Bekliyor', color: '#d97706' },
+  { value: 'hatirlatma_yanitsiz', label: 'Hatirlatma Yanitsiz', color: '#dc2626' },
   { value: 'tamamlandi', label: 'Tamamlandi', color: '#10b981' },
 ]
 
@@ -175,6 +185,13 @@ function toDisplayDateTime(value: any) {
   return date.toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+function queryDuplicateKey(row: Pick<QueryRow, 'user_code' | 'full_name' | 'query_date'>) {
+  const userCode = String(row.user_code || '').trim().toLocaleLowerCase('tr-TR')
+  const fullName = String(row.full_name || '').trim().toLocaleLowerCase('tr-TR')
+  const queryDate = toInputDate(row.query_date)
+  return userCode && fullName && queryDate ? `${userCode}|${fullName}|${queryDate}` : null
+}
+
 function statusMeta(value: string) {
   return STATUS_OPTIONS.find((option) => option.value === value) || STATUS_OPTIONS[0]
 }
@@ -199,11 +216,26 @@ export default function InvestigationQueriesPage() {
   const [editor, setEditor] = useState<QueryRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [replyNotificationCount, setReplyNotificationCount] = useState(0)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     void loadRows()
+  }, [])
+
+  useEffect(() => {
+    const refreshReplyNotification = async () => {
+      try {
+        const { data } = await apiClient.get('/api/investigation/queries/reply-review-count')
+        setReplyNotificationCount(Number(data?.count) || 0)
+      } catch {
+        // The page remains usable when the notification endpoint is temporarily unavailable.
+      }
+    }
+    void refreshReplyNotification()
+    const interval = window.setInterval(() => void refreshReplyNotification(), 60_000)
+    return () => window.clearInterval(interval)
   }, [])
 
   const loadRows = async () => {
@@ -219,6 +251,7 @@ export default function InvestigationQueriesPage() {
         query_date: toInputDate(row.query_date),
       }))
       setRows(nextRows)
+      setReplyNotificationCount(nextRows.filter((row: QueryRow) => row.query_status === 'cevap_inceleme_bekliyor').length)
       setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((row: any) => ({ ...row, mail_date: row.mail_date || '' })))
       setSelectedIndex(nextRows.length ? 0 : null)
       setEditor(nextRows.length ? { ...nextRows[0] } : null)
@@ -277,6 +310,11 @@ export default function InvestigationQueriesPage() {
     }))
   }, [rows])
 
+  const repliesAwaitingReview = useMemo(
+    () => rows.filter((row) => row.query_status === 'cevap_inceleme_bekliyor').length,
+    [rows]
+  )
+
   const selectRow = (row: QueryRow, index: number) => {
     setSelectedIndex(index)
     setEditor({ ...row })
@@ -311,6 +349,23 @@ export default function InvestigationQueriesPage() {
     setEditor(null)
   }
 
+  const reviewReply = async (isSufficient: boolean) => {
+    if (!editor?.id) return
+    setSaving(true)
+    try {
+      await apiClient.post(`/api/investigation/queries/${editor.id}/review-reply`, {
+        is_sufficient: isSufficient,
+        note: editor.review_note || '',
+      })
+      flash('success', isSufficient ? 'Cevap yeterli bulundu, sorgu tamamlandi.' : 'Cevap yetersiz olarak kaydedildi.')
+      await loadRows()
+    } catch (error: any) {
+      flash('error', error?.response?.data?.detail || 'Cevap incelemesi kaydedilemedi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const updateEditor = (key: keyof QueryRow, value: string) => {
     setEditor((prev) => {
       const next = { ...(prev || emptyRow()), [key]: value }
@@ -327,8 +382,11 @@ export default function InvestigationQueriesPage() {
         ? rows.map((row, index) => index === selectedIndex ? editor : row)
         : rows
       const payload = nextRows.filter((row) => DEFAULT_COLUMNS.some((column) => String(row[column.key] || '').trim()))
-      await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
-      flash('success', 'Sorgulamalar kaydedildi')
+      const result = await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
+      const skipped = Number(result.data?.skippedDuplicates || 0)
+      flash('success', skipped > 0
+        ? `Sorgulamalar kaydedildi. ${skipped} yinelenen kayit atlandi.`
+        : 'Sorgulamalar kaydedildi')
       await loadRows()
     } catch (error: any) {
       flash('error', error?.response?.data?.detail || 'Kaydetme basarisiz')
@@ -363,10 +421,29 @@ export default function InvestigationQueriesPage() {
       importedRows.push(next)
     }
 
-    setRows(importedRows.length ? importedRows : [emptyRow()])
-    setSelectedIndex(importedRows.length ? 0 : null)
-    setEditor(importedRows.length ? { ...importedRows[0] } : null)
-    flash('success', 'Excel icerigi yuklendi')
+    const knownKeys = new Set(rows.map(queryDuplicateKey).filter((key): key is string => Boolean(key)))
+    const newRows: QueryRow[] = []
+    let skippedDuplicates = 0
+
+    importedRows.forEach((row) => {
+      const key = queryDuplicateKey(row)
+      if (key && knownKeys.has(key)) {
+        skippedDuplicates++
+        return
+      }
+      if (key) knownKeys.add(key)
+      newRows.push(row)
+    })
+
+    if (newRows.length > 0) {
+      setRows((previous) => [...newRows, ...previous])
+      setSelectedIndex(0)
+      setEditor({ ...newRows[0] })
+    }
+
+    flash('success', newRows.length > 0
+      ? `${newRows.length} yeni kayit eklendi${skippedDuplicates > 0 ? `, ${skippedDuplicates} yinelenen kayit atlandi` : ''}.`
+      : 'Excelde eklenecek yeni kayit bulunamadi.')
   }
 
   const exportExcel = async () => {
@@ -430,10 +507,18 @@ export default function InvestigationQueriesPage() {
         </div>
       )}
 
+      {Math.max(repliesAwaitingReview, replyNotificationCount) > 0 && (
+        <div style={{ ...messageStyle, borderColor: '#f59e0b', background: '#fffbeb', color: '#92400e', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <span><strong>{Math.max(repliesAwaitingReview, replyNotificationCount)} kullanicidan cevap geldi.</strong> Cevaplari inceleyip yeterli veya yetersiz olarak karar verin.</span>
+          <ToolbarButton onClick={() => { setFilters({ ...filters, status: 'cevap_inceleme_bekliyor' }); void loadRows() }} icon={<Filter size={14} />} label="Cevaplari Goster" />
+        </div>
+      )}
+
       <div style={statsGridStyle}>
         <StatCard label="Toplam Kayit" value={rows.length} />
         {stats.map((item) => <StatCard key={item.value} label={item.label} value={item.count} color={item.color} />)}
         <StatCard label="Workflow Mail" value={workflowMailRows.length} color="#8b5cf6" />
+        <StatCard label="Cevap Inceleme" value={repliesAwaitingReview} color="#d97706" />
       </div>
 
       <section style={sectionStyle}>
@@ -535,6 +620,22 @@ export default function InvestigationQueriesPage() {
               <Field label="Notlar" wide>
                 <textarea style={{ ...inputStyle, height: 94, resize: 'vertical' }} value={editor.notes || ''} onChange={(event) => updateEditor('notes', event.target.value)} />
               </Field>
+              {editor.reply_received_at && (
+                <>
+                  <Field label="Gelen Cevap" wide>
+                    <textarea readOnly style={{ ...inputStyle, height: 120, resize: 'vertical', background: 'var(--surface-hover)' }} value={editor.reply_preview || 'Mail govdesi okunamadi.'} />
+                  </Field>
+                  <Field label="Analist Degerlendirmesi" wide>
+                    <textarea style={{ ...inputStyle, height: 72, resize: 'vertical' }} value={editor.review_note || ''} onChange={(event) => updateEditor('review_note', event.target.value)} />
+                  </Field>
+                  {editor.query_status === 'cevap_inceleme_bekliyor' && (
+                    <div style={{ display: 'flex', gap: 8, gridColumn: '1 / -1' }}>
+                      <PrimaryButton onClick={() => void reviewReply(true)} icon={<CheckCircle2 size={15} />} label="Yeterli, Tamamla" disabled={saving} />
+                      <ToolbarButton onClick={() => void reviewReply(false)} icon={<Edit3 size={15} />} label="Yetersiz, Acik Tut" disabled={saving} />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </section>
@@ -544,7 +645,7 @@ export default function InvestigationQueriesPage() {
         <div style={sectionHeaderStyle}>
           <div>
             <h2 style={sectionTitleStyle}>Kullanici Sorgusu Olmayan Workflow Mailleri</h2>
-            <p style={sectionHintStyle}>Agentic workflow metrik ve kurum toplami mailleri ayrica takip edilir.</p>
+            <p style={sectionHintStyle}>Agentic workflow rapor, metrik ve kurum toplami mailleri ayri takip edilir.</p>
           </div>
           <ToolbarButton onClick={clearWorkflowFilters} icon={<X size={14} />} label="Filtreleri Temizle" />
         </div>

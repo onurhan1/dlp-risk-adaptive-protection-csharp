@@ -101,6 +101,11 @@ public class PlaybookMailLog
     public string? CcEmail { get; set; }
     public string Subject { get; set; } = string.Empty;
     public string BodyHtml { get; set; } = string.Empty;
+    public string? CorrelationCode { get; set; }
+    public int? TemplateId { get; set; }
+    public string? TemplateName { get; set; }
+    public string? TemplateMatchReason { get; set; }
+    public string? IncidentSummaryJson { get; set; }
 
     /// <summary>Which weekly-flag criterion put this user into the flow.</summary>
     public string? SourceCriterion { get; set; }
