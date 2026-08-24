@@ -1832,7 +1832,12 @@ public class PlaybookEngine : IPlaybookEngine
         var fallbackIncident = SelectTemplateIncident(item);
         var fallbackTemplate = FindFallbackTemplate(node, templates);
 
-        if (!node.GetBool("auto_template_by_destination", true) || HasNodeTemplateOverride(node))
+        // A reminder starts from an existing query, not a fresh incident. It intentionally has
+        // no destination to match, so its explicitly selected template must win over the
+        // destination/general-template routing used by incident workflows.
+        if (item.SourceCriterion == PlaybookNodeType.SourcePendingQueryReminders ||
+            !node.GetBool("auto_template_by_destination", true) ||
+            HasNodeTemplateOverride(node))
             return new MailTemplateDecision(
                 RequireTemplate(defaultTemplate, "Mail konusu bos - bir sablon secin ya da konu yazin."),
                 fallbackIncident,
