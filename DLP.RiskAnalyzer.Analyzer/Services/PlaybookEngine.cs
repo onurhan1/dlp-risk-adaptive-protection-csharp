@@ -636,16 +636,25 @@ public class PlaybookEngine : IPlaybookEngine
     {
         var cutoff = DateTime.UtcNow.AddDays(-7);
         var due = await _context.InvestigationQueries
-            .AsNoTracking()
             .Where(q => q.QueryStatus == InvestigationQueryStatus.Queried &&
                         q.ReplyReceivedAt == null &&
                         q.ReminderCount == 0 &&
-                        q.FirstSentAt != null &&
-                        q.FirstSentAt <= cutoff &&
+                        (q.FirstSentAt ?? q.QueryDate) != null &&
+                        (q.FirstSentAt ?? q.QueryDate) <= cutoff &&
                         q.MailAddress.Contains("@"))
-            .OrderBy(q => q.FirstSentAt)
+            .OrderBy(q => q.FirstSentAt ?? q.QueryDate)
             .Take(MaxRecipientsPerRun)
             .ToListAsync(ct);
+
+        // Older/manual query rows predate correlation codes. Stamp one before preparing the
+        // reminder so the sent mail updates this same row rather than creating a second query.
+        var changedCorrelations = false;
+        foreach (var query in due.Where(q => string.IsNullOrWhiteSpace(q.CorrelationCode)))
+        {
+            query.CorrelationCode = NewCorrelationCode();
+            changedCorrelations = true;
+        }
+        if (changedCorrelations) await _context.SaveChangesAsync(ct);
 
         var items = due.Select(q => new PlaybookItem(
             new WeeklyFlagUserDto(
@@ -661,7 +670,7 @@ public class PlaybookEngine : IPlaybookEngine
             q.Id,
             q.CorrelationCode)).ToList();
 
-        context.SetMessage($"Ilk mailden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
+        context.SetMessage($"Ilk gonderim veya sorgu tarihinden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
         return items;
     }
 

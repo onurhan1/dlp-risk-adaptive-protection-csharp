@@ -192,6 +192,41 @@ function queryDuplicateKey(row: Pick<QueryRow, 'user_code' | 'full_name' | 'quer
   return userCode && fullName && queryDate ? `${userCode}|${fullName}|${queryDate}` : null
 }
 
+function validApiDate(value: any): string | null {
+  const normalized = toInputDate(value)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null
+  return Number.isNaN(new Date(`${normalized}T00:00:00`).getTime()) ? null : normalized
+}
+
+function queryRequest(row: QueryRow) {
+  return {
+    id: typeof row.id === 'number' && row.id > 0 ? row.id : null,
+    user_code: String(row.user_code || '').trim(),
+    full_name: String(row.full_name || '').trim(),
+    mail_address: String(row.mail_address || '').trim(),
+    subject: String(row.subject || '').trim(),
+    query_date: validApiDate(row.query_date),
+    response_status: String(row.response_status || '').trim(),
+    action: String(row.action || '').trim(),
+    query_status: String(row.query_status || 'bekliyor').trim(),
+    source: String(row.source || '').trim() || null,
+    team: String(row.team || '').trim() || null,
+    notes: String(row.notes || '').trim() || null,
+    playbook_mail_log_id: typeof row.playbook_mail_log_id === 'number' ? row.playbook_mail_log_id : null,
+    extra_json: String(row.extra_json || '{}'),
+  }
+}
+
+function saveErrorMessage(error: any) {
+  const data = error?.response?.data
+  if (data?.detail) return data.detail
+  if (data?.title && data?.errors) {
+    const details = Object.values(data.errors).flat().filter(Boolean).join(' ')
+    return details ? `${data.title}: ${details}` : data.title
+  }
+  return data?.title || error?.message || 'Kaydetme basarisiz'
+}
+
 function statusMeta(value: string) {
   return STATUS_OPTIONS.find((option) => option.value === value) || STATUS_OPTIONS[0]
 }
@@ -381,7 +416,9 @@ export default function InvestigationQueriesPage() {
       const nextRows = editor && selectedIndex != null
         ? rows.map((row, index) => index === selectedIndex ? editor : row)
         : rows
-      const payload = nextRows.filter((row) => DEFAULT_COLUMNS.some((column) => String(row[column.key] || '').trim()))
+      const payload = nextRows
+        .filter((row) => DEFAULT_COLUMNS.some((column) => String(row[column.key] || '').trim()))
+        .map(queryRequest)
       const result = await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
       const skipped = Number(result.data?.skippedDuplicates || 0)
       flash('success', skipped > 0
@@ -389,7 +426,7 @@ export default function InvestigationQueriesPage() {
         : 'Sorgulamalar kaydedildi')
       await loadRows()
     } catch (error: any) {
-      flash('error', error?.response?.data?.detail || 'Kaydetme basarisiz')
+      flash('error', saveErrorMessage(error))
     } finally {
       setSaving(false)
     }
