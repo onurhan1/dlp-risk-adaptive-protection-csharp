@@ -103,10 +103,6 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
                     result.Retried++;
                     await _context.SaveChangesAsync(ct);
                 }
-                else
-                {
-                    result.ProcessingResults.Add($"already:{existingInbound.ProcessingResult}");
-                }
                 continue;
             }
 
@@ -170,7 +166,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         }
 
         var outcomes = result.ProcessingResults.Count == 0
-            ? "yeni mail bulunamadi"
+            ? "bu calistirmada yeni islem yapilmadi"
             : string.Join(", ", result.ProcessingResults
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(DescribeProcessingResult));
