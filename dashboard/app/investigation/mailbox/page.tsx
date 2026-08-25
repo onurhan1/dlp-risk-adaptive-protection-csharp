@@ -81,7 +81,6 @@ export default function MailboxPage() {
   const [processingAutomation, setProcessingAutomation] = useState(false)
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null)
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null)
-  const [inlineImageUrls, setInlineImageUrls] = useState<Record<string, string>>({})
   const [folder, setFolder] = useState('INBOX')
   const [lookbackDays, setLookbackDays] = useState(7)
   const [unreadOnly, setUnreadOnly] = useState(true)
@@ -99,46 +98,6 @@ export default function MailboxPage() {
   useEffect(() => {
     void loadSettingsAndInbox()
   }, [])
-
-  useEffect(() => {
-    if (!settings || !selected) {
-      setInlineImageUrls({})
-      return
-    }
-
-    const images = selected.attachments.filter((attachment) =>
-      attachment.is_inline && attachment.content_type.toLowerCase().startsWith('image/')
-    )
-    if (images.length === 0) {
-      setInlineImageUrls({})
-      return
-    }
-
-    let disposed = false
-    const urls: string[] = []
-    void Promise.all(images.map(async (attachment) => {
-      try {
-        const response = await apiClient.post('/api/settings/imap/attachment', {
-          ...settings,
-          folder: folder.trim() || 'INBOX',
-          message_id: selected.id,
-          attachment_id: attachment.id,
-        }, { responseType: 'blob', timeout: 60000 })
-        const url = URL.createObjectURL(new Blob([response.data], { type: attachment.content_type }))
-        urls.push(url)
-        return [attachment.id, url] as const
-      } catch {
-        return null
-      }
-    })).then((entries) => {
-      if (!disposed) setInlineImageUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)))
-    })
-
-    return () => {
-      disposed = true
-      urls.forEach((url) => URL.revokeObjectURL(url))
-    }
-  }, [folder, selected, settings])
 
   const loadSettingsAndInbox = async () => {
     setLoading(true)
@@ -445,18 +404,6 @@ export default function MailboxPage() {
                     </section>
                   )}
                   <MailBodyView bodyText={selected.body_text} />
-                  {Object.keys(inlineImageUrls).length > 0 && (
-                    <section style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)' }}>
-                      <div style={{ marginBottom: 9, color: 'var(--text-primary)', fontSize: 13, fontWeight: 800 }}>Mail İçi Görseller</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                        {selected.attachments.filter((attachment) => inlineImageUrls[attachment.id]).map((attachment) => (
-                          <a key={attachment.id} href={inlineImageUrls[attachment.id]} target="_blank" rel="noreferrer" title={attachment.file_name} style={{ display: 'block', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: '#fff' }}>
-                            <img src={inlineImageUrls[attachment.id]} alt={attachment.file_name} style={{ display: 'block', maxWidth: 260, maxHeight: 180, objectFit: 'contain' }} />
-                          </a>
-                        ))}
-                      </div>
-                    </section>
-                  )}
                 </div>
               </>
             ) : (

@@ -231,10 +231,12 @@ public class DirectorySettingsService : IDirectorySettingsService
                 return MessageContentResult(false, request.MessageId, "Mail icerigi bos geldi veya okunamadi");
 
             var parsed = ParseMessageContent(request.MessageId, rawMessage);
+            var fullMessageLoaded = false;
             try
             {
                 var fullRawMessage = await GetFullImapMessageAsync(request, ct);
-                parsed.Attachments = ToAttachmentDtos(ExtractAttachments(fullRawMessage));
+                parsed = ParseMessageContent(request.MessageId, fullRawMessage);
+                fullMessageLoaded = true;
             }
             catch (Exception ex)
             {
@@ -242,7 +244,7 @@ public class DirectorySettingsService : IDirectorySettingsService
                 // cannot be listed within the download safety limit.
                 _logger.LogInformation(ex, "IMAP attachment listing skipped for message {MessageId}", request.MessageId);
             }
-            parsed.Truncated = truncated || rawMessage.Length >= ImapMessagePreviewBytes;
+            parsed.Truncated = !fullMessageLoaded && (truncated || rawMessage.Length >= ImapMessagePreviewBytes);
             parsed.Success = true;
             parsed.Message = parsed.Truncated
                 ? "Mail icerigi onizleme limitiyle gosteriliyor"
@@ -1122,7 +1124,7 @@ public class DirectorySettingsService : IDirectorySettingsService
             Id = index.ToString(),
             FileName = SafeFileName(MimeFileName(part), $"ek-{index + 1}"),
             ContentType = SafeContentType(part.ContentType),
-            Size = DecodeMimeBytes(part.Body, part.TransferEncoding).LongLength,
+            Size = MimeDecodedSize(part),
             IsInline = part.Disposition.Contains("inline", StringComparison.OrdinalIgnoreCase)
         })
         .ToList();
@@ -1131,15 +1133,24 @@ public class DirectorySettingsService : IDirectorySettingsService
     {
         var disposition = Header(headers, "Content-Disposition");
         if (disposition.Contains("attachment", StringComparison.OrdinalIgnoreCase)) return true;
-        if (!string.IsNullOrWhiteSpace(Parameter(disposition, "filename")) || !string.IsNullOrWhiteSpace(Parameter(contentType, "name"))) return true;
-        return !contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) &&
-               (!string.IsNullOrWhiteSpace(Header(headers, "Content-ID")) || disposition.Contains("inline", StringComparison.OrdinalIgnoreCase));
+        // Logos, signature cards and other CID resources are sent as inline parts.
+        // They are message content, not user-added downloadable attachments.
+        if (disposition.Contains("inline", StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(Header(headers, "Content-ID"))) return false;
+        return !string.IsNullOrWhiteSpace(Parameter(disposition, "filename")) ||
+               !string.IsNullOrWhiteSpace(Parameter(contentType, "name"));
     }
 
     private static string MimeFileName(MimeLeafPart part) =>
         Parameter(part.Disposition, "filename") ??
         Parameter(part.ContentType, "name") ??
         "ek";
+
+    private static long MimeDecodedSize(MimeLeafPart part)
+    {
+        try { return DecodeMimeBytes(part.Body, part.TransferEncoding).LongLength; }
+        catch { return 0; }
+    }
 
     private sealed record MimeLeafPart(
         string ContentType,
