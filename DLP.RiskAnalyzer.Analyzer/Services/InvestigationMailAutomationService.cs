@@ -250,8 +250,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         var username = directoryUser.Username.Trim();
         var approvedUser = await _context.Users.AsNoTracking().AnyAsync(user =>
             user.IsActive &&
-            user.Username.ToLower() == username.ToLower() &&
-            user.Email.ToLower() == sender.ToLower(), ct);
+            user.Username.ToLower() == username.ToLower(), ct);
         if (!approvedUser) return "user_not_authorized";
 
         var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
