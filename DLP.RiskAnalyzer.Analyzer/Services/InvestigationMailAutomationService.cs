@@ -19,6 +19,7 @@ public sealed class InvestigationMailAutomationResult
     public int RepliesMatched { get; set; }
     public int RemindersSent { get; set; }
     public int MarkedUnanswered { get; set; }
+    public List<string> ProcessingResults { get; set; } = [];
     public string Message { get; set; } = string.Empty;
 }
 
@@ -104,6 +105,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             var processingResult = query == null
                 ? await ProcessReportRequestAsync(sender, content.Subject, content.BodyText, ct)
                 : "reply_matched";
+            result.ProcessingResults.Add(processingResult);
 
             var inbound = new InvestigationInboundMail
             {
@@ -136,7 +138,12 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             await _context.SaveChangesAsync(ct);
         }
 
-        result.Message = $"{result.Processed} gelen mail islendi, {result.RepliesMatched} cevap sorguyla eslestirildi";
+        var outcomes = result.ProcessingResults.Count == 0
+            ? "yeni mail bulunamadi"
+            : string.Join(", ", result.ProcessingResults
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(DescribeProcessingResult));
+        result.Message = $"{result.Processed} gelen mail islendi, {result.RepliesMatched} cevap sorguyla eslestirildi: {outcomes}";
         return result;
     }
 
@@ -318,6 +325,21 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         string.IsNullOrWhiteSpace(correlationCode) || subject.Contains(correlationCode, StringComparison.OrdinalIgnoreCase)
             ? subject
             : $"{subject} [{correlationCode}]";
+
+    private static string DescribeProcessingResult(string result) => result switch
+    {
+        "reply_matched" => "sorgu cevabi eslestirildi",
+        "catalog_sent" => "rapor katalogu gonderildi",
+        "catalog_failed" => "rapor katalogu SMTP ile gonderilemedi",
+        "query_report_sent" => "sorgu raporu gonderildi",
+        "query_report_failed" => "sorgu raporu SMTP ile gonderilemedi",
+        "report_sent" => "rapor gonderildi",
+        "report_failed" => "rapor SMTP ile gonderilemedi",
+        "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
+        "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
+        "unmatched" => "gonderen e-posta adresi okunamadi",
+        _ => result
+    };
 
     private static string ExtractEmail(string value)
     {

@@ -267,7 +267,7 @@ export default function PlaybookEditorPage() {
     }
     if (!dryRun && !window.confirm(
       'Mailler gerçekten gönderilecek. Devam edilsin mi?\n\n' +
-      'Önce "Prova Çalıştır" ile kimlere hangi konuyla mail gideceğini görmeniz önerilir.'
+      'Önce "Test Et" ile kimlere hangi konuyla mail gideceğini görmeniz önerilir.'
     )) return
 
     // The backend runs the saved graph, so unsaved edits must land first.
@@ -285,7 +285,7 @@ export default function PlaybookEditorPage() {
         text: result.status === 'failed'
           ? (result.error_message || 'Çalıştırma başarısız')
           : dryRun
-            ? `Prova tamamlandı: ${result.mails_pending} mail onay bekliyor` +
+            ? `Test tamamlandı: ${result.mails_pending} mail gönderilmeden önizlemeye hazır` +
               (result.mails_skipped ? `, ${result.mails_skipped} kayıt atlandı` : '')
             : `Çalıştırma tamamlandı: ${result.mails_sent} mail gönderildi` +
               (result.mails_failed ? `, ${result.mails_failed} hata` : ''),
@@ -392,9 +392,14 @@ export default function PlaybookEditorPage() {
               <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 500 }}>Kaydedilmemiş değişiklik</span>
             )}
 
-            <button onClick={() => run(true)} disabled={running || saving} style={withDisabled(secondaryButtonStyle, running || saving)}>
+            <button
+              onClick={() => run(true)}
+              disabled={running || saving}
+              title="Mail göndermeden kaynak, alıcı ve seçilen şablon sonucunu test eder"
+              style={withDisabled(secondaryButtonStyle, running || saving)}
+            >
               {running ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Play size={15} />}
-              Prova Çalıştır
+              Test Et
             </button>
 
             <button
