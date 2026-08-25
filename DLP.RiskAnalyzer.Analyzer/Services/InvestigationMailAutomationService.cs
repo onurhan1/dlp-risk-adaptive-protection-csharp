@@ -126,7 +126,10 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             var sender = ExtractEmail(content.From);
             if (!sender.Contains('@'))
                 sender = ExtractEmail(item.From);
-            var query = await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
+            var isReportRequest = IsReportRequest(content.Subject, content.BodyText);
+            var query = isReportRequest
+                ? null
+                : await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
             var receivedAt = ParseDate(content.Date);
             var preview = Shorten(content.BodyText, 2000);
 
@@ -255,7 +258,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             user.Email.ToLower() == sender.ToLower(), ct);
         if (!approvedUser) return "user_not_authorized";
 
-        var request = FoldRequest($"{subject}\n{body}");
+        var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
         if (request.Contains("SORGU RAPORU"))
         {
             var html = request.Contains("HTML");
@@ -405,6 +408,32 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
     private static string NormalizeSubject(string? value) => Regex.Replace(
         Regex.Replace(value ?? string.Empty, @"\[(RADAR-Q-[A-Z0-9]+)\]", string.Empty, RegexOptions.IgnoreCase),
         @"^\s*((re|fw|fwd)\s*:\s*)+", string.Empty, RegexOptions.IgnoreCase).Trim();
+
+    private static string ExtractReplyRequest(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return string.Empty;
+
+        var reply = Regex.Replace(body, @"(?m)^>.*$", string.Empty);
+        var quotedMessage = Regex.Match(reply,
+            @"(?im)^\s*(-----Original Message-----|_{5,}|From:|Kimden:|Gonderen:|Gönderen:|On .+ wrote:)\s*.*$");
+        if (quotedMessage.Success) reply = reply[..quotedMessage.Index];
+
+        return reply.Trim();
+    }
+
+    private static bool IsReportRequest(string? subject, string? body)
+    {
+        if (NormalizeSubject(subject).Contains("RADAR RAPOR TALEP KATALOGU", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
+        return request.Contains("SORGU RAPORU") ||
+               request.Contains("HAFTALIK PERMIT") ||
+               request.Contains("HAFTALIK BLOCK") ||
+               request.Contains("YUKSEK ESLESME") ||
+               request.Contains("MAX MATCH") ||
+               request.Contains("YUKSEK SKOR");
+    }
 
     /*
     private static string FoldRequest(string value) => value
