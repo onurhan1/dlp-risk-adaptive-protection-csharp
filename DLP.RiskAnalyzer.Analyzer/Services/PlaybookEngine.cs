@@ -82,8 +82,9 @@ public class PlaybookEngine : IPlaybookEngine
         if (alreadyRunning)
             throw new InvalidOperationException("Bu workflow için hâlâ çalışan bir akış var. Bitmesini bekleyin.");
 
-        // Dry run unless the playbook explicitly opted into automatic sending.
-        var dryRun = forceDryRun ?? !playbook.AutoSend;
+        // Only an explicit test run is a dry run. Regular and scheduled runs may
+        // send report mails while user-query mails wait for manual approval.
+        var dryRun = forceDryRun == true;
 
         var run = new PlaybookRun
         {
@@ -162,7 +163,7 @@ public class PlaybookEngine : IPlaybookEngine
         var outputs = new Dictionary<string, Dictionary<string, PlaybookPayload>>(StringComparer.Ordinal);
 
         // Run-wide guards shared by every send-mail node.
-        var context = new SendContext(dryRun);
+        var context = new SendContext(dryRun, playbook.AutoSend);
 
         foreach (var nodeId in order)
         {
@@ -1125,9 +1126,7 @@ public class PlaybookEngine : IPlaybookEngine
                 Team = user.Team,
                 ToEmail = toEmail,
                 CcEmail = ccEmail,
-                Subject = AppendCorrelationCode(
-                    PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
-                    correlationCode),
+                Subject = PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
                 BodyHtml = PlaybookMailRenderer.ToEmailHtml(
                     PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Body, renderUser, now)),
                 TemplateId = decision.TemplateId,
@@ -1163,7 +1162,7 @@ public class PlaybookEngine : IPlaybookEngine
                 entry.ErrorMessage = context.LastSkipReason;
                 if (context.LastSkipReason?.Contains("üst sınır") == true) capped++;
             }
-            else if (context.DryRun)
+            else if (context.DryRun || !context.AutoSend)
             {
                 entry.Status = PlaybookMailStatus.Pending;
                 queryLogEntries.Add(entry);
@@ -1199,7 +1198,7 @@ public class PlaybookEngine : IPlaybookEngine
         await _context.SaveChangesAsync(ct);
         await SyncQueryRecordsSafelyAsync(queryLogEntries, ct);
 
-        var verb = context.DryRun ? "onay için hazırlandı" : "gönderildi";
+        var verb = (context.DryRun || !context.AutoSend) ? "onay için hazırlandı" : "gönderildi";
         var message = $"{processed.Count} mail {verb}";
         if (capped > 0) message += $" · {capped} alıcı üst sınır ({MaxRecipientsPerRun}) nedeniyle atlandı";
         context.SetMessage(message);
@@ -1775,14 +1774,6 @@ public class PlaybookEngine : IPlaybookEngine
     }
 
     private static string NewCorrelationCode() => $"RADAR-Q-{Guid.NewGuid():N}"[..20].ToUpperInvariant();
-
-    private static string AppendCorrelationCode(string subject, string correlationCode)
-    {
-        var suffix = $" [{correlationCode}]";
-        return subject.Contains(correlationCode, StringComparison.OrdinalIgnoreCase)
-            ? subject
-            : string.Concat(subject, suffix);
-    }
 
     /// <summary>
     /// Subject/body come from a saved mail template; per-node overrides win when filled in,
@@ -2758,9 +2749,14 @@ public class PlaybookEngine : IPlaybookEngine
         private readonly HashSet<string> _reserved = new(StringComparer.OrdinalIgnoreCase);
         private string? _message;
 
-        public SendContext(bool dryRun) => DryRun = dryRun;
+        public SendContext(bool dryRun, bool autoSend)
+        {
+            DryRun = dryRun;
+            AutoSend = autoSend;
+        }
 
         public bool DryRun { get; }
+        public bool AutoSend { get; }
         public string? LastSkipReason { get; private set; }
 
         public bool TryReserveRecipient(string email)

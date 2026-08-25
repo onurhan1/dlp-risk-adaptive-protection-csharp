@@ -121,7 +121,11 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             }, ct);
             if (!content.Success) continue;
 
+            // Some IMAP servers omit the From header in a full-message preview even
+            // though it is present in the header-only inbox listing.
             var sender = ExtractEmail(content.From);
+            if (!sender.Contains('@'))
+                sender = ExtractEmail(item.From);
             var query = await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
             var receivedAt = ParseDate(content.Date);
             var preview = Shorten(content.BodyText, 2000);
@@ -225,15 +229,21 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
 
         var normalizedSubject = NormalizeSubject(subject);
         var matched = candidates.Where(q => NormalizeSubject(q.Subject) == normalizedSubject).ToList();
-        return matched.Count == 1 ? matched[0] : null;
+        if (matched.Count == 1) return matched[0];
+
+        // Reminder templates may use a different stable subject. If this sender has exactly one
+        // unresolved query, it is still safe to associate the reply without showing an internal
+        // correlation code in the subject line.
+        return candidates.Count == 1 ? candidates[0] : null;
     }
 
     private async Task<string> ProcessReportRequestAsync(string sender, string subject, string body, CancellationToken ct)
     {
         if (!sender.Contains('@')) return "unmatched";
 
-        var username = sender.Split('@')[0];
-        var directoryUser = await _directorySettings.LookupLdapUserAsync(username, ct);
+        // Pass the full address so LDAP can match mail/userPrincipalName as well as
+        // the local-part based sAMAccountName lookup.
+        var directoryUser = await _directorySettings.LookupLdapUserAsync(sender, ct);
         if (!directoryUser.Success) return "ldap_unverified";
         if (!string.IsNullOrWhiteSpace(directoryUser.Email) && !SenderMatches(sender, directoryUser.Email))
             return "ldap_email_mismatch";
@@ -345,11 +355,6 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         </ul>
         <p>Isteginizi konuya veya mail govdesine bu ifadelerden biriyle yazabilirsiniz.</p>
         """;
-
-    private static string EnsureCorrelation(string subject, string? correlationCode) =>
-        string.IsNullOrWhiteSpace(correlationCode) || subject.Contains(correlationCode, StringComparison.OrdinalIgnoreCase)
-            ? subject
-            : $"{subject} [{correlationCode}]";
 
     private static bool CanRetry(string result) => result is
         "catalog_failed" or "query_report_failed" or "report_failed";

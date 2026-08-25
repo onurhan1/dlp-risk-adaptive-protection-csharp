@@ -1110,8 +1110,15 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static string Header(string response, string name)
     {
-        var match = Regex.Match(response, $"^{Regex.Escape(name)}:\\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-        return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+        // RFC 5322 allows long headers such as Content-Type/boundary to continue on
+        // indented lines. Treat those continuation lines as part of the same value.
+        var match = Regex.Match(
+            response,
+            $"^{Regex.Escape(name)}:\\s*(?<value>[^\\r\\n]*(?:\\r?\\n[\\t ]+[^\\r\\n]*)*)",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success
+            ? Regex.Replace(match.Groups["value"].Value, @"\\r?\\n[\\t ]+", " ").Trim()
+            : string.Empty;
     }
 
     private static long LongMatch(string response, string pattern)
@@ -1293,7 +1300,11 @@ public class DirectorySettingsService : IDirectorySettingsService
 
         var trimmedOriginal = originalUsername.Trim();
         if (!string.Equals(trimmedOriginal, normalizedUsername, StringComparison.OrdinalIgnoreCase))
+        {
             filters.Add(BerEqualityFilter("userPrincipalName", trimmedOriginal));
+            if (trimmedOriginal.Contains('@'))
+                filters.Add(BerEqualityFilter("mail", trimmedOriginal));
+        }
 
         if (!string.IsNullOrWhiteSpace(domain) && domain.Contains('.'))
         {
