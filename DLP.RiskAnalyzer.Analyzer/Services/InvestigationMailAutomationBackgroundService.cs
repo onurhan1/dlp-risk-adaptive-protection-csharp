@@ -15,7 +15,7 @@ public class InvestigationMailAutomationBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(45), stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -38,7 +38,7 @@ public class InvestigationMailAutomationBackgroundService : BackgroundService
                 _logger.LogError(ex, "Investigation mail automation tick failed");
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
 }
