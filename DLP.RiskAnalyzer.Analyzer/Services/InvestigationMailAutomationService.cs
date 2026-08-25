@@ -248,6 +248,13 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         if (!string.IsNullOrWhiteSpace(directoryUser.Email) && !SenderMatches(sender, directoryUser.Email))
             return "ldap_email_mismatch";
 
+        var username = directoryUser.Username.Trim();
+        var approvedUser = await _context.Users.AsNoTracking().AnyAsync(user =>
+            user.IsActive &&
+            user.Username.ToLower() == username.ToLower() &&
+            user.Email.ToLower() == sender.ToLower(), ct);
+        if (!approvedUser) return "user_not_authorized";
+
         var request = FoldRequest($"{subject}\n{body}");
         if (request.Contains("SORGU RAPORU"))
         {
@@ -375,6 +382,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             "report_failed" => "rapor SMTP ile gonderilemedi",
             "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
             "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
+            "user_not_authorized" => "gonderen Kullanici Yonetimi listesinde aktif degil",
             "unmatched" => "gonderen e-posta adresi okunamadi",
             _ => code
         };
