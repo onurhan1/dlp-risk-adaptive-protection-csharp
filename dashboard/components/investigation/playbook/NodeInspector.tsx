@@ -1130,7 +1130,7 @@ function SendMailForm({
       )}
 
       <div>
-        <label style={labelStyle}>Mail Şablonu</label>
+        <label style={labelStyle}>{autoTemplateByDestination ? 'Varsayılan Şablon (opsiyonel)' : 'Mail Şablonu'}</label>
         <select style={inputStyle} value={templateId} onChange={e => setConfig({ template_id: e.target.value ? Number(e.target.value) : null })}>
           <option value="">— Şablon seçin —</option>
           {templates.map(t => (
@@ -1139,6 +1139,9 @@ function SendMailForm({
         </select>
         {templates.length === 0 && (
           <p style={hintStyle}>Kayıtlı şablon yok. Mail Şablonları sayfasından bir şablon oluşturun.</p>
+        )}
+        {!inMetricFlow && autoTemplateByDestination && (
+          <p style={hintStyle}>Destination eşleşmesi bulunamazsa bu şablon kullanılır; boş bırakılırsa Genel, Generic veya Default şablon aranır.</p>
         )}
       </div>
 

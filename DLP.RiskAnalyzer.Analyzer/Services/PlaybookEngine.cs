@@ -2535,7 +2535,9 @@ public class PlaybookEngine : IPlaybookEngine
                     routeTemplateIds.AddRange(ReadTemplateMatchRuleIds(node).Select(id => (int?)id));
                     var hasRouteTemplate = routeTemplateIds.Any(id => id is > 0);
                     var hasOverride = !string.IsNullOrWhiteSpace(node.GetString("subject_override"));
-                    if ((templateId is null or <= 0) && !hasRouteTemplate && !hasOverride)
+                    var autoTemplateByDestination = node.GetBool("auto_template_by_destination", true);
+                    if (!autoTemplateByDestination &&
+                        (templateId is null or <= 0) && !hasRouteTemplate && !hasOverride)
                         result.Errors.Add($"'{node.Label}' için bir şablon seçin ya da konu girin.");
                     else if (templateId is > 0 &&
                              !await _context.MailTemplates.AnyAsync(t => t.Id == templateId.Value, ct))

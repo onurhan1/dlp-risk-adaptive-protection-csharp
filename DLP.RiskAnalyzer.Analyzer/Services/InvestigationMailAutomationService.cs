@@ -16,6 +16,8 @@ public interface IInvestigationMailAutomationService
 public sealed class InvestigationMailAutomationResult
 {
     public int Processed { get; set; }
+    public int AlreadyProcessed { get; set; }
+    public int Retried { get; set; }
     public int RepliesMatched { get; set; }
     public int RemindersSent { get; set; }
     public int MarkedUnanswered { get; set; }
@@ -83,8 +85,30 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
                 ? $"{inbox.Folder}:{item.Id}:{item.Date}"
                 : item.MessageId.Trim();
 
-            if (await _context.InvestigationInboundMails.AnyAsync(m => m.MessageKey == messageKey, ct))
+            var existingInbound = await _context.InvestigationInboundMails
+                .FirstOrDefaultAsync(m => m.MessageKey == messageKey, ct);
+            if (existingInbound != null)
+            {
+                result.AlreadyProcessed++;
+                if (CanRetry(existingInbound.ProcessingResult))
+                {
+                    var retriedResult = await ProcessReportRequestAsync(
+                        existingInbound.FromEmail,
+                        existingInbound.Subject,
+                        existingInbound.BodyPreview ?? string.Empty,
+                        ct);
+                    existingInbound.ProcessingResult = retriedResult;
+                    existingInbound.ProcessedAt = DateTime.UtcNow;
+                    result.ProcessingResults.Add($"retry:{retriedResult}");
+                    result.Retried++;
+                    await _context.SaveChangesAsync(ct);
+                }
+                else
+                {
+                    result.ProcessingResults.Add($"already:{existingInbound.ProcessingResult}");
+                }
                 continue;
+            }
 
             var content = await _directorySettings.GetInboxMessageAsync(new ImapMessageContentRequest
             {
@@ -143,7 +167,8 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             : string.Join(", ", result.ProcessingResults
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(DescribeProcessingResult));
-        result.Message = $"{result.Processed} gelen mail islendi, {result.RepliesMatched} cevap sorguyla eslestirildi: {outcomes}";
+        result.Message = $"{result.Processed} yeni mail islendi, {result.AlreadyProcessed} onceki mail goruldu, " +
+                         $"{result.Retried} tekrar denendi, {result.RepliesMatched} cevap sorguyla eslestirildi: {outcomes}";
         return result;
     }
 
@@ -326,20 +351,31 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             ? subject
             : $"{subject} [{correlationCode}]";
 
-    private static string DescribeProcessingResult(string result) => result switch
+    private static bool CanRetry(string result) => result is
+        "catalog_failed" or "query_report_failed" or "report_failed";
+
+    private static string DescribeProcessingResult(string result)
     {
-        "reply_matched" => "sorgu cevabi eslestirildi",
-        "catalog_sent" => "rapor katalogu gonderildi",
-        "catalog_failed" => "rapor katalogu SMTP ile gonderilemedi",
-        "query_report_sent" => "sorgu raporu gonderildi",
-        "query_report_failed" => "sorgu raporu SMTP ile gonderilemedi",
-        "report_sent" => "rapor gonderildi",
-        "report_failed" => "rapor SMTP ile gonderilemedi",
-        "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
-        "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
-        "unmatched" => "gonderen e-posta adresi okunamadi",
-        _ => result
-    };
+        var retry = result.StartsWith("retry:", StringComparison.OrdinalIgnoreCase);
+        var already = result.StartsWith("already:", StringComparison.OrdinalIgnoreCase);
+        var code = (retry || already) ? result[(result.IndexOf(':') + 1)..] : result;
+        var label = code switch
+        {
+            "reply_matched" => "sorgu cevabi eslestirildi",
+            "catalog_sent" => "rapor katalogu gonderildi",
+            "catalog_failed" => "rapor katalogu SMTP ile gonderilemedi",
+            "query_report_sent" => "sorgu raporu gonderildi",
+            "query_report_failed" => "sorgu raporu SMTP ile gonderilemedi",
+            "report_sent" => "rapor gonderildi",
+            "report_failed" => "rapor SMTP ile gonderilemedi",
+            "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
+            "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
+            "unmatched" => "gonderen e-posta adresi okunamadi",
+            _ => code
+        };
+
+        return retry ? $"tekrar deneme: {label}" : already ? $"daha once islendi: {label}" : label;
+    }
 
     private static string ExtractEmail(string value)
     {

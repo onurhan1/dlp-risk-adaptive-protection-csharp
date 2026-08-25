@@ -736,7 +736,8 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
         ),
       ]
       const hasRouteTemplate = routeTemplateIds.some(id => Number.isFinite(id) && id > 0)
-      if (!hasTemplate && !hasRouteTemplate && !String(node.config?.subject_override || '').trim()) {
+      const autoTemplateByDestination = node.config?.auto_template_by_destination !== false
+      if (!autoTemplateByDestination && !hasTemplate && !hasRouteTemplate && !String(node.config?.subject_override || '').trim()) {
         errors.push(`'${node.label}' için bir şablon seçin ya da konu girin.`)
       }
       if (node.config?.recipient_mode === 'fixed' && !isValidEmail(node.config?.fixed_recipient)) {
