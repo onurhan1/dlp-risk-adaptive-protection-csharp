@@ -90,8 +90,17 @@ interface ImapInboxMessage {
 interface ImapMessageContent extends ImapInboxMessage {
   content_type: string
   body_text: string
+  attachments: ImapAttachment[]
   truncated: boolean
   message?: string
+}
+
+interface ImapAttachment {
+  id: string
+  file_name: string
+  content_type: string
+  size: number
+  is_inline: boolean
 }
 
 interface LdapSettings {
@@ -604,6 +613,7 @@ export default function SettingsPage() {
         date: response.data.date || mail.date,
         content_type: response.data.content_type || '',
         body_text: response.data.body_text || '',
+        attachments: Array.isArray(response.data.attachments) ? response.data.attachments : [],
         truncated: Boolean(response.data.truncated),
         message: response.data.message,
       })

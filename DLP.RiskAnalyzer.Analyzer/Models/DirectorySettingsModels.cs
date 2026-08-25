@@ -40,6 +40,20 @@ public class ImapMessageContentRequest : ImapSettingsRequest
     public string MessageId { get; set; } = string.Empty;
 }
 
+public class ImapAttachmentRequest : ImapMessageContentRequest
+{
+    public string AttachmentId { get; set; } = string.Empty;
+}
+
+public class ImapAttachmentDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long Size { get; set; }
+    public bool IsInline { get; set; }
+}
+
 public class ImapInboxMessageDto
 {
     public string Id { get; set; } = string.Empty;
@@ -77,6 +91,7 @@ public class ImapMessageContentResponse
     public string Date { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public string BodyText { get; set; } = string.Empty;
+    public List<ImapAttachmentDto> Attachments { get; set; } = new();
     public bool Truncated { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }

@@ -24,6 +24,7 @@ public class DirectorySettingsService : IDirectorySettingsService
     private const string ImapLookbackDaysKey = "imap_lookback_days";
     private const string ImapMaxMessagesKey = "imap_max_messages";
     private const int ImapMessagePreviewBytes = 200_000;
+    private const int ImapFullMessageMaxBytes = 25 * 1024 * 1024;
 
     private const string LdapPrefix = "ldap_";
     private const string LdapEnabledKey = "ldap_enabled";
@@ -230,6 +231,17 @@ public class DirectorySettingsService : IDirectorySettingsService
                 return MessageContentResult(false, request.MessageId, "Mail icerigi bos geldi veya okunamadi");
 
             var parsed = ParseMessageContent(request.MessageId, rawMessage);
+            try
+            {
+                var fullRawMessage = await GetFullImapMessageAsync(request, ct);
+                parsed.Attachments = ToAttachmentDtos(ExtractAttachments(fullRawMessage));
+            }
+            catch (Exception ex)
+            {
+                // Keep the message body available even when a very large attachment
+                // cannot be listed within the download safety limit.
+                _logger.LogInformation(ex, "IMAP attachment listing skipped for message {MessageId}", request.MessageId);
+            }
             parsed.Truncated = truncated || rawMessage.Length >= ImapMessagePreviewBytes;
             parsed.Success = true;
             parsed.Message = parsed.Truncated
@@ -242,6 +254,25 @@ public class DirectorySettingsService : IDirectorySettingsService
             _logger.LogWarning(ex, "IMAP message content preview failed");
             return MessageContentResult(false, request.MessageId, $"Mail icerigi goruntulenemedi: {ex.Message}");
         }
+    }
+
+    public async Task<(byte[] Content, string FileName, string ContentType)> GetInboxAttachmentAsync(
+        ImapAttachmentRequest request,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.AttachmentId) || !int.TryParse(request.AttachmentId, out var attachmentIndex) || attachmentIndex < 0)
+            throw new ArgumentException("Gecerli bir ek kimligi zorunludur");
+
+        var rawMessage = await GetFullImapMessageAsync(request, ct);
+        var attachments = ExtractAttachments(rawMessage);
+        if (attachmentIndex >= attachments.Count)
+            throw new ArgumentException("Mail eki bulunamadi veya artik indirilemiyor");
+
+        var attachment = attachments[attachmentIndex];
+        return (
+            DecodeMimeBytes(attachment.Body, attachment.TransferEncoding),
+            SafeFileName(MimeFileName(attachment), $"ek-{attachmentIndex + 1}"),
+            SafeContentType(attachment.ContentType));
     }
 
     public async Task<LdapSettingsResponse> GetLdapAsync(CancellationToken ct = default)
@@ -721,7 +752,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         await stream.FlushAsync(ct);
     }
 
-    private static async Task<string> ReadImapAsync(Stream stream, CancellationToken ct, string? untilTag = null)
+    private static async Task<string> ReadImapAsync(Stream stream, CancellationToken ct, string? untilTag = null, int? maxBytes = null)
     {
         var buffer = new byte[4096];
         var builder = new StringBuilder();
@@ -733,6 +764,8 @@ public class DirectorySettingsService : IDirectorySettingsService
             var read = await stream.ReadAsync(buffer, timeout.Token);
             if (read <= 0) break;
             builder.Append(Encoding.Latin1.GetString(buffer, 0, read));
+            if (maxBytes.HasValue && builder.Length > maxBytes.Value)
+                throw new InvalidOperationException($"IMAP mail boyutu {maxBytes.Value / (1024 * 1024)} MB sinirini asiyor");
         }
         while (untilTag != null && !HasTaggedCompletion(builder.ToString(), untilTag));
 
@@ -758,6 +791,47 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
 
         return lastResponse;
+    }
+
+    private async Task<string> GetFullImapMessageAsync(ImapMessageContentRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.MessageId) || !int.TryParse(request.MessageId, out _))
+            throw new ArgumentException("Gecerli bir IMAP mesaj id zorunludur");
+        if (string.IsNullOrWhiteSpace(request.Password))
+            request.Password = await GetSecretAsync(ImapPasswordKey, ct);
+        ValidateImap(request, allowEmptyPassword: false);
+
+        var folder = string.IsNullOrWhiteSpace(request.Folder) ? "INBOX" : request.Folder.Trim();
+        using var client = new TcpClient();
+        await client.ConnectAsync(request.Host.Trim(), request.Port, ct);
+        using var stream = request.EnableSsl
+            ? await WrapSslAsync(client, request.Host.Trim(), ct)
+            : client.GetStream();
+
+        var greeting = await ReadImapAsync(stream, ct);
+        if (!greeting.Contains("* OK", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("IMAP sunucusu beklenen acilis yanitini vermedi");
+
+        await WriteAsync(stream, $"A001 LOGIN \"{EscapeImap(request.Username.Trim())}\" \"{EscapeImap(request.Password ?? string.Empty)}\"\r\n", ct);
+        var login = await ReadImapAsync(stream, ct, "A001");
+        if (!login.Contains("A001 OK", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("IMAP kimlik dogrulama basarisiz");
+
+        await WriteAsync(stream, $"A002 SELECT \"{EscapeImap(folder)}\"\r\n", ct);
+        var selected = await ReadImapAsync(stream, ct, "A002");
+        if (!selected.Contains("A002 OK", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("IMAP klasoru acilamadi");
+
+        await WriteAsync(stream, $"A003 FETCH {request.MessageId} (BODY.PEEK[])\r\n", ct);
+        var response = await ReadImapAsync(stream, ct, "A003", ImapFullMessageMaxBytes);
+        await WriteAsync(stream, "A900 LOGOUT\r\n", ct);
+        if (!IsTaggedOk(response))
+            throw new InvalidOperationException("Mail eki okunamadi");
+
+        var rawMessage = ExtractImapMessageContent(response, out _);
+        if (string.IsNullOrWhiteSpace(rawMessage))
+            throw new InvalidOperationException("Mail icerigi bos geldi veya okunamadi");
+        return rawMessage;
     }
 
     private static async Task<byte[]> ReadLdapResponseAsync(Stream stream, CancellationToken ct)
@@ -895,10 +969,12 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static ImapMessageContentResponse ParseMessageContent(string id, string rawMessage)
     {
-        var (headers, body) = SplitHeadersAndBody(rawMessage);
+        var (headers, body) = rawMessage.TrimStart().StartsWith("--", StringComparison.Ordinal)
+            ? (string.Empty, rawMessage)
+            : SplitHeadersAndBody(rawMessage);
         var contentType = Header(headers, "Content-Type");
-        var transferEncoding = Header(headers, "Content-Transfer-Encoding");
-        var bodyText = ExtractReadableBody(headers, body, contentType, transferEncoding);
+        var leaves = ParseMimeLeaves(headers, body, contentType);
+        var bodyText = ExtractReadableBody(leaves);
 
         return new ImapMessageContentResponse
         {
@@ -910,30 +986,22 @@ public class DirectorySettingsService : IDirectorySettingsService
             Subject = DecodeMimeHeader(Header(headers, "Subject")),
             Date = Header(headers, "Date"),
             ContentType = string.IsNullOrWhiteSpace(contentType) ? "text/plain" : contentType,
-            BodyText = NormalizeBodyText(bodyText)
+            BodyText = NormalizeBodyText(bodyText),
+            Attachments = ToAttachmentDtos(leaves)
         };
     }
 
-    private static string ExtractReadableBody(string headers, string body, string contentType, string transferEncoding)
+    private static string ExtractReadableBody(IEnumerable<MimeLeafPart> leaves)
     {
-        if (IsMultipart(contentType))
-        {
-            var boundary = Parameter(contentType, "boundary");
-            if (!string.IsNullOrWhiteSpace(boundary))
-            {
-                var parts = SplitMimeParts(body, boundary).ToList();
-                var textPart = parts.Select(ParseMimePart).FirstOrDefault(p => IsTextPlain(p.ContentType) && !p.IsAttachment);
-                if (textPart.Body != null)
-                    return DecodeMimeBody(textPart.Body, textPart.TransferEncoding, Charset(textPart.ContentType));
+        var parts = leaves.Where(part => !part.IsAttachment).ToList();
+        var textPart = parts.FirstOrDefault(part => IsTextPlain(part.ContentType));
+        if (textPart != null)
+            return DecodeMimeBody(textPart.Body, textPart.TransferEncoding, Charset(textPart.ContentType));
 
-                var htmlPart = parts.Select(ParseMimePart).FirstOrDefault(p => IsTextHtml(p.ContentType) && !p.IsAttachment);
-                if (htmlPart.Body != null)
-                    return HtmlToText(DecodeMimeBody(htmlPart.Body, htmlPart.TransferEncoding, Charset(htmlPart.ContentType)));
-            }
-        }
-
-        var decoded = DecodeMimeBody(body, transferEncoding, Charset(contentType));
-        return IsTextHtml(contentType) ? HtmlToText(decoded) : decoded;
+        var htmlPart = parts.FirstOrDefault(part => IsTextHtml(part.ContentType));
+        return htmlPart == null
+            ? string.Empty
+            : HtmlToText(DecodeMimeBody(htmlPart.Body, htmlPart.TransferEncoding, Charset(htmlPart.ContentType)));
     }
 
     private static string ExtractImapLiteral(string response, out bool truncated)
@@ -1011,37 +1079,100 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
     }
 
-    private static (string ContentType, string TransferEncoding, bool IsAttachment, string? Body) ParseMimePart(string part)
+    private static List<MimeLeafPart> ParseMimeLeaves(string headers, string body, string? suppliedContentType = null)
     {
-        var (headers, body) = SplitHeadersAndBody(part);
-        return (
-            Header(headers, "Content-Type"),
+        var contentType = suppliedContentType ?? Header(headers, "Content-Type");
+        var boundary = IsMultipart(contentType)
+            ? Parameter(contentType, "boundary")
+            : DetectMimeBoundary(body);
+        if (!string.IsNullOrWhiteSpace(boundary))
+        {
+            return SplitMimeParts(body, boundary)
+                .SelectMany(part =>
+                {
+                    var (partHeaders, partBody) = SplitHeadersAndBody(part);
+                    return ParseMimeLeaves(partHeaders, partBody);
+                })
+                .ToList();
+        }
+
+        return [new MimeLeafPart(
+            contentType,
             Header(headers, "Content-Transfer-Encoding"),
-            Header(headers, "Content-Disposition").Contains("attachment", StringComparison.OrdinalIgnoreCase),
-            body
-        );
+            Header(headers, "Content-Disposition"),
+            Header(headers, "Content-ID"),
+            body,
+            IsMimeAttachment(headers, contentType))];
     }
+
+    private static List<MimeLeafPart> ExtractAttachments(string rawMessage)
+    {
+        var (headers, body) = rawMessage.TrimStart().StartsWith("--", StringComparison.Ordinal)
+            ? (string.Empty, rawMessage)
+            : SplitHeadersAndBody(rawMessage);
+        return ParseMimeLeaves(headers, body)
+            .Where(part => part.IsAttachment)
+            .ToList();
+    }
+
+    private static List<ImapAttachmentDto> ToAttachmentDtos(IEnumerable<MimeLeafPart> leaves) => leaves
+        .Where(part => part.IsAttachment)
+        .Select((part, index) => new ImapAttachmentDto
+        {
+            Id = index.ToString(),
+            FileName = SafeFileName(MimeFileName(part), $"ek-{index + 1}"),
+            ContentType = SafeContentType(part.ContentType),
+            Size = DecodeMimeBytes(part.Body, part.TransferEncoding).LongLength,
+            IsInline = part.Disposition.Contains("inline", StringComparison.OrdinalIgnoreCase)
+        })
+        .ToList();
+
+    private static bool IsMimeAttachment(string headers, string contentType)
+    {
+        var disposition = Header(headers, "Content-Disposition");
+        if (disposition.Contains("attachment", StringComparison.OrdinalIgnoreCase)) return true;
+        if (!string.IsNullOrWhiteSpace(Parameter(disposition, "filename")) || !string.IsNullOrWhiteSpace(Parameter(contentType, "name"))) return true;
+        return !contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) &&
+               (!string.IsNullOrWhiteSpace(Header(headers, "Content-ID")) || disposition.Contains("inline", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string MimeFileName(MimeLeafPart part) =>
+        Parameter(part.Disposition, "filename") ??
+        Parameter(part.ContentType, "name") ??
+        "ek";
+
+    private sealed record MimeLeafPart(
+        string ContentType,
+        string TransferEncoding,
+        string Disposition,
+        string ContentId,
+        string Body,
+        bool IsAttachment);
 
     private static string DecodeMimeBody(string body, string transferEncoding, string charset)
     {
         var encoding = SafeEncoding(charset);
         try
         {
-            if (transferEncoding.Contains("base64", StringComparison.OrdinalIgnoreCase))
-            {
-                var compact = Regex.Replace(body, @"\s+", "");
-                return encoding.GetString(Convert.FromBase64String(compact));
-            }
-
-            if (transferEncoding.Contains("quoted-printable", StringComparison.OrdinalIgnoreCase))
-                return encoding.GetString(DecodeQuotedPrintableBody(body));
-
-            return encoding.GetString(Encoding.Latin1.GetBytes(body));
+            return encoding.GetString(DecodeMimeBytes(body, transferEncoding));
         }
         catch
         {
             return body;
         }
+    }
+
+    private static byte[] DecodeMimeBytes(string body, string transferEncoding)
+    {
+        if (transferEncoding.Contains("base64", StringComparison.OrdinalIgnoreCase))
+        {
+            var compact = Regex.Replace(body, @"\s+", "");
+            return Convert.FromBase64String(compact);
+        }
+
+        return transferEncoding.Contains("quoted-printable", StringComparison.OrdinalIgnoreCase)
+            ? DecodeQuotedPrintableBody(body)
+            : Encoding.Latin1.GetBytes(body);
     }
 
     private static byte[] DecodeQuotedPrintableBody(string value)
@@ -1088,12 +1219,37 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static bool IsTextHtml(string value) => value.Contains("text/html", StringComparison.OrdinalIgnoreCase);
 
+    private static string? DetectMimeBoundary(string body)
+    {
+        var match = Regex.Match(
+            body,
+            @"^--(?<boundary>[^\r\n]+)\r?\nContent-Type:\s*",
+            RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups["boundary"].Value.Trim() : null;
+    }
+
     private static string Charset(string contentType) => Parameter(contentType, "charset") ?? "utf-8";
 
     private static string? Parameter(string header, string name)
     {
         var match = Regex.Match(header, $@"(?:^|;)\s*{Regex.Escape(name)}\s*=\s*(""?)([^"";]+)\1", RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[2].Value.Trim() : null;
+    }
+
+    private static string SafeFileName(string? value, string fallback)
+    {
+        var fileName = Path.GetFileName(string.IsNullOrWhiteSpace(value) ? fallback : value.Trim());
+        var invalid = Path.GetInvalidFileNameChars();
+        fileName = new string(fileName.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(fileName) ? fallback : fileName;
+    }
+
+    private static string SafeContentType(string? value)
+    {
+        var contentType = (value ?? string.Empty).Split(';')[0].Trim();
+        return Regex.IsMatch(contentType, @"^[\w.+-]+/[\w.+-]+$")
+            ? contentType
+            : "application/octet-stream";
     }
 
     private static Encoding SafeEncoding(string charset)

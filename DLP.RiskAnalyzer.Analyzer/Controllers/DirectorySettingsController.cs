@@ -106,6 +106,25 @@ public class DirectorySettingsController : ControllerBase
         }
     }
 
+    [HttpPost("imap/attachment")]
+    public async Task<IActionResult> DownloadInboxAttachment([FromBody] ImapAttachmentRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var attachment = await _settingsService.GetInboxAttachmentAsync(request, ct);
+            return File(attachment.Content, attachment.ContentType, attachment.FileName);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "IMAP attachment download failed for message {MessageId}", request.MessageId);
+            return StatusCode(500, new { success = false, message = "Mail eki indirilemedi" });
+        }
+    }
+
     [HttpGet("ldap")]
     public async Task<ActionResult<LdapSettingsResponse>> GetLdap(CancellationToken ct) =>
         Ok(await _settingsService.GetLdapAsync(ct));

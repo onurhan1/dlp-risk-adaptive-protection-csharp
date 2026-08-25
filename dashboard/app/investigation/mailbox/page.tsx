@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, CheckCircle2, Inbox, Mail, RefreshCw, Search, Settings, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Download, Inbox, Mail, Paperclip, RefreshCw, Search, Settings, XCircle } from 'lucide-react'
 import apiClient from '@/lib/axios'
 import MailBodyView from '@/components/investigation/MailBodyView'
 
@@ -33,7 +33,16 @@ interface ImapMessageContent extends ImapInboxMessage {
   content_type: string
   body_text: string
   truncated: boolean
+  attachments: ImapAttachment[]
   message?: string
+}
+
+interface ImapAttachment {
+  id: string
+  file_name: string
+  content_type: string
+  size: number
+  is_inline: boolean
 }
 
 const inputStyle = {
@@ -71,6 +80,8 @@ export default function MailboxPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [processingAutomation, setProcessingAutomation] = useState(false)
   const [messageLoadingId, setMessageLoadingId] = useState<string | null>(null)
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null)
+  const [inlineImageUrls, setInlineImageUrls] = useState<Record<string, string>>({})
   const [folder, setFolder] = useState('INBOX')
   const [lookbackDays, setLookbackDays] = useState(7)
   const [unreadOnly, setUnreadOnly] = useState(true)
@@ -88,6 +99,46 @@ export default function MailboxPage() {
   useEffect(() => {
     void loadSettingsAndInbox()
   }, [])
+
+  useEffect(() => {
+    if (!settings || !selected) {
+      setInlineImageUrls({})
+      return
+    }
+
+    const images = selected.attachments.filter((attachment) =>
+      attachment.is_inline && attachment.content_type.toLowerCase().startsWith('image/')
+    )
+    if (images.length === 0) {
+      setInlineImageUrls({})
+      return
+    }
+
+    let disposed = false
+    const urls: string[] = []
+    void Promise.all(images.map(async (attachment) => {
+      try {
+        const response = await apiClient.post('/api/settings/imap/attachment', {
+          ...settings,
+          folder: folder.trim() || 'INBOX',
+          message_id: selected.id,
+          attachment_id: attachment.id,
+        }, { responseType: 'blob', timeout: 60000 })
+        const url = URL.createObjectURL(new Blob([response.data], { type: attachment.content_type }))
+        urls.push(url)
+        return [attachment.id, url] as const
+      } catch {
+        return null
+      }
+    })).then((entries) => {
+      if (!disposed) setInlineImageUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)))
+    })
+
+    return () => {
+      disposed = true
+      urls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [folder, selected, settings])
 
   const loadSettingsAndInbox = async () => {
     setLoading(true)
@@ -173,12 +224,38 @@ export default function MailboxPage() {
         content_type: data.content_type || '',
         body_text: data.body_text || '',
         truncated: Boolean(data.truncated),
+        attachments: Array.isArray(data.attachments) ? data.attachments : [],
         message: data.message,
       })
     } catch (error: any) {
       flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Mail icerigi goruntulenemedi')
     } finally {
       setMessageLoadingId(null)
+    }
+  }
+
+  const downloadAttachment = async (attachment: ImapAttachment) => {
+    if (!settings || !selected) return
+    setDownloadingAttachmentId(attachment.id)
+    try {
+      const response = await apiClient.post('/api/settings/imap/attachment', {
+        ...settings,
+        folder: folder.trim() || 'INBOX',
+        message_id: selected.id,
+        attachment_id: attachment.id,
+      }, { responseType: 'blob', timeout: 60000 })
+      const url = URL.createObjectURL(new Blob([response.data], { type: attachment.content_type || 'application/octet-stream' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = attachment.file_name || 'ek'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      flash('error', error.response?.data?.message || error.message || 'Mail eki indirilemedi')
+    } finally {
+      setDownloadingAttachmentId(null)
     }
   }
 
@@ -347,7 +424,39 @@ export default function MailboxPage() {
                   </button>
                 </div>
                 <div style={{ padding: 14, maxHeight: 'calc(100vh - 230px)', overflow: 'auto', background: 'var(--background-secondary)' }}>
+                  {selected.attachments.length > 0 && (
+                    <section style={{ marginBottom: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, color: 'var(--text-primary)', fontSize: 13, fontWeight: 800 }}>
+                        <Paperclip size={15} /> Ekler ({selected.attachments.length})
+                      </div>
+                      <div style={{ display: 'grid', gap: 7 }}>
+                        {selected.attachments.map((attachment) => (
+                          <div key={attachment.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 9px', border: '1px solid var(--border)', borderRadius: 6 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700 }}>{attachment.file_name}</div>
+                              <div style={{ marginTop: 3, color: 'var(--text-secondary)', fontSize: 11 }}>{Math.max(1, Math.ceil(attachment.size / 1024))} KB{attachment.is_inline ? ' · Satır içi' : ''}</div>
+                            </div>
+                            <button type="button" style={{ ...buttonStyle, height: 31, padding: '0 9px', flex: '0 0 auto' }} onClick={() => downloadAttachment(attachment)} disabled={downloadingAttachmentId === attachment.id} title="Eki indir">
+                              <Download size={14} /> {downloadingAttachmentId === attachment.id ? 'İndiriliyor...' : 'İndir'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <MailBodyView bodyText={selected.body_text} />
+                  {Object.keys(inlineImageUrls).length > 0 && (
+                    <section style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)' }}>
+                      <div style={{ marginBottom: 9, color: 'var(--text-primary)', fontSize: 13, fontWeight: 800 }}>Mail İçi Görseller</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {selected.attachments.filter((attachment) => inlineImageUrls[attachment.id]).map((attachment) => (
+                          <a key={attachment.id} href={inlineImageUrls[attachment.id]} target="_blank" rel="noreferrer" title={attachment.file_name} style={{ display: 'block', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: '#fff' }}>
+                            <img src={inlineImageUrls[attachment.id]} alt={attachment.file_name} style={{ display: 'block', maxWidth: 260, maxHeight: 180, objectFit: 'contain' }} />
+                          </a>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </div>
               </>
             ) : (
