@@ -98,11 +98,16 @@ public class InvestigationQueriesController : ControllerBase
     {
         await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
 
+        var rows = request.Rows ?? [];
+        if (rows.Count > 2_000)
+            return BadRequest(new { detail = "Tek seferde en fazla 2000 sorgu kaydi kaydedilebilir." });
+
         var now = DateTime.UtcNow;
         var actor = User?.Identity?.Name ?? "System";
         var saved = 0;
         var skippedDuplicates = 0;
         var changedRows = new List<InvestigationQueryRecord>();
+        var requestIds = new HashSet<int>();
         var existingKeys = (await _context.InvestigationQueries
                 .AsNoTracking()
                 .Select(q => new { q.UserCode, q.FullName, q.QueryDate })
@@ -113,24 +118,31 @@ public class InvestigationQueriesController : ControllerBase
             .ToHashSet(StringComparer.Ordinal);
         var requestKeys = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var row in request.Rows)
+        foreach (var row in rows)
         {
             var duplicateKey = DuplicateKey(row.UserCode, row.FullName, row.QueryDate);
-            var isExistingRecord = row.Id.HasValue && row.Id.Value > 0;
-            if (!isExistingRecord && duplicateKey != null &&
+            var existingId = row.Id.GetValueOrDefault();
+            InvestigationQueryRecord? entity = null;
+
+            if (existingId > 0)
+            {
+                if (!requestIds.Add(existingId))
+                {
+                    skippedDuplicates++;
+                    continue;
+                }
+
+                entity = await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.Id == existingId, ct);
+            }
+
+            if (entity == null && duplicateKey != null &&
                 (!requestKeys.Add(duplicateKey) || existingKeys.Contains(duplicateKey)))
             {
                 skippedDuplicates++;
                 continue;
             }
 
-            InvestigationQueryRecord entity;
-            if (row.Id.HasValue && row.Id.Value > 0)
-            {
-                entity = await _context.InvestigationQueries.FirstOrDefaultAsync(q => q.Id == row.Id.Value, ct)
-                    ?? new InvestigationQueryRecord { CreatedAt = now, CreatedBy = actor };
-            }
-            else
+            if (entity == null)
             {
                 entity = new InvestigationQueryRecord { CreatedAt = now, CreatedBy = actor };
                 _context.InvestigationQueries.Add(entity);
@@ -142,9 +154,32 @@ public class InvestigationQueriesController : ControllerBase
             saved++;
         }
 
-        var remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
         await _context.SaveChangesAsync(ct);
+        var remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
+        if (remediationsSynced > 0)
+            await _context.SaveChangesAsync(ct);
         return Ok(new { success = true, saved, skippedDuplicates, remediationsSynced });
+    }
+
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult> DeleteBulk([FromBody] BulkDeleteQueryRequest request, CancellationToken ct = default)
+    {
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
+
+        var ids = (request.Ids ?? [])
+            .Where(id => id > 0)
+            .Distinct()
+            .Take(2_000)
+            .ToList();
+        if (ids.Count == 0)
+            return BadRequest(new { detail = "Silinecek kayit secilmedi." });
+
+        var records = await _context.InvestigationQueries
+            .Where(query => ids.Contains(query.Id))
+            .ToListAsync(ct);
+        _context.InvestigationQueries.RemoveRange(records);
+        await _context.SaveChangesAsync(ct);
+        return Ok(new { success = true, deleted = records.Count });
     }
 
     [HttpPost]
@@ -252,6 +287,11 @@ public class InvestigationQueriesController : ControllerBase
 public class BulkQueryRequest
 {
     public List<QueryRecordRequest> Rows { get; set; } = [];
+}
+
+public class BulkDeleteQueryRequest
+{
+    public List<int> Ids { get; set; } = [];
 }
 
 public class QueryRecordRequest
