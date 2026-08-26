@@ -119,7 +119,12 @@ public interface IPlaybookEngine
     /// <paramref name="forceDryRun"/> overrides the playbook's own AutoSend setting; when null,
     /// the run is a dry run unless the playbook explicitly opted into automatic sending.
     /// </summary>
-    Task<PlaybookRun> RunAsync(int playbookId, string triggerType, bool? forceDryRun, CancellationToken ct = default);
+    Task<PlaybookRun> RunAsync(
+        int playbookId,
+        string triggerType,
+        bool? forceDryRun,
+        string? reportRecipientEmail = null,
+        CancellationToken ct = default);
 
     /// <summary>Structural checks performed before a graph is saved or run.</summary>
     Task<PlaybookValidationResult> ValidateAsync(PlaybookGraph graph, CancellationToken ct = default);

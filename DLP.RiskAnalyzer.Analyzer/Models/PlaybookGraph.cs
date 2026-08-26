@@ -12,6 +12,12 @@ public class PlaybookGraph
 {
     public List<PlaybookNode> Nodes { get; set; } = new();
     public List<PlaybookEdge> Edges { get; set; } = new();
+
+    /// <summary>
+    /// Phrases accepted from the service mailbox to run this workflow as a requested report.
+    /// They are stored with the graph so report requests remain workflow-owned, not hard-coded.
+    /// </summary>
+    public List<string> ReportRequestKeywords { get; set; } = new();
 }
 
 public class PlaybookNode

@@ -97,7 +97,7 @@ public class PlaybookSchedulerService : BackgroundService
                 _logger.LogInformation(
                     "Running scheduled playbook {PlaybookId} ('{Name}')", playbook.Id, playbook.Name);
 
-                var run = await engine.RunAsync(playbook.Id, PlaybookTriggerType.Schedule, null, ct);
+                var run = await engine.RunAsync(playbook.Id, PlaybookTriggerType.Schedule, null, ct: ct);
 
                 _logger.LogInformation(
                     "Scheduled playbook {PlaybookId} finished: {Status} (sent {Sent}, pending {Pending}, failed {Failed})",

@@ -33,20 +33,20 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
     private readonly AnalyzerDbContext _context;
     private readonly IDirectorySettingsService _directorySettings;
     private readonly IEmailService _emailService;
-    private readonly IScheduledReportService _scheduledReports;
+    private readonly IPlaybookEngine _playbookEngine;
     private readonly ILogger<InvestigationMailAutomationService> _logger;
 
     public InvestigationMailAutomationService(
         AnalyzerDbContext context,
         IDirectorySettingsService directorySettings,
         IEmailService emailService,
-        IScheduledReportService scheduledReports,
+        IPlaybookEngine playbookEngine,
         ILogger<InvestigationMailAutomationService> logger)
     {
         _context = context;
         _directorySettings = directorySettings;
         _emailService = emailService;
-        _scheduledReports = scheduledReports;
+        _playbookEngine = playbookEngine;
         _logger = logger;
     }
 
@@ -122,7 +122,8 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             var sender = ExtractEmail(content.From);
             if (!sender.Contains('@'))
                 sender = ExtractEmail(item.From);
-            var isReportRequest = IsReportRequest(content.Subject, content.BodyText);
+            var isReportRequest = IsReportRequest(content.Subject, content.BodyText) ||
+                                  await HasRequestedReportWorkflowAsync(content.Subject, content.BodyText, ct);
             var query = isReportRequest
                 ? null
                 : await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
@@ -264,21 +265,26 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             return sent ? "query_report_sent" : "query_report_failed";
         }
 
-        var reportType = request.Contains("HAFTALIK PERMIT")
-            ? ScheduledReportTypes.TopPermitUsers
-            : request.Contains("HAFTALIK BLOCK")
-                ? ScheduledReportTypes.TopBlockUsers
-                : request.Contains("YUKSEK ESLESME") || request.Contains("MAX MATCH")
-                    ? ScheduledReportTypes.HighMaxMatchTransfers
-                    : request.Contains("YUKSEK SKOR")
-                        ? ScheduledReportTypes.WeeklyHighScoreUsers
-                        : null;
-
-        if (reportType != null)
+        Playbook? requestedWorkflow;
+        try
+        {
+            requestedWorkflow = await FindRequestedReportWorkflowAsync(request, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Report request workflow matching failed for {Sender}", sender);
+            return "report_request_ambiguous";
+        }
+        if (requestedWorkflow != null)
         {
             try
             {
-                await _scheduledReports.SendReportAsync(reportType, new ScheduledReportOptions { RecipientEmail = sender }, ct);
+                await _playbookEngine.RunAsync(
+                    requestedWorkflow.Id,
+                    PlaybookTriggerType.EmailRequest,
+                    forceDryRun: false,
+                    reportRecipientEmail: sender,
+                    ct: ct);
                 return "report_sent";
             }
             catch (Exception ex)
@@ -288,7 +294,11 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             }
         }
 
-        var catalogSent = await _emailService.SendEmailAsync(sender, "RADAR Rapor Talep Katalogu", ReportCatalogHtml(), isHtml: true);
+        var catalogSent = await _emailService.SendEmailAsync(
+            sender,
+            "RADAR Rapor Talep Katalogu",
+            await ReportCatalogHtmlAsync(ct),
+            isHtml: true);
         return catalogSent ? "catalog_sent" : "catalog_failed";
     }
 
@@ -349,18 +359,70 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             isHtml: true);
     }
 
-    private static string ReportCatalogHtml() => """
-        <p>Merhaba, kullanilabilir RADAR raporlari asagidadir:</p>
-        <ul>
-          <li>HAFTALIK PERMIT</li>
-          <li>HAFTALIK BLOCK</li>
-          <li>YUKSEK SKOR</li>
-          <li>YUKSEK ESLESME</li>
-          <li>SORGU RAPORU EXCEL</li>
-          <li>SORGU RAPORU HTML</li>
-        </ul>
-        <p>Isteginizi konuya veya mail govdesine bu ifadelerden biriyle yazabilirsiniz.</p>
-        """;
+    private async Task<Playbook?> FindRequestedReportWorkflowAsync(string request, CancellationToken ct)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        var playbooks = await _context.Playbooks.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
+        var matches = playbooks.Where(playbook =>
+        {
+            var graph = PlaybookJson.Deserialize<PlaybookGraph>(playbook.GraphJson);
+            return graph?.ReportRequestKeywords.Any(keyword =>
+                !string.IsNullOrWhiteSpace(keyword) && request.Contains(FoldRequest(keyword))) == true;
+        }).ToList();
+
+        if (matches.Count > 1)
+            throw new InvalidOperationException("Rapor talebi birden fazla workflow ile eslesti. Her workflow icin benzersiz bir rapor talep anahtari tanimlayin.");
+
+        return matches.SingleOrDefault();
+    }
+
+    private async Task<bool> HasRequestedReportWorkflowAsync(string? subject, string? body, CancellationToken ct)
+    {
+        try
+        {
+            var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
+            return await FindRequestedReportWorkflowAsync(request, ct) != null;
+        }
+        catch (InvalidOperationException)
+        {
+            // Let ProcessReportRequestAsync return the explicit ambiguous-request result.
+            return true;
+        }
+    }
+
+    private async Task<string> ReportCatalogHtmlAsync(CancellationToken ct)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        var imapSettings = await _directorySettings.GetImapAsync(ct);
+        var serviceMailbox = ExtractEmail(imapSettings.Username);
+        var playbooks = await _context.Playbooks.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
+        var rows = playbooks
+            .Select(playbook => new { playbook.Name, Graph = PlaybookJson.Deserialize<PlaybookGraph>(playbook.GraphJson) })
+            .Where(item => item.Graph?.ReportRequestKeywords.Any(keyword => !string.IsNullOrWhiteSpace(keyword)) == true)
+            .SelectMany(item => item.Graph!.ReportRequestKeywords
+                .Where(keyword => !string.IsNullOrWhiteSpace(keyword))
+                .Select(keyword => $"<li><strong>{WebUtility.HtmlEncode(keyword.Trim())}</strong> - {WebUtility.HtmlEncode(item.Name)} {BuildMailRequestLink(serviceMailbox, keyword)}</li>"))
+            .ToList();
+
+        var workflowRows = rows.Count == 0
+            ? "<li>Henüz e-posta ile istenebilecek bir rapor workflow'u tanimlanmadi.</li>"
+            : string.Join(string.Empty, rows);
+
+        return $"<p>Merhaba, kullanilabilir RADAR raporlari asagidadir:</p><ul>{workflowRows}" +
+               $"<li><strong>SORGU RAPORU EXCEL</strong> - Sorgulamalar ekranindaki tum kayitlar (Excel) {BuildMailRequestLink(serviceMailbox, "SORGU RAPORU EXCEL")}</li>" +
+               $"<li><strong>SORGU RAPORU HTML</strong> - Sorgulamalar ekranindaki tum kayitlar (HTML) {BuildMailRequestLink(serviceMailbox, "SORGU RAPORU HTML")}</li>" +
+               "</ul><p>Isteginizi konuya veya mail govdesine bu ifadelerden biriyle yazabilirsiniz.</p>";
+    }
+
+    private static string BuildMailRequestLink(string serviceMailbox, string request)
+    {
+        if (string.IsNullOrWhiteSpace(serviceMailbox)) return string.Empty;
+
+        var subject = Uri.EscapeDataString(request.Trim());
+        var body = Uri.EscapeDataString(request.Trim());
+        var href = $"mailto:{Uri.EscapeDataString(serviceMailbox)}?subject={subject}&body={body}";
+        return $"<a href=\"{href}\">Talep Et</a>";
+    }
 
     private static bool CanRetry(string result) => result is
         "catalog_failed" or "query_report_failed" or "report_failed";
@@ -379,6 +441,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             "query_report_failed" => "sorgu raporu SMTP ile gonderilemedi",
             "report_sent" => "rapor gonderildi",
             "report_failed" => "rapor SMTP ile gonderilemedi",
+            "report_request_ambiguous" => "rapor talebi birden fazla workflow ile eslesti",
             "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
             "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
             "user_not_authorized" => "gonderen Kullanici Yonetimi listesinde aktif degil",

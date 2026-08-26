@@ -55,6 +55,7 @@ export interface PlaybookEdge {
 export interface PlaybookGraph {
   nodes: PlaybookNode[]
   edges: PlaybookEdge[]
+  report_request_keywords?: string[]
 }
 
 // ── Server-side shapes ─────────────────────────────────────────────────────
@@ -78,7 +79,7 @@ export interface PlaybookRun {
   started_at: string
   finished_at?: string | null
   status: PlaybookRunStatus
-  trigger_type: 'schedule' | 'manual'
+  trigger_type: 'schedule' | 'manual' | 'email_request'
   dry_run: boolean
   mails_sent: number
   mails_pending: number

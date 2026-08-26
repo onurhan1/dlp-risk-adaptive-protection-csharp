@@ -229,7 +229,7 @@ public class PlaybooksController : ControllerBase
     {
         try
         {
-            var run = await _engine.RunAsync(id, PlaybookTriggerType.Manual, dryRun, ct);
+            var run = await _engine.RunAsync(id, PlaybookTriggerType.Manual, dryRun, ct: ct);
             return Ok(ToRunDto(run, includeLog: true));
         }
         catch (KeyNotFoundException ex)

@@ -45,6 +45,7 @@ public static class PlaybookTriggerType
 {
     public const string Schedule = "schedule";
     public const string Manual = "manual";
+    public const string EmailRequest = "email_request";
 }
 
 /// <summary>One execution of a <see cref="Playbook"/>.</summary>

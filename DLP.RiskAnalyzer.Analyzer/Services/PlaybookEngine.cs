@@ -69,7 +69,12 @@ public class PlaybookEngine : IPlaybookEngine
 
     // ── Run ──────────────────────────────────────────────────────────────────
 
-    public async Task<PlaybookRun> RunAsync(int playbookId, string triggerType, bool? forceDryRun, CancellationToken ct = default)
+    public async Task<PlaybookRun> RunAsync(
+        int playbookId,
+        string triggerType,
+        bool? forceDryRun,
+        string? reportRecipientEmail = null,
+        CancellationToken ct = default)
     {
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
         await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
@@ -112,7 +117,7 @@ public class PlaybookEngine : IPlaybookEngine
                 throw new InvalidOperationException(
                     "E-posta servisi yapılandırılmamış. Lütfen Ayarlar'dan SMTP bilgilerini girin.");
 
-            await ExecuteGraphAsync(graph, playbook, run, dryRun, nodeLogs, ct);
+            await ExecuteGraphAsync(graph, playbook, run, dryRun, reportRecipientEmail, nodeLogs, ct);
 
             run.MailsSent = await CountAsync(run.Id, PlaybookMailStatus.Sent, ct);
             run.MailsPending = await CountAsync(run.Id, PlaybookMailStatus.Pending, ct);
@@ -151,6 +156,7 @@ public class PlaybookEngine : IPlaybookEngine
         Playbook playbook,
         PlaybookRun run,
         bool dryRun,
+        string? reportRecipientEmail,
         List<PlaybookNodeLog> nodeLogs,
         CancellationToken ct)
     {
@@ -163,7 +169,7 @@ public class PlaybookEngine : IPlaybookEngine
         var outputs = new Dictionary<string, Dictionary<string, PlaybookPayload>>(StringComparer.Ordinal);
 
         // Run-wide guards shared by every send-mail node.
-        var context = new SendContext(dryRun, playbook.AutoSend);
+        var context = new SendContext(dryRun, playbook.AutoSend, reportRecipientEmail);
 
         foreach (var nodeId in order)
         {
@@ -1082,7 +1088,7 @@ public class PlaybookEngine : IPlaybookEngine
         var templateRules = ResolveTemplateMatchRules(node, templateCatalog);
 
         var recipientMode = node.GetString("recipient_mode") ?? "user";
-        var fixedRecipient = node.GetString("fixed_recipient")?.Trim();
+        var fixedRecipient = context.ReportRecipientEmail ?? node.GetString("fixed_recipient")?.Trim();
         var ccEmail = node.GetString("cc_email")?.Trim();
         if (string.IsNullOrWhiteSpace(ccEmail)) ccEmail = null;
 
@@ -2749,14 +2755,16 @@ public class PlaybookEngine : IPlaybookEngine
         private readonly HashSet<string> _reserved = new(StringComparer.OrdinalIgnoreCase);
         private string? _message;
 
-        public SendContext(bool dryRun, bool autoSend)
+        public SendContext(bool dryRun, bool autoSend, string? reportRecipientEmail = null)
         {
             DryRun = dryRun;
             AutoSend = autoSend;
+            ReportRecipientEmail = string.IsNullOrWhiteSpace(reportRecipientEmail) ? null : reportRecipientEmail.Trim();
         }
 
         public bool DryRun { get; }
         public bool AutoSend { get; }
+        public string? ReportRecipientEmail { get; }
         public string? LastSkipReason { get; private set; }
 
         public bool TryReserveRecipient(string email)

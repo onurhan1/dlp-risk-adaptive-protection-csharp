@@ -454,6 +454,19 @@ export default function PlaybookEditorPage() {
             </span>
           </label>
 
+          <label style={{ ...toggleLabelStyle, gap: '7px' }} title="Servis hesabına bu ifadelerle gelen e-postalar bu workflow'u çalıştırır. Virgülle ayırabilirsiniz.">
+            <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Rapor talep anahtarları</span>
+            <input
+              value={(graph.report_request_keywords ?? []).join(', ')}
+              onChange={e => updateGraph({
+                ...graph,
+                report_request_keywords: e.target.value.split(',').map(value => value.trim()).filter(Boolean),
+              })}
+              placeholder="HAFTALIK PERMIT, PERMIT RAPORU"
+              style={{ width: '250px', height: '29px', border: '1px solid var(--border)', borderRadius: '5px', padding: '0 9px', fontSize: '12px', color: 'var(--text-primary)', background: 'var(--surface)' }}
+            />
+          </label>
+
           {playbook.next_run_at && enabled && (
             <span style={{ color: 'var(--text-muted)' }}>
               Sıradaki çalıştırma: {new Date(playbook.next_run_at).toLocaleString('tr-TR')}
