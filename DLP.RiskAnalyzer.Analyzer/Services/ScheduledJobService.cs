@@ -275,12 +275,6 @@ public class ScheduledJobService : IScheduledJobService
         var payload = new Dictionary<string, object>();
         if (request.LookbackHours.HasValue) payload["lookback_hours"] = Math.Max(1, request.LookbackHours.Value);
         if (request.RetentionDays.HasValue) payload["retention_days"] = Math.Max(1, request.RetentionDays.Value);
-        if (request.LookbackDays.HasValue) payload["lookback_days"] = Math.Max(1, request.LookbackDays.Value);
-        if (request.TopLimit.HasValue) payload["top_limit"] = Math.Max(1, request.TopLimit.Value);
-        if (request.MinRiskScore.HasValue) payload["min_risk_score"] = Math.Clamp(request.MinRiskScore.Value, 0, 100);
-        if (request.MaxMatchThreshold.HasValue) payload["max_match_threshold"] = Math.Max(1, request.MaxMatchThreshold.Value);
-        if (!string.IsNullOrWhiteSpace(request.RecipientEmail)) payload["recipient_email"] = request.RecipientEmail.Trim();
-        if (!string.IsNullOrWhiteSpace(request.CcEmail)) payload["cc_email"] = request.CcEmail.Trim();
         return JsonSerializer.Serialize(payload);
     }
 
@@ -324,13 +318,4 @@ public class ScheduledJobService : IScheduledJobService
         result = ParsePayload(run.ResultJson)
     };
 
-    private static int GetInt(Dictionary<string, JsonElement> payload, string key, int fallback) =>
-        payload.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var parsed)
-            ? parsed
-            : fallback;
-
-    private static string? GetString(Dictionary<string, JsonElement> payload, string key) =>
-        payload.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
 }

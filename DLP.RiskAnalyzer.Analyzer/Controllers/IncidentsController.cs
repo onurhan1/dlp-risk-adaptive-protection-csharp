@@ -17,20 +17,20 @@ public class IncidentsController : ControllerBase
     private readonly IDatabaseService _dbService;
     private readonly DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer _riskAnalyzer;
     private readonly AnalyzerDbContext _context;
-    private readonly IExternalUserDirectoryService _externalUserDirectory;
+    private readonly IDirectorySettingsService _directorySettings;
     private readonly ILogger<IncidentsController> _logger;
 
     public IncidentsController(
         IDatabaseService dbService,
         DLP.RiskAnalyzer.Shared.Services.RiskAnalyzer riskAnalyzer,
         AnalyzerDbContext context,
-        IExternalUserDirectoryService externalUserDirectory,
+        IDirectorySettingsService directorySettings,
         ILogger<IncidentsController> logger)
     {
         _dbService    = dbService;
         _riskAnalyzer = riskAnalyzer;
         _context      = context;
-        _externalUserDirectory = externalUserDirectory;
+        _directorySettings = directorySettings;
         _logger       = logger;
     }
 
@@ -189,21 +189,22 @@ public class IncidentsController : ControllerBase
                 ? user
                 : ResolveIncidentUserLookupKey(incident) ?? user;
 
-            var profile = await _externalUserDirectory.ResolveUserAsync(lookupKey);
+            var ldapProfile = await _directorySettings.LookupLdapUserAsync(lookupKey);
+            var profile = ldapProfile.Success ? ldapProfile : null;
 
             return Ok(new IncidentUserDirectoryResponse
             {
-                UserName = profile?.UserName ?? lookupKey.Trim(),
+                UserName = profile?.Username ?? lookupKey.Trim(),
                 FullName = profile?.FullName,
                 EmailAddress = profile?.Email ?? incident?.EmailAddress ?? incident?.UserEmail ?? user.Trim(),
-                LoginName = incident?.LoginName ?? profile?.UserName,
+                LoginName = incident?.LoginName ?? profile?.Username,
                 Team = profile?.Department ?? incident?.Team,
                 Department = profile?.Department ?? incident?.Department,
-                ManagerName = profile?.ManagerFullName ?? incident?.FullName,
-                ManagerEmail = profile?.ManagerEmail,
+                ManagerName = incident?.FullName,
+                ManagerEmail = null,
                 Gender = profile?.Gender,
                 IsDirectoryEnriched = profile != null,
-                Source = profile == null ? "fallback" : "directory"
+                Source = profile == null ? "fallback" : "ldap"
             });
         }
         catch (Exception ex)
@@ -240,7 +241,7 @@ public class IncidentsController : ControllerBase
     /// </summary>
     private async Task<List<IncidentResponse>> EnrichAndMapAsync(List<Incident> incidents)
     {
-        var profiles = new Dictionary<string, ExternalUserProfileDto?>(StringComparer.OrdinalIgnoreCase);
+        var profiles = new Dictionary<string, LdapUserLookupResult?>(StringComparer.OrdinalIgnoreCase);
         var userKeys = incidents
             .Select(ResolveIncidentUserLookupKey)
             .Where(key => !string.IsNullOrWhiteSpace(key))
@@ -248,7 +249,10 @@ public class IncidentsController : ControllerBase
             .ToList();
 
         foreach (var key in userKeys)
-            profiles[key!] = await _externalUserDirectory.ResolveUserAsync(key);
+        {
+            var lookup = await _directorySettings.LookupLdapUserAsync(key!);
+            profiles[key!] = lookup.Success ? lookup : null;
+        }
 
         return incidents
             .Select(incident =>
@@ -265,12 +269,18 @@ public class IncidentsController : ControllerBase
         var key = ResolveIncidentUserLookupKey(incident);
         var profile = string.IsNullOrWhiteSpace(key)
             ? null
-            : await _externalUserDirectory.ResolveUserAsync(key);
+            : await LookupLdapProfileAsync(key);
 
         return EnrichAndMap(incident, profile);
     }
 
-    private IncidentResponse EnrichAndMap(Incident incident, ExternalUserProfileDto? profile = null)
+    private async Task<LdapUserLookupResult?> LookupLdapProfileAsync(string key)
+    {
+        var lookup = await _directorySettings.LookupLdapUserAsync(key);
+        return lookup.Success ? lookup : null;
+    }
+
+    private IncidentResponse EnrichAndMap(Incident incident, LdapUserLookupResult? profile = null)
     {
         var riskLevel         = _riskAnalyzer.GetRiskLevel(incident.RiskScore ?? 0);
         var recommendedAction = _riskAnalyzer.GetPolicyAction(riskLevel, incident.Channel ?? string.Empty);

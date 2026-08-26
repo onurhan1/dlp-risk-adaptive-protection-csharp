@@ -1,0 +1,37 @@
+@startuml
+title RADAR - System Context and Runtime Integrations
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "RADAR User" as User
+component "Dashboard\nNext.js" as Dashboard
+component "Analyzer API\nASP.NET Core" as Analyzer
+component "Collector\n.NET Worker" as Collector
+database "PostgreSQL\nRADAR data" as Postgres
+queue "Redis\nstreams/cache" as Redis
+cloud "DLP Manager API" as Dlp
+cloud "LDAP / Active Directory" as Ldap
+cloud "IMAP Service Mailbox" as Imap
+cloud "SMTP Relay" as Smtp
+cloud "AI / Splunk /\nRemediation APIs" as External
+
+User --> Dashboard : HTTPS
+Dashboard --> Analyzer : REST API + JWT
+Analyzer --> Postgres : EF Core / Npgsql
+Analyzer --> Redis : stream processing / cache
+Analyzer --> Ldap : authentication + user lookup
+Analyzer --> Imap : inbox, replies, attachments
+Analyzer --> Smtp : investigation and report mail
+Analyzer --> Dlp : configuration, policies, tests
+Analyzer --> External : AI, SIEM, remediation
+Collector --> Dlp : incident collection
+Collector --> Redis : publish events
+Collector --> Analyzer : runtime configuration
+
+note bottom of Analyzer
+  Controllers, domain services,
+  mail automation and schedulers
+end note
+@enduml

@@ -1,0 +1,61 @@
+@startuml
+title RADAR Dashboard - Route, Component, and API Connections
+top to bottom direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+package "Next.js Dashboard" {
+  [app/layout.tsx] as Layout
+  [components/Sidebar.tsx\ncomponents/Navigation.tsx] as Navigation
+  [components/AuthProvider.tsx] as Auth
+  [lib/axios.ts\nlib/api-config.ts] as ApiClient
+
+  package "Routes" {
+    [app/page.tsx\nRisk dashboard] as Home
+    [app/settings/page.tsx\nSettings] as Settings
+    [app/user-management/page.tsx\nUser management] as Users
+    [app/investigation/page.tsx\nTimeline] as Investigation
+    [app/investigation/queries/page.tsx\nQueries] as Queries
+    [app/investigation/mailbox/page.tsx\nMailbox] as Mailbox
+    [app/investigation/mail-templates/page.tsx\nTemplates] as Templates
+    [app/investigation/agentic-workflows/*\nWorkflows] as Playbooks
+    [app/ai-behavioral/*\nBehavioral AI] as Ai
+    [app/exceptions/*\nExceptions] as Exceptions
+  }
+
+  package "Reusable Components" {
+    [InvestigationTimeline.tsx] as Timeline
+    [SendMailModal.tsx\nMailBodyView.tsx\nMailTemplateManager.tsx] as MailComponents
+    [PlaybookCanvas.tsx\nNodePalette.tsx\nNodeInspector.tsx\nPlaybookReport.tsx] as PlaybookComponents
+    [UsersTab.tsx\nAISettingsTab.tsx] as SettingsComponents
+  }
+}
+
+component "Analyzer REST API\n/api/*" as Analyzer
+
+Layout --> Navigation
+Layout --> Auth
+Navigation --> Home
+Navigation --> Settings
+Navigation --> Investigation
+Navigation --> Playbooks
+Home --> ApiClient : /api/risk, /api/incidents
+Settings --> SettingsComponents
+Settings --> ApiClient : /api/settings/*
+Users --> SettingsComponents
+Users --> ApiClient : /api/users/*
+Investigation --> Timeline
+Investigation --> MailComponents
+Investigation --> ApiClient : /api/investigation/*
+Queries --> ApiClient : /api/investigation/queries/*
+Mailbox --> MailComponents
+Mailbox --> ApiClient : /api/settings/imap/*
+Templates --> MailComponents
+Templates --> ApiClient : /api/mail-templates
+Playbooks --> PlaybookComponents
+Playbooks --> ApiClient : /api/playbooks/*
+Ai --> ApiClient : /api/ai-behavioral/*
+Exceptions --> ApiClient : policy/exception APIs
+ApiClient --> Analyzer : HTTPS + JWT
+@enduml

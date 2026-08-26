@@ -62,12 +62,6 @@ export default function ScheduledJobsPage() {
     enabled: true,
     lookback_hours: 24,
     retention_days: 90,
-    lookback_days: 7,
-    top_limit: 25,
-    min_risk_score: 80,
-    max_match_threshold: 300,
-    recipient_email: '',
-    cc_email: '',
   })
 
   useEffect(() => {
@@ -103,12 +97,6 @@ export default function ScheduledJobsPage() {
         enabled: form.enabled,
         lookback_hours: form.handler_key === 'released_incident_sync' ? form.lookback_hours : null,
         retention_days: form.handler_key === 'log_cleanup' ? form.retention_days : null,
-        lookback_days: isReportHandler(form.handler_key) ? form.lookback_days : null,
-        top_limit: isReportHandler(form.handler_key) ? form.top_limit : null,
-        min_risk_score: form.handler_key === 'report_weekly_high_score_users' ? form.min_risk_score : null,
-        max_match_threshold: form.handler_key === 'report_high_max_match_transfers' ? form.max_match_threshold : null,
-        recipient_email: isReportHandler(form.handler_key) ? form.recipient_email.trim() || null : null,
-        cc_email: isReportHandler(form.handler_key) ? form.cc_email.trim() || null : null,
       })
       setForm((prev) => ({ ...prev, name: '', description: '' }))
       flash('success', 'Zamanlanmis is eklendi')
@@ -191,14 +179,10 @@ export default function ScheduledJobsPage() {
             <Field label="Lookback saat"><input type="number" min={1} style={inputStyle} value={form.lookback_hours} onChange={(e) => setForm({ ...form, lookback_hours: Number(e.target.value) || 24 })} /></Field>
           ) : form.handler_key === 'log_cleanup' ? (
             <Field label="Saklama gunu"><input type="number" min={1} style={inputStyle} value={form.retention_days} onChange={(e) => setForm({ ...form, retention_days: Number(e.target.value) || 90 })} /></Field>
-          ) : isReportHandler(form.handler_key) ? (
-            <Field label="Rapor donemi gun"><input type="number" min={1} style={inputStyle} value={form.lookback_days} onChange={(e) => setForm({ ...form, lookback_days: Number(e.target.value) || 7 })} /></Field>
           ) : (
             <div />
           )}
-          {isReportHandler(form.handler_key) ? (
-            <Field label="Top limit"><input type="number" min={1} style={inputStyle} value={form.top_limit} onChange={(e) => setForm({ ...form, top_limit: Number(e.target.value) || 25 })} /></Field>
-          ) : <div />}
+          <div />
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 34, fontWeight: 700, fontSize: 13 }}>
             <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
             Aktif
@@ -210,18 +194,6 @@ export default function ScheduledJobsPage() {
         <div style={{ marginTop: 12 }}>
           <Field label="Aciklama"><input style={inputStyle} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
         </div>
-        {isReportHandler(form.handler_key) && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 12 }}>
-            <Field label="Rapor alicisi"><input type="email" style={inputStyle} placeholder="Bos kalirsa Yonetici E-postasi kullanilir" value={form.recipient_email} onChange={(e) => setForm({ ...form, recipient_email: e.target.value })} /></Field>
-            <Field label="CC"><input type="email" style={inputStyle} value={form.cc_email} onChange={(e) => setForm({ ...form, cc_email: e.target.value })} /></Field>
-            {form.handler_key === 'report_weekly_high_score_users' && (
-              <Field label="Min risk skoru"><input type="number" min={0} max={100} style={inputStyle} value={form.min_risk_score} onChange={(e) => setForm({ ...form, min_risk_score: Number(e.target.value) || 80 })} /></Field>
-            )}
-            {form.handler_key === 'report_high_max_match_transfers' && (
-              <Field label="Max Match alt siniri"><input type="number" min={1} style={inputStyle} value={form.max_match_threshold} onChange={(e) => setForm({ ...form, max_match_threshold: Number(e.target.value) || 300 })} /></Field>
-            )}
-          </div>
-        )}
       </section>
 
       <section style={sectionStyle}>
@@ -339,10 +311,6 @@ function StatusBadge({ status }: { status: string }) {
 function formatDate(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString('tr-TR')
-}
-
-function isReportHandler(handlerKey: string) {
-  return handlerKey.startsWith('report_')
 }
 
 const sectionStyle = {

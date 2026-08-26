@@ -1,0 +1,36 @@
+@startuml
+title RADAR Collector - Event Ingestion Flow
+top to bottom direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+[Collector Program.cs] as Program
+[AnalyzerRuntimeConfigBootstrapper] as Bootstrap
+[AnalyzerConfigClient] as ConfigClient
+[DlpConfigurationSyncService] as ConfigSync
+[CollectorBackgroundService] as Background
+[ManualCollectQueue] as Queue
+[DLPCollectorService] as CollectorService
+[IncidentMapper] as Mapper
+[CollectorLogService] as Logs
+
+component "Analyzer API\n/api/settings/collector/runtime" as Analyzer
+cloud "DLP Manager API" as Dlp
+queue "Redis Streams" as Redis
+
+Program --> Bootstrap : load startup overrides
+Bootstrap --> ConfigClient
+ConfigClient --> Analyzer : fetch runtime config
+Program --> ConfigSync
+ConfigSync --> ConfigClient
+Program --> Background
+Program --> Queue
+Background --> Queue : consume manual jobs
+Background --> CollectorService : scheduled collection
+Queue --> CollectorService : manual collection
+CollectorService --> Dlp : authenticate + fetch incidents
+CollectorService --> Mapper : map DLP payload
+Mapper --> Redis : publish normalized incident
+CollectorService --> Logs : collection result
+@enduml

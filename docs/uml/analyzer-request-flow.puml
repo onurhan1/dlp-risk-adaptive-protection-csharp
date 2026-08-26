@@ -1,0 +1,54 @@
+@startuml
+title RADAR Analyzer API - Request Domains
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Dashboard / API Client" as Client
+
+package "Controller Domains" {
+  [Authentication and Users\nAuthController\nUsersController] as Auth
+  [Settings and Integrations\nSettingsController\nDirectorySettingsController\nEmailConfigurationController\nDlpConfigurationController] as Settings
+  [Risk and Analysis\nIncidentsController\nRiskController\nAIBehavioralController\nIsolationForestController] as Risk
+  [Investigation and Mail\nInvestigationController\nInvestigationQueriesController\nMailTemplatesController] as Investigation
+  [Workflow and Jobs\nPlaybooksController\nScheduledJobsController] as Automation
+  [Policy and Exceptions\nPolicyInventoryController\nPolicyExceptionsController\nExceptionEntriesController] as Policy
+}
+
+package "Service Domains" {
+  [Identity\nUserService\nDirectorySettingsService] as Identity
+  [Configuration and Mail\nEmailConfigurationService\nEmailService\nDlpConfigurationService] as Mail
+  [Risk Intelligence\nRiskScoringService\nUserInsightsService\nBehaviorEngineService] as RiskService
+  [Investigation Automation\nInvestigationMailAutomationService\nPlaybookMailRenderer] as InvestigationService
+  [Workflow Execution\nPlaybookEngine\nScheduledJobService] as AutomationService
+  [Policy Management\nPolicyInventoryService\nPolicyExceptionSyncService] as PolicyService
+}
+
+database "PostgreSQL" as Db
+cloud "LDAP / IMAP / SMTP /\nDLP / AI" as Remote
+
+Client --> Auth
+Client --> Settings
+Client --> Risk
+Client --> Investigation
+Client --> Automation
+Client --> Policy
+Auth --> Identity
+Settings --> Identity
+Settings --> Mail
+Risk --> RiskService
+Investigation --> InvestigationService
+Investigation --> Mail
+Automation --> AutomationService
+Policy --> PolicyService
+Identity --> Db
+Mail --> Db
+RiskService --> Db
+InvestigationService --> Db
+AutomationService --> Db
+PolicyService --> Db
+Identity --> Remote
+Mail --> Remote
+InvestigationService --> Remote
+@enduml

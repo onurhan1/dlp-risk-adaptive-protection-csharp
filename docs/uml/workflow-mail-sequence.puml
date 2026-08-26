@@ -1,0 +1,52 @@
+@startuml
+title RADAR - Investigation and Workflow Mail Sequence
+autonumber
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor Analyst
+participant "Dashboard" as UI
+participant "PlaybooksController" as Controller
+participant "PlaybookEngine" as Engine
+database "PostgreSQL" as Db
+participant "EmailService\nSMTP" as Smtp
+participant "Service Mailbox\nIMAP" as Imap
+participant "InvestigationMailAutomationService" as Automation
+participant "DirectorySettingsService\nLDAP" as Ldap
+
+Analyst -> UI : Configure workflow and report keywords
+UI -> Controller : PUT /api/playbooks/{id}
+Controller -> Db : Save GraphJson and schedule
+
+alt Manual or scheduled workflow run
+  UI -> Controller : POST /api/playbooks/{id}/run
+  Controller -> Engine : RunAsync
+  Engine -> Db : Read incidents, templates, playbook
+  Engine -> Db : Create run and mail logs
+  alt Auto-send enabled
+    Engine -> Smtp : Send report or query mail
+    Smtp --> Engine : Delivery result
+    Engine -> Db : Update mail-log status
+  else Approval required
+    Engine -> Db : Mark mail as Pending
+    Analyst -> UI : Approve selected mail/run
+    UI -> Controller : POST /api/playbooks/.../approve
+    Controller -> Engine : ApprovePendingAsync
+    Engine -> Smtp : Send approved mail
+  end
+end
+
+alt User replies or requests report from service mailbox
+  Imap -> Automation : Periodic inbox scan
+  Automation -> Ldap : Validate sender and enrich identity
+  Automation -> Db : Find investigation query or workflow keyword
+  alt Investigation reply
+    Automation -> Db : Mark "Reply received - review pending"
+  else Report request keyword
+    Automation -> Engine : RunAsync(email_request, requester email)
+    Engine -> Smtp : Send matching workflow report
+  else Greeting/catalog request
+    Automation -> Smtp : Send available report catalog
+  end
+end
+@enduml

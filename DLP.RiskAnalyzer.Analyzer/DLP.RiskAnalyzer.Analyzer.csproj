@@ -32,10 +32,6 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
 
-    <!-- MSSQL -->
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.2" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
-
     <!-- PostgreSQL -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
 

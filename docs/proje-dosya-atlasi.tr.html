@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RADAR Proje Dosya Atlası</title>
+  <style>
+    :root { --ink:#172033; --muted:#5e6c84; --line:#dce3ed; --canvas:#f4f7fb; --panel:#fff; --blue:#1463d6; --teal:#087a68; --amber:#a65a00; --slate:#29384f; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:var(--canvas); font:15px/1.55 Inter,Segoe UI,Arial,sans-serif; }
+    a { color:var(--blue); text-decoration:none; } a:hover { text-decoration:underline; }
+    .hero { background:var(--slate); color:#fff; border-bottom:4px solid #25bda0; padding:42px max(24px,calc((100vw - 1240px)/2)); }
+    .hero-inner { max-width:1240px; margin:auto; display:flex; justify-content:space-between; gap:24px; align-items:flex-start; }
+    h1 { margin:0 0 10px; font-size:32px; letter-spacing:0; } h2 { margin:0 0 14px; font-size:23px; } h3 { margin:22px 0 8px; font-size:17px; }
+    .hero p { max-width:760px; margin:0; color:#dce8f9; font-size:16px; }
+    .language { flex:0 0 auto; border:1px solid #79a4d8; color:#fff; border-radius:6px; padding:8px 12px; font-weight:700; white-space:nowrap; }
+    .layout { max-width:1240px; margin:28px auto; padding:0 24px 48px; display:grid; grid-template-columns:240px minmax(0,1fr); gap:24px; }
+    .toc { position:sticky; top:18px; align-self:start; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+    .toc strong { display:block; margin:0 8px 8px; font-size:12px; text-transform:uppercase; color:var(--muted); }
+    .toc a { display:block; padding:7px 8px; border-radius:5px; color:#34445d; font-size:13px; } .toc a:hover { background:#edf5ff; text-decoration:none; color:#0757bb; }
+    main { min-width:0; } section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:26px; margin-bottom:18px; }
+    .lead { color:var(--muted); margin-top:-4px; }
+    .callout { border-left:4px solid var(--blue); padding:12px 14px; background:#eef6ff; margin:16px 0; color:#31445f; }
+    .warning { border-left-color:#d88111; background:#fff7e8; }
+    .flow { background:#111c2d; color:#eaf2ff; border-radius:6px; padding:18px; overflow:auto; font:13px/1.6 Consolas,monospace; white-space:pre; }
+    table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; } th { text-align:left; background:#edf2f8; color:#33445c; } th,td { vertical-align:top; padding:10px; border-bottom:1px solid var(--line); } tr:last-child td { border-bottom:0; }
+    code { color:#8a3700; background:#fff2e5; padding:1px 4px; border-radius:3px; font:12px Consolas,monospace; } .tag { display:inline-block; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; margin-right:4px; } .active { background:#dff7ef; color:#066b58; } .review { background:#fff1d9; color:#915100; }
+    ol { padding-left:22px; } li { margin:5px 0; } .footer { color:var(--muted); text-align:center; padding:12px; font-size:13px; }
+    @media (max-width:900px) { .hero { padding:28px 20px; } .hero-inner { display:block; } .language { display:inline-block; margin-top:16px; } .layout { grid-template-columns:1fr; padding:0 16px 28px; } .toc { position:static; } section { padding:20px; } table { display:block; overflow-x:auto; } h1 { font-size:27px; } }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <div><h1>RADAR Proje Dosya Atlası</h1><p>Bir ekran, hata veya iş ihtiyacından başlayıp ilgili frontend, API, servis, veri modeli ve entegrasyon dosyalarına ulaşmak için ekip rehberi.</p></div>
+      <a class="language" href="project-file-atlas.en.html" lang="en">English guide</a>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="toc" aria-label="İçindekiler"><strong>İçindekiler</strong><a href="#baslangic">Başlangıç noktaları</a><a href="#mimari">Mimari ve klasörler</a><a href="#ekranlar">Ekran rotaları</a><a href="#api">API controller atlası</a><a href="#mail">Sorgu, mail ve workflow</a><a href="#servisler">Servis ve veri dosyaları</a><a href="#collector">Collector ve araçlar</a><a href="#hata">Hata inceleme rotası</a><a href="#kurallar">Çalışma kuralları</a></nav>
+    <main>
+      <section id="baslangic"><h2>Başlangıç Noktaları</h2><p class="lead">Aktif ürün iki uygulamadan oluşur: <code>dashboard</code> kullanıcı arayüzü ve <code>DLP.RiskAnalyzer.Analyzer</code> API'si.</p>
+        <table><thead><tr><th>Dosya</th><th>İşlev</th><th>Ne zaman bakılır?</th></tr></thead><tbody>
+          <tr><td><code>Analyzer/Program.cs</code></td><td>API başlangıcı; controller, servis, migration ve arka plan işlerini başlatır.</td><td>API açılmıyor, bir worker çalışmıyor veya Swagger/health sorunu varsa.</td></tr>
+          <tr><td><code>Extensions/ServiceCollectionExtensions.cs</code></td><td>Interface ile gerçek servis sınıfının eşleştiği Dependency Injection kaydıdır.</td><td><code>Unable to resolve service</code>, yanlış implementasyon veya yeni servis ekleme.</td></tr>
+          <tr><td><code>Extensions/WebApplicationExtensions.cs</code></td><td>JWT, CORS, middleware, Swagger ve uygulama pipeline'ını ayarlar.</td><td>401/403, CORS, global hata cevabı veya middleware problemi.</td></tr>
+          <tr><td><code>Data/AnalyzerDbContext.cs</code></td><td>PostgreSQL tablolarının, DbSet'lerin ve ilişki mapping'lerinin merkezi.</td><td>Tablo/kolon, sorgu, ilişki veya migration etkisi incelenirken.</td></tr>
+          <tr><td><code>dashboard/app/layout.tsx</code></td><td>Tüm Next.js sayfalarının ortak iskeleti ve provider bağlamı.</td><td>Global frontend davranışı veya layout problemi varsa.</td></tr>
+          <tr><td><code>dashboard/lib/axios.ts</code></td><td>Ortak API istemcisi, token ve hata davranışı.</td><td>Frontend API çağrıları, yetki veya ortak hata yönetimi için.</td></tr>
+        </tbody></table>
+        <div class="flow">Tarayıcı
+  -> dashboard/app/.../page.tsx
+  -> dashboard/components/... veya dashboard/lib/axios.ts
+  -> /api/...
+  -> DLP.RiskAnalyzer.Analyzer/Controllers/*.cs
+  -> DLP.RiskAnalyzer.Analyzer/Services/*.cs
+  -> PostgreSQL / Redis / LDAP / IMAP / SMTP / DLP API</div>
+        <div class="callout">İnceleme kuralı: Önce kullanıcıya görünen <code>page.tsx</code> dosyasını bulun. İçindeki <code>/api/</code> çağrısını controller'a, controller constructor'ındaki interface'i de servis implementasyonuna kadar takip edin.</div>
+      </section>
+
+      <section id="mimari"><h2>Mimari ve Klasörler</h2><table><thead><tr><th>Klasör</th><th>Durum</th><th>Sorumluluk</th></tr></thead><tbody>
+        <tr><td><code>dashboard/</code></td><td><span class="tag active">Aktif</span></td><td>Next.js App Router web arayüzü.</td></tr>
+        <tr><td><code>DLP.RiskAnalyzer.Analyzer/</code></td><td><span class="tag active">Aktif</span></td><td>ASP.NET API, iş kuralları, PostgreSQL erişimi, LDAP/IMAP/SMTP ve scheduler'lar.</td></tr>
+        <tr><td><code>DLP.RiskAnalyzer.Collector/</code></td><td><span class="tag active">Aktif</span></td><td>DLP kaynağından olay toplayan ayrı worker uygulaması.</td></tr>
+        <tr><td><code>DLP.RiskAnalyzer.Shared/</code></td><td><span class="tag active">Aktif</span></td><td>Ortak incident, risk ve domain modelleri.</td></tr>
+        <tr><td><code>DLP.RiskAnalyzer.Tests/</code></td><td><span class="tag active">Aktif</span></td><td>Unit ve integration testleri.</td></tr>
+        <tr><td><code>DLP.RiskAnalyzer.Dashboard/</code></td><td><span class="tag review">Karar gerekli</span></td><td>Eski WPF masaüstü istemcisi; web dashboard değildir.</td></tr>
+        <tr><td><code>figma/</code></td><td><span class="tag review">Karar gerekli</span></td><td>Bağımsız tasarım prototipi; üretim frontend'ine bağlı değildir.</td></tr>
+      </tbody></table></section>
+
+      <section id="ekranlar"><h2>Ekran Rotaları ve İlgili Dosyalar</h2><p class="lead">Next.js'te her <code>dashboard/app/**/page.tsx</code> dosyası bir tarayıcı rotasıdır.</p>
+        <table><thead><tr><th>Rota</th><th>İlk dosya</th><th>İlgili bileşenler</th><th>Ana API alanı</th></tr></thead><tbody>
+          <tr><td><code>/</code></td><td><code>app/page.tsx</code></td><td><code>UserRiskList.tsx</code>, <code>RiskTimelineChart.tsx</code>, <code>AlertDetails.tsx</code></td><td><code>/api/risk</code>, <code>/api/incidents</code></td></tr>
+          <tr><td><code>/login</code></td><td><code>app/login/page.tsx</code></td><td><code>AuthProvider.tsx</code>, <code>AuthLayoutClient.tsx</code></td><td><code>/api/auth/login</code>, <code>/api/auth/ldap-login</code></td></tr>
+          <tr><td><code>/settings</code></td><td><code>app/settings/page.tsx</code></td><td><code>AISettingsTab.tsx</code>, <code>MailBodyView.tsx</code></td><td><code>/api/settings/*</code></td></tr>
+          <tr><td><code>/user-management</code></td><td><code>app/user-management/page.tsx</code></td><td><code>components/settings/UsersTab.tsx</code></td><td><code>/api/users/*</code></td></tr>
+          <tr><td><code>/scheduled-jobs</code></td><td><code>app/scheduled-jobs/page.tsx</code></td><td>Sayfa içi form ve tablo kodu</td><td><code>/api/scheduled-jobs</code></td></tr>
+          <tr><td><code>/ai-behavioral/*</code></td><td><code>app/ai-behavioral/page.tsx</code></td><td>Overview, ai-model ve rule-based alt sayfaları</td><td><code>/api/ai-behavioral</code>, <code>/api/isolation-forest</code></td></tr>
+          <tr><td><code>/investigation</code></td><td><code>app/investigation/page.tsx</code></td><td><code>InvestigationTimeline.tsx</code>, <code>SendMailModal.tsx</code></td><td><code>/api/investigation/*</code></td></tr>
+          <tr><td><code>/investigation/queries</code></td><td><code>app/investigation/queries/page.tsx</code></td><td>Sorgu listesi, cevap inceleme formu</td><td><code>/api/investigation/queries/*</code></td></tr>
+          <tr><td><code>/investigation/mailbox</code></td><td><code>app/investigation/mailbox/page.tsx</code></td><td><code>MailBodyView.tsx</code></td><td><code>/api/settings/imap/*</code></td></tr>
+          <tr><td><code>/investigation/mail-templates</code></td><td><code>app/investigation/mail-templates/page.tsx</code></td><td><code>MailTemplateManager.tsx</code></td><td><code>/api/mail-templates</code></td></tr>
+          <tr><td><code>/investigation/agentic-workflows</code></td><td><code>app/investigation/agentic-workflows/page.tsx</code></td><td><code>RunHistoryPanel.tsx</code></td><td><code>/api/playbooks</code></td></tr>
+          <tr><td><code>/investigation/agentic-workflows/[id]</code></td><td><code>app/investigation/agentic-workflows/[id]/page.tsx</code></td><td><code>PlaybookCanvas.tsx</code>, <code>NodePalette.tsx</code>, <code>NodeInspector.tsx</code>, <code>PlaybookReport.tsx</code></td><td><code>/api/playbooks/{id}/*</code></td></tr>
+          <tr><td><code>/exceptions/*</code></td><td><code>app/exceptions/page.tsx</code></td><td>Policy inventory, permanent/removal ve domain-feature alt sayfaları</td><td><code>/api/policy-inventory</code>, <code>/api/exception-entries</code></td></tr>
+        </tbody></table>
+        <div class="callout">Menü veya yönlendirme sorunu için <code>dashboard/components/Sidebar.tsx</code> ve <code>dashboard/components/Navigation.tsx</code> dosyalarından başlayın.</div>
+      </section>
+
+      <section id="api"><h2>API Controller Atlası</h2><p class="lead">Controller HTTP sınırıdır. Sonraki adım, controller constructor'ında enjekte edilen <code>I...Service</code> interface'ini bulmaktır.</p>
+        <table><thead><tr><th>Controller</th><th>API kökü</th><th>Sağladığı işlev</th><th>Sonraki dosyalar</th></tr></thead><tbody>
+          <tr><td><code>AuthController.cs</code></td><td><code>/api/auth</code></td><td>Local/LDAP giriş ve token doğrulama.</td><td><code>AuthBootstrapper.cs</code>, <code>UserService.cs</code>, <code>DirectorySettingsService.cs</code></td></tr>
+          <tr><td><code>UsersController.cs</code></td><td><code>/api/users</code></td><td>Kullanıcı CRUD, LDAP kullanıcı ekleme ve lookup.</td><td><code>UserService.cs</code>, <code>Data/UserEntity.cs</code></td></tr>
+          <tr><td><code>SettingsController.cs</code></td><td><code>/api/settings</code></td><td>Genel ayarlar ve SMTP test gönderimi.</td><td><code>SystemSetting.cs</code>, e-posta servisleri</td></tr>
+          <tr><td><code>DirectorySettingsController.cs</code></td><td><code>/api/settings</code></td><td>IMAP inbox/mesaj/ek ve LDAP test/attribute uçları.</td><td><code>DirectorySettingsService.cs</code></td></tr>
+          <tr><td><code>EmailConfigurationController.cs</code></td><td><code>/api/settings/email</code></td><td>SMTP ayarını kaydetme ve test.</td><td><code>EmailConfigurationService.cs</code>, <code>EmailService.cs</code></td></tr>
+          <tr><td><code>DlpConfigurationController.cs</code></td><td><code>/api/settings/dlp</code></td><td>DLP API ayarı, test ve collector runtime config.</td><td><code>DlpConfigurationService.cs</code>, Collector config servisleri</td></tr>
+          <tr><td><code>InvestigationController.cs</code></td><td><code>/api/investigation</code></td><td>Haftalık kullanıcı listesi ve manuel sorgu maili.</td><td><code>WeeklyFlagService.cs</code>, <code>InvestigationMailAutomationService.cs</code></td></tr>
+          <tr><td><code>InvestigationQueriesController.cs</code></td><td><code>/api/investigation/queries</code></td><td>Sorgu CRUD, Excel yükleme, reply inceleme ve manuel IMAP tarama.</td><td><code>InvestigationQueryRecord.cs</code>, <code>InvestigationMailAutomationService.cs</code></td></tr>
+          <tr><td><code>MailTemplatesController.cs</code></td><td><code>/api/mail-templates</code></td><td>Mail şablonu CRUD.</td><td><code>MailTemplate.cs</code>, <code>PlaybookMailRenderer.cs</code></td></tr>
+          <tr><td><code>PlaybooksController.cs</code></td><td><code>/api/playbooks</code></td><td>Workflow CRUD, çalıştırma, rapor, mail onaylama/atlama.</td><td><code>PlaybookEngine.cs</code>, <code>PlaybookGraph.cs</code></td></tr>
+          <tr><td><code>ScheduledJobsController.cs</code></td><td><code>/api/scheduled-jobs</code></td><td>Genel zamanlanmış iş CRUD ve geçmişi.</td><td><code>ScheduledJobService.cs</code>, <code>ScheduledJob.cs</code></td></tr>
+          <tr><td><code>RiskController.cs</code></td><td><code>/api/risk</code></td><td>Risk özeti, trend ve yüksek riskli kullanıcılar.</td><td><code>RiskScoringService.cs</code>, <code>UserInsightsService.cs</code></td></tr>
+          <tr><td><code>AIBehavioralController.cs</code></td><td><code>/api/ai-behavioral</code></td><td>Davranışsal AI özet, analiz ve anomaly verisi.</td><td><code>BehaviorEngineService*.cs</code>, <code>BehaviorAIExplanationService.cs</code></td></tr>
+          <tr><td><code>PolicyInventoryController.cs</code></td><td><code>/api/policy-inventory</code></td><td>Policy/rule/exception CRUD ve import/export.</td><td><code>PolicyInventoryService.cs</code>, <code>Shared/Models/PolicyInventory.cs</code></td></tr>
+          <tr><td><code>PolicyExceptionsController.cs</code></td><td><code>/api/policy-exceptions</code></td><td>DLP/Forcepoint exception senkronu.</td><td><code>PolicyExceptionSyncService.cs</code>, <code>ForcepointPolicyExceptionService.cs</code></td></tr>
+          <tr><td><code>LogsController.cs</code></td><td><code>/api/logs</code></td><td>Audit ve uygulama logları.</td><td><code>AuditLogService.cs</code>, <code>AuditLog.cs</code></td></tr>
+        </tbody></table>
+        <p>Tüm route ve HTTP metodlarını listelemek için: <code>rg -n "\[Route|\[Http" DLP.RiskAnalyzer.Analyzer/Controllers</code></p>
+      </section>
+
+      <section id="mail"><h2>Sorgu, Mail ve Workflow İnceleme Rotası</h2>
+        <h3>Timeline'da LDAP bilgisi yanlışsa</h3><ol><li><code>dashboard/app/investigation/page.tsx</code>: Sayfanın çağırdığı veriyi inceleyin.</li><li><code>components/InvestigationTimeline.tsx</code>: İsim, ekip, manager ve LDAP rozetinin ekrana basımını kontrol edin.</li><li><code>InvestigationController.cs</code> ve <code>WeeklyFlagService.cs</code>: Timeline kullanıcı gruplama kaynağını takip edin.</li><li><code>DirectorySettingsService.cs</code>: LDAP bağlantısı, attribute seçimi ve kullanıcı lookup.</li><li><code>TurkishNameHelper.cs</code>: Ad soyad ve Bey/Hanım biçimlendirmesi.</li><li><code>Shared/Models/Incident.cs</code>: Incident üzerinde kalan eski <code>FullName</code>, <code>Team</code>, <code>LoginName</code> alanları.</li></ol>
+        <h3>Şablon alanı yanlışsa</h3><ol><li><code>MailTemplateManager.tsx</code> veya <code>SendMailModal.tsx</code>: Şablon/seçili olay kaydı.</li><li><code>Helpers/PlaybookMailRenderer.cs</code>: <code>{{tam_ad}}</code>, <code>{{destination}}</code>, <code>{{olay_tarihi}}</code>, <code>{{max_match}}</code> değişimi.</li><li><code>DirectorySettingsService.cs</code>: LDAP'tan gelen gerçek ad, e-posta, ekip ve cinsiyet bilgisi.</li><li><code>InvestigationMailAutomationService.cs</code> ve <code>PlaybookEngine.cs</code>: Otomatik veya workflow kaynaklı gönderim.</li></ol>
+        <h3>Sorgu durumu veya reply yanlışsa</h3><ol><li><code>app/investigation/queries/page.tsx</code>: Sorgu ve workflow mail tabloları.</li><li><code>InvestigationQueriesController.cs</code>: CRUD, cevap inceleme, inbox tarama endpoint'leri.</li><li><code>InvestigationQueryRecord.cs</code>: <em>Sorgulandı</em>, <em>Cevap Geldi - İnceleme Bekliyor</em>, <em>Tamamlandı</em> kalıcılığı.</li><li><code>InvestigationMailAutomationService.cs</code>: Giden mail-reply eşleşmesi, hatırlatma ve katalog isteği.</li><li><code>InvestigationMailAutomationBackgroundService.cs</code>: Periyodik IMAP tarama döngüsü.</li></ol>
+        <h3>Workflow raporu boşsa veya mail bekliyorsa</h3><ol><li><code>app/investigation/agentic-workflows/[id]/page.tsx</code>: Node ayarı, çalıştırma ve rapor UI'si.</li><li><code>NodePalette.tsx</code>, <code>NodeInspector.tsx</code>, <code>PlaybookCanvas.tsx</code>: Node türü, parametreleri ve bağlantılar.</li><li><code>PlaybooksController.cs</code>: Graph kaydetme, validation, run ve approval.</li><li><code>PlaybookGraph.cs</code>: Node/graph JSON sözleşmesi.</li><li><code>PlaybookEngine.cs</code>: Metrik, sıralama, rapor satırı ve mail kuyruğu.</li><li><code>PlaybookSchedulerService.cs</code>, <code>CronSchedule.cs</code>, <code>RadarTimeZone.cs</code>: Zamanlama ve Türkiye saati.</li></ol>
+        <h3>Servis hesabı maili işlemiyorsa</h3><ol><li><code>InvestigationMailAutomationBackgroundService.cs</code>: Tarama periyodu ve loglar.</li><li><code>InvestigationMailAutomationService.cs</code>: Gönderen doğrulama, <em>Merhaba</em>, reply, hatırlatma ve rapor anahtarı parsing'i.</li><li><code>DirectorySettingsService.cs</code>: IMAP erişimi ve MIME parse.</li><li><code>PlaybookGraph.cs</code>: <code>report_request_keywords</code>.</li><li><code>PlaybookEngine.cs</code> ve <code>EmailService.cs</code>: Rapor üretimi ve SMTP teslimi.</li></ol>
+      </section>
+
+      <section id="servisler"><h2>Servis ve Veri Dosyaları</h2><table><thead><tr><th>Dosya grubu</th><th>Sorumluluk</th></tr></thead><tbody>
+        <tr><td><code>RiskScoringService.cs</code>, <code>RiskAnalyzerService.cs</code>, <code>UserInsightsService.cs</code></td><td>Incident verisinden risk puanı, kullanıcı özeti ve risk analizi üretir.</td></tr>
+        <tr><td><code>BehaviorMetricsCalculator.cs</code>, <code>BehaviorEngineService*.cs</code>, <code>AnomalyDetector.cs</code></td><td>Davranışsal AI metrikleri, analiz ve anomaly tespiti.</td></tr>
+        <tr><td><code>IsolationForestService.cs</code>, <code>IsolationForestEngine.cs</code>, <code>Services/Surprisal/*</code></td><td>Makine öğrenmesi ve learned-baseline risk hesapları.</td></tr>
+        <tr><td><code>RedisStreamProcessor.cs</code>, <code>ReleasedIncidentProcessor.cs</code></td><td>Redis stream ve released incident pipeline işlemleri.</td></tr>
+        <tr><td><code>DirectorySettingsService.cs</code>, <code>EmailConfigurationService.cs</code>, <code>EmailService.cs</code></td><td>LDAP, IMAP, SMTP ayarları ve e-posta operasyonları.</td></tr>
+        <tr><td><code>PolicyInventoryService.cs</code>, <code>PolicyExceptionSyncService.cs</code></td><td>Policy envanteri ve exception senkronu.</td></tr>
+        <tr><td><code>OpenAIService.cs</code>, <code>AzureOpenAIService.cs</code>, <code>CopilotService.cs</code>, <code>SplunkService.cs</code></td><td>Dış HTTP entegrasyonları.</td></tr>
+      </tbody></table>
+      <h3>Kalıcı veri dosyaları</h3><table><thead><tr><th>Dosya</th><th>İçerik</th></tr></thead><tbody>
+        <tr><td><code>Data/AnalyzerDbContext.cs</code></td><td>Tüm DbSet'ler ve EF ilişki mapping'leri.</td></tr><tr><td><code>Data/SystemSetting.cs</code></td><td>Genel, SMTP, LDAP, IMAP, DLP, AI ve external DB ayarları.</td></tr><tr><td><code>Data/UserEntity.cs</code></td><td>Uygulama kullanıcısı ve LDAP ile ilişkili bilgiler.</td></tr><tr><td><code>Models/Playbook.cs</code> ve <code>PlaybookGraph.cs</code></td><td>Workflow, run, mail log ve node graph modeli.</td></tr><tr><td><code>Models/InvestigationQueryRecord.cs</code></td><td>Sorgu ve gelen cevap durumları.</td></tr><tr><td><code>Models/MailTemplate.cs</code></td><td>Yeniden kullanılabilir e-posta şablonları.</td></tr><tr><td><code>Shared/Models/Incident.cs</code></td><td>Ana DLP incident modeli.</td></tr><tr><td><code>Migrations/*.cs</code>, <code>Data/*Schema.cs</code>, <code>database/migrations/*.sql</code></td><td>Veritabanı değişiklik ve schema kontrolleri.</td></tr>
+      </tbody></table></section>
+
+      <section id="collector"><h2>Collector ve Ayrı Araçlar</h2><table><thead><tr><th>Dosya/Proje</th><th>İşlev</th><th>Not</th></tr></thead><tbody>
+        <tr><td><code>Collector/Program.cs</code></td><td>Collector host başlangıcı.</td><td>DLP toplama servisi için giriş noktası.</td></tr><tr><td><code>CollectorBackgroundService.cs</code></td><td>Periyodik toplama döngüsü.</td><td>Collector çalışıyor ama yeni olay gelmiyorsa kontrol edilir.</td></tr><tr><td><code>DLPCollectorService.cs</code></td><td>DLP API'den incident toplama.</td><td>Kimlik doğrulama, sayfalama ve payload sorunları için.</td></tr><tr><td><code>Collector/Mappers/IncidentMapper.cs</code></td><td>DLP payload'ını ortak Incident modeline çevirir.</td><td>Alan eşleşmesi veya <code>MaxMatches</code> sorunu için.</td></tr><tr><td><code>ManualCollectQueue.cs</code></td><td>API'den başlatılan collect işlerini kuyruklar.</td><td>Manuel collect işlemleri için.</td></tr><tr><td><code>DLP.RiskAnalyzer.Importer</code></td><td>Tarihsel incident import konsol aracı.</td><td>Üretim web akışının parçası değildir.</td></tr><tr><td><code>DLP.RiskAnalyzer.RawDumper</code></td><td>Ham veri dışarı aktarma aracı.</td><td>Operasyonel sahiplik doğrulanmadan silinmez.</td></tr>
+      </tbody></table></section>
+
+      <section id="hata"><h2>Hata Mesajından Dosyaya Gitme</h2><table><thead><tr><th>Gözlenen durum</th><th>İlk arama</th><th>Muhtemel dosyalar</th></tr></thead><tbody>
+        <tr><td><code>404 /api/settings/imap/message</code></td><td><code>rg -n "imap/message"</code></td><td><code>DirectorySettingsController.cs</code>, mailbox/settings sayfaları.</td></tr>
+        <tr><td>LDAP ile doğrulanamadı</td><td><code>rg -n "LDAP ile doğrulan"</code></td><td><code>InvestigationMailAutomationService.cs</code>, <code>DirectorySettingsService.cs</code>, <code>UsersController.cs</code>.</td></tr>
+        <tr><td>Workflow <code>0 mail işlendi</code></td><td><code>rg -n "mails_sent|MailsSent"</code></td><td><code>PlaybookEngine.cs</code>, <code>PlaybooksController.cs</code>, <code>PlaybookReport.tsx</code>.</td></tr>
+        <tr><td>Placeholder ham kaldı</td><td><code>rg -n "tam_ad|destination|olay_tarihi"</code></td><td><code>PlaybookMailRenderer.cs</code>, <code>SendMailModal.tsx</code>, <code>PlaybookEngine.cs</code>.</td></tr>
+        <tr><td>Haftalık rapor boş</td><td><code>rg -n "SourceHighMaxMatch|WeeklyFlag|HighRisk"</code></td><td><code>PlaybookEngine.cs</code>, <code>WeeklyFlagService.cs</code>, <code>Incident.cs</code>.</td></tr>
+        <tr><td>Saat farkı var</td><td><code>rg -n "RadarTimeZone|Turkey"</code></td><td><code>RadarTimeZone.cs</code>, <code>CronSchedule.cs</code>, mail/rapor renderer.</td></tr>
+      </tbody></table></section>
+
+      <section id="kurallar"><h2>Güvenli Çalışma Kuralları</h2><ol><li>Bir sınıfı silmeden önce <code>rg -n "SınıfAdı"</code> ile referanslarını bulun.</li><li>Yeni bir servis eklenirse <code>ServiceCollectionExtensions.cs</code> kaydı gerekir.</li><li>API değişirse frontend çağrısını ve TypeScript tipini birlikte güncelleyin.</li><li>Mail veya scheduler değişirse background service ve run/mail log kayıtlarını test edin.</li><li>Yeni kalıcı alan için model, <code>AnalyzerDbContext</code>, migration/schema, controller ve frontend zincirini birlikte ele alın.</li><li>Temizlik değişikliklerini küçük, ayrı ve doğrulanabilir commit'ler hâlinde yapın.</li></ol>
+        <div class="callout warning"><strong>Elle düzenlemeyin:</strong> <code>**/bin/</code>, <code>**/obj/</code>, <code>dashboard/node_modules/</code>, <code>dashboard/.next/</code>, log/build çıktıları, Office <code>~$*.xlsx</code> geçici dosyaları ve ortam/secret dosyaları kaynak kod değildir.</div>
+      </section>
+      <p class="footer">Bu atlas, yeni ekran, endpoint, servis veya entegrasyon eklendiğinde aynı commit içinde güncellenmelidir.</p>
+    </main>
+  </div>
+</body>
+</html>

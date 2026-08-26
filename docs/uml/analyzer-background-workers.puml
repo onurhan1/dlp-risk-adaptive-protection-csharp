@@ -1,0 +1,43 @@
+@startuml
+title RADAR Analyzer API - Background Worker Flows
+top to bottom direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+[Program.cs] as Program
+
+package "Hosted Services" {
+  [AnalyzerBackgroundService] as AnalyzerWorker
+  [InvestigationMailAutomation\nBackgroundService] as ImapWorker
+  [PlaybookSchedulerService] as PlaybookWorker
+  [ScheduledJobBackgroundService] as JobWorker
+}
+
+package "Execution Services" {
+  [RedisStreamProcessor\nRiskScoringService\nBehaviorEngineService] as AnalysisServices
+  [InvestigationMailAutomationService\nDirectorySettingsService\nEmailService] as ImapServices
+  [PlaybookEngine\nEmailService] as PlaybookServices
+  [ScheduledJobService] as JobServices
+}
+
+queue "Redis" as Redis
+database "PostgreSQL" as Db
+cloud "IMAP / SMTP / LDAP" as MailRemote
+
+Program --> AnalyzerWorker
+Program --> ImapWorker
+Program --> PlaybookWorker
+Program --> JobWorker
+AnalyzerWorker --> AnalysisServices : process incident stream
+AnalysisServices --> Redis
+AnalysisServices --> Db
+ImapWorker --> ImapServices : scan service mailbox
+ImapServices --> MailRemote
+ImapServices --> Db
+PlaybookWorker --> PlaybookServices : execute due workflows
+PlaybookServices --> Db
+PlaybookServices --> MailRemote
+JobWorker --> JobServices : execute due jobs
+JobServices --> Db
+@enduml

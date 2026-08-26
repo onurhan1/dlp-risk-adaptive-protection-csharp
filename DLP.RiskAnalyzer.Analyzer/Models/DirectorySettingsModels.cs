@@ -122,67 +122,6 @@ public class LdapSettingsResponse
     public DateTime? UpdatedAt { get; set; }
 }
 
-public class ExternalUserDbSettingsRequest
-{
-    public bool Enabled { get; set; }
-    public string Provider { get; set; } = "postgresql";
-    public string Host { get; set; } = string.Empty;
-    public int Port { get; set; } = 5432;
-    public string Database { get; set; } = string.Empty;
-    public string Username { get; set; } = string.Empty;
-    public string? Password { get; set; }
-    public bool Encrypt { get; set; }
-    public bool TrustServerCertificate { get; set; } = true;
-    public string TableName { get; set; } = string.Empty;
-    public string MatchColumn { get; set; } = "username";
-    public string FirstNameColumn { get; set; } = string.Empty;
-    public string LastNameColumn { get; set; } = string.Empty;
-    public string FullNameColumn { get; set; } = string.Empty;
-    public string EmailColumn { get; set; } = "email";
-    public string DepartmentColumn { get; set; } = string.Empty;
-    public string WhereClause { get; set; } = string.Empty;
-    public string LookupSql { get; set; } = string.Empty;
-}
-
-public class ExternalUserDbSettingsResponse : ExternalUserDbSettingsRequest
-{
-    public bool PasswordSet { get; set; }
-    public bool IsConfigured { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-}
-
-public class ExternalUserLookupRequest : ExternalUserDbSettingsRequest
-{
-    public string TestUsername { get; set; } = string.Empty;
-}
-
-public class ExternalUserProfileDto
-{
-    public string UserName { get; set; } = string.Empty;
-    public string? EmployeeNumber { get; set; }
-    public string? FullName { get; set; }
-    public string? FirstName { get; set; }
-    public string? LastName { get; set; }
-    public string? Email { get; set; }
-    public string? Department { get; set; }
-    public string? Gender { get; set; }
-    public string? OrganizationName { get; set; }
-    public string? ManagerUserName { get; set; }
-    public string? ManagerFullName { get; set; }
-    public string? ManagerEmail { get; set; }
-    public string? SupervisorUserName { get; set; }
-    public string? SupervisorFullName { get; set; }
-    public string? SupervisorEmail { get; set; }
-}
-
-public class ExternalUserLookupResult
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public ExternalUserProfileDto? User { get; set; }
-    public DateTime TestedAt { get; set; } = DateTime.UtcNow;
-}
-
 public class DirectorySettingsTestResult
 {
     public bool Success { get; set; }

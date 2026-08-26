@@ -1,0 +1,35 @@
+@startuml
+title RADAR Analyzer API - High-Level Architecture
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+[Program.cs] as Program
+[Startup and DI\nServiceCollectionExtensions.cs\nWebApplicationExtensions.cs] as Startup
+[HTTP Controllers\napi/*] as Controllers
+[Application Services\nRisk, Investigation, Mail,\nWorkflow, Policy, Settings] as Services
+[Background Workers\nAnalyzer, IMAP, Workflow, Jobs] as Workers
+database "PostgreSQL\nAnalyzerDbContext" as Database
+queue "Redis" as Redis
+cloud "External Systems\nLDAP, IMAP, SMTP, DLP,\nAI, Splunk" as External
+
+Program --> Startup
+Startup --> Controllers : configure HTTP pipeline
+Startup --> Services : register dependencies
+Startup --> Workers : start hosted services
+Controllers --> Services : request handling
+Services --> Database : read and write
+Services --> Redis : stream and cache
+Services --> External : integrations
+Workers --> Services : scheduled execution
+
+note bottom of Controllers
+  Detailed request routes:
+  analyzer-request-flow.puml
+end note
+note bottom of Workers
+  Detailed worker routes:
+  analyzer-background-workers.puml
+end note
+@enduml

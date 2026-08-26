@@ -11,14 +11,14 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public class WeeklyFlagService : IWeeklyFlagService
 {
     private readonly IIncidentRepository _incidentRepository;
-    private readonly IExternalUserDirectoryService _externalUserDirectory;
+    private readonly IDirectorySettingsService _directorySettings;
 
     public WeeklyFlagService(
         IIncidentRepository incidentRepository,
-        IExternalUserDirectoryService externalUserDirectory)
+        IDirectorySettingsService directorySettings)
     {
         _incidentRepository = incidentRepository;
-        _externalUserDirectory = externalUserDirectory;
+        _directorySettings = directorySettings;
     }
 
     // --- Detection thresholds (could later be moved to system_settings) ---
@@ -212,8 +212,8 @@ public class WeeklyFlagService : IWeeklyFlagService
         var enriched = new List<WeeklyFlagUserDto>(users.Count);
         foreach (var user in users)
         {
-            var profile = await _externalUserDirectory.ResolveUserAsync(user.UserEmail);
-            if (profile == null)
+            var profile = await _directorySettings.LookupLdapUserAsync(user.UserEmail);
+            if (!profile.Success)
             {
                 enriched.Add(user);
                 continue;

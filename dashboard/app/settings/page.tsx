@@ -117,30 +117,6 @@ interface LdapSettings {
   updated_at?: string | null
 }
 
-interface ExternalUserDbSettings {
-  enabled: boolean
-  provider: 'postgresql' | 'mssql'
-  host: string
-  port: number
-  database: string
-  username: string
-  password: string
-  password_set: boolean
-  encrypt: boolean
-  trust_server_certificate: boolean
-  table_name: string
-  match_column: string
-  first_name_column: string
-  last_name_column: string
-  full_name_column: string
-  email_column: string
-  department_column: string
-  where_clause: string
-  lookup_sql: string
-  is_configured: boolean
-  updated_at?: string | null
-}
-
 type Message = { type: 'success' | 'error'; text: string } | null
 
 const inputStyle = {
@@ -198,17 +174,12 @@ export default function SettingsPage() {
   const [imapMessageLoadingId, setImapMessageLoadingId] = useState<string | null>(null)
   const [ldapSaving, setLdapSaving] = useState(false)
   const [ldapTesting, setLdapTesting] = useState(false)
-  const [externalDbSaving, setExternalDbSaving] = useState(false)
-  const [externalDbTesting, setExternalDbTesting] = useState(false)
-  const [externalDbLookupTesting, setExternalDbLookupTesting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showDlpPassword, setShowDlpPassword] = useState(false)
   const [showEmailPassword, setShowEmailPassword] = useState(false)
   const [showImapPassword, setShowImapPassword] = useState(false)
   const [showLdapPassword, setShowLdapPassword] = useState(false)
-  const [showExternalDbPassword, setShowExternalDbPassword] = useState(false)
   const [smtpTestRecipient, setSmtpTestRecipient] = useState('')
-  const [externalDbTestUsername, setExternalDbTestUsername] = useState('')
   const [imapInboxMessages, setImapInboxMessages] = useState<ImapInboxMessage[]>([])
   const [imapSelectedMessage, setImapSelectedMessage] = useState<ImapMessageContent | null>(null)
   const [message, setMessage] = useState<Message>(null)
@@ -268,30 +239,6 @@ export default function SettingsPage() {
     updated_at: null,
   })
 
-  const [externalDb, setExternalDb] = useState<ExternalUserDbSettings>({
-    enabled: false,
-    provider: 'postgresql',
-    host: '',
-    port: 5432,
-    database: '',
-    username: '',
-    password: '',
-    password_set: false,
-    encrypt: false,
-    trust_server_certificate: true,
-    table_name: '',
-    match_column: 'username',
-    first_name_column: '',
-    last_name_column: '',
-    full_name_column: '',
-    email_column: 'email',
-    department_column: '',
-    where_clause: '',
-    lookup_sql: '',
-    is_configured: false,
-    updated_at: null,
-  })
-
   const [dlp, setDlp] = useState<DlpSettings>({
     manager_ip: '',
     manager_port: 8443,
@@ -317,7 +264,6 @@ export default function SettingsPage() {
         fetchEmail(),
         fetchImap(),
         fetchLdap(),
-        fetchExternalDb(),
         fetchDlp(),
       ])
     } finally {
@@ -392,34 +338,6 @@ export default function SettingsPage() {
       service_account: data.service_account ?? '',
       service_password: '',
       service_password_set: data.service_password_set ?? false,
-      is_configured: data.is_configured ?? false,
-      updated_at: data.updated_at ?? null,
-    })
-  }
-
-  const fetchExternalDb = async () => {
-    const { data } = await axios.get(`${apiUrl}/api/settings/external-user-db`).catch(() => ({ data: null }))
-    if (!data) return
-    setExternalDb({
-      enabled: data.enabled ?? false,
-      provider: data.provider === 'mssql' ? 'mssql' : 'postgresql',
-      host: data.host ?? '',
-      port: Number(data.port) || (data.provider === 'mssql' ? 1433 : 5432),
-      database: data.database ?? '',
-      username: data.username ?? '',
-      password: '',
-      password_set: data.password_set ?? false,
-      encrypt: data.encrypt ?? (data.provider === 'mssql'),
-      trust_server_certificate: data.trust_server_certificate ?? true,
-      table_name: data.table_name ?? '',
-      match_column: data.match_column ?? 'username',
-      first_name_column: data.first_name_column ?? '',
-      last_name_column: data.last_name_column ?? '',
-      full_name_column: data.full_name_column ?? '',
-      email_column: data.email_column ?? 'email',
-      department_column: data.department_column ?? '',
-      where_clause: data.where_clause ?? '',
-      lookup_sql: data.lookup_sql ?? '',
       is_configured: data.is_configured ?? false,
       updated_at: data.updated_at ?? null,
     })
@@ -658,62 +576,6 @@ export default function SettingsPage() {
     }
   }
 
-  const saveExternalDb = async () => {
-    setExternalDbSaving(true)
-    try {
-      const response = await axios.post(`${apiUrl}/api/settings/external-user-db`, {
-        ...externalDb,
-        password: externalDb.password || undefined,
-      }, { timeout: 15000 })
-      const saved = response.data?.settings
-      if (saved) {
-        setExternalDb((prev) => ({ ...prev, ...saved, password: '' }))
-      }
-      flash('success', 'Harici kullanici veritabani ayarlari kaydedildi')
-    } catch (error: any) {
-      flash('error', error.response?.data?.detail || error.message || 'Harici veritabani ayarlari kaydedilemedi')
-    } finally {
-      setExternalDbSaving(false)
-    }
-  }
-
-  const testExternalDb = async () => {
-    setExternalDbTesting(true)
-    try {
-      const response = await axios.post(`${apiUrl}/api/settings/external-user-db/test`, {
-        ...externalDb,
-        password: externalDb.password || undefined,
-      }, { timeout: 30000 })
-      flash(response.data?.success ? 'success' : 'error', response.data?.message || 'Veritabani testi tamamlandi')
-    } catch (error: any) {
-      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Veritabani testi basarisiz')
-    } finally {
-      setExternalDbTesting(false)
-    }
-  }
-
-  const testExternalDbLookup = async () => {
-    if (!externalDbTestUsername.trim()) {
-      flash('error', 'Test kullanici adi girin')
-      return
-    }
-    setExternalDbLookupTesting(true)
-    try {
-      const response = await axios.post(`${apiUrl}/api/settings/external-user-db/lookup`, {
-        ...externalDb,
-        password: externalDb.password || undefined,
-        test_username: externalDbTestUsername.trim(),
-      }, { timeout: 30000 })
-      const user = response.data?.user
-      const detail = user ? `: ${user.full_name || '-'} / ${user.email || '-'} / ${user.department || '-'}` : ''
-      flash(response.data?.success ? 'success' : 'error', `${response.data?.message || 'Lookup tamamlandi'}${detail}`)
-    } catch (error: any) {
-      flash('error', error.response?.data?.message || error.response?.data?.detail || error.message || 'Lookup testi basarisiz')
-    } finally {
-      setExternalDbLookupTesting(false)
-    }
-  }
-
   const saveDlp = async () => {
     setDlpSaving(true)
     try {
@@ -783,17 +645,6 @@ export default function SettingsPage() {
     setImap((prev) => ({ ...prev, [key]: value }))
   const updateLdap = <K extends keyof LdapSettings>(key: K, value: LdapSettings[K]) =>
     setLdap((prev) => ({ ...prev, [key]: value }))
-  const updateExternalDb = <K extends keyof ExternalUserDbSettings>(key: K, value: ExternalUserDbSettings[K]) =>
-    setExternalDb((prev) => ({ ...prev, [key]: value }))
-
-  const updateExternalDbProvider = (provider: ExternalUserDbSettings['provider']) =>
-    setExternalDb((prev) => ({
-      ...prev,
-      provider,
-      port: provider === 'mssql' ? 1433 : 5432,
-      encrypt: provider === 'mssql' ? prev.encrypt : false,
-      trust_server_certificate: provider === 'mssql' ? prev.trust_server_certificate : true,
-    }))
   const updateDlp = <K extends keyof DlpSettings>(key: K, value: DlpSettings[K]) =>
     setDlp((prev) => ({ ...prev, [key]: value }))
 
@@ -985,85 +836,6 @@ export default function SettingsPage() {
           <ActionButton icon={<TestTube2 size={15} />} onClick={testLdap} disabled={ldapTesting}>{ldapTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
           <PrimaryButton icon={<Save size={15} />} onClick={saveLdap} disabled={ldapSaving}>{ldapSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
         </Actions>
-      </AccordionSection>
-
-      <AccordionSection id="external-user-db" title="Harici Kullanici Veritabani" icon={<Database size={17} />} open={open.includes('external-user-db')} onToggle={toggleSection}>
-        <InfoBar text="Incident kullanici adini baska sunucudaki kullanici veritabaniyla eslestirerek ad, soyad, e-posta ve departman bilgilerini zenginlestirir." />
-        <Panel>
-          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-            <Toggle checked={externalDb.enabled} label="Veritabani zenginlestirme aktif" onChange={(value) => updateExternalDb('enabled', value)} />
-            <Toggle checked={externalDb.encrypt} label="SSL / Encrypt" onChange={(value) => updateExternalDb('encrypt', value)} />
-            <Toggle checked={externalDb.trust_server_certificate} label="Sertifikaya guven" onChange={(value) => updateExternalDb('trust_server_certificate', value)} />
-          </div>
-        </Panel>
-        <Panel title="Baglanti Bilgileri" icon={<Cloud size={15} />}>
-          <Grid>
-            <Field label="Veritabani Tipi">
-              <select style={inputStyle} value={externalDb.provider} onChange={(e) => updateExternalDbProvider(e.target.value as ExternalUserDbSettings['provider'])}>
-                <option value="postgresql">PostgreSQL</option>
-                <option value="mssql">MSSQL</option>
-              </select>
-            </Field>
-            <Field label="Sunucu Adresi"><input style={inputStyle} value={externalDb.host} onChange={(e) => updateExternalDb('host', e.target.value)} placeholder="db.company.local" /></Field>
-            <Field label="Port"><input type="number" style={inputStyle} value={externalDb.port} onChange={(e) => updateExternalDb('port', Number(e.target.value) || (externalDb.provider === 'mssql' ? 1433 : 5432))} /></Field>
-            <Field label={externalDb.provider === 'mssql' ? 'Database (opsiyonel)' : 'Database'}>
-              <input
-                style={inputStyle}
-                value={externalDb.database}
-                onChange={(e) => updateExternalDb('database', e.target.value)}
-                placeholder={externalDb.provider === 'mssql' ? 'Bos kalabilir; sorguda [DB].[schema].[table] kullan' : ''}
-              />
-            </Field>
-            <Field label="Kullanici Adi"><input style={inputStyle} value={externalDb.username} onChange={(e) => updateExternalDb('username', e.target.value)} /></Field>
-            <Field label="Sifre">
-              <SecretInput
-                value={externalDb.password}
-                placeholder={externalDb.password_set ? 'Degistirmek icin yeni sifre girin' : 'Sifre girin'}
-                visible={showExternalDbPassword}
-                onToggle={() => setShowExternalDbPassword((v) => !v)}
-                onChange={(value) => updateExternalDb('password', value)}
-                saved={externalDb.password_set}
-              />
-            </Field>
-          </Grid>
-        </Panel>
-        {externalDb.provider === 'postgresql' && (
-          <Panel title="Eslesme ve Kolonlar" icon={<BriefcaseBusiness size={15} />}>
-            <Grid>
-              <Field label="Tablo / View"><input style={inputStyle} value={externalDb.table_name} onChange={(e) => updateExternalDb('table_name', e.target.value)} placeholder="public.users" /></Field>
-              <Field label="Kullanici Adi Kolonu"><input style={inputStyle} value={externalDb.match_column} onChange={(e) => updateExternalDb('match_column', e.target.value)} placeholder="username" /></Field>
-              <Field label="Ad Kolonu"><input style={inputStyle} value={externalDb.first_name_column} onChange={(e) => updateExternalDb('first_name_column', e.target.value)} placeholder="first_name" /></Field>
-              <Field label="Soyad Kolonu"><input style={inputStyle} value={externalDb.last_name_column} onChange={(e) => updateExternalDb('last_name_column', e.target.value)} placeholder="last_name" /></Field>
-              <Field label="Tam Ad Kolonu"><input style={inputStyle} value={externalDb.full_name_column} onChange={(e) => updateExternalDb('full_name_column', e.target.value)} placeholder="display_name" /></Field>
-              <Field label="E-posta Kolonu"><input style={inputStyle} value={externalDb.email_column} onChange={(e) => updateExternalDb('email_column', e.target.value)} placeholder="email" /></Field>
-              <Field label="Departman / Ekip Kolonu"><input style={inputStyle} value={externalDb.department_column} onChange={(e) => updateExternalDb('department_column', e.target.value)} placeholder="department" /></Field>
-              <Field label="Opsiyonel WHERE Filtresi"><input style={inputStyle} value={externalDb.where_clause} onChange={(e) => updateExternalDb('where_clause', e.target.value)} placeholder="is_active = true" /></Field>
-            </Grid>
-          </Panel>
-        )}
-        {externalDb.provider === 'mssql' && (
-          <Panel title="MSSQL Kullanici Sorgusu" icon={<BriefcaseBusiness size={15} />}>
-            <Field label="Lookup SQL">
-              <textarea
-                style={{ ...inputStyle, minHeight: 180, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-                value={externalDb.lookup_sql}
-                onChange={(e) => updateExternalDb('lookup_sql', e.target.value)}
-                placeholder={'WITH MDR AS (...) SELECT TOP (1) ... WHERE UserCode = @username'}
-              />
-            </Field>
-            <InfoBar text="Bos birakilirsa kod icindeki varsayilan MSSQL sorgusu kullanilir. Sorgu SELECT/WITH ile baslamali, @username parametresini icermeli ve user_name, full_name, email, department gibi alias kolonlari dondurmelidir." />
-          </Panel>
-        )}
-        <Panel>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <Field label="Test Kullanici Adi" style={{ minWidth: 240, flex: 1 }}>
-              <input style={inputStyle} value={externalDbTestUsername} onChange={(e) => setExternalDbTestUsername(e.target.value)} placeholder="DOMAIN\\kullanici veya kullanici" />
-            </Field>
-            <ActionButton icon={<TestTube2 size={15} />} onClick={testExternalDb} disabled={externalDbTesting}>{externalDbTesting ? 'Test ediliyor...' : 'Baglanti Testi'}</ActionButton>
-            <ActionButton icon={<Eye size={15} />} onClick={testExternalDbLookup} disabled={externalDbLookupTesting}>{externalDbLookupTesting ? 'Araniyor...' : 'Kullanici Testi'}</ActionButton>
-            <PrimaryButton icon={<Save size={15} />} onClick={saveExternalDb} disabled={externalDbSaving}>{externalDbSaving ? 'Kaydediliyor...' : 'Kaydet'}</PrimaryButton>
-          </div>
-        </Panel>
       </AccordionSection>
 
       <AccordionSection id="notifications" title="Bildirim Ayarlari" icon={<Bell size={17} />} open={open.includes('notifications')} onToggle={toggleSection}>

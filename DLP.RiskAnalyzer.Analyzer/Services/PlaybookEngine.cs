@@ -46,7 +46,7 @@ public class PlaybookEngine : IPlaybookEngine
     private readonly IIncidentRepository _incidentRepository;
     private readonly IEmailService _emailService;
     private readonly IInvestigationQueryRemediationSyncService _queryRemediationSync;
-    private readonly IExternalUserDirectoryService _externalUserDirectory;
+    private readonly IDirectorySettingsService _directorySettings;
     private readonly ILogger<PlaybookEngine> _logger;
 
     public PlaybookEngine(
@@ -55,7 +55,7 @@ public class PlaybookEngine : IPlaybookEngine
         IIncidentRepository incidentRepository,
         IEmailService emailService,
         IInvestigationQueryRemediationSyncService queryRemediationSync,
-        IExternalUserDirectoryService externalUserDirectory,
+        IDirectorySettingsService directorySettings,
         ILogger<PlaybookEngine> logger)
     {
         _context = context;
@@ -63,7 +63,7 @@ public class PlaybookEngine : IPlaybookEngine
         _incidentRepository = incidentRepository;
         _emailService = emailService;
         _queryRemediationSync = queryRemediationSync;
-        _externalUserDirectory = externalUserDirectory;
+        _directorySettings = directorySettings;
         _logger = logger;
     }
 
@@ -686,8 +686,8 @@ public class PlaybookEngine : IPlaybookEngine
         var enriched = new List<PlaybookItem>(items.Count);
         foreach (var item in items)
         {
-            var profile = await _externalUserDirectory.ResolveUserAsync(item.User.UserEmail, ct);
-            if (profile == null)
+            var profile = await _directorySettings.LookupLdapUserAsync(item.User.UserEmail, ct);
+            if (!profile.Success)
             {
                 enriched.Add(item);
                 continue;

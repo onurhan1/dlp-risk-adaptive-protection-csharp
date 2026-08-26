@@ -21,10 +21,4 @@ public record ScheduledJobRequest(
     string CronExpression,
     bool Enabled,
     int? LookbackHours,
-    int? RetentionDays,
-    int? LookbackDays,
-    int? TopLimit,
-    int? MinRiskScore,
-    int? MaxMatchThreshold,
-    string? RecipientEmail,
-    string? CcEmail);
+    int? RetentionDays);
