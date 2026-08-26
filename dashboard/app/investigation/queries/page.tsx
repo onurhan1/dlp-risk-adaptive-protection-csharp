@@ -21,6 +21,7 @@ import apiClient from '@/lib/axios'
 
 type QueryRow = {
   id?: number
+  client_key: string
   user_code: string
   full_name: string
   mail_address: string
@@ -118,7 +119,13 @@ const emptyFilters = (): Filters => ({
   dateTo: '',
 })
 
+function createClientKey(prefix = 'query') {
+  const randomId = globalThis.crypto?.randomUUID?.()
+  return `${prefix}-${randomId || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
+}
+
 const emptyRow = (): QueryRow => ({
+  client_key: createClientKey('draft'),
   user_code: '',
   full_name: '',
   mail_address: '',
@@ -281,8 +288,9 @@ export default function InvestigationQueriesPage() {
         apiClient.get('/api/investigation/queries/workflow-mails'),
       ])
 
-      const nextRows = (Array.isArray(queryRes.data) ? queryRes.data : []).map((row: any) => ({
+      const nextRows = (Array.isArray(queryRes.data) ? queryRes.data : []).map((row: any, index: number) => ({
         ...row,
+        client_key: createClientKey(`stored-${row.id ?? index}`),
         query_date: toInputDate(row.query_date),
       }))
       setRows(nextRows)
@@ -596,11 +604,11 @@ export default function InvestigationQueriesPage() {
             ) : filteredRows.length === 0 ? (
               <EmptyState icon={<Inbox size={20} />} text="Filtreyle eslesen kayit yok." />
             ) : filteredRows.map((row) => {
-              const realIndex = rows.indexOf(row)
+              const realIndex = rows.findIndex((candidate) => candidate.client_key === row.client_key)
               const meta = statusMeta(row.query_status)
               return (
                 <div
-                  key={row.id ?? realIndex}
+                  key={row.client_key}
                   role="button"
                   tabIndex={0}
                   onClick={() => selectRow(row, realIndex)}
