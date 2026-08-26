@@ -256,6 +256,7 @@ export default function InvestigationQueriesPage() {
   const [workflowFilters, setWorkflowFilters] = useState({ search: '', status: '', workflow: '', dateFrom: '', dateTo: '' })
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false)
   const [editor, setEditor] = useState<QueryRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -296,6 +297,7 @@ export default function InvestigationQueriesPage() {
       }))
       setRows(nextRows)
       setSelectedRowKeys(new Set())
+      setBulkDeleteMode(false)
       setReplyNotificationCount(nextRows.filter((row: QueryRow) => row.query_status === 'cevap_inceleme_bekliyor').length)
       setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((row: any) => ({ ...row, mail_date: row.mail_date || '' })))
       setSelectedIndex(nextRows.length ? 0 : null)
@@ -431,6 +433,7 @@ export default function InvestigationQueriesPage() {
 
       setRows((previous) => previous.filter((row) => !selectedRowKeys.has(row.client_key)))
       setSelectedRowKeys(new Set())
+      setBulkDeleteMode(false)
       setSelectedIndex(null)
       setEditor(null)
       flash('success', `${selectedRows.length} sorgu kaydi silindi.`)
@@ -645,16 +648,21 @@ export default function InvestigationQueriesPage() {
               <h2 style={sectionTitleStyle}>Sorgu Kayitlari</h2>
               <p style={sectionHintStyle}>{filteredRows.length} / {rows.length} kayit gosteriliyor</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>{selectedRowKeys.size} secili</span>
-              <ToolbarButton
-                onClick={toggleSelectAllFiltered}
-                icon={<CheckCircle2 size={14} />}
-                label={filteredRows.length > 0 && filteredRows.every((row) => selectedRowKeys.has(row.client_key)) ? 'Secimi Kaldir' : 'Tumunu Sec'}
-                disabled={filteredRows.length === 0}
-              />
-              <ToolbarButton onClick={deleteSelectedRows} icon={<Trash2 size={14} />} label="Secilenleri Sil" disabled={selectedRowKeys.size === 0 || saving} />
-            </div>
+            {bulkDeleteMode ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>{selectedRowKeys.size} secili</span>
+                <ToolbarButton
+                  onClick={toggleSelectAllFiltered}
+                  icon={<CheckCircle2 size={14} />}
+                  label={filteredRows.length > 0 && filteredRows.every((row) => selectedRowKeys.has(row.client_key)) ? 'Secimi Kaldir' : 'Tumunu Sec'}
+                  disabled={filteredRows.length === 0}
+                />
+                <ToolbarButton onClick={deleteSelectedRows} icon={<Trash2 size={14} />} label="Secilenleri Sil" disabled={selectedRowKeys.size === 0 || saving} />
+                <ToolbarButton onClick={() => { setSelectedRowKeys(new Set()); setBulkDeleteMode(false) }} icon={<X size={14} />} label="Iptal" />
+              </div>
+            ) : (
+              <ToolbarButton onClick={() => setBulkDeleteMode(true)} icon={<Trash2 size={14} />} label="Toplu Sil" disabled={filteredRows.length === 0} />
+            )}
           </div>
 
           <div style={listStyle}>
@@ -680,14 +688,16 @@ export default function InvestigationQueriesPage() {
                     background: selectedIndex === realIndex ? 'rgba(59,130,246,.06)' : 'var(--surface)',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedRowKeys.has(row.client_key)}
-                    aria-label={`${row.full_name || row.mail_address || 'Sorgu kaydi'} kaydini sec`}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={() => toggleRowSelection(row.client_key)}
-                    style={{ width: 15, height: 15, margin: '2px 2px 0 0', flexShrink: 0, accentColor: 'var(--accent)' }}
-                  />
+                  {bulkDeleteMode && (
+                    <input
+                      type="checkbox"
+                      checked={selectedRowKeys.has(row.client_key)}
+                      aria-label={`${row.full_name || row.mail_address || 'Sorgu kaydi'} kaydini sec`}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={() => toggleRowSelection(row.client_key)}
+                      style={{ width: 15, height: 15, margin: '2px 2px 0 0', flexShrink: 0, accentColor: 'var(--accent)' }}
+                    />
+                  )}
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <strong style={rowTitleStyle}>{row.full_name || inferNameFromMail(row.mail_address) || 'Isimsiz Kullanici'}</strong>
