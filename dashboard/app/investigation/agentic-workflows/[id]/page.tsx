@@ -74,9 +74,10 @@ export default function PlaybookEditorPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
+  const [runProgress, setRunProgress] = useState<{ completed: number; total: number; percent: number } | null>(null)
   const [reportKey, setReportKey] = useState(0)
   const [pendingMails, setPendingMails] = useState(0)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
 
   // ── Loading ──────────────────────────────────────────────────────────────
 
@@ -273,29 +274,85 @@ export default function PlaybookEditorPage() {
     // The backend runs the saved graph, so unsaved edits must land first.
     if (dirty && !(await save())) return
 
-    setRunning(true)
-    setMessage(null)
-    try {
-      const res = await apiClient.post(`/api/playbooks/${playbookId}/run`, null, {
-        params: { dry_run: dryRun },
-      })
-      const result: PlaybookRun = res.data
+    const previousRunId = runs[0]?.id
+    const totalNodes = Math.max(1, graph.nodes.length)
+    let progressRunId: number | null = null
+
+    const readRunProgress = async (): Promise<PlaybookRun | null> => {
+      try {
+        const history = await apiClient.get(`/api/playbooks/${playbookId}/runs`, { params: { limit: 3 } })
+        const candidates: PlaybookRun[] = Array.isArray(history.data) ? history.data : []
+        const latest = progressRunId
+          ? candidates.find(item => item.id === progressRunId)
+          : candidates.find(item => item.id !== previousRunId)
+        if (!latest) return null
+
+        progressRunId = latest.id
+        const detailResponse = await apiClient.get(`/api/playbooks/runs/${latest.id}`)
+        const detail: PlaybookRun = detailResponse.data?.run ?? latest
+        const completed = detail.node_log?.length ?? 0
+        const isFinished = detail.status !== 'running'
+        const percent = isFinished
+          ? 100
+          : Math.min(95, Math.max(5, Math.round((completed / totalNodes) * 100)))
+        setRunProgress({ completed, total: totalNodes, percent })
+        setMessage({
+          type: 'info',
+          text: isFinished
+            ? 'Çalıştırma sonucu doğrulanıyor...'
+            : `Çalıştırılıyor: ${completed}/${totalNodes} adım tamamlandı (%${percent})`,
+        })
+        return detail
+      } catch {
+        return null
+      }
+    }
+
+    const resultMessage = (result: PlaybookRun) => result.status === 'failed'
+      ? (result.error_message || 'Çalıştırma başarısız')
+      : dryRun
+        ? `Test tamamlandı: ${result.mails_pending} mail gönderilmeden önizlemeye hazır` +
+          (result.mails_skipped ? `, ${result.mails_skipped} kayıt atlandı` : '')
+        : `Çalıştırma tamamlandı: ${result.mails_sent} mail gönderildi` +
+          (result.mails_failed ? `, ${result.mails_failed} hata` : '')
+
+    const applyRunResult = async (result: PlaybookRun) => {
+      setRunProgress({ completed: totalNodes, total: totalNodes, percent: 100 })
       setMessage({
         type: result.status === 'failed' ? 'error' : 'success',
-        text: result.status === 'failed'
-          ? (result.error_message || 'Çalıştırma başarısız')
-          : dryRun
-            ? `Test tamamlandı: ${result.mails_pending} mail gönderilmeden önizlemeye hazır` +
-              (result.mails_skipped ? `, ${result.mails_skipped} kayıt atlandı` : '')
-            : `Çalıştırma tamamlandı: ${result.mails_sent} mail gönderildi` +
-              (result.mails_failed ? `, ${result.mails_failed} hata` : ''),
+        text: resultMessage(result),
       })
       await fetchRuns()
       setReportKey(k => k + 1)
       if (result.mails_pending > 0 || result.mails_sent > 0) setTab('report')
+    }
+
+    setRunning(true)
+    setRunProgress({ completed: 0, total: totalNodes, percent: 0 })
+    setMessage({ type: 'info', text: 'Çalıştırma başlatılıyor...' })
+    const progressTimer = window.setInterval(() => { void readRunProgress() }, 900)
+    try {
+      const res = await apiClient.post(`/api/playbooks/${playbookId}/run`, null, {
+        params: { dry_run: dryRun },
+      })
+      await applyRunResult(res.data as PlaybookRun)
     } catch (e: any) {
-      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Çalıştırma başarısız' })
+      // A reverse proxy can terminate a long HTTP response even though the server-side
+      // run completed. Read the persisted run before declaring it failed to the user.
+      let persisted: PlaybookRun | null = null
+      for (let attempt = 0; attempt < 10 && !persisted; attempt++) {
+        const candidate = await readRunProgress()
+        if (candidate && candidate.status !== 'running') persisted = candidate
+        if (!persisted) await new Promise(resolve => window.setTimeout(resolve, 1000))
+      }
+
+      if (persisted) {
+        await applyRunResult(persisted)
+      } else {
+        setMessage({ type: 'error', text: e?.response?.data?.detail || 'Çalıştırma sonucu alınamadı. Çalıştırma Geçmişi üzerinden kontrol edin.' })
+      }
     } finally {
+      window.clearInterval(progressTimer)
       setRunning(false)
     }
   }
@@ -493,11 +550,16 @@ export default function PlaybookEditorPage() {
         <div style={{ padding: '10px 20px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {message && (
             <Banner
-              tone={message.type === 'success' ? 'success' : 'error'}
-              icon={message.type === 'success' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+              tone={message.type === 'success' ? 'success' : message.type === 'info' ? 'warning' : 'error'}
+              icon={message.type === 'success' ? <CheckCircle2 size={14} /> : message.type === 'info' ? <Loader2 size={14} /> : <AlertTriangle size={14} />}
               onDismiss={() => setMessage(null)}
             >
               {message.text}
+              {message.type === 'info' && runProgress && (
+                <span style={{ display: 'block', height: '4px', marginTop: '7px', overflow: 'hidden', borderRadius: '99px', background: 'rgba(146,64,14,0.2)' }}>
+                  <span style={{ display: 'block', width: `${runProgress.percent}%`, height: '100%', borderRadius: 'inherit', background: '#d97706', transition: 'width 200ms ease' }} />
+                </span>
+              )}
             </Banner>
           )}
           {validation.errors.length > 0 && (

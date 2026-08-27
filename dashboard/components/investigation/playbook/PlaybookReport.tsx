@@ -30,7 +30,7 @@ const STATUS_META: Record<PlaybookMailStatus, { label: string; color: string; bg
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'created_at', header: 'Tarih', width: 20, formatter: v => (v ? new Date(v).toLocaleString('tr-TR') : '') },
   { key: 'user_email', header: 'Kullanıcı', width: 30 },
-  { key: 'full_name', header: 'Ad', width: 24 },
+  { key: 'full_name', header: 'Ad Soyad', width: 28 },
   { key: 'team', header: 'Takım', width: 22 },
   { key: 'to_email', header: 'Alıcı', width: 30 },
   { key: 'cc_email', header: 'CC', width: 26 },
@@ -262,6 +262,7 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
                 <tr style={{ background: 'var(--surface-hover)' }}>
                   <Th>Tarih</Th>
                   <Th>Kullanıcı</Th>
+                  <Th>Ad Soyad</Th>
                   <Th>Alıcı</Th>
                   <Th>Mail Konusu</Th>
                   <Th>Sablon</Th>
@@ -283,6 +284,7 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
                         <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{row.user_email}</div>
                         {row.team && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{row.team}</div>}
                       </Td>
+                      <Td>{row.full_name || '-'}</Td>
                       <Td>
                         <div>{row.to_email}</div>
                         {row.cc_email && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>CC: {row.cc_email}</div>}

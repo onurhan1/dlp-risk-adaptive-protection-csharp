@@ -230,11 +230,13 @@ public class PlaybookEngine : IPlaybookEngine
                 log.Message = DescribeFailure(ex);
                 log.DurationMs = sw.ElapsedMilliseconds;
                 nodeLogs.Add(log);
+                await PersistRunProgressAsync(run, nodeLogs, ct);
                 throw new InvalidOperationException($"'{log.Label}' adımı başarısız: {DescribeFailure(ex)}", ex);
             }
 
             log.DurationMs = sw.ElapsedMilliseconds;
             nodeLogs.Add(log);
+            await PersistRunProgressAsync(run, nodeLogs, ct);
         }
 
         // Anything the trigger cannot reach never ran — say so instead of failing silently.
@@ -249,6 +251,15 @@ public class PlaybookEngine : IPlaybookEngine
                 Message = "Tetikleyiciye bağlı olmadığı için çalıştırılmadı"
             });
         }
+    }
+
+    private async Task PersistRunProgressAsync(
+        PlaybookRun run,
+        List<PlaybookNodeLog> nodeLogs,
+        CancellationToken ct)
+    {
+        run.NodeLogJson = PlaybookJson.Serialize(nodeLogs);
+        await _context.SaveChangesAsync(ct);
     }
 
     private static string HandleOf(PlaybookEdge edge) =>
