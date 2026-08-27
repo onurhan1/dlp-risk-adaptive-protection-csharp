@@ -35,6 +35,7 @@ public class DirectorySettingsService : IDirectorySettingsService
     private const string LdapSearchBaseKey = "ldap_search_base";
     private const string LdapServiceAccountKey = "ldap_service_account";
     private const string LdapServicePasswordKey = "ldap_service_password_protected";
+    private static readonly TimeSpan LdapResponseTimeout = TimeSpan.FromSeconds(30);
 
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
@@ -839,7 +840,7 @@ public class DirectorySettingsService : IDirectorySettingsService
     private static async Task<byte[]> ReadLdapResponseAsync(Stream stream, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        timeout.CancelAfter(LdapResponseTimeout);
 
         var header = new byte[2];
         await ReadExactlyAsync(stream, header, timeout.Token);

@@ -132,7 +132,7 @@ public class PlaybookEngine : IPlaybookEngine
         {
             _logger.LogError(ex, "Playbook run failed (playbook {PlaybookId}, run {RunId})", playbookId, run.Id);
             run.Status = PlaybookRunStatus.Failed;
-            run.ErrorMessage = ex.Message;
+            run.ErrorMessage = DescribeFailure(ex);
         }
         finally
         {
@@ -146,6 +146,23 @@ public class PlaybookEngine : IPlaybookEngine
         }
 
         return run;
+    }
+
+    private static string DescribeFailure(Exception exception)
+    {
+        var messages = new List<string>();
+        Exception? current = exception;
+
+        while (current != null && messages.Count < 4)
+        {
+            var message = string.IsNullOrWhiteSpace(current.Message)
+                ? "Açıklama bulunamadı"
+                : current.Message.Trim();
+            messages.Add($"{current.GetType().Name}: {message}");
+            current = current.InnerException;
+        }
+
+        return string.Join(" | İç hata: ", messages.Distinct(StringComparer.Ordinal));
     }
 
     private Task<int> CountAsync(int runId, string status, CancellationToken ct) =>
@@ -210,10 +227,10 @@ public class PlaybookEngine : IPlaybookEngine
             catch (Exception ex)
             {
                 log.Status = "failed";
-                log.Message = ex.Message;
+                log.Message = DescribeFailure(ex);
                 log.DurationMs = sw.ElapsedMilliseconds;
                 nodeLogs.Add(log);
-                throw new InvalidOperationException($"'{log.Label}' adımı başarısız: {ex.Message}", ex);
+                throw new InvalidOperationException($"'{log.Label}' adımı başarısız: {DescribeFailure(ex)}", ex);
             }
 
             log.DurationMs = sw.ElapsedMilliseconds;

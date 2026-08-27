@@ -229,7 +229,9 @@ public class PlaybooksController : ControllerBase
     {
         try
         {
-            var run = await _engine.RunAsync(id, PlaybookTriggerType.Manual, dryRun, ct: ct);
+            // A manual run can send mail and persist a run history. Do not abort that work just
+            // because the browser/proxy closes a long-running HTTP request while LDAP or reports run.
+            var run = await _engine.RunAsync(id, PlaybookTriggerType.Manual, dryRun, ct: CancellationToken.None);
             return Ok(ToRunDto(run, includeLog: true));
         }
         catch (KeyNotFoundException ex)
