@@ -99,9 +99,8 @@ public static class ViolationTriggerParser
                         !classifier.TryGetProperty("numberMatches", out matchesElement))
                         continue;
 
-                    if (matchesElement.ValueKind == JsonValueKind.Number)
+                    if (TryReadMatchCount(matchesElement, out var matches))
                     {
-                        var matches = matchesElement.GetInt32();
                         if (matches > maxMatches) maxMatches = matches;
                     }
                 }
@@ -151,9 +150,8 @@ public static class ViolationTriggerParser
                                 classifier.TryGetProperty("number_matches", out matchesElement) ||
                                 classifier.TryGetProperty("numberMatches", out matchesElement))
                             {
-                                if (matchesElement.ValueKind == JsonValueKind.Number)
+                                if (TryReadMatchCount(matchesElement, out var matches))
                                 {
-                                    var matches = matchesElement.GetInt32();
                                     if (matches > maxMatches) maxMatches = matches;
                                 }
                             }
@@ -203,10 +201,9 @@ public static class ViolationTriggerParser
                                 classifier.TryGetProperty("number_matches", out matchesElement) ||
                                 classifier.TryGetProperty("numberMatches", out matchesElement))
                             {
-                                if (matchesElement.ValueKind == JsonValueKind.Number)
+                                if (TryReadMatchCount(matchesElement, out var matches))
                                 {
                                     hasClassifiers = true;
-                                    var matches = matchesElement.GetInt32();
                                     if (matches > currentTriggerMax) currentTriggerMax = matches;
                                 }
                             }
@@ -247,5 +244,37 @@ public static class ViolationTriggerParser
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// Reads NumberMatches defensively. Imports in the wild contain both JSON
+    /// numbers and numeric strings, and a value outside Int32 must never make
+    /// an investigation or report request fail.
+    /// </summary>
+    private static bool TryReadMatchCount(JsonElement element, out int value)
+    {
+        value = 0;
+
+        if (element.ValueKind == JsonValueKind.Number)
+        {
+            if (element.TryGetInt32(out value))
+                return value >= 0;
+
+            if (element.TryGetInt64(out var longValue) && longValue > 0)
+            {
+                value = longValue > int.MaxValue ? int.MaxValue : (int)longValue;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            int.TryParse(element.GetString(), out value))
+        {
+            return value >= 0;
+        }
+
+        return false;
     }
 }
