@@ -12,6 +12,13 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 public class DirectorySettingsService : IDirectorySettingsService
 {
+    static DirectorySettingsService()
+    {
+        // IMAP messages still commonly use legacy Turkish MIME charsets such as ISO-8859-9.
+        // .NET does not enable these code pages by default on all deployments.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     private const string ImapPrefix = "imap_";
     private const string ImapEnabledKey = "imap_enabled";
     private const string ImapHostKey = "imap_host";
@@ -1163,10 +1170,21 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static string DecodeMimeBody(string body, string transferEncoding, string charset)
     {
-        var encoding = SafeEncoding(charset);
         try
         {
-            return encoding.GetString(DecodeMimeBytes(body, transferEncoding));
+            var bytes = DecodeMimeBytes(body, transferEncoding);
+            var decoded = SafeEncoding(charset).GetString(bytes);
+
+            // Some mail clients declare ISO-8859-9 but actually send UTF-8. Prefer the
+            // alternative only when it clearly avoids replacement/mojibake characters.
+            if (!charset.Contains("utf", StringComparison.OrdinalIgnoreCase))
+            {
+                var utf8 = Encoding.UTF8.GetString(bytes);
+                if (EncodingDamageScore(utf8) < EncodingDamageScore(decoded))
+                    return utf8;
+            }
+
+            return decoded;
         }
         catch
         {
@@ -1179,7 +1197,15 @@ public class DirectorySettingsService : IDirectorySettingsService
         if (transferEncoding.Contains("base64", StringComparison.OrdinalIgnoreCase))
         {
             var compact = Regex.Replace(body, @"\s+", "");
-            return Convert.FromBase64String(compact);
+            try
+            {
+                return Convert.FromBase64String(compact);
+            }
+            catch (FormatException)
+            {
+                // Keep a malformed MIME part readable instead of failing the whole mail.
+                return Encoding.Latin1.GetBytes(body);
+            }
         }
 
         return transferEncoding.Contains("quoted-printable", StringComparison.OrdinalIgnoreCase)
@@ -1266,14 +1292,28 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static Encoding SafeEncoding(string charset)
     {
+        var normalized = (charset ?? string.Empty).Trim().Trim('"').ToLowerInvariant() switch
+        {
+            "iso-8859-9" or "iso8859-9" or "latin5" or "latin-5" => "windows-1254",
+            "iso-8859-1" or "iso8859-1" or "latin1" or "latin-1" => "windows-1252",
+            var value when string.IsNullOrWhiteSpace(value) => "utf-8",
+            var value => value
+        };
         try
         {
-            return Encoding.GetEncoding(string.IsNullOrWhiteSpace(charset) ? "utf-8" : charset);
+            return Encoding.GetEncoding(normalized);
         }
         catch
         {
             return Encoding.UTF8;
         }
+    }
+
+    private static int EncodingDamageScore(string value)
+    {
+        var replacementCount = value.Count(character => character == '\uFFFD');
+        var mojibakeCount = value.Count(character => character is 'Ã' or 'Â' or 'â');
+        return replacementCount * 10 + mojibakeCount;
     }
 
     private static string Header(string response, string name)
@@ -1303,7 +1343,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         {
             try
             {
-                var encoding = Encoding.GetEncoding(match.Groups[1].Value);
+                var encoding = SafeEncoding(match.Groups[1].Value);
                 var mode = match.Groups[2].Value.ToUpperInvariant();
                 var payload = match.Groups[3].Value;
                 var bytes = mode == "B"

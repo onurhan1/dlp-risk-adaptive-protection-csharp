@@ -278,9 +278,12 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         }
 
         Playbook? requestedWorkflow;
+        var requestPdfAttachment = commands.Any(command => command.EndsWith(" PDF", StringComparison.Ordinal));
         try
         {
-            requestedWorkflow = await FindRequestedReportWorkflowAsync(commands, ct);
+            requestedWorkflow = await FindRequestedReportWorkflowAsync(
+                commands.Select(command => command.EndsWith(" PDF", StringComparison.Ordinal) ? command[..^4].TrimEnd() : command),
+                ct);
         }
         catch (InvalidOperationException ex)
         {
@@ -296,6 +299,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
                     PlaybookTriggerType.EmailRequest,
                     forceDryRun: false,
                     reportRecipientEmail: sender,
+                    requestPdfAttachment: requestPdfAttachment,
                     ct: ct);
                 return "report_sent";
             }
@@ -411,7 +415,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         return $"<p>Merhaba, kullanilabilir RADAR raporlari asagidadir:</p><ul>{workflowRows}" +
                $"<li><strong>SORGU RAPORU EXCEL</strong> - Sorgulamalar ekranindaki tum kayitlar (Excel) {BuildMailRequestLink(serviceMailbox, "SORGU RAPORU EXCEL")}</li>" +
                $"<li><strong>SORGU RAPORU HTML</strong> - Sorgulamalar ekranindaki tum kayitlar (HTML) {BuildMailRequestLink(serviceMailbox, "SORGU RAPORU HTML")}</li>" +
-               "</ul><p>Isteginizi konuya veya mail govdesine bu ifadelerden biriyle yazabilirsiniz.</p>";
+               "</ul><p>Isteginizi konuya veya mail govdesine bu ifadelerden biriyle yazabilirsiniz. PDF eki isterseniz komutun sonuna PDF ekleyin.</p>";
     }
 
     private static string BuildMailRequestLink(string serviceMailbox, string request)

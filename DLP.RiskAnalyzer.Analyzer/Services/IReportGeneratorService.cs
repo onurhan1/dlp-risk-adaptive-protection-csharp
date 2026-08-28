@@ -12,4 +12,13 @@ public interface IReportGeneratorService
     Task<byte[]> GenerateDailySummaryReportAsync(DateTime reportDate);
 
     byte[] GenerateDashboardSummaryReport(DashboardReportRequest request);
+
+    byte[] GenerateWorkflowTableReport(WorkflowTableReport report);
 }
+
+public sealed record WorkflowTableReport(
+    string Title,
+    string? Intro,
+    DateTime GeneratedAt,
+    IReadOnlyList<string> Headers,
+    IReadOnlyList<IReadOnlyList<string>> Rows);

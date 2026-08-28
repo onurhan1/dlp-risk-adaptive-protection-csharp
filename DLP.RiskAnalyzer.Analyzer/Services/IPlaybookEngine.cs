@@ -134,6 +134,7 @@ public interface IPlaybookEngine
         string triggerType,
         bool? forceDryRun,
         string? reportRecipientEmail = null,
+        bool requestPdfAttachment = false,
         CancellationToken ct = default);
 
     /// <summary>Structural checks performed before a graph is saved or run.</summary>

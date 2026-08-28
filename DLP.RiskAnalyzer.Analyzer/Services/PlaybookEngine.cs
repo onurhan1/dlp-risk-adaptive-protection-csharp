@@ -45,6 +45,7 @@ public class PlaybookEngine : IPlaybookEngine
     private readonly IWeeklyFlagService _weeklyFlagService;
     private readonly IIncidentRepository _incidentRepository;
     private readonly IEmailService _emailService;
+    private readonly IReportGeneratorService _reportGenerator;
     private readonly IInvestigationQueryRemediationSyncService _queryRemediationSync;
     private readonly IDirectorySettingsService _directorySettings;
     private readonly ILogger<PlaybookEngine> _logger;
@@ -54,6 +55,7 @@ public class PlaybookEngine : IPlaybookEngine
         IWeeklyFlagService weeklyFlagService,
         IIncidentRepository incidentRepository,
         IEmailService emailService,
+        IReportGeneratorService reportGenerator,
         IInvestigationQueryRemediationSyncService queryRemediationSync,
         IDirectorySettingsService directorySettings,
         ILogger<PlaybookEngine> logger)
@@ -62,6 +64,7 @@ public class PlaybookEngine : IPlaybookEngine
         _weeklyFlagService = weeklyFlagService;
         _incidentRepository = incidentRepository;
         _emailService = emailService;
+        _reportGenerator = reportGenerator;
         _queryRemediationSync = queryRemediationSync;
         _directorySettings = directorySettings;
         _logger = logger;
@@ -74,6 +77,7 @@ public class PlaybookEngine : IPlaybookEngine
         string triggerType,
         bool? forceDryRun,
         string? reportRecipientEmail = null,
+        bool requestPdfAttachment = false,
         CancellationToken ct = default)
     {
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
@@ -117,7 +121,7 @@ public class PlaybookEngine : IPlaybookEngine
                 throw new InvalidOperationException(
                     "E-posta servisi yapılandırılmamış. Lütfen Ayarlar'dan SMTP bilgilerini girin.");
 
-            await ExecuteGraphAsync(graph, playbook, run, dryRun, reportRecipientEmail, nodeLogs, ct);
+            await ExecuteGraphAsync(graph, playbook, run, dryRun, reportRecipientEmail, requestPdfAttachment, nodeLogs, ct);
 
             run.MailsSent = await CountAsync(run.Id, PlaybookMailStatus.Sent, ct);
             run.MailsPending = await CountAsync(run.Id, PlaybookMailStatus.Pending, ct);
@@ -174,6 +178,7 @@ public class PlaybookEngine : IPlaybookEngine
         PlaybookRun run,
         bool dryRun,
         string? reportRecipientEmail,
+        bool requestPdfAttachment,
         List<PlaybookNodeLog> nodeLogs,
         CancellationToken ct)
     {
@@ -186,7 +191,7 @@ public class PlaybookEngine : IPlaybookEngine
         var outputs = new Dictionary<string, Dictionary<string, PlaybookPayload>>(StringComparer.Ordinal);
 
         // Run-wide guards shared by every send-mail node.
-        var context = new SendContext(dryRun, playbook.AutoSend, reportRecipientEmail);
+        var context = new SendContext(dryRun, playbook.AutoSend, reportRecipientEmail, requestPdfAttachment);
 
         foreach (var nodeId in order)
         {
@@ -1481,7 +1486,7 @@ public class PlaybookEngine : IPlaybookEngine
         SendContext context,
         CancellationToken ct)
     {
-        var fixedRecipient = node.GetString("fixed_recipient")?.Trim();
+        var fixedRecipient = context.ReportRecipientEmail ?? node.GetString("fixed_recipient")?.Trim();
         if (string.IsNullOrWhiteSpace(fixedRecipient))
             fixedRecipient = await ResolveAdminEmailAsync(ct);
 
@@ -1505,7 +1510,8 @@ public class PlaybookEngine : IPlaybookEngine
         subject = ApplyReportPlaceholders(subject, payload, now);
 
         var intro = ApplyReportPlaceholders(node.GetString("intro"), payload, now);
-        var bodyHtml = BuildConfiguredReportMailHtml(title, intro, payload, now, node.GetStringList("columns"));
+        var selectedColumns = node.GetStringList("columns");
+        var bodyHtml = BuildConfiguredReportMailHtml(title, intro, payload, now, selectedColumns);
 
         var entry = new PlaybookMailLog
         {
@@ -1547,13 +1553,29 @@ public class PlaybookEngine : IPlaybookEngine
         }
         else
         {
-            var success = await _emailService.SendEmailAsync(
-                toEmail: fixedRecipient!,
-                subject: entry.Subject,
-                body: entry.BodyHtml,
-                isHtml: true,
-                toName: null,
-                ccEmail: ccEmail);
+            var attachPdf = node.GetBool("attach_pdf") || context.RequestPdfAttachment;
+            var success = attachPdf
+                ? await _emailService.SendEmailWithAttachmentsAsync(
+                    toEmail: fixedRecipient!,
+                    subject: entry.Subject,
+                    body: entry.BodyHtml,
+                    attachments:
+                    [
+                        new EmailAttachment(
+                            $"workflow_raporu_{now:yyyyMMdd_HHmm}.pdf",
+                            _reportGenerator.GenerateWorkflowTableReport(BuildWorkflowTableReport(title, intro, payload, now, selectedColumns)),
+                            "application/pdf")
+                    ],
+                    isHtml: true,
+                    toName: null,
+                    ccEmail: ccEmail)
+                : await _emailService.SendEmailAsync(
+                    toEmail: fixedRecipient!,
+                    subject: entry.Subject,
+                    body: entry.BodyHtml,
+                    isHtml: true,
+                    toName: null,
+                    ccEmail: ccEmail);
 
             if (success)
             {
@@ -1745,13 +1767,94 @@ public class PlaybookEngine : IPlaybookEngine
     <div class=""header""><h1>{Encode(title)}</h1></div>
     <div class=""content"">
       {introHtml}
-      <div class=""meta"">\u00dcretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Sat\u0131r say\u0131s\u0131: {payload.Items.Count:N0}</div>
+      <div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Satır sayısı: {payload.Items.Count:N0}</div>
       <table><thead><tr><th>#</th>{headerCells}</tr></thead><tbody>{rows}</tbody></table>
-      <div class=""footer"">Bu rapor agentic workflow taraf\u0131ndan servis hesab\u0131 \u00fczerinden \u00fcretilmi\u015ftir.</div>
+      <div class=""footer"">Bu rapor agentic workflow tarafından servis hesabı üzerinden üretilmiştir.</div>
     </div>
   </div>
 </body>
 </html>";
+    }
+
+    private static WorkflowTableReport BuildWorkflowTableReport(
+        string title,
+        string? intro,
+        PlaybookPayload payload,
+        DateTime now,
+        List<string> columns)
+    {
+        if (payload.HasMetric)
+        {
+            var metric = payload.Metric!;
+            return new WorkflowTableReport(
+                title,
+                intro,
+                now,
+                ["Metrik", "Değer"],
+                [
+                    [metric.Label, metric.Value.ToString("N0")],
+                    ["Dönem", $"{RadarTimeZone.ToTurkeyTime(metric.WindowStart):dd.MM.yyyy} - {RadarTimeZone.ToTurkeyTime(metric.WindowEnd):dd.MM.yyyy}"],
+                    ["Toplam olay kaydı", metric.TotalIncidents.ToString("N0")],
+                    ["Kullanıcı sayısı", metric.UniqueUsers.ToString("N0")],
+                    ["Filtreler", string.IsNullOrWhiteSpace(metric.FilterSummary) ? "-" : metric.FilterSummary]
+                ]);
+        }
+
+        if (payload.Items.Any(item => item.Tracking != null))
+        {
+            var headers = new[]
+            {
+                "Kullanıcı adı", "Ad Soyad", "Birim", "Alıcı e-posta", "Sorgu durumu", "İlk mail durumu",
+                "İlk mail tarihi", "Geçen gün", "Hatırlatma durumu", "Hatırlatma tarihi", "Adet",
+                "Gelen cevap", "Cevap tarihi", "Şablon / konu", "Son işlem notu"
+            };
+            var rows = payload.Items.Select(item =>
+            {
+                var query = item.InvestigationQuery;
+                var tracking = item.Tracking!;
+                var firstSent = tracking.FirstMailAt ?? query?.FirstSentAt ?? query?.QueryDate;
+                var days = firstSent.HasValue
+                    ? Math.Max(0, (int)Math.Floor((DateTime.UtcNow - firstSent.Value.ToUniversalTime()).TotalDays))
+                    : 0;
+                string FormatTurkey(DateTime? value) => value.HasValue
+                    ? RadarTimeZone.ToTurkeyTime(value.Value).ToString("dd.MM.yyyy HH:mm")
+                    : "-";
+                return (IReadOnlyList<string>)new[]
+                {
+                    item.User.UserEmail,
+                    item.User.FullName ?? "-",
+                    item.User.Team ?? "-",
+                    item.User.ContactEmail ?? "-",
+                    TrackingStatusLabel(tracking.LifecycleStatus),
+                    tracking.FirstMailStatus,
+                    FormatTurkey(firstSent),
+                    days.ToString(),
+                    tracking.ReminderStatus,
+                    FormatTurkey(query?.ReminderSentAt),
+                    (query?.ReminderCount ?? 0).ToString(),
+                    query?.ResponseStatus ?? "-",
+                    FormatTurkey(tracking.ReplyAt),
+                    tracking.TemplateOrSubject ?? "-",
+                    query?.Action ?? query?.Notes ?? "-"
+                };
+            }).ToList();
+            return new WorkflowTableReport(title, intro, now, headers, rows);
+        }
+
+        var selectedColumns = columns.Where(IsReportColumn).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (selectedColumns.Count == 0) selectedColumns = DefaultReportColumns.ToList();
+        var tableRows = payload.Items.Select(item =>
+        {
+            var sample = item.User.SampleIncidents?.OrderByDescending(incident => incident.MaxMatches).FirstOrDefault();
+            return (IReadOnlyList<string>)selectedColumns.Select(column =>
+                WebUtility.HtmlDecode(ReportColumnValue(column, item.User, item.SourceCriterion, sample, item.InvestigationQuery))).ToList();
+        }).ToList();
+        return new WorkflowTableReport(
+            title,
+            intro,
+            now,
+            selectedColumns.Select(ReportColumnLabel).ToList(),
+            tableRows);
     }
 
     private static string BuildQueryTrackingReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
@@ -1844,7 +1947,7 @@ public class PlaybookEngine : IPlaybookEngine
         "action" => Encode(sample?.Action ?? "-"),
         "data_type" => Encode(sample?.DataType ?? "-"),
         "severity" => sample?.Severity?.ToString() ?? "-",
-        "query_date" => query?.QueryDate?.ToString("dd.MM.yyyy HH:mm") ?? "-",
+        "query_date" => query?.QueryDate?.ToString("dd.MM.yyyy") ?? "-",
         "query_status" => Encode(QueryStatusLabel(query?.QueryStatus)),
         "response_status" => Encode(query?.ResponseStatus ?? "-"),
         "reminder_date" => query?.ReminderSentAt?.ToString("dd.MM.yyyy HH:mm") ?? "-",
@@ -2985,7 +3088,7 @@ public class PlaybookEngine : IPlaybookEngine
         {
             "cron" => node.GetString("cron")?.Trim(),
             "hourly" => $"{minute} * * * *",
-            "daily" => $"{minute} {hour} * * *",
+            "daily" => $"{minute} {hour} * * {(node.GetBool("weekdays_only") ? "1-5" : "*")}",
             _ => $"{minute} {hour} * * {dayOfWeek}"
         };
     }
@@ -3013,16 +3116,18 @@ public class PlaybookEngine : IPlaybookEngine
         private readonly HashSet<string> _reserved = new(StringComparer.OrdinalIgnoreCase);
         private string? _message;
 
-        public SendContext(bool dryRun, bool autoSend, string? reportRecipientEmail = null)
+        public SendContext(bool dryRun, bool autoSend, string? reportRecipientEmail = null, bool requestPdfAttachment = false)
         {
             DryRun = dryRun;
             AutoSend = autoSend;
             ReportRecipientEmail = string.IsNullOrWhiteSpace(reportRecipientEmail) ? null : reportRecipientEmail.Trim();
+            RequestPdfAttachment = requestPdfAttachment;
         }
 
         public bool DryRun { get; }
         public bool AutoSend { get; }
         public string? ReportRecipientEmail { get; }
+        public bool RequestPdfAttachment { get; }
         public string? LastSkipReason { get; private set; }
 
         public bool TryReserveRecipient(string email)

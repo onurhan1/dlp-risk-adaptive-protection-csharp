@@ -173,6 +173,10 @@ public static class CronSchedule
             return $"{hour:D2}:{minute:D2}";
         }
 
+        // Weekdays: Monday through Friday, fixed hour and minute.
+        if (dowField == "1-5" && domField == "*" && cron.Hours.Count == 1 && cron.Minutes.Count == 1)
+            return $"Hafta ici {TimeOfDay()} ({RadarTimeZone.DisplayName})";
+
         // Weekly: single day-of-week, fixed hour and minute.
         if (dowField != "*" && domField == "*" && cron.Hours.Count == 1 && cron.Minutes.Count == 1)
         {

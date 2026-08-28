@@ -1,4 +1,5 @@
 using System.Globalization;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -175,6 +176,69 @@ public class ReportGeneratorService : IReportGeneratorService
                         text.Span(" / ").FontSize(8).FontColor(Colors.Grey.Darken1);
                         text.TotalPages().FontSize(8);
                     });
+                });
+            });
+        }).GeneratePdf();
+    }
+
+    public byte[] GenerateWorkflowTableReport(WorkflowTableReport report)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        var headers = report.Headers.Count == 0 ? ["Kayit"] : report.Headers;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(1.1f, Unit.Centimetre);
+                page.DefaultTextStyle(style => style.FontSize(7));
+                page.Header().Column(column =>
+                {
+                    column.Item().Text(report.Title).FontSize(14).Bold().FontColor(Colors.Blue.Darken2);
+                    if (!string.IsNullOrWhiteSpace(report.Intro))
+                        column.Item().PaddingTop(3).Text(report.Intro!).FontSize(8).FontColor(Colors.Grey.Darken2);
+                    column.Item().PaddingTop(4).Text($"Uretim tarihi: {report.GeneratedAt:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName}) | Satir sayisi: {report.Rows.Count:N0}")
+                        .FontSize(7).FontColor(Colors.Grey.Darken1);
+                    column.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+                });
+                page.Content().PaddingVertical(0.35f, Unit.Centimetre).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.ConstantColumn(20);
+                        for (var index = 0; index < headers.Count; index++) columns.RelativeColumn();
+                    });
+                    table.Header(header =>
+                    {
+                        header.Cell().Element(HeaderCell).Text("#").Bold().FontColor(Colors.White);
+                        foreach (var value in headers)
+                            header.Cell().Element(HeaderCell).Text(value).Bold().FontColor(Colors.White).WrapAnywhere();
+                    });
+                    if (report.Rows.Count == 0)
+                    {
+                        table.Cell().ColumnSpan((uint)(headers.Count + 1)).Element(cell => BodyCell(cell, Colors.White))
+                            .Text("Kayit bulunamadi.").Italic().FontColor(Colors.Grey.Darken1);
+                        return;
+                    }
+                    for (var rowIndex = 0; rowIndex < report.Rows.Count; rowIndex++)
+                    {
+                        var row = report.Rows[rowIndex];
+                        var background = rowIndex % 2 == 1 ? Colors.Grey.Lighten4 : Colors.White;
+                        table.Cell().Element(cell => BodyCell(cell, background)).Text((rowIndex + 1).ToString(ReportCulture));
+                        for (var columnIndex = 0; columnIndex < headers.Count; columnIndex++)
+                        {
+                            var value = columnIndex < row.Count ? row[columnIndex] : "-";
+                            table.Cell().Element(cell => BodyCell(cell, background)).Text(value ?? "-").WrapAnywhere();
+                        }
+                    }
+                });
+                page.Footer().AlignRight().Text(text =>
+                {
+                    text.Span("Sayfa ").FontSize(7).FontColor(Colors.Grey.Darken1);
+                    text.CurrentPageNumber().FontSize(7);
+                    text.Span(" / ").FontSize(7);
+                    text.TotalPages().FontSize(7);
                 });
             });
         }).GeneratePdf();

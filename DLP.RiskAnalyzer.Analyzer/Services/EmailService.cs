@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Text;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.Extensions.Logging;
 
@@ -89,7 +90,9 @@ public class EmailService : IEmailService
                 From = new MailAddress(config.FromEmail, config.FromName),
                 Subject = subject,
                 Body = body,
-                IsBodyHtml = isHtml
+                IsBodyHtml = isHtml,
+                SubjectEncoding = Encoding.UTF8,
+                BodyEncoding = Encoding.UTF8
             };
 
             message.To.Add(new MailAddress(toEmail, toName ?? toEmail));

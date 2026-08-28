@@ -320,6 +320,13 @@ function ScheduleForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: 
         </div>
       )}
 
+      {frequency === 'daily' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={node.config.weekdays_only === true} onChange={event => update({ weekdays_only: event.target.checked })} />
+          Hafta sonu haric (Pazartesi - Cuma)
+        </label>
+      )}
+
       {frequency === 'cron' && (
         <div>
           <label style={labelStyle}>Cron İfadesi</label>
@@ -913,6 +920,16 @@ function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow }: { n
           placeholder="Raporun basina eklenecek kisa aciklama"
         />
       </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={node.config.attach_pdf === true}
+          onChange={event => setConfig({ attach_pdf: event.target.checked })}
+        />
+        PDF kopyasını rapor mailine ekle
+      </label>
+      <p style={{ ...hintStyle, marginTop: '-4px' }}>HTML rapor mail gövdesinde kalır; seçildiğinde aynı tablo PDF eki olarak da gönderilir.</p>
 
       <div style={inTrackingFlow ? { display: 'none' } : undefined}>
         <label style={labelStyle}>Rapor Sutunlari</label>

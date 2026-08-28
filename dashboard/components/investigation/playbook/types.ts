@@ -482,6 +482,7 @@ export const NODE_CATALOG: NodeDefinition[] = [
       cc_email: '',
       subject_override: '',
       intro: '',
+      attach_pdf: false,
     },
   },
   {
@@ -521,7 +522,7 @@ export function buildCron(config: Record<string, any>): string {
     case 'hourly':
       return `${minute} * * * *`
     case 'daily':
-      return `${minute} ${hour} * * *`
+      return `${minute} ${hour} * * ${config.weekdays_only ? '1-5' : '*'}`
     default:
       return `${minute} ${hour} * * ${dayOfWeek}`
   }
@@ -538,7 +539,7 @@ export function describeSchedule(config: Record<string, any>): string {
     case 'hourly':
       return `Her saat :${pad(minute)}`
     case 'daily':
-      return `Her gün ${pad(hour)}:${pad(minute)}`
+      return `${config.weekdays_only ? 'Hafta ici' : 'Her gun'} ${pad(hour)}:${pad(minute)}`
     default:
       return `Her ${DAY_NAMES[clamp(Number(config.day_of_week ?? 1), 0, 6)]} ${pad(hour)}:${pad(minute)}`
   }
