@@ -236,6 +236,14 @@ export default function PlaybookEditorPage() {
     return ids
   }, [graph])
 
+  const trackingFlowNodeIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const source of graph.nodes.filter(node => node.type === 'source.queryTracking')) {
+      reachableFrom(source.id, graph).forEach(id => ids.add(id))
+    }
+    return ids
+  }, [graph])
+
   // ── Actions ──────────────────────────────────────────────────────────────
 
   const save = async (nextEnabled = enabled) => {
@@ -611,6 +619,7 @@ export default function PlaybookEditorPage() {
               templates={templates}
               inMetricFlow={selectedNode ? metricFlowNodeIds.has(selectedNode.id) : false}
               inReminderFlow={selectedNode ? reminderFlowNodeIds.has(selectedNode.id) : false}
+              inTrackingFlow={selectedNode ? trackingFlowNodeIds.has(selectedNode.id) : false}
               onChange={updateNode}
             />
           </>

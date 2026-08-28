@@ -12,7 +12,16 @@ public record PlaybookItem(
     string SourceCriterion,
     int? InvestigationQueryId = null,
     string? ExistingCorrelationCode = null,
-    InvestigationQueryRecord? InvestigationQuery = null);
+    InvestigationQueryRecord? InvestigationQuery = null,
+    QueryTrackingDetails? Tracking = null);
+
+public record QueryTrackingDetails(
+    string LifecycleStatus,
+    string FirstMailStatus,
+    DateTime? FirstMailAt,
+    string ReminderStatus,
+    DateTime? ReplyAt,
+    string? TemplateOrSubject);
 
 /// <summary>One row of a metric's breakdown, e.g. "Email: 214".</summary>
 public record PlaybookMetricBreakdown(string Label, int Count);

@@ -305,6 +305,9 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourcePendingQueryReminders:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadPendingQueryRemindersAsync(context, ct)));
 
+            case PlaybookNodeType.SourceQueryTracking:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadQueryTrackingAsync(node, context, ct)));
+
             case PlaybookNodeType.TransformFilter:
                 return SingleOutput(PlaybookPayload.OfItems(ApplyFilter(node, input.Items, context)));
 
@@ -709,6 +712,140 @@ public class PlaybookEngine : IPlaybookEngine
         context.SetMessage($"Ilk gonderim veya sorgu tarihinden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
         return items;
     }
+
+    private async Task<List<PlaybookItem>> LoadQueryTrackingAsync(PlaybookNode node, SendContext context, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var periodMode = node.GetString("period_mode") ?? "this_week";
+        var dateBasis = node.GetString("date_basis") ?? "first_sent";
+        var (from, to) = ResolveTrackingWindow(node, periodMode, now);
+        var requestedStatuses = node.GetStringList("statuses");
+        if (requestedStatuses.Count == 0) requestedStatuses = QueryTrackingStatuses.All.ToList();
+
+        var records = await _context.InvestigationQueries
+            .OrderByDescending(query => query.UpdatedAt)
+            .Take(2_000)
+            .ToListAsync(ct);
+
+        var correlationCodes = records
+            .Where(query => !string.IsNullOrWhiteSpace(query.CorrelationCode))
+            .Select(query => query.CorrelationCode!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var legacyMailIds = records.Where(query => query.PlaybookMailLogId.HasValue).Select(query => query.PlaybookMailLogId!.Value).ToList();
+        var logs = await _context.PlaybookMailLogs
+            .Where(mail => (correlationCodes.Contains(mail.CorrelationCode!) || legacyMailIds.Contains(mail.Id)) &&
+                           !string.Equals(mail.UserEmail, "(rapor)", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(mail => mail.CreatedAt)
+            .ToListAsync(ct);
+
+        var items = new List<PlaybookItem>();
+        foreach (var query in records)
+        {
+            var related = logs.Where(mail =>
+                (!string.IsNullOrWhiteSpace(query.CorrelationCode) && mail.CorrelationCode == query.CorrelationCode) ||
+                (query.PlaybookMailLogId.HasValue && mail.Id == query.PlaybookMailLogId.Value)).ToList();
+            var firstMail = related.FirstOrDefault(mail => mail.SourceCriterion != PlaybookNodeType.SourcePendingQueryReminders);
+            var reminderMail = related.LastOrDefault(mail => mail.SourceCriterion == PlaybookNodeType.SourcePendingQueryReminders);
+            var lifecycle = GetTrackingStatus(query, reminderMail, now);
+            if (!requestedStatuses.Contains(lifecycle, StringComparer.Ordinal)) continue;
+
+            var trackingDate = dateBasis switch
+            {
+                "prepared" => firstMail?.CreatedAt ?? query.CreatedAt,
+                "reminder" => reminderMail?.SentAt ?? reminderMail?.CreatedAt ?? query.ReminderSentAt,
+                "updated" => query.UpdatedAt,
+                _ => firstMail?.SentAt ?? query.FirstSentAt ?? query.QueryDate ?? query.CreatedAt
+            };
+            if (trackingDate < from || trackingDate > to) continue;
+
+            var firstMailStatus = firstMail == null ? "Kayit yok" : MailStatusLabel(firstMail.Status);
+            var reminderStatus = GetReminderStatus(query, reminderMail, now);
+            var subject = firstMail?.Subject ?? query.Subject;
+            items.Add(new PlaybookItem(
+                new WeeklyFlagUserDto(query.UserCode, query.FullName, query.Team, query.MailAddress, 1,
+                    query.QueryDate ?? query.FirstSentAt ?? query.CreatedAt,
+                    query.UpdatedAt,
+                    new List<WeeklyFlagIncidentDto>()),
+                PlaybookNodeType.SourceQueryTracking,
+                query.Id,
+                query.CorrelationCode,
+                query,
+                new QueryTrackingDetails(lifecycle, firstMailStatus, firstMail?.SentAt ?? firstMail?.CreatedAt,
+                    reminderStatus, query.ReplyReceivedAt, subject)));
+        }
+
+        var result = items.Take(MaxRecipientsPerRun).ToList();
+        context.SetMessage($"Sorgu ve hatirlatma takibinde {result.Count} kayit listelendi");
+        return result;
+    }
+
+    private static (DateTime From, DateTime To) ResolveTrackingWindow(PlaybookNode node, string mode, DateTime nowUtc)
+    {
+        var turkeyNow = RadarTimeZone.ToTurkeyTime(nowUtc);
+        DateTime localFrom;
+        DateTime localTo;
+        if (mode == "custom" && DateTime.TryParse(node.GetString("from_date"), out var customFrom) &&
+            DateTime.TryParse(node.GetString("to_date"), out var customTo))
+        {
+            localFrom = customFrom.Date;
+            localTo = customTo.Date.AddDays(1).AddTicks(-1);
+        }
+        else if (mode == "last_n_days")
+        {
+            var days = Math.Clamp(node.GetInt("days") ?? 7, 1, 365);
+            localFrom = turkeyNow.Date.AddDays(-(days - 1));
+            localTo = turkeyNow;
+        }
+        else if (mode == "last_7_days")
+        {
+            localFrom = turkeyNow.Date.AddDays(-6);
+            localTo = turkeyNow;
+        }
+        else
+        {
+            var mondayOffset = ((int)turkeyNow.DayOfWeek + 6) % 7;
+            localFrom = turkeyNow.Date.AddDays(-mondayOffset);
+            localTo = turkeyNow;
+        }
+
+        return (TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localFrom, DateTimeKind.Unspecified), RadarTimeZone.Turkey),
+                TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localTo, DateTimeKind.Unspecified), RadarTimeZone.Turkey));
+    }
+
+    private static string GetTrackingStatus(InvestigationQueryRecord query, PlaybookMailLog? reminderMail, DateTime now)
+    {
+        if (query.QueryStatus == InvestigationQueryStatus.Completed) return QueryTrackingStatuses.Completed;
+        if (query.QueryStatus == InvestigationQueryStatus.ReplyReview) return QueryTrackingStatuses.ReplyReview;
+        if (query.QueryStatus == InvestigationQueryStatus.ReminderUnanswered) return QueryTrackingStatuses.ReminderUnanswered;
+        if (reminderMail?.Status == PlaybookMailStatus.Pending) return QueryTrackingStatuses.ReminderPending;
+        if (query.ReminderCount > 0) return QueryTrackingStatuses.ReminderSent;
+        if (query.QueryStatus == InvestigationQueryStatus.Pending || query.FirstSentAt == null) return QueryTrackingStatuses.QueryPending;
+        var firstSent = query.FirstSentAt ?? query.QueryDate ?? query.CreatedAt;
+        return firstSent <= now.AddDays(-7) ? QueryTrackingStatuses.ReminderDue : QueryTrackingStatuses.AwaitingReply;
+    }
+
+    private static string GetReminderStatus(InvestigationQueryRecord query, PlaybookMailLog? reminderMail, DateTime now)
+    {
+        var lifecycle = GetTrackingStatus(query, reminderMail, now);
+        return lifecycle switch
+        {
+            QueryTrackingStatuses.ReminderPending => "Hazirlandi - onay bekliyor",
+            QueryTrackingStatuses.ReminderSent => "Gonderildi",
+            QueryTrackingStatuses.ReminderUnanswered => "Yanitsiz",
+            QueryTrackingStatuses.ReminderDue => "Hatirlatmaya uygun",
+            _ => "-"
+        };
+    }
+
+    private static string MailStatusLabel(string status) => status switch
+    {
+        PlaybookMailStatus.Pending => "Hazirlandi - onay bekliyor",
+        PlaybookMailStatus.Sent => "Gonderildi",
+        PlaybookMailStatus.Failed => "Gonderilemedi",
+        PlaybookMailStatus.Skipped => "Atlandi",
+        _ => status
+    };
 
     private async Task<List<PlaybookItem>> EnrichItemsAsync(List<PlaybookItem> items, CancellationToken ct)
     {
@@ -1578,6 +1715,8 @@ public class PlaybookEngine : IPlaybookEngine
     {
         if (payload.HasMetric)
             return BuildReportMailHtml(title, intro, payload, now);
+        if (payload.Items.Any(item => item.Tracking != null))
+            return BuildQueryTrackingReportHtml(title, intro, payload, now);
 
         var selectedColumns = columns.Where(IsReportColumn).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (selectedColumns.Count == 0)
@@ -1614,6 +1753,48 @@ public class PlaybookEngine : IPlaybookEngine
 </body>
 </html>";
     }
+
+    private static string BuildQueryTrackingReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
+    {
+        var introHtml = string.IsNullOrWhiteSpace(intro) ? string.Empty : $@"<div class=""intro"">{Encode(intro)}</div>";
+        var rows = payload.Items.Count == 0
+            ? "<tr><td colspan=\"16\" class=\"empty\">Kayit bulunamadi.</td></tr>"
+            : string.Join("", payload.Items.Select((item, index) =>
+            {
+                var query = item.InvestigationQuery;
+                var tracking = item.Tracking!;
+                var firstSent = tracking.FirstMailAt ?? query?.FirstSentAt ?? query?.QueryDate;
+                var days = firstSent.HasValue ? Math.Max(0, (int)Math.Floor((DateTime.UtcNow - firstSent.Value.ToUniversalTime()).TotalDays)) : 0;
+                string FormatTurkey(DateTime? value) => value.HasValue ? RadarTimeZone.ToTurkeyTime(value.Value).ToString("dd.MM.yyyy HH:mm") : "-";
+                return $"<tr><td>{index + 1}</td><td>{Encode(item.User.UserEmail)}</td><td>{Encode(item.User.FullName)}</td>" +
+                       $"<td>{Encode(item.User.Team ?? "-")}</td><td>{Encode(item.User.ContactEmail ?? "-")}</td>" +
+                       $"<td>{Encode(TrackingStatusLabel(tracking.LifecycleStatus))}</td><td>{Encode(tracking.FirstMailStatus)}</td>" +
+                       $"<td>{FormatTurkey(firstSent)}</td><td>{days}</td>" +
+                       $"<td>{Encode(tracking.ReminderStatus)}</td><td>{FormatTurkey(query?.ReminderSentAt)}</td>" +
+                       $"<td>{query?.ReminderCount ?? 0}</td><td>{Encode(query?.ResponseStatus ?? "-")}</td>" +
+                       $"<td>{FormatTurkey(tracking.ReplyAt)}</td><td>{Encode(tracking.TemplateOrSubject ?? "-")}</td>" +
+                       $"<td>{Encode(query?.Action ?? query?.Notes ?? "-")}</td></tr>";
+            }));
+
+        return $@"
+<html><head>{ReportMailStyles()}</head><body><div class=""wrap""><div class=""header""><h1>{Encode(title)}</h1></div>
+<div class=""content"">{introHtml}<div class=""meta"">Uretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})<br/>Satir sayisi: {payload.Items.Count:N0}</div>
+<table><thead><tr><th>#</th><th>Kullanici adi</th><th>Ad Soyad</th><th>Birim</th><th>Alici e-posta</th><th>Sorgu durumu</th><th>Ilk mail durumu</th><th>Ilk mail tarihi</th><th>Gecen gun</th><th>Hatirlatma durumu</th><th>Hatirlatma tarihi</th><th>Adet</th><th>Gelen cevap</th><th>Cevap tarihi</th><th>Sablon / konu</th><th>Son islem notu</th></tr></thead><tbody>{rows}</tbody></table>
+<div class=""footer"">Bu rapor agentic workflow tarafindan servis hesabi uzerinden uretilmistir.</div></div></div></body></html>";
+    }
+
+    private static string TrackingStatusLabel(string status) => status switch
+    {
+        QueryTrackingStatuses.QueryPending => "Sorgulanmayi bekliyor",
+        QueryTrackingStatuses.AwaitingReply => "Cevap bekliyor",
+        QueryTrackingStatuses.ReminderDue => "Hatirlatmaya uygun",
+        QueryTrackingStatuses.ReminderPending => "Hatirlatma onay bekliyor",
+        QueryTrackingStatuses.ReminderSent => "Hatirlatma gonderildi",
+        QueryTrackingStatuses.ReplyReview => "Cevap geldi - inceleme bekliyor",
+        QueryTrackingStatuses.Completed => "Tamamlandi",
+        QueryTrackingStatuses.ReminderUnanswered => "Ilk hatirlatmaya cevap yok",
+        _ => status
+    };
 
     private static readonly string[] DefaultReportColumns =
     {
@@ -1726,6 +1907,7 @@ public class PlaybookEngine : IPlaybookEngine
         WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),
         WeeklyFlagCriterion.HighVolume => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.HighVolume),
         WeeklyFlagCriterion.MassiveMatches => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.MassiveMatches),
+        PlaybookNodeType.SourceQueryTracking => "Sorgu ve hatırlatma takibi",
         _ => criterion ?? "-"
     };
 
@@ -2563,6 +2745,23 @@ public class PlaybookEngine : IPlaybookEngine
                 case PlaybookNodeType.SourcePendingQueryReminders:
                     break;
 
+                case PlaybookNodeType.SourceQueryTracking:
+                {
+                    var mode = node.GetString("period_mode") ?? "this_week";
+                    if (mode is not ("this_week" or "last_7_days" or "last_n_days" or "custom"))
+                        result.Errors.Add($"'{node.Label}' bilinmeyen bir zaman araligi iceriyor.");
+                    if (mode == "last_n_days" && node.GetInt("days") is <= 0)
+                        result.Errors.Add($"'{node.Label}' gun sayisi 0'dan buyuk olmali.");
+                    if (mode == "custom" &&
+                        (!DateTime.TryParse(node.GetString("from_date"), out _) ||
+                         !DateTime.TryParse(node.GetString("to_date"), out _)))
+                        result.Errors.Add($"'{node.Label}' icin baslangic ve bitis tarihi girin.");
+                    var statuses = node.GetStringList("statuses");
+                    if (statuses.Any(status => !QueryTrackingStatuses.All.Contains(status)))
+                        result.Errors.Add($"'{node.Label}' bilinmeyen bir sorgu durumu iceriyor.");
+                    break;
+                }
+
                 case PlaybookNodeType.LogicMetricThreshold:
                 {
                     if (node.GetInt("value") is null)
@@ -2629,6 +2828,11 @@ public class PlaybookEngine : IPlaybookEngine
             foreach (var id in Downstream(source.Id, graph, nodesById))
                 metricReach.Add(id);
 
+        var trackingReach = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var source in graph.Nodes.Where(n => n.Type == PlaybookNodeType.SourceQueryTracking))
+            foreach (var id in Downstream(source.Id, graph, nodesById))
+                trackingReach.Add(id);
+
         foreach (var node in graph.Nodes.Where(n => n.Type == PlaybookNodeType.LogicMetricThreshold))
         {
             if (!metricReach.Contains(node.Id))
@@ -2639,12 +2843,15 @@ public class PlaybookEngine : IPlaybookEngine
 
         foreach (var node in graph.Nodes.Where(n => n.Type == PlaybookNodeType.ActionSendMail))
         {
-            if (!metricReach.Contains(node.Id)) continue;
-
-            if (node.GetString("recipient_mode") != "fixed")
+            if (metricReach.Contains(node.Id) && node.GetString("recipient_mode") != "fixed")
                 result.Errors.Add(
                     $"'{node.Label}' bir metrik akışında olduğu için Alıcı \"Sabit bir adres\" olmalı " +
                     "(kurum toplamının kişisel bir adresi yok).");
+
+            if (trackingReach.Contains(node.Id))
+                result.Errors.Add(
+                    $"'{node.Label}' Sorgu ve Hatırlatma Takibi kaynağından besleniyor. " +
+                    "Bu kaynak yalnızca ekip raporu içindir; Rapor Maili Gönder node'unu kullanın.");
         }
 
         // Advisory checks — these do not block saving a half-built draft.
@@ -2662,7 +2869,8 @@ public class PlaybookEngine : IPlaybookEngine
                                              or PlaybookNodeType.SourceHighRiskUsers
                                              or PlaybookNodeType.SourceTopActionUsers
                                              or PlaybookNodeType.SourceHighMaxMatchTransfers
-                                             or PlaybookNodeType.SourcePendingQueryReminders))
+                                             or PlaybookNodeType.SourcePendingQueryReminders
+                                             or PlaybookNodeType.SourceQueryTracking))
                 result.Warnings.Add("Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.");
 
             foreach (var node in metricSources.Where(n => !metricReach.Any(id =>

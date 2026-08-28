@@ -65,6 +65,7 @@ public static class PlaybookNodeType
     public const string SourceTopActionUsers = "source.topActionUsers";
     public const string SourceHighMaxMatchTransfers = "source.highMaxMatchTransfers";
     public const string SourcePendingQueryReminders = "source.pendingQueryReminders";
+    public const string SourceQueryTracking = "source.queryTracking";
     public const string TransformFilter = "transform.filter";
     public const string LogicCondition = "logic.condition";
     public const string LogicMetricThreshold = "logic.metricThreshold";
@@ -75,7 +76,7 @@ public static class PlaybookNodeType
     public static readonly string[] All =
     {
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
-        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders,
+        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceQueryTracking,
         TransformFilter, LogicCondition, LogicMetricThreshold,
         ActionSendMail, ActionSendReportMail, OutputReport
     };
@@ -113,6 +114,24 @@ public static class WeeklyFlagCriterion
         HighVolume => "30 Dakikada 10+ Olay Üretenler",
         MassiveMatches => "Ard Arda 500+ Eşleşmeli Olay Üretenler",
         _ => criterion
+    };
+}
+
+public static class QueryTrackingStatuses
+{
+    public const string QueryPending = "query_pending";
+    public const string AwaitingReply = "awaiting_reply";
+    public const string ReminderDue = "reminder_due";
+    public const string ReminderPending = "reminder_pending";
+    public const string ReminderSent = "reminder_sent";
+    public const string ReplyReview = "reply_review";
+    public const string Completed = "completed";
+    public const string ReminderUnanswered = "reminder_unanswered";
+
+    public static readonly string[] All =
+    {
+        QueryPending, AwaitingReply, ReminderDue, ReminderPending,
+        ReminderSent, ReplyReview, Completed, ReminderUnanswered
     };
 }
 

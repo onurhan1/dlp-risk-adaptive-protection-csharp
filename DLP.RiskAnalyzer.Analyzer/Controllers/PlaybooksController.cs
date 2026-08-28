@@ -36,6 +36,8 @@ public class PlaybooksController : ControllerBase
         bool Enabled,
         bool AutoSend);
 
+    public record BulkMailLogRequest(List<int>? Ids);
+
     // ── Node catalog ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -293,6 +295,10 @@ public class PlaybooksController : ControllerBase
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] string? status,
+        [FromQuery] string? search,
+        [FromQuery(Name = "template")] string? templateName,
+        [FromQuery] string? source,
+        [FromQuery(Name = "reminder_only")] bool reminderOnly,
         [FromQuery] int limit,
         CancellationToken ct)
     {
@@ -304,6 +310,22 @@ public class PlaybooksController : ControllerBase
         if (from.HasValue) query = query.Where(m => m.CreatedAt >= from.Value);
         if (to.HasValue) query = query.Where(m => m.CreatedAt <= to.Value);
         if (!string.IsNullOrWhiteSpace(status) && status != "all") query = query.Where(m => m.Status == status);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(m =>
+                m.UserEmail.ToLower().Contains(term) ||
+                m.ToEmail.ToLower().Contains(term) ||
+                m.Subject.ToLower().Contains(term) ||
+                (m.FullName ?? "").ToLower().Contains(term) ||
+                (m.Team ?? "").ToLower().Contains(term));
+        }
+        if (!string.IsNullOrWhiteSpace(templateName) && templateName != "all")
+            query = query.Where(m => m.TemplateName == templateName);
+        if (!string.IsNullOrWhiteSpace(source) && source != "all")
+            query = query.Where(m => m.SourceCriterion == source);
+        if (reminderOnly)
+            query = query.Where(m => m.SourceCriterion == PlaybookNodeType.SourcePendingQueryReminders);
 
         var rows = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync(ct);
 
@@ -362,6 +384,67 @@ public class PlaybooksController : ControllerBase
         }
 
         return Ok(new { success = true, status = entry.Status });
+    }
+
+    [HttpPost("mail-logs/bulk-approve")]
+    public async Task<IActionResult> BulkApprove([FromBody] BulkMailLogRequest request, CancellationToken ct)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        var ids = request.Ids?.Where(id => id > 0).Distinct().Take(1_000).ToList() ?? [];
+        if (ids.Count == 0) return BadRequest(new { detail = "En az bir mail kaydi secin" });
+
+        var entries = await _context.PlaybookMailLogs.AsNoTracking()
+            .Where(mail => ids.Contains(mail.Id) && mail.Status == PlaybookMailStatus.Pending)
+            .ToListAsync(ct);
+        var sent = 0;
+        var failed = 0;
+        foreach (var entry in entries)
+        {
+            var result = await _engine.ApprovePendingAsync(entry.RunId, entry.Id, ct);
+            sent += result.Sent;
+            failed += result.Failed;
+        }
+
+        return Ok(new
+        {
+            success = failed == 0,
+            selected = ids.Count,
+            processed = entries.Count,
+            sent,
+            failed,
+            message = failed == 0 ? $"{sent} mail gonderildi" : $"{sent} mail gonderildi, {failed} mail gonderilemedi"
+        });
+    }
+
+    [HttpPost("mail-logs/bulk-skip")]
+    public async Task<IActionResult> BulkSkip([FromBody] BulkMailLogRequest request, CancellationToken ct)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+        var ids = request.Ids?.Where(id => id > 0).Distinct().Take(1_000).ToList() ?? [];
+        if (ids.Count == 0) return BadRequest(new { detail = "En az bir mail kaydi secin" });
+
+        var entries = await _context.PlaybookMailLogs
+            .Where(mail => ids.Contains(mail.Id) && mail.Status == PlaybookMailStatus.Pending)
+            .ToListAsync(ct);
+        foreach (var entry in entries)
+        {
+            entry.Status = PlaybookMailStatus.Skipped;
+            entry.ErrorMessage = "Kullanici tarafindan toplu olarak atlandi";
+        }
+        await _context.SaveChangesAsync(ct);
+
+        foreach (var runId in entries.Select(entry => entry.RunId).Distinct())
+        {
+            var run = await _context.PlaybookRuns.FirstOrDefaultAsync(item => item.Id == runId, ct);
+            if (run == null) continue;
+            run.MailsPending = await _context.PlaybookMailLogs.CountAsync(mail => mail.RunId == runId && mail.Status == PlaybookMailStatus.Pending, ct);
+            run.MailsSkipped = await _context.PlaybookMailLogs.CountAsync(mail => mail.RunId == runId && mail.Status == PlaybookMailStatus.Skipped, ct);
+            if (run.MailsPending == 0 && run.Status == PlaybookRunStatus.AwaitingApproval)
+                run.Status = PlaybookRunStatus.Success;
+        }
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { success = true, selected = ids.Count, skipped = entries.Count, message = $"{entries.Count} mail atlandi" });
     }
 
     private async Task<IActionResult> ApproveAsync(int runId, int? mailLogId, CancellationToken ct)

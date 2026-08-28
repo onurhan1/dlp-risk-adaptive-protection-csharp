@@ -48,6 +48,14 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
   const [rows, setRows] = useState<PlaybookMailRow[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | PlaybookMailStatus>('all')
+  const [search, setSearch] = useState('')
+  const [templateFilter, setTemplateFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [reminderOnly, setReminderOnly] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [page, setPage] = useState(1)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -57,7 +65,15 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
     setLoading(true)
     try {
       const res = await apiClient.get(`/api/playbooks/${playbookId}/report`, {
-        params: { status: statusFilter },
+        params: {
+          status: statusFilter,
+          search: search.trim() || undefined,
+          template: templateFilter,
+          source: sourceFilter,
+          from: fromDate || undefined,
+          to: toDate ? `${toDate}T23:59:59.999` : undefined,
+          reminder_only: reminderOnly || undefined,
+        },
       })
       const fetched: PlaybookMailRow[] = res.data?.rows ?? []
       setRows(fetched)
@@ -73,11 +89,15 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
   useEffect(() => {
     fetchReport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbookId, statusFilter, refreshKey])
+  }, [playbookId, statusFilter, search, templateFilter, sourceFilter, fromDate, toDate, reminderOnly, refreshKey])
 
   useEffect(() => {
     setPage(1)
-  }, [statusFilter, refreshKey])
+  }, [statusFilter, search, templateFilter, sourceFilter, fromDate, toDate, reminderOnly, refreshKey])
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [rows])
 
   const pendingRuns = useMemo(
     () => Array.from(new Set(rows.filter(r => r.status === 'pending').map(r => r.run_id))),
@@ -93,6 +113,10 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pagedRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const selectableRows = rows.filter(row => row.status === 'pending')
+  const selectedCount = selectedIds.length
+  const templates = useMemo(() => Array.from(new Set(rows.map(row => row.template_name).filter(Boolean) as string[])).sort(), [rows])
+  const sources = useMemo(() => Array.from(new Set(rows.map(row => row.source_criterion).filter(Boolean) as string[])).sort(), [rows])
 
   const approveRun = async (runId: number) => {
     setBusyId(-runId)
@@ -130,6 +154,23 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
       await fetchReport()
     } catch (e: any) {
       setMessage({ type: 'error', text: e?.response?.data?.detail || 'Kayıt atlanamadı' })
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const toggleRow = (id: number) => setSelectedIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  const toggleAll = () => setSelectedIds(current => current.length === selectableRows.length ? [] : selectableRows.map(row => row.id))
+  const bulkAction = async (action: 'approve' | 'skip') => {
+    if (selectedIds.length === 0) return
+    setBusyId(-999999)
+    setMessage(null)
+    try {
+      const res = await apiClient.post(`/api/playbooks/mail-logs/bulk-${action}`, { ids: selectedIds })
+      setMessage({ type: res.data?.success === false ? 'error' : 'success', text: res.data?.message || 'Toplu islem tamamlandi' })
+      await fetchReport()
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.response?.data?.detail || 'Toplu islem tamamlanamadi' })
     } finally {
       setBusyId(null)
     }
@@ -208,6 +249,12 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
 
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+        <input
+          value={search}
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Kullanici, ad soyad, birim, alici veya konu ara"
+          style={{ padding: '7px 11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', minWidth: '260px' }}
+        />
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as any)}
@@ -227,6 +274,20 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
           <option value="skipped">Atlandı</option>
         </select>
 
+        <select value={templateFilter} onChange={event => setTemplateFilter(event.target.value)} style={{ padding: '7px 11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px' }}>
+          <option value="all">Tum sablonlar</option>
+          {templates.map(template => <option key={template} value={template}>{template}</option>)}
+        </select>
+        <select value={sourceFilter} onChange={event => setSourceFilter(event.target.value)} style={{ padding: '7px 11px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px' }}>
+          <option value="all">Tum kaynaklar</option>
+          {sources.map(source => <option key={source} value={source}>{source}</option>)}
+        </select>
+        <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} title="Baslangic tarihi" aria-label="Baslangic tarihi" style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)' }} />
+        <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} title="Bitis tarihi" aria-label="Bitis tarihi" style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-primary)' }} />
+        <label title="Yalnizca hatirlatma workflow maillerini goster" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={reminderOnly} onChange={event => setReminderOnly(event.target.checked)} /> Hatirlatmalar
+        </label>
+
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '12px', color: 'var(--text-muted)' }}>
           <span><strong style={{ color: '#059669' }}>{counts.sent}</strong> gönderildi</span>
           <span><strong style={{ color: '#d97706' }}>{counts.pending}</strong> bekliyor</span>
@@ -235,6 +296,9 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <button onClick={() => setSelectionMode(current => !current)} style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: '12px' }} title="Toplu gonderme veya atlama icin secim modunu acar">
+            {selectionMode ? 'Secimi Kapat' : 'Coklu Secim'}
+          </button>
           <button onClick={fetchReport} disabled={loading} style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: '12px' }}>
             <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : undefined }} /> Yenile
           </button>
@@ -246,6 +310,21 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
           />
         </div>
       </div>
+
+      {selectionMode && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '9px 11px', marginBottom: '12px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface-hover)' }}>
+          <button onClick={toggleAll} disabled={selectableRows.length === 0 || busyId !== null} style={{ ...secondaryButtonStyle, padding: '6px 10px', fontSize: '12px' }}>
+            {selectedCount === selectableRows.length && selectableRows.length > 0 ? 'Secimi Temizle' : 'Tum Filtreleneni Sec'}
+          </button>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{selectedCount} onay bekleyen mail secildi</span>
+          <button onClick={() => bulkAction('approve')} disabled={selectedCount === 0 || busyId !== null} style={{ ...secondaryButtonStyle, padding: '6px 10px', fontSize: '12px', color: '#047857' }} title="Secilen mailleri gonderir">
+            <Send size={13} /> Secilenleri Gonder
+          </button>
+          <button onClick={() => bulkAction('skip')} disabled={selectedCount === 0 || busyId !== null} style={{ ...secondaryButtonStyle, padding: '6px 10px', fontSize: '12px', color: '#b91c1c' }} title="Secilen mailleri silmeden Atlandi durumuna alir">
+            <Ban size={13} /> Secilenleri Atla
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (
@@ -260,6 +339,7 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-hover)' }}>
+                  {selectionMode && <Th><input type="checkbox" checked={selectableRows.length > 0 && selectedCount === selectableRows.length} onChange={toggleAll} title="Tum filtreleneni sec" aria-label="Tum filtreleneni sec" /></Th>}
                   <Th>Tarih</Th>
                   <Th>Kullanıcı</Th>
                   <Th>Ad Soyad</Th>
@@ -279,6 +359,11 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
 
                   return (
                     <tr key={row.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      {selectionMode && (
+                        <Td>
+                          {row.status === 'pending' && <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} aria-label={`${row.user_email} mailini sec`} />}
+                        </Td>
+                      )}
                       <Td nowrap>{new Date(row.created_at).toLocaleString('tr-TR')}</Td>
                       <Td>
                         <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{row.user_email}</div>

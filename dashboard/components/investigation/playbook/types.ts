@@ -8,6 +8,7 @@ import {
   FileText,
   BarChart3,
   Crosshair,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -28,6 +29,7 @@ export type PlaybookNodeType =
   | 'source.topActionUsers'
   | 'source.highMaxMatchTransfers'
   | 'source.pendingQueryReminders'
+  | 'source.queryTracking'
   | 'transform.filter'
   | 'logic.condition'
   | 'logic.metricThreshold'
@@ -379,14 +381,32 @@ export const NODE_CATALOG: NodeDefinition[] = [
   },
   {
     type: 'source.pendingQueryReminders',
-    label: 'Cevap Bekleyen Sorgular',
-    description: 'Ilk mailden en az 7 gun sonra cevap gelmeyen sorgulari hatirlatma icin listeler.',
+    label: 'Hatirlatma Adaylari',
+    description: 'Ilk mailden en az 7 gun sonra cevap gelmeyen kullanicilar icin hatirlatma ve aday raporu hazirlar.',
     icon: Mail,
     color: 'linear-gradient(135deg, #d97706, #ea580c)',
     category: 'Kaynak',
     inputs: 1,
     outputs: [{ handle: null }],
     defaultConfig: {},
+  },
+  {
+    type: 'source.queryTracking',
+    label: 'Sorgu ve Hatirlatma Takibi',
+    description: 'Sorgu yasam dongusunu ekip raporu icin hatirlatma ve cevap durumlariyla listeler.',
+    icon: ListChecks,
+    color: 'linear-gradient(135deg, #0f766e, #0891b2)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {
+      period_mode: 'this_week',
+      days: 7,
+      from_date: '',
+      to_date: '',
+      date_basis: 'first_sent',
+      statuses: ['query_pending', 'awaiting_reply', 'reminder_due', 'reminder_pending', 'reminder_sent', 'reply_review', 'reminder_unanswered'],
+    },
   },
   {
     type: 'logic.metricThreshold',
@@ -586,6 +606,18 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
     case 'source.highMaxMatchTransfers':
       return `Son ${config.days ?? 7} gun · Max Match >= ${config.min_matches ?? 300} · top ${config.top_limit ?? 25}`
 
+    case 'source.queryTracking': {
+      const mode = config.period_mode === 'last_n_days'
+        ? `Son ${config.days ?? 7} gun`
+        : config.period_mode === 'last_7_days'
+          ? 'Son 7 gun'
+          : config.period_mode === 'custom'
+            ? 'Ozel tarih araligi'
+            : 'Bu hafta'
+      const count = Array.isArray(config.statuses) ? config.statuses.length : 0
+      return `${mode} - ${count || 'tum'} durum`
+    }
+
     case 'logic.metricThreshold': {
       const opLabel: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' }
       return `Metrik ${opLabel[config.op] ?? '>'} ${config.value ?? 0} ise devam`
@@ -716,6 +748,19 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
       if (!Number.isFinite(minMatches) || minMatches <= 0) errors.push(`'${node.label}' Max Match alt siniri 0'dan buyuk olmali.`)
     }
 
+    if (node.type === 'source.queryTracking') {
+      const mode = String(node.config?.period_mode || 'this_week')
+      if (!['this_week', 'last_7_days', 'last_n_days', 'custom'].includes(mode)) {
+        errors.push(`'${node.label}' zaman araligi gecersiz.`)
+      }
+      if (mode === 'last_n_days' && (!Number.isFinite(Number(node.config?.days)) || Number(node.config?.days) <= 0)) {
+        errors.push(`'${node.label}' gun sayisi 0'dan buyuk olmali.`)
+      }
+      if (mode === 'custom' && (!node.config?.from_date || !node.config?.to_date)) {
+        errors.push(`'${node.label}' icin baslangic ve bitis tarihi girin.`)
+      }
+    }
+
     if (node.type === 'logic.metricThreshold') {
       const value = node.config?.value
       if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) {
@@ -764,6 +809,11 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
   for (const source of metricSources) {
     reachableFrom(source.id, graph).forEach(id => metricReach.add(id))
   }
+  const trackingSources = graph.nodes.filter(n => n.type === 'source.queryTracking')
+  const trackingReach = new Set<string>()
+  for (const source of trackingSources) {
+    reachableFrom(source.id, graph).forEach(id => trackingReach.add(id))
+  }
 
   for (const node of graph.nodes) {
     if (node.type === 'logic.metricThreshold' && !metricReach.has(node.id)) {
@@ -774,6 +824,11 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
     if (node.type === 'action.sendMail' && metricReach.has(node.id) && node.config?.recipient_mode !== 'fixed') {
       errors.push(
         `'${node.label}' bir metrik akışında olduğu için Alıcı "Sabit bir adres" olmalı (kurum toplamının kişisel bir adresi yok).`
+      )
+    }
+    if (node.type === 'action.sendMail' && trackingReach.has(node.id)) {
+      errors.push(
+        `'${node.label}' Sorgu ve Hatirlatma Takibi kaynagindan besleniyor. Bu kaynak yalnizca ekip raporu icindir; Rapor Maili Gonder node'unu kullanin.`
       )
     }
   }
@@ -804,7 +859,9 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
       n.type === 'source.incidentMetric' ||
       n.type === 'source.highRiskUsers' ||
       n.type === 'source.topActionUsers' ||
-      n.type === 'source.highMaxMatchTransfers'
+      n.type === 'source.highMaxMatchTransfers' ||
+      n.type === 'source.pendingQueryReminders' ||
+      n.type === 'source.queryTracking'
     )) {
       warnings.push('Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.')
     }

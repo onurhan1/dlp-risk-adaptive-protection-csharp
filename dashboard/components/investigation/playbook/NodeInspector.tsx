@@ -29,6 +29,8 @@ interface Props {
   inMetricFlow?: boolean
   /** True when this node receives the reminder candidate list. */
   inReminderFlow?: boolean
+  /** True when this node receives the full investigation-query lifecycle list. */
+  inTrackingFlow?: boolean
   onChange: (node: PlaybookNode) => void
 }
 
@@ -62,7 +64,7 @@ const DAYS = [
   { value: 0, label: 'Pazar' },
 ]
 
-export default function NodeInspector({ node, templates, inMetricFlow = false, inReminderFlow = false, onChange }: Props) {
+export default function NodeInspector({ node, templates, inMetricFlow = false, inReminderFlow = false, inTrackingFlow = false, onChange }: Props) {
   const definition = node ? nodeDefinition(node.type) : undefined
 
   const setConfig = (patch: Record<string, any>) => {
@@ -145,19 +147,20 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
         {node.type === 'source.highMaxMatchTransfers' && <HighMaxMatchTransfersForm node={node} setConfig={setConfig} />}
         {node.type === 'source.pendingQueryReminders' && (
           <p style={hintStyle}>
-            Ilk sorgu mailinin uzerinden en az 7 gun gecen ve henuz cevap gelmeyen kayitlari getirir.
-            Bir kola Mail Gonder node'unu baglayip hatirlatma sablonunu secin. Ayni cikistan ikinci bir kola
-            Rapor Maili Gonder node'u baglayip adini "Hatirlatma Raporu Gonder" yapabilirsiniz; iki kol ayni
-            kullanici listesini paralel isler.
+            Ilk sorgu mailinin uzerinden en az 7 gun gecen ve henuz cevap gelmeyen kayitlari getirir. Bir kola
+            Mail Gonder node'unu baglayip hatirlatma sablonunu secin; ikinci kola Rapor Maili Gonder node'unu
+            baglayarak yalnizca bu haftaki hatirlatma adaylarini ekibe raporlayin. Tum sorgu yasam dongusu
+            raporu icin Sorgu ve Hatirlatma Takibi kaynagini kullanin.
           </p>
         )}
+        {node.type === 'source.queryTracking' && <QueryTrackingForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.metricThreshold' && <MetricThresholdForm node={node} setConfig={setConfig} />}
         {node.type === 'action.sendMail' && (
           <SendMailForm node={node} setConfig={setConfig} templates={templates} inMetricFlow={inMetricFlow} />
         )}
-        {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={inReminderFlow} />}
+        {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={inReminderFlow} inTrackingFlow={inTrackingFlow} />}
         {node.type === 'output.report' && (
           <div>
             <label style={labelStyle}>Rapor Başlığı</label>
@@ -179,6 +182,76 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
 }
 
 // ── Per-type forms ─────────────────────────────────────────────────────────
+
+function QueryTrackingForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  const mode = node.config.period_mode ?? 'this_week'
+  const statuses: string[] = Array.isArray(node.config.statuses) ? node.config.statuses : []
+  const options = [
+    ['query_pending', 'Sorgulanmayi bekliyor'],
+    ['awaiting_reply', 'Cevap bekliyor'],
+    ['reminder_due', 'Hatirlatmaya uygun'],
+    ['reminder_pending', 'Hatirlatma onay bekliyor'],
+    ['reminder_sent', 'Hatirlatma gonderildi'],
+    ['reply_review', 'Cevap geldi - inceleme bekliyor'],
+    ['reminder_unanswered', 'Ilk hatirlatmaya cevap yok'],
+    ['completed', 'Tamamlandi'],
+  ] as const
+  const toggle = (value: string) => setConfig({
+    statuses: statuses.includes(value) ? statuses.filter(status => status !== value) : [...statuses, value],
+  })
+
+  return (
+    <>
+      <p style={hintStyle}>
+        Bu kaynak kullaniciya mail hazirlamaz. Yalnizca Rapor Maili Gonder node'una baglanarak ekibin
+        sorgu ve hatirlatma durumlarini izlemesi icin kullanilir.
+      </p>
+      <div>
+        <label style={labelStyle}>Zaman Araligi</label>
+        <select style={inputStyle} value={mode} onChange={event => setConfig({ period_mode: event.target.value })}>
+          <option value="this_week">Bu hafta</option>
+          <option value="last_7_days">Son 7 gun</option>
+          <option value="last_n_days">Son N gun</option>
+          <option value="custom">Ozel tarih araligi</option>
+        </select>
+      </div>
+      {mode === 'last_n_days' && (
+        <div>
+          <label style={labelStyle}>Gun Sayisi</label>
+          <input type="number" min={1} max={365} style={inputStyle} value={node.config.days ?? 7}
+            onChange={event => setConfig({ days: Number(event.target.value) })} />
+        </div>
+      )}
+      {mode === 'custom' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div><label style={labelStyle}>Baslangic</label><input type="date" style={inputStyle} value={node.config.from_date ?? ''} onChange={event => setConfig({ from_date: event.target.value })} /></div>
+          <div><label style={labelStyle}>Bitis</label><input type="date" style={inputStyle} value={node.config.to_date ?? ''} onChange={event => setConfig({ to_date: event.target.value })} /></div>
+        </div>
+      )}
+      <div>
+        <label style={labelStyle}>Hangi Tarihe Gore?</label>
+        <select style={inputStyle} value={node.config.date_basis ?? 'first_sent'} onChange={event => setConfig({ date_basis: event.target.value })}>
+          <option value="first_sent">Ilk sorgu mailinin gonderim tarihi</option>
+          <option value="prepared">Mailin hazirlanma tarihi</option>
+          <option value="reminder">Hatirlatma tarihi</option>
+          <option value="updated">Son guncelleme tarihi</option>
+        </select>
+      </div>
+      <div>
+        <label style={labelStyle}>Durumlar</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+          {options.map(([value, label]) => (
+            <label key={value} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={statuses.includes(value)} onChange={() => toggle(value)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <p style={hintStyle}>Secim yapilmazsa tum sorgu ve hatirlatma durumlari rapora dahil edilir.</p>
+      </div>
+    </>
+  )
+}
 
 function ScheduleForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
   const frequency = node.config.frequency ?? 'weekly'
@@ -731,7 +804,7 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
   )
 }
 
-function ReportMailForm({ node, setConfig, inReminderFlow }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean }) {
+function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean; inTrackingFlow: boolean }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
   const incidentColumns = [
@@ -841,7 +914,7 @@ function ReportMailForm({ node, setConfig, inReminderFlow }: { node: PlaybookNod
         />
       </div>
 
-      <div>
+      <div style={inTrackingFlow ? { display: 'none' } : undefined}>
         <label style={labelStyle}>Rapor Sutunlari</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 10px' }}>
           {reportColumns.map(([value, label, description]) => (
@@ -875,6 +948,13 @@ function ReportMailForm({ node, setConfig, inReminderFlow }: { node: PlaybookNod
         )}
         <p style={hintStyle}>Sutun secilmezse mevcut varsayilan tablo duzeni kullanilir. Secili sutunlar, listelendikleri sirayla mail tablosunda gorunur.</p>
       </div>
+
+      {inTrackingFlow && (
+        <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          Bu kaynak sabit takip tablosu uretir: kullanici, ilk sorgu, hatirlatma, cevap ve son islem durumlari ayni raporda gorunur.
+          Sutun sirasi takip raporunun anlami korunacak sekilde sabittir.
+        </div>
+      )}
 
       <p style={hintStyle}>
         Bu node gelen kullanici listesini tek HTML tablo raporuna cevirir. Gonderimli veya zamanlanmis calistirmada
