@@ -714,6 +714,12 @@ public class PlaybookEngine : IPlaybookEngine
             q.CorrelationCode,
             q)).ToList();
 
+        // Reminder candidates often originate from older or manually imported query rows.
+        // Resolve their current LDAP profile before template rendering so {{tam_ad}},
+        // {{hitap}}, the recipient address and team use the same authoritative data as
+        // incident-based workflows.
+        items = await EnrichItemsAsync(items, ct);
+
         context.SetMessage($"Ilk gonderim veya sorgu tarihinden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
         return items;
     }
