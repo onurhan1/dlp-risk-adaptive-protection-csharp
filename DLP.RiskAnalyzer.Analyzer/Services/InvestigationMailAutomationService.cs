@@ -92,7 +92,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
                 result.AlreadyProcessed++;
                 if (CanRetry(existingInbound.ProcessingResult))
                 {
-                    var retriedResult = await ProcessReportRequestAsync(
+                    var retriedResult = await ProcessExplicitReportRequestAsync(
                         existingInbound.FromEmail,
                         existingInbound.Subject,
                         existingInbound.BodyPreview ?? string.Empty,
@@ -122,17 +122,15 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             var sender = ExtractEmail(content.From);
             if (!sender.Contains('@'))
                 sender = ExtractEmail(item.From);
-            var isReportRequest = IsReportRequest(content.Subject, content.BodyText) ||
-                                  await HasRequestedReportWorkflowAsync(content.Subject, content.BodyText, ct);
-            var query = isReportRequest
-                ? null
-                : await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
+            // A reply must win over a report request. Users often begin a reply with
+            // "Merhaba" and the original query subject lives in the quoted thread.
+            var query = await FindQueryAsync(sender, content.Subject, content.BodyText, ct);
             var receivedAt = ParseDate(content.Date);
             var preview = Shorten(content.BodyText, 2000);
 
-            var processingResult = query == null
-                ? await ProcessReportRequestAsync(sender, content.Subject, content.BodyText, ct)
-                : "reply_matched";
+            var processingResult = query != null
+                ? "reply_matched"
+                : await ProcessExplicitReportRequestAsync(sender, content.Subject, content.BodyText, ct);
             result.ProcessingResults.Add(processingResult);
 
             var inbound = new InvestigationInboundMail
@@ -231,14 +229,28 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         var matched = candidates.Where(q => NormalizeSubject(q.Subject) == normalizedSubject).ToList();
         if (matched.Count == 1) return matched[0];
 
+        // Outlook/Exchange replies can carry a changed subject while retaining the
+        // original subject in the conversation body. Match that chain only when it
+        // identifies one unresolved query for the same sender.
+        var conversation = FoldRequest($"{subject}\n{body}");
+        var conversationMatches = candidates.Where(q =>
+        {
+            var querySubject = FoldRequest(NormalizeSubject(q.Subject));
+            return querySubject.Length >= 12 && conversation.Contains(querySubject, StringComparison.Ordinal);
+        }).ToList();
+        if (conversationMatches.Count == 1) return conversationMatches[0];
+
         // Reminder templates may use a different stable subject. If this sender has exactly one
         // unresolved query, it is still safe to associate the reply without showing an internal
         // correlation code in the subject line.
         return candidates.Count == 1 ? candidates[0] : null;
     }
 
-    private async Task<string> ProcessReportRequestAsync(string sender, string subject, string body, CancellationToken ct)
+    private async Task<string> ProcessExplicitReportRequestAsync(string sender, string subject, string body, CancellationToken ct)
     {
+        var commands = ExtractExplicitRequestCommands(subject, body);
+        if (commands.Count == 0) return "unmatched";
+
         if (!sender.Contains('@')) return "unmatched";
 
         // Pass the full address so LDAP can match mail/userPrincipalName as well as
@@ -255,10 +267,10 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
              user.Email.ToLower() == sender.ToLower()), ct);
         if (!approvedUser) return "user_not_authorized";
 
-        var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
-        if (request.Contains("SORGU RAPORU"))
+        var queryReportCommand = commands.FirstOrDefault(command => command.StartsWith("SORGU RAPORU", StringComparison.Ordinal));
+        if (queryReportCommand != null)
         {
-            var html = request.Contains("HTML");
+            var html = queryReportCommand.Contains("HTML", StringComparison.Ordinal);
             var sent = html
                 ? await SendQueryReportHtmlAsync(sender, ct)
                 : await SendQueryReportExcelAsync(sender, ct);
@@ -268,7 +280,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         Playbook? requestedWorkflow;
         try
         {
-            requestedWorkflow = await FindRequestedReportWorkflowAsync(request, ct);
+            requestedWorkflow = await FindRequestedReportWorkflowAsync(commands, ct);
         }
         catch (InvalidOperationException ex)
         {
@@ -293,6 +305,8 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
                 return "report_failed";
             }
         }
+
+        if (!commands.Any(IsCatalogRequest)) return "unmatched";
 
         var catalogSent = await _emailService.SendEmailAsync(
             sender,
@@ -359,7 +373,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             isHtml: true);
     }
 
-    private async Task<Playbook?> FindRequestedReportWorkflowAsync(string request, CancellationToken ct)
+    private async Task<Playbook?> FindRequestedReportWorkflowAsync(IEnumerable<string> commands, CancellationToken ct)
     {
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
         var playbooks = await _context.Playbooks.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
@@ -367,27 +381,13 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         {
             var graph = PlaybookJson.Deserialize<PlaybookGraph>(playbook.GraphJson);
             return graph?.ReportRequestKeywords.Any(keyword =>
-                !string.IsNullOrWhiteSpace(keyword) && request.Contains(FoldRequest(keyword))) == true;
+                !string.IsNullOrWhiteSpace(keyword) && commands.Contains(FoldRequest(keyword.Trim()), StringComparer.Ordinal)) == true;
         }).ToList();
 
         if (matches.Count > 1)
             throw new InvalidOperationException("Rapor talebi birden fazla workflow ile eslesti. Her workflow icin benzersiz bir rapor talep anahtari tanimlayin.");
 
         return matches.SingleOrDefault();
-    }
-
-    private async Task<bool> HasRequestedReportWorkflowAsync(string? subject, string? body, CancellationToken ct)
-    {
-        try
-        {
-            var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
-            return await FindRequestedReportWorkflowAsync(request, ct) != null;
-        }
-        catch (InvalidOperationException)
-        {
-            // Let ProcessReportRequestAsync return the explicit ambiguous-request result.
-            return true;
-        }
     }
 
     private async Task<string> ReportCatalogHtmlAsync(CancellationToken ct)
@@ -445,7 +445,7 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
             "ldap_unverified" => "gonderen LDAP ile dogrulanamadi",
             "ldap_email_mismatch" => "gonderen e-posta LDAP kaydiyla eslesmedi",
             "user_not_authorized" => "gonderen Kullanici Yonetimi listesinde aktif degil",
-            "unmatched" => "gonderen e-posta adresi okunamadi",
+            "unmatched" => "mail ilgili sorgu veya acik rapor talebiyle eslesmedi",
             _ => code
         };
 
@@ -480,19 +480,29 @@ public class InvestigationMailAutomationService : IInvestigationMailAutomationSe
         return reply.Trim();
     }
 
-    private static bool IsReportRequest(string? subject, string? body)
+    private static IReadOnlyList<string> ExtractExplicitRequestCommands(string? subject, string? body)
     {
-        if (NormalizeSubject(subject).Contains("RADAR RAPOR TALEP KATALOGU", StringComparison.OrdinalIgnoreCase))
-            return true;
+        // Forwarded messages must never be treated as new report requests. A report
+        // request is an explicit, standalone command in the subject or new reply text.
+        if (Regex.IsMatch(subject ?? string.Empty, @"^\s*(fw|fwd)\s*:", RegexOptions.IgnoreCase))
+            return [];
 
-        var request = FoldRequest($"{subject}\n{ExtractReplyRequest(body)}");
-        return request.Contains("SORGU RAPORU") ||
-               request.Contains("HAFTALIK PERMIT") ||
-               request.Contains("HAFTALIK BLOCK") ||
-               request.Contains("YUKSEK ESLESME") ||
-               request.Contains("MAX MATCH") ||
-               request.Contains("YUKSEK SKOR");
+        var candidates = new List<string> { NormalizeSubject(subject) };
+        candidates.AddRange(ExtractReplyRequest(body)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        return candidates
+            .Select(FoldRequest)
+            .Where(command => command.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
     }
+
+    private static bool IsCatalogRequest(string command) => command is
+        "MERHABA" or
+        "RAPOR KATALOGU" or
+        "RADAR RAPOR KATALOGU" or
+        "RADAR RAPOR TALEP KATALOGU";
 
     /*
     private static string FoldRequest(string value) => value

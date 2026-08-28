@@ -11,7 +11,8 @@ public record PlaybookItem(
     WeeklyFlagUserDto User,
     string SourceCriterion,
     int? InvestigationQueryId = null,
-    string? ExistingCorrelationCode = null);
+    string? ExistingCorrelationCode = null,
+    InvestigationQueryRecord? InvestigationQuery = null);
 
 /// <summary>One row of a metric's breakdown, e.g. "Email: 214".</summary>
 public record PlaybookMetricBreakdown(string Label, int Count);

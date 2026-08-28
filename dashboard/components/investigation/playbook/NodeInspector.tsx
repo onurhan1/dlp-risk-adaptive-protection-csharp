@@ -27,6 +27,8 @@ interface Props {
    * whole organisation, so it uses a different token set and requires a fixed recipient.
    */
   inMetricFlow?: boolean
+  /** True when this node receives the reminder candidate list. */
+  inReminderFlow?: boolean
   onChange: (node: PlaybookNode) => void
 }
 
@@ -60,7 +62,7 @@ const DAYS = [
   { value: 0, label: 'Pazar' },
 ]
 
-export default function NodeInspector({ node, templates, inMetricFlow = false, onChange }: Props) {
+export default function NodeInspector({ node, templates, inMetricFlow = false, inReminderFlow = false, onChange }: Props) {
   const definition = node ? nodeDefinition(node.type) : undefined
 
   const setConfig = (patch: Record<string, any>) => {
@@ -144,7 +146,9 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, o
         {node.type === 'source.pendingQueryReminders' && (
           <p style={hintStyle}>
             Ilk sorgu mailinin uzerinden en az 7 gun gecen ve henuz cevap gelmeyen kayitlari getirir.
-            Sonrasina bir Mail Gonder node'u ekleyip hazirlayacaginiz hatirlatma sablonunu secin.
+            Bir kola Mail Gonder node'unu baglayip hatirlatma sablonunu secin. Ayni cikistan ikinci bir kola
+            Rapor Maili Gonder node'u baglayip adini "Hatirlatma Raporu Gonder" yapabilirsiniz; iki kol ayni
+            kullanici listesini paralel isler.
           </p>
         )}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
@@ -153,7 +157,7 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, o
         {node.type === 'action.sendMail' && (
           <SendMailForm node={node} setConfig={setConfig} templates={templates} inMetricFlow={inMetricFlow} />
         )}
-        {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} />}
+        {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={inReminderFlow} />}
         {node.type === 'output.report' && (
           <div>
             <label style={labelStyle}>Rapor Başlığı</label>
@@ -727,12 +731,10 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
   )
 }
 
-function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+function ReportMailForm({ node, setConfig, inReminderFlow }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
-  const defaultColumns = ['full_name', 'user_name', 'team', 'source', 'incident_count', 'max_matches', 'action', 'last_seen', 'policy']
-  const columns = Array.isArray(node.config.columns) && node.config.columns.length > 0 ? node.config.columns : defaultColumns
-  const reportColumns = [
+  const incidentColumns = [
     ['full_name', 'Kullanici', 'LDAP bilgisindeki ad ve soyad; bulunamazsa kullanici adi.'],
     ['user_name', 'Kullanici adi', 'Olay kaydindaki kullanici adi veya e-posta degeri.'],
     ['team', 'Ekip', 'LDAP veya olay kaydindan gelen ekip/departman bilgisi.'],
@@ -748,6 +750,23 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
     ['data_type', 'Veri tipi', 'Ornek olay kaydinda tespit edilen veri sinifi.'],
     ['severity', 'Siddet', 'Ornek olay kaydinin siddet seviyesi.'],
   ] as const
+  const reminderColumns = [
+    ['full_name', 'Kullanıcı', 'Sorgu kaydındaki ad soyad bilgisi.'],
+    ['user_name', 'Kullanıcı adı', 'Sorgulanan kullanıcının kullanıcı adı veya e-posta değeri.'],
+    ['team', 'Ekip', 'LDAP veya sorgu kaydındaki ekip/departman bilgisi.'],
+    ['query_date', 'Sorgu tarihi', 'Kullanıcı için oluşturulan veya gönderilen sorgu kaydının tarihi.'],
+    ['query_status', 'Sorgu durumu', 'Sorgu bekliyor, yanıt inceleme bekliyor veya hatırlatma sonrası yanıtsız gibi güncel durum.'],
+    ['response_status', 'Son işlem', 'Sorgu kaydındaki son işlem veya analist değerlendirme bilgisi.'],
+    ['reminder_date', 'Hatırlatma tarihi', 'Hatırlatma mailinin en son gönderildiği tarih.'],
+    ['reminder_count', 'Hatırlatma adedi', 'Kullanıcıya gönderilmiş hatırlatma maili sayısı.'],
+  ] as const
+  const reportColumns = inReminderFlow ? reminderColumns : incidentColumns
+  const defaultColumns = inReminderFlow
+    ? ['full_name', 'user_name', 'team', 'query_date', 'query_status', 'response_status', 'reminder_date', 'reminder_count']
+    : ['full_name', 'user_name', 'team', 'source', 'incident_count', 'max_matches', 'action', 'last_seen', 'policy']
+  const allowedColumns = new Set<string>(reportColumns.map(([value]) => value))
+  const savedColumns = Array.isArray(node.config.columns) ? node.config.columns.filter((value: string) => allowedColumns.has(value)) : []
+  const columns = savedColumns.length > 0 ? savedColumns : defaultColumns
   const toggleColumn = (column: string) => setConfig({
     columns: columns.includes(column) ? columns.filter((value: string) => value !== column) : [...columns, column],
   })
@@ -858,8 +877,8 @@ function ReportMailForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p
       </div>
 
       <p style={hintStyle}>
-        Bu node gelen kullanici listesini tek HTML tablo raporuna cevirir. Workflow otomatik gonderime aciksa mail
-        servis hesabi uzerinden gider; aksi halde onay bekleyen mail olarak kaydedilir.
+        Bu node gelen kullanici listesini tek HTML tablo raporuna cevirir. Gonderimli veya zamanlanmis calistirmada
+        rapor servis hesabi uzerinden dogrudan gider; yalnizca Test Et calistirmasi raporu onizleme olarak bekletir.
       </p>
     </>
   )

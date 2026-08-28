@@ -93,6 +93,36 @@ public class InvestigationQueriesController : ControllerBase
         return Ok(new { count });
     }
 
+    [HttpGet("reminder-overview")]
+    public async Task<ActionResult> GetReminderOverview(CancellationToken ct = default)
+    {
+        await InvestigationQuerySchema.EnsureAsync(_context, _logger, ct);
+
+        var cutoff = DateTime.UtcNow.AddDays(-7);
+        var firstReminderDue = await _context.InvestigationQueries.CountAsync(q =>
+            q.QueryStatus == InvestigationQueryStatus.Queried &&
+            q.ReplyReceivedAt == null &&
+            q.ReminderCount == 0 &&
+            (q.FirstSentAt ?? q.QueryDate) != null &&
+            (q.FirstSentAt ?? q.QueryDate) <= cutoff, ct);
+        var awaitingSecondReply = await _context.InvestigationQueries.CountAsync(q =>
+            q.QueryStatus == InvestigationQueryStatus.Queried &&
+            q.ReplyReceivedAt == null &&
+            q.ReminderCount > 0 && q.ReminderSentAt != null && q.ReminderSentAt > cutoff, ct);
+        var reminderUnanswered = await _context.InvestigationQueries.CountAsync(q =>
+            q.QueryStatus == InvestigationQueryStatus.ReminderUnanswered && q.ReplyReceivedAt == null, ct);
+        var replyReview = await _context.InvestigationQueries.CountAsync(q =>
+            q.QueryStatus == InvestigationQueryStatus.ReplyReview, ct);
+
+        return Ok(new
+        {
+            first_reminder_due = firstReminderDue,
+            awaiting_second_reply = awaitingSecondReply,
+            reminder_unanswered = reminderUnanswered,
+            reply_review = replyReview
+        });
+    }
+
     [HttpPost("bulk")]
     public async Task<ActionResult> SaveBulk([FromBody] BulkQueryRequest request, CancellationToken ct = default)
     {

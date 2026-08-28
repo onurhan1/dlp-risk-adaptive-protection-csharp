@@ -703,7 +703,8 @@ public class PlaybookEngine : IPlaybookEngine
                 new List<WeeklyFlagIncidentDto>()),
             PlaybookNodeType.SourcePendingQueryReminders,
             q.Id,
-            q.CorrelationCode)).ToList();
+            q.CorrelationCode,
+            q)).ToList();
 
         context.SetMessage($"Ilk gonderim veya sorgu tarihinden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
         return items;
@@ -1593,7 +1594,7 @@ public class PlaybookEngine : IPlaybookEngine
                 var user = item.User;
                 var sample = user.SampleIncidents?.OrderByDescending(i => i.MaxMatches).FirstOrDefault();
                 var cells = string.Join("", selectedColumns.Select(column =>
-                    $"<td>{ReportColumnValue(column, user, item.SourceCriterion, sample)}</td>"));
+                    $"<td>{ReportColumnValue(column, user, item.SourceCriterion, sample, item.InvestigationQuery)}</td>"));
                 return $"<tr><td>{index + 1}</td>{cells}</tr>";
             }));
 
@@ -1620,7 +1621,7 @@ public class PlaybookEngine : IPlaybookEngine
         "max_matches", "action", "last_seen", "policy"
     };
 
-    private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel" or "action" or "data_type" or "severity";
+    private static bool IsReportColumn(string column) => column is "full_name" or "user_name" or "team" or "source" or "incident_count" or "max_risk_score" or "max_matches" or "last_seen" or "policy" or "destination" or "channel" or "action" or "data_type" or "severity" or "query_date" or "query_status" or "response_status" or "reminder_date" or "reminder_count";
 
     private static string ReportColumnLabel(string column) => column switch
     {
@@ -1638,10 +1639,15 @@ public class PlaybookEngine : IPlaybookEngine
         "action" => "Aksiyon",
         "data_type" => "Veri Tipi",
         "severity" => "Siddet",
+        "query_date" => "Sorgu Tarihi",
+        "query_status" => "Durum",
+        "response_status" => "Son Islem",
+        "reminder_date" => "Hatirlatma Tarihi",
+        "reminder_count" => "Hatirlatma Adedi",
         _ => column
     };
 
-    private static string ReportColumnValue(string column, WeeklyFlagUserDto user, string source, WeeklyFlagIncidentDto? sample) => column switch
+    private static string ReportColumnValue(string column, WeeklyFlagUserDto user, string source, WeeklyFlagIncidentDto? sample, InvestigationQueryRecord? query) => column switch
     {
         "full_name" => Encode(user.FullName ?? user.UserEmail),
         "user_name" => Encode(user.UserEmail),
@@ -1657,7 +1663,22 @@ public class PlaybookEngine : IPlaybookEngine
         "action" => Encode(sample?.Action ?? "-"),
         "data_type" => Encode(sample?.DataType ?? "-"),
         "severity" => sample?.Severity?.ToString() ?? "-",
+        "query_date" => query?.QueryDate?.ToString("dd.MM.yyyy HH:mm") ?? "-",
+        "query_status" => Encode(QueryStatusLabel(query?.QueryStatus)),
+        "response_status" => Encode(query?.ResponseStatus ?? "-"),
+        "reminder_date" => query?.ReminderSentAt?.ToString("dd.MM.yyyy HH:mm") ?? "-",
+        "reminder_count" => query?.ReminderCount.ToString() ?? "0",
         _ => "-"
+    };
+
+    private static string QueryStatusLabel(string? status) => status switch
+    {
+        InvestigationQueryStatus.Pending => "Sorgu bekliyor",
+        InvestigationQueryStatus.Queried => "Sorgulandi",
+        InvestigationQueryStatus.ReplyReview => "Cevap geldi - inceleme bekliyor",
+        InvestigationQueryStatus.ReminderUnanswered => "Hatirlatma sonrasi yanitsiz",
+        InvestigationQueryStatus.Completed => "Tamamlandi",
+        _ => status ?? "-"
     };
 
     private static string ApplyReportPlaceholders(string? text, PlaybookPayload payload, DateTime now)
@@ -1699,6 +1720,7 @@ public class PlaybookEngine : IPlaybookEngine
     {
         PlaybookNodeType.SourceHighRiskUsers => "Haftalık yüksek skorlu kullanıcı",
         PlaybookNodeType.SourceHighMaxMatchTransfers => "Yüksek maksimum eşleşmeli gönderim",
+        PlaybookNodeType.SourcePendingQueryReminders => "Hatırlatma için cevap bekleyen sorgu",
         "top_permit_users" => "En çok Permit olay kaydı",
         "top_block_users" => "En çok Block olay kaydı",
         WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),

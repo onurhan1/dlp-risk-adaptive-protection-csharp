@@ -30,7 +30,10 @@ import {
   AlertCircle,
   RefreshCw,
   Download,
-  FileDown
+  FileDown,
+  MailCheck,
+  Clock3,
+  CircleAlert
 } from 'lucide-react'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -146,6 +149,13 @@ interface ActionSummary {
   allTimeTotal?: number
 }
 
+interface ReminderOverview {
+  first_reminder_due?: number
+  awaiting_second_reply?: number
+  reminder_unanswered?: number
+  reply_review?: number
+}
+
 const getDashboardPeriodRange = (days: number) => {
   const today = new Date()
   if (days === 30) {
@@ -187,6 +197,7 @@ export default function Home() {
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
   const usersPerPage = 10
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
+  const [reminderOverview, setReminderOverview] = useState<ReminderOverview | null>(null)
   const [actionDataDateRange, setActionDataDateRange] = useState<{ min: string; max: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
@@ -323,7 +334,7 @@ export default function Home() {
       const topRulesRange = getDashboardPeriodRange(topRulesDays)
 
       // Fetch data from new user_daily_risk_scores based endpoints
-      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes] = await Promise.all([
+      const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes, reminderRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
           params: {
             startDate: currentStart,
@@ -350,11 +361,13 @@ export default function Home() {
             endDate: topRulesRange.end,
             limit: 10
           }
-        }).catch(() => ({ data: [] }))
+        }).catch(() => ({ data: [] })),
+        axios.get(`${apiUrl}/api/investigation/queries/reminder-overview`).catch(() => ({ data: null }))
       ])
 
       setDeptSummary(deptRes.data)
       setActionSummary(actionRes.data)
+      setReminderOverview(reminderRes.data)
 
       // Set actual data date range from action-summary response
       if (actionRes.data?.min_date && actionRes.data?.max_date) {
@@ -758,6 +771,36 @@ export default function Home() {
           <FileBarChart size={16} /> {t('dashboard.dailyReport')}
         </button>
       </div>
+
+      {reminderOverview && (
+        <section className="card" style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ marginBottom: '4px' }}>Sorgu ve Hatırlatma Takibi</h2>
+              <p className="dashboard-subtitle" style={{ margin: 0 }}>Yanıt sürelerini ve analist aksiyonu bekleyen sorguları izleyin.</p>
+            </div>
+            <button
+              onClick={() => router.push('/investigation/queries')}
+              style={{ padding: '7px 12px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              Sorguları Aç <ChevronRight size={15} />
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '16px' }}>
+            {[
+              { label: 'İlk hatırlatma için uygun', value: reminderOverview.first_reminder_due ?? 0, icon: Clock3, color: '#d97706' },
+              { label: 'Hatırlatma sonrası yanıt bekliyor', value: reminderOverview.awaiting_second_reply ?? 0, icon: MailCheck, color: '#2563eb' },
+              { label: 'Yanıt gelmeyen hatırlatmalar', value: reminderOverview.reminder_unanswered ?? 0, icon: CircleAlert, color: '#dc2626' },
+              { label: 'Yanıt geldi, inceleme bekliyor', value: reminderOverview.reply_review ?? 0, icon: FileText, color: '#059669' }
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} style={{ minHeight: '82px', padding: '14px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--background)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color, fontSize: '13px', fontWeight: '600' }}><Icon size={16} /> {label}</div>
+                <div style={{ marginTop: '8px', fontSize: '25px', fontWeight: '700', color: 'var(--text-primary)' }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Action Summary - Donut Chart + Cards */}
       {actionSummary && (
