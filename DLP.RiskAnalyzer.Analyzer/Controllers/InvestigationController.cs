@@ -43,7 +43,7 @@ public class InvestigationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to compute weekly flags");
-            return StatusCode(500, new { detail = ex.Message });
+            return StatusCode(500, new { detail = ex.GetBaseException().Message });
         }
     }
 

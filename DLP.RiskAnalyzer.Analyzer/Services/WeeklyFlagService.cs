@@ -12,13 +12,16 @@ public class WeeklyFlagService : IWeeklyFlagService
 {
     private readonly IIncidentRepository _incidentRepository;
     private readonly IDirectorySettingsService _directorySettings;
+    private readonly ILogger<WeeklyFlagService> _logger;
 
     public WeeklyFlagService(
         IIncidentRepository incidentRepository,
-        IDirectorySettingsService directorySettings)
+        IDirectorySettingsService directorySettings,
+        ILogger<WeeklyFlagService> logger)
     {
         _incidentRepository = incidentRepository;
         _directorySettings = directorySettings;
+        _logger = logger;
     }
 
     // --- Detection thresholds (could later be moved to system_settings) ---
@@ -55,30 +58,37 @@ public class WeeklyFlagService : IWeeklyFlagService
 
         foreach (var group in byUser)
         {
-            var userIncidents = group.OrderBy(i => i.Timestamp).ToList();
-
-            // --- Section 1: personal email senders (specific policy, 10 min window, >= 2) ---
-            var policyHits = userIncidents
-                .Where(i => !string.IsNullOrWhiteSpace(i.Policy) &&
-                            i.Policy!.Trim().Equals(PersonalEmailPolicyName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (HasWindow(policyHits, PersonalEmailWindow, PersonalEmailMinCount))
+            try
             {
-                result.PersonalEmailSenders.Add(BuildUser(group.Key, policyHits, policyHits.Count));
+                var userIncidents = group.OrderBy(i => i.Timestamp).ToList();
+
+                // --- Section 1: personal email senders (specific policy, 10 min window, >= 2) ---
+                var policyHits = userIncidents
+                    .Where(i => !string.IsNullOrWhiteSpace(i.Policy) &&
+                                i.Policy!.Trim().Equals(PersonalEmailPolicyName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (HasWindow(policyHits, PersonalEmailWindow, PersonalEmailMinCount))
+                {
+                    result.PersonalEmailSenders.Add(BuildUser(group.Key, policyHits, policyHits.Count));
+                }
+
+                // --- Section 2: high volume (30 min window, >= 10 incidents) ---
+                var maxWindowCount = MaxWindowCount(userIncidents, HighVolumeWindow);
+                if (maxWindowCount >= HighVolumeMinCount)
+                {
+                    result.HighVolume.Add(BuildUser(group.Key, userIncidents, maxWindowCount));
+                }
+
+                // --- Section 3: consecutive 500+ max matches incidents ---
+                var massiveHits = ConsecutiveMassiveMatches(userIncidents);
+                if (massiveHits.Count > 0)
+                {
+                    result.MassiveMatches.Add(BuildUser(group.Key, massiveHits, massiveHits.Count));
+                }
             }
-
-            // --- Section 2: high volume (30 min window, >= 10 incidents) ---
-            var maxWindowCount = MaxWindowCount(userIncidents, HighVolumeWindow);
-            if (maxWindowCount >= HighVolumeMinCount)
+            catch (Exception ex)
             {
-                result.HighVolume.Add(BuildUser(group.Key, userIncidents, maxWindowCount));
-            }
-
-            // --- Section 3: consecutive 500+ max matches incidents ---
-            var massiveHits = ConsecutiveMassiveMatches(userIncidents);
-            if (massiveHits.Count > 0)
-            {
-                result.MassiveMatches.Add(BuildUser(group.Key, massiveHits, massiveHits.Count));
+                _logger.LogWarning(ex, "Skipped invalid weekly flag data for {UserKey}", group.Key);
             }
         }
 
@@ -212,20 +222,28 @@ public class WeeklyFlagService : IWeeklyFlagService
         var enriched = new List<WeeklyFlagUserDto>(users.Count);
         foreach (var user in users)
         {
-            var profile = await _directorySettings.LookupLdapUserAsync(user.UserEmail);
-            if (!profile.Success)
+            try
             {
-                enriched.Add(user);
-                continue;
-            }
+                var profile = await _directorySettings.LookupLdapUserAsync(user.UserEmail);
+                if (!profile.Success)
+                {
+                    enriched.Add(user);
+                    continue;
+                }
 
-            enriched.Add(user with
+                enriched.Add(user with
+                {
+                    FullName = FirstNonEmpty(profile.FullName, user.FullName),
+                    Team = FirstNonEmpty(profile.Department, user.Team),
+                    ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail,
+                    Gender = FirstNonEmpty(profile.Gender, user.Gender)
+                });
+            }
+            catch (Exception ex)
             {
-                FullName = FirstNonEmpty(profile.FullName, user.FullName),
-                Team = FirstNonEmpty(profile.Department, user.Team),
-                ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail,
-                Gender = FirstNonEmpty(profile.Gender, user.Gender)
-            });
+                _logger.LogWarning(ex, "LDAP enrichment failed for weekly flag user {UserEmail}", user.UserEmail);
+                enriched.Add(user);
+            }
         }
 
         return enriched;

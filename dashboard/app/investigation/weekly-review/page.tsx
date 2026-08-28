@@ -6,9 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw, Workflow, FileSpreadsheet } from 'lucide-react'
 import apiClient from '@/lib/axios'
-import MailTemplateManager from '@/components/investigation/MailTemplateManager'
 import SendMailModal from '@/components/investigation/SendMailModal'
-import ManualMailSender from '@/components/investigation/ManualMailSender'
 import { WeeklyFlagsResult, WeeklyFlagUser } from '@/components/investigation/types'
 
 const EMPTY: WeeklyFlagsResult = { personal_email_senders: [], high_volume: [], massive_matches: [] }
@@ -148,10 +146,6 @@ export default function WeeklyReviewPage() {
         onSend={setMailUser}
         criterion="massive_matches"
       />
-
-      <MailTemplateManager />
-
-      <ManualMailSender />
 
       {mailUser && <SendMailModal user={mailUser} onClose={() => setMailUser(null)} />}
     </div>
