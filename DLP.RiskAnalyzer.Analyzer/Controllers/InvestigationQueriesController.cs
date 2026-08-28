@@ -35,7 +35,11 @@ public class InvestigationQueriesController : ControllerBase
 
         var query = _context.InvestigationQueries
             .AsNoTracking()
-            .Where(q => !(q.Source == "agentic_workflow" && q.Notes == PlaybookNodeType.SourceIncidentMetric));
+            .Where(q => !(q.Source == "agentic_workflow" && q.Notes == PlaybookNodeType.SourceIncidentMetric))
+            // Older releases created a query record before workflow mail approval.
+            // Keep those records out of the query screen until the linked mail is sent.
+            .Where(q => q.PlaybookMailLogId == null || !_context.PlaybookMailLogs.Any(mail =>
+                mail.Id == q.PlaybookMailLogId && mail.Status == PlaybookMailStatus.Pending));
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(q => q.QueryStatus == status);
 
@@ -185,10 +189,23 @@ public class InvestigationQueriesController : ControllerBase
         }
 
         await _context.SaveChangesAsync(ct);
-        var remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
-        if (remediationsSynced > 0)
-            await _context.SaveChangesAsync(ct);
-        return Ok(new { success = true, saved, skippedDuplicates, remediationsSynced });
+        var remediationsSynced = 0;
+        string? remediationSyncWarning = null;
+        try
+        {
+            remediationsSynced = await _remediationSync.SyncAsync(changedRows, actor, now, ct);
+            if (remediationsSynced > 0)
+                await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            // Saving the user's query list is the primary operation. Do not return HTTP 500
+            // after it has committed merely because the optional incident mirror failed.
+            _logger.LogError(ex, "Investigation queries saved but remediation synchronization failed");
+            remediationSyncWarning = "Kayıtlar kaydedildi; olay kaydı eşitlemesi tamamlanamadı. Ayrıntı için sunucu loglarını kontrol edin.";
+        }
+
+        return Ok(new { success = true, saved, skippedDuplicates, remediationsSynced, remediationSyncWarning });
     }
 
     [HttpPost("bulk-delete")]

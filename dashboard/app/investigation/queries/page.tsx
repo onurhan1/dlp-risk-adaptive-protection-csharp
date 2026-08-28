@@ -261,7 +261,7 @@ export default function InvestigationQueriesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [replyNotificationCount, setReplyNotificationCount] = useState(0)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -481,9 +481,10 @@ export default function InvestigationQueriesPage() {
         .map(queryRequest)
       const result = await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
       const skipped = Number(result.data?.skippedDuplicates || 0)
-      flash('success', skipped > 0
+      const syncWarning = String(result.data?.remediationSyncWarning || '').trim()
+      flash(syncWarning ? 'warning' : 'success', syncWarning || (skipped > 0
         ? `Sorgulamalar kaydedildi. ${skipped} yinelenen kayit atlandi.`
-        : 'Sorgulamalar kaydedildi')
+        : 'Sorgulamalar kaydedildi'))
       await loadRows()
     } catch (error: any) {
       flash('error', saveErrorMessage(error))
@@ -565,7 +566,7 @@ export default function InvestigationQueriesPage() {
   const clearFilters = () => setFilters(emptyFilters())
   const clearWorkflowFilters = () => setWorkflowFilters({ search: '', status: '', workflow: '', dateFrom: '', dateTo: '' })
 
-  const flash = (type: 'success' | 'error', text: string) => {
+  const flash = (type: 'success' | 'warning' | 'error', text: string) => {
     setMessage({ type, text })
     window.setTimeout(() => setMessage(null), 4500)
   }
@@ -596,9 +597,9 @@ export default function InvestigationQueriesPage() {
       {message && (
         <div style={{
           ...messageStyle,
-          borderColor: message.type === 'success' ? '#86efac' : '#fca5a5',
-          background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-          color: message.type === 'success' ? '#166534' : '#991b1b',
+          borderColor: message.type === 'success' ? '#86efac' : message.type === 'warning' ? '#fcd34d' : '#fca5a5',
+          background: message.type === 'success' ? '#dcfce7' : message.type === 'warning' ? '#fffbeb' : '#fee2e2',
+          color: message.type === 'success' ? '#166534' : message.type === 'warning' ? '#92400e' : '#991b1b',
         }}>
           {message.text}
         </div>

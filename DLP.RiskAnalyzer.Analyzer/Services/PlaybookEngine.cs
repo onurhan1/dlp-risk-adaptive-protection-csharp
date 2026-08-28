@@ -1619,7 +1619,11 @@ public class PlaybookEngine : IPlaybookEngine
     private async Task SyncQueryRecordsSafelyAsync(IEnumerable<PlaybookMailLog> mailLogs, CancellationToken ct)
     {
         // Report and metric mail are workflow artefacts, not user investigation queries.
-        var entries = mailLogs.Where(IsInvestigationQueryMail).ToList();
+        // A query record represents a mail that actually left the service account.
+        // Pending entries stay solely in playbook_mail_log until they are approved and sent.
+        var entries = mailLogs
+            .Where(mail => mail.Status == PlaybookMailStatus.Sent && IsInvestigationQueryMail(mail))
+            .ToList();
         if (entries.Count == 0) return;
 
         try
