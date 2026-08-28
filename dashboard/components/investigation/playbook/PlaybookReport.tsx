@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { RefreshCw, Send, Ban, Eye, X, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { RefreshCw, Send, Ban, Eye, X, CheckCircle2, XCircle, Clock, Pencil, Save } from 'lucide-react'
 import apiClient from '@/lib/axios'
 import GridExport, { type ExportColumn } from '@/components/ui/GridExport'
 import Pagination from '@/components/ui/Pagination'
@@ -449,7 +449,16 @@ export default function PlaybookReport({ playbookId, playbookName, refreshKey, o
         </>
       )}
 
-      {previewRow && <MailPreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />}
+      {previewRow && (
+        <EditableMailPreviewModal
+          row={previewRow}
+          onClose={() => setPreviewRow(null)}
+          onSaved={async () => {
+            await fetchReport()
+            setPreviewRow(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -546,6 +555,114 @@ function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () 
       </div>
     </div>
   )
+}
+
+function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMailRow; onClose: () => void; onSaved: () => Promise<void> }) {
+  const canEdit = row.status === 'pending'
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    toEmail: row.to_email,
+    ccEmail: row.cc_email ?? '',
+    fullName: row.full_name ?? '',
+    subject: row.subject,
+    bodyHtml: row.body_html,
+  })
+
+  const saveChanges = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await apiClient.put(`/api/playbooks/mail-log/${row.id}`, {
+        to_email: form.toEmail,
+        cc_email: form.ccEmail,
+        full_name: form.fullName,
+        subject: form.subject,
+        body_html: form.bodyHtml,
+      })
+      await onSaved()
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Mail kaydi guncellenemedi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div onClick={event => event.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '14px', width: '100%', maxWidth: '700px', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 12px 40px rgba(15,23,42,0.25)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Mail Onizleme</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {canEdit && !editing && <button onClick={() => setEditing(true)} style={{ ...secondaryButtonStyle, padding: '6px 10px', fontSize: '12px' }}><Pencil size={13} /> Duzenle</button>}
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={19} /></button>
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {editing && <div style={{ padding: '10px 12px', border: '1px solid rgba(217,119,6,0.35)', borderRadius: '8px', background: 'rgba(217,119,6,0.08)', fontSize: '12px' }}>Bu mail henuz gonderilmedi. Onaydan once alici, konu ve icerigi duzenleyebilirsiniz.</div>}
+          <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <PreviewRow label="Kullanici" value={`${row.user_email}${row.team ? ` - ${row.team}` : ''}`} />
+            {editing ? (
+              <>
+                <EditablePreviewField label="Alici" value={form.toEmail} type="email" onChange={value => setForm(current => ({ ...current, toEmail: value }))} />
+                <EditablePreviewField label="CC" value={form.ccEmail} type="email" onChange={value => setForm(current => ({ ...current, ccEmail: value }))} />
+                <EditablePreviewField label="Ad Soyad" value={form.fullName} onChange={value => setForm(current => ({ ...current, fullName: value }))} />
+                <EditablePreviewField label="Konu" value={form.subject} onChange={value => setForm(current => ({ ...current, subject: value }))} />
+              </>
+            ) : (
+              <>
+                <PreviewRow label="Alici" value={row.to_email} />
+                {row.cc_email && <PreviewRow label="CC" value={row.cc_email} />}
+                <PreviewRow label="Konu" value={row.subject} />
+              </>
+            )}
+            <PreviewRow label="Sablon" value={row.template_name ?? 'Node icerigi'} />
+            <PreviewRow label="Kriter" value={row.source_criterion_label ?? '-'} last />
+          </div>
+
+          {parseIncidentSummary(row.incident_summary_json) && (() => {
+            const incident = parseIncidentSummary(row.incident_summary_json)!
+            return <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>Maili Doguran Olay</div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                <PreviewRow label="Olay tarihi" value={formatIncidentDate(incident.timestamp)} />
+                <PreviewRow label="Hedef" value={displayValue(incident.destination)} />
+                <PreviewRow label="Aksiyon" value={displayValue(incident.action)} />
+                <PreviewRow label="Kanal" value={displayValue(incident.channel)} />
+                <PreviewRow label="Politika" value={displayValue(incident.policy)} />
+                <PreviewRow label="Max Match" value={displayValue(incident.max_matches)} last />
+              </div>
+            </div>
+          })()}
+
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>Icerik</div>
+            {editing ? (
+              <textarea value={form.bodyHtml} onChange={event => setForm(current => ({ ...current, bodyHtml: event.target.value }))} style={{ width: '100%', minHeight: '260px', resize: 'vertical', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }} />
+            ) : (
+              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', background: 'white', color: '#0f172a', fontSize: '13px', maxHeight: '340px', overflowY: 'auto', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: row.body_html || '<em style="color:#94a3b8">Icerik bos</em>' }} />
+            )}
+          </div>
+
+          {editing && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+            {error && <span style={{ marginRight: 'auto', color: '#b91c1c', fontSize: '12px' }}>{error}</span>}
+            <button onClick={() => { setEditing(false); setError(null) }} disabled={saving} style={{ ...secondaryButtonStyle, padding: '7px 12px', fontSize: '12px' }}>Vazgec</button>
+            <button onClick={saveChanges} disabled={saving} style={{ ...secondaryButtonStyle, padding: '7px 12px', fontSize: '12px', color: '#047857' }}><Save size={13} /> {saving ? 'Kaydediliyor...' : 'Degisiklikleri Kaydet'}</button>
+          </div>}
+          {!canEdit && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Gonderilmis veya atlanmis mail kayitlari denetim izi icin salt okunurdur.</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditablePreviewField({ label, value, type = 'text', onChange }: { label: string; value: string; type?: string; onChange: (value: string) => void }) {
+  return <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '7px 10px', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
+    <span style={{ width: '80px', flexShrink: 0, fontWeight: 600, color: 'var(--text-muted)' }}>{label}</span>
+    <input type={type} value={value} onChange={event => onChange(event.target.value)} style={{ flex: 1, minWidth: 0, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '5px', background: 'var(--surface)', color: 'var(--text-primary)' }} />
+  </label>
 }
 
 type IncidentSummary = Record<string, string | number | null | undefined>

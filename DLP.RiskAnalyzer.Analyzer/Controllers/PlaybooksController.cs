@@ -38,6 +38,18 @@ public class PlaybooksController : ControllerBase
 
     public record BulkMailLogRequest(List<int>? Ids);
 
+    /// <summary>
+    /// The final human-approved version of a pending workflow mail. The stored
+    /// mail log is deliberately updated before delivery so the audit trail and
+    /// the message that leaves the service account always agree.
+    /// </summary>
+    public record UpdatePendingMailRequest(
+        string? ToEmail,
+        string? CcEmail,
+        string? FullName,
+        string? Subject,
+        string? BodyHtml);
+
     // ── Node catalog ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -355,6 +367,30 @@ public class PlaybooksController : ControllerBase
         if (entry == null) return NotFound(new { detail = "Mail kaydı bulunamadı" });
 
         return await ApproveAsync(entry.RunId, mailLogId, ct);
+    }
+
+    [HttpPut("mail-log/{mailLogId:int}")]
+    public async Task<IActionResult> UpdatePendingMail(
+        int mailLogId,
+        [FromBody] UpdatePendingMailRequest request,
+        CancellationToken ct)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+
+        var entry = await _context.PlaybookMailLogs.FirstOrDefaultAsync(m => m.Id == mailLogId, ct);
+        if (entry == null) return NotFound(new { detail = "Mail kaydi bulunamadi" });
+        if (entry.Status != PlaybookMailStatus.Pending)
+            return BadRequest(new { detail = "Yalnizca onay bekleyen mailler duzenlenebilir" });
+
+        entry.ToEmail = request.ToEmail?.Trim() ?? string.Empty;
+        entry.CcEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
+        entry.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
+        entry.Subject = request.Subject?.Trim() ?? string.Empty;
+        entry.BodyHtml = request.BodyHtml ?? string.Empty;
+        entry.ErrorMessage = null;
+
+        await _context.SaveChangesAsync(ct);
+        return Ok(new { success = true, row = ToMailDto(entry) });
     }
 
     [HttpPost("mail-log/{mailLogId:int}/skip")]
