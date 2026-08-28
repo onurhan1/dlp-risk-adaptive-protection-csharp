@@ -636,6 +636,8 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.TemplateName).HasColumnName("template_name").HasMaxLength(255);
             entity.Property(e => e.TemplateMatchReason).HasColumnName("template_match_reason").HasMaxLength(500);
             entity.Property(e => e.IncidentSummaryJson).HasColumnName("incident_summary_json");
+            entity.Property(e => e.PdfAttachment).HasColumnName("pdf_attachment");
+            entity.Property(e => e.PdfAttachmentFileName).HasColumnName("pdf_attachment_file_name").HasMaxLength(255);
             entity.Property(e => e.SourceCriterion).HasColumnName("source_criterion").HasMaxLength(60);
             entity.Property(e => e.TriggerCount).HasColumnName("trigger_count").IsRequired();
             entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20);

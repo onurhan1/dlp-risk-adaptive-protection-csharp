@@ -1518,6 +1518,11 @@ public class PlaybookEngine : IPlaybookEngine
         var intro = ApplyReportPlaceholders(node.GetString("intro"), payload, now);
         var selectedColumns = node.GetStringList("columns");
         var bodyHtml = BuildConfiguredReportMailHtml(title, intro, payload, now, selectedColumns);
+        var attachPdf = node.GetBool("attach_pdf") || context.RequestPdfAttachment;
+        var pdfFileName = $"workflow_raporu_{now:yyyyMMdd_HHmm}.pdf";
+        var pdfAttachment = attachPdf
+            ? _reportGenerator.GenerateWorkflowTableReport(BuildWorkflowTableReport(title, intro, payload, now, selectedColumns))
+            : null;
 
         var entry = new PlaybookMailLog
         {
@@ -1531,6 +1536,8 @@ public class PlaybookEngine : IPlaybookEngine
             CcEmail = ccEmail,
             Subject = subject,
             BodyHtml = bodyHtml,
+            PdfAttachment = pdfAttachment,
+            PdfAttachmentFileName = pdfAttachment == null ? null : pdfFileName,
             SourceCriterion = payload.HasMetric
                 ? PlaybookNodeType.SourceIncidentMetric
                 : payload.Items.FirstOrDefault()?.SourceCriterion ?? node.Type,
@@ -1559,8 +1566,7 @@ public class PlaybookEngine : IPlaybookEngine
         }
         else
         {
-            var attachPdf = node.GetBool("attach_pdf") || context.RequestPdfAttachment;
-            var success = attachPdf
+            var success = pdfAttachment != null
                 ? await _emailService.SendEmailWithAttachmentsAsync(
                     toEmail: fixedRecipient!,
                     subject: entry.Subject,
@@ -1568,8 +1574,8 @@ public class PlaybookEngine : IPlaybookEngine
                     attachments:
                     [
                         new EmailAttachment(
-                            $"workflow_raporu_{now:yyyyMMdd_HHmm}.pdf",
-                            _reportGenerator.GenerateWorkflowTableReport(BuildWorkflowTableReport(title, intro, payload, now, selectedColumns)),
+                            pdfFileName,
+                            pdfAttachment,
                             "application/pdf")
                     ],
                     isHtml: true,
@@ -2687,13 +2693,28 @@ public class PlaybookEngine : IPlaybookEngine
                 continue;
             }
 
-            var success = await _emailService.SendEmailAsync(
-                toEmail: entry.ToEmail,
-                subject: entry.Subject,
-                body: entry.BodyHtml,
-                isHtml: true,
-                toName: entry.FullName ?? entry.UserEmail,
-                ccEmail: entry.CcEmail);
+            var success = entry.PdfAttachment is { Length: > 0 }
+                ? await _emailService.SendEmailWithAttachmentsAsync(
+                    toEmail: entry.ToEmail,
+                    subject: entry.Subject,
+                    body: entry.BodyHtml,
+                    attachments:
+                    [
+                        new EmailAttachment(
+                            entry.PdfAttachmentFileName ?? "workflow_raporu.pdf",
+                            entry.PdfAttachment,
+                            "application/pdf")
+                    ],
+                    isHtml: true,
+                    toName: entry.FullName ?? entry.UserEmail,
+                    ccEmail: entry.CcEmail)
+                : await _emailService.SendEmailAsync(
+                    toEmail: entry.ToEmail,
+                    subject: entry.Subject,
+                    body: entry.BodyHtml,
+                    isHtml: true,
+                    toName: entry.FullName ?? entry.UserEmail,
+                    ccEmail: entry.CcEmail);
 
             if (success)
             {

@@ -109,6 +109,8 @@ export interface PlaybookMailRow {
   template_name?: string | null
   template_match_reason?: string | null
   incident_summary_json?: string | null
+  has_pdf_attachment?: boolean
+  pdf_attachment_file_name?: string | null
   source_criterion?: string | null
   source_criterion_label?: string | null
   trigger_count: number

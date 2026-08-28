@@ -619,7 +619,9 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
               </>
             )}
             <PreviewRow label="Sablon" value={row.template_name ?? 'Node icerigi'} />
-            <PreviewRow label="Kriter" value={row.source_criterion_label ?? '-'} last />
+            <PreviewRow label="Kriter" value={row.source_criterion_label ?? '-'} />
+            {row.has_pdf_attachment && <PreviewRow label="PDF Eki" value={row.pdf_attachment_file_name ?? 'workflow_raporu.pdf'} last />}
+            {!row.has_pdf_attachment && <PreviewRow label="PDF Eki" value="Yok" last />}
           </div>
 
           {parseIncidentSummary(row.incident_summary_json) && (() => {

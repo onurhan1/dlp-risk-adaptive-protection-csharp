@@ -107,6 +107,9 @@ public class PlaybookMailLog
     public string? TemplateName { get; set; }
     public string? TemplateMatchReason { get; set; }
     public string? IncidentSummaryJson { get; set; }
+    /// <summary>PDF report generated while the mail was prepared, if requested by its node.</summary>
+    public byte[]? PdfAttachment { get; set; }
+    public string? PdfAttachmentFileName { get; set; }
 
     /// <summary>Which weekly-flag criterion put this user into the flow.</summary>
     public string? SourceCriterion { get; set; }

@@ -74,6 +74,8 @@ public static class PlaybookSchema
         ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS template_match_reason VARCHAR(500);
         ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS incident_summary_json TEXT;
         ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS correlation_code VARCHAR(80);
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS pdf_attachment BYTEA;
+        ALTER TABLE dlp.playbook_mail_log ADD COLUMN IF NOT EXISTS pdf_attachment_file_name VARCHAR(255);
         CREATE INDEX IF NOT EXISTS ix_playbook_mail_log_run
             ON dlp.playbook_mail_log (run_id);
         CREATE INDEX IF NOT EXISTS ix_playbook_mail_log_playbook_created

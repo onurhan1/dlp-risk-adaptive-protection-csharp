@@ -619,6 +619,8 @@ public class PlaybooksController : ControllerBase
         template_name = m.TemplateName,
         template_match_reason = m.TemplateMatchReason,
         incident_summary_json = m.IncidentSummaryJson,
+        has_pdf_attachment = m.PdfAttachment is { Length: > 0 },
+        pdf_attachment_file_name = m.PdfAttachmentFileName,
         source_criterion = m.SourceCriterion,
         source_criterion_label = CriterionLabel(m.SourceCriterion),
         trigger_count = m.TriggerCount,
