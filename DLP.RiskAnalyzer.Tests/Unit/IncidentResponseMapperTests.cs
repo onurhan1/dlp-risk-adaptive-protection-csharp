@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Helpers;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Shared.Models;
 using FluentAssertions;
 
@@ -142,5 +143,64 @@ public class IncidentResponseMapperTests
         response.Action.Should().BeNull();
         response.Destination.Should().BeNull();
         response.RemediatedAt.Should().BeNull();
+    }
+
+    // ─── MapCompact ──────────────────────────────────────────────────────────
+    // The compact projection is what the team-based analysis page consumes when it pulls
+    // the whole incident list. If a field the page reads silently drops out of this
+    // projection, the page renders empty columns instead of failing, so it is pinned here.
+
+    [Fact]
+    public void MapCompact_FullResponse_KeepsEveryFieldThePageReads()
+    {
+        var response = IncidentResponseMapper.Map(
+            BuildFullIncident(),
+            riskLevel: "High",
+            recommendedAction: "Block",
+            iobs: new List<string> { "IOB-1" },
+            userFullName: "Directory Name",
+            userEmailAddress: "directory@company.com",
+            userTeam: "Directory Team");
+
+        var compact = IncidentResponseMapper.MapCompact(response);
+
+        compact.Id.Should().Be(response.Id);
+        compact.Timestamp.Should().Be(response.Timestamp);
+        compact.UserEmail.Should().Be(response.UserEmail);
+        compact.Policy.Should().Be(response.Policy);
+        compact.Action.Should().Be(response.Action);
+        compact.Destination.Should().Be(response.Destination);
+        compact.Department.Should().Be(response.Department);
+        compact.Team.Should().Be(response.Team);
+        compact.FullName.Should().Be(response.FullName);
+        compact.MaxMatches.Should().Be(response.MaxMatches);
+        compact.LoginName.Should().Be(response.LoginName);
+        compact.EmailAddress.Should().Be(response.EmailAddress);
+        compact.ViolationTriggers.Should().Be(response.ViolationTriggers);
+        compact.Channel.Should().Be(response.Channel);
+    }
+
+    [Fact]
+    public void MapCompact_Always_ExposesExactlyFourteenFields()
+    {
+        var fieldCount = typeof(IncidentCompactResponse).GetProperties().Length;
+
+        fieldCount.Should().Be(14, "kompakt DTO sayfanin okudugu alan setiyle sinirli kalmali");
+    }
+
+    [Fact]
+    public void MapCompact_NullableFieldsOnResponse_StayNull()
+    {
+        var compact = IncidentResponseMapper.MapCompact(
+            IncidentResponseMapper.Map(new Incident { UserEmail = "x@y.com" }));
+
+        compact.Policy.Should().BeNull();
+        compact.Action.Should().BeNull();
+        compact.Destination.Should().BeNull();
+        compact.Team.Should().BeNull();
+        compact.FullName.Should().BeNull();
+        compact.ViolationTriggers.Should().BeNull();
+        compact.Channel.Should().BeNull();
+        compact.MaxMatches.Should().Be(0);
     }
 }

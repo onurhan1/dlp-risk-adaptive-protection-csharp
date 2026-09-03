@@ -117,7 +117,8 @@ public class IncidentsController : ControllerBase
         [FromQuery] string?   department,
         [FromQuery] int       limit   = 100,
         [FromQuery] string    orderBy = "timestamp_desc",
-        [FromQuery(Name = "include_directory")] bool includeDirectory = true)
+        [FromQuery(Name = "include_directory")] bool includeDirectory = true,
+        [FromQuery] bool      compact = false)
     {
         try
         {
@@ -130,6 +131,10 @@ public class IncidentsController : ControllerBase
             var enrichedIncidents = includeDirectory
                 ? await EnrichAndMapAsync(incidents)
                 : incidents.Select(incident => EnrichAndMap(incident)).ToList();
+
+            // compact=true: listenin tamamini ceken sayfalar icin yalnizca kullanilan alanlar.
+            if (compact)
+                return Ok(enrichedIncidents.Select(IncidentResponseMapper.MapCompact).ToList());
 
             return Ok(enrichedIncidents);
         }
@@ -241,24 +246,16 @@ public class IncidentsController : ControllerBase
     /// </summary>
     private async Task<List<IncidentResponse>> EnrichAndMapAsync(List<Incident> incidents)
     {
-        var profiles = new Dictionary<string, LdapUserLookupResult?>(StringComparer.OrdinalIgnoreCase);
-        var userKeys = incidents
-            .Select(ResolveIncidentUserLookupKey)
-            .Where(key => !string.IsNullOrWhiteSpace(key))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var key in userKeys)
-        {
-            var lookup = await _directorySettings.LookupLdapUserAsync(key!);
-            profiles[key!] = lookup.Success ? lookup : null;
-        }
+        var profiles = await DirectoryProfileLoader.LoadAsync(
+            _directorySettings,
+            incidents.Select(ResolveIncidentUserLookupKey),
+            _logger);
 
         return incidents
             .Select(incident =>
             {
                 var key = ResolveIncidentUserLookupKey(incident);
-                profiles.TryGetValue(key ?? string.Empty, out var profile);
+                var profile = key is not null && profiles.TryGetValue(key, out var found) ? found : null;
                 return EnrichAndMap(incident, profile);
             })
             .ToList();

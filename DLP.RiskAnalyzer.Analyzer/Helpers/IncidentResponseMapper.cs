@@ -1,3 +1,4 @@
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Shared.Models;
 
 namespace DLP.RiskAnalyzer.Analyzer.Helpers;
@@ -68,6 +69,28 @@ public static class IncidentResponseMapper
             RemediationNotes  = incident.RemediationNotes,
         };
     }
+
+    /// <summary>
+    /// Tam yaniti Takim Bazli Analiz sayfasinin kullandigi alan setine indirger.
+    /// Zenginlestirme mantigi tek yerde kalsin diye <see cref="Map"/> ciktisindan turetilir.
+    /// </summary>
+    public static IncidentCompactResponse MapCompact(IncidentResponse response) => new()
+    {
+        Id                = response.Id,
+        Timestamp         = response.Timestamp,
+        UserEmail         = response.UserEmail,
+        Policy            = response.Policy,
+        Action            = response.Action,
+        Destination       = response.Destination,
+        Department        = response.Department,
+        Team              = response.Team,
+        FullName          = response.FullName,
+        MaxMatches        = response.MaxMatches,
+        LoginName         = response.LoginName,
+        EmailAddress      = response.EmailAddress,
+        ViolationTriggers = response.ViolationTriggers,
+        Channel           = response.Channel,
+    };
 
     /// <summary>
     /// Returns the best available user identifier. If the primary value is null, empty, 
