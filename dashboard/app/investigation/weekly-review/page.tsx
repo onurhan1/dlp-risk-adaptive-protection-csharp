@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Activity, Layers, RefreshCw, Workflow, FileSpreadsheet } from 'lucide-react'
-import apiClient from '@/lib/axios'
+import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
 import SendMailModal from '@/components/investigation/SendMailModal'
 import { WeeklyFlagsResult, WeeklyFlagUser } from '@/components/investigation/types'
 
@@ -60,10 +60,18 @@ export default function WeeklyReviewPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await apiClient.get('/api/investigation/weekly-flags', { params: { days: 7 } })
+      // Dizin onbellegi sogukken bu uc nokta varsayilan timeout'u asabiliyor.
+      const res = await apiClient.get('/api/investigation/weekly-flags', {
+        params: { days: 7 },
+        timeout: LONG_REQUEST_TIMEOUT_MS
+      })
       setData(normalizeWeeklyFlags(res.data))
     } catch (e: any) {
-      setError(e?.response?.data?.detail || 'Veriler alınamadı')
+      setError(
+        e?.code === 'ECONNABORTED'
+          ? 'Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.'
+          : e?.response?.data?.detail || 'Veriler alınamadı'
+      )
       setData(EMPTY)
     } finally {
       setLoading(false)

@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react'
-import apiClient from '@/lib/axios'
-import { Shield } from 'lucide-react'
+import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
+import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
 import { useTranslation } from '@/components/LanguageProvider'
 import HeatmapSection from './_components/HeatmapSection'
@@ -19,19 +19,30 @@ export default function AnalyticsPage() {
   )
 }
 
+const INITIAL_PAGE_SIZE = 500
+
 function AnalyticsPageContent() {
   const { t } = useTranslation()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [partialCount, setPartialCount] = useState<number | null>(null)
 
   useEffect(() => {
     fetchIncidents()
   }, [])
 
+  // Timeout ile diger hatalari ayirir; kullanici "sunucu yavas" ile "istek basarisiz"i ayirt edebilsin.
+  const describeError = (err: any) =>
+    err?.code === 'ECONNABORTED' ? t('exc.loadTimeout') : t('exc.loadFailed')
+
   const fetchIncidents = async () => {
     setLoading(true)
+    setError(null)
+    setPartialCount(null)
     try {
-      const queryParams: any = { limit: 500, order_by: 'timestamp_desc' }
+      // compact=true: sayfanin kullandigi 14 alan doner, tam DTO'nun 31 alani degil.
+      const queryParams: any = { limit: INITIAL_PAGE_SIZE, order_by: 'timestamp_desc', compact: true }
 
       // Phase 1: Fast initial load
       const initialResponse = await apiClient.get('/api/incidents', { params: queryParams })
@@ -41,21 +52,27 @@ function AnalyticsPageContent() {
       setLoading(false)
 
       // Phase 2: Load remaining data in background
-      if (initialMapped.length >= 500) {
+      if (initialMapped.length >= INITIAL_PAGE_SIZE) {
         try {
           const fullResponse = await apiClient.get('/api/incidents', {
-            params: { ...queryParams, limit: 1000000000 }
+            params: { ...queryParams, limit: 1000000000 },
+            timeout: LONG_REQUEST_TIMEOUT_MS
           })
           const fullData = Array.isArray(fullResponse.data) ? fullResponse.data : []
           if (fullData.length >= initialMapped.length) {
             setIncidents(fullData.map(mapIncidentData))
           }
-        } catch (error) {
-          console.error('Error fetching remaining incidents:', error)
+        } catch (err) {
+          // Tablo ilk sayfayla calismaya devam eder; ama analiz eksik veriye dayandigi
+          // icin kullanici bunu bilmeli, sessizce gecilmemeli.
+          console.error('Error fetching remaining incidents:', err)
+          setPartialCount(initialMapped.length)
         }
       }
-    } catch (error) {
-      console.error('Error fetching incidents:', error)
+    } catch (err) {
+      console.error('Error fetching incidents:', err)
+      setError(describeError(err))
+      setIncidents([])
       setLoading(false)
     }
   }
@@ -113,8 +130,56 @@ function AnalyticsPageContent() {
           <LoadingOverlay isLoading={loading} message={`${t('heatmap.teamBasedAnalysis')} ${t('settings.loadingSettings').replace('...', '')}...`} />
         )}
 
+        {/* Ilk yukleme basarisiz: bos sayfa yerine sebep ve yeniden deneme */}
+        {!loading && error && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px',
+            background: 'var(--surface)', border: '1px solid #fca5a5', borderLeft: '4px solid #ef4444',
+            borderRadius: '10px', marginBottom: '24px'
+          }}>
+            <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: '14px', color: 'var(--text-primary)' }}>{error}</span>
+            <button
+              onClick={fetchIncidents}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
+                background: 'var(--surface-hover)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer',
+                fontSize: '13px', flexShrink: 0
+              }}
+            >
+              <RefreshCw size={14} /> {t('exc.retry')}
+            </button>
+          </div>
+        )}
+
+        {/* Faz 2 basarisiz: analiz eksik veri uzerinde, kullanici bunu gormeli */}
+        {!loading && !error && partialCount !== null && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px',
+            background: 'var(--surface)', border: '1px solid #fcd34d', borderLeft: '4px solid #f59e0b',
+            borderRadius: '10px', marginBottom: '24px'
+          }}>
+            <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)' }}>
+              {t('exc.partialData', { count: partialCount })}
+            </span>
+            <button
+              onClick={fetchIncidents}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px',
+                background: 'var(--surface-hover)', color: 'var(--text-primary)',
+                border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer',
+                fontSize: '12px', flexShrink: 0
+              }}
+            >
+              <RefreshCw size={13} /> {t('exc.retry')}
+            </button>
+          </div>
+        )}
+
         {/* Main Content - Hidden during initial loading */}
-        {!loading && (<>
+        {!loading && !error && (<>
           <HeatmapSection
             incidents={incidents}
             uniqueDepartments={uniqueDepartments}

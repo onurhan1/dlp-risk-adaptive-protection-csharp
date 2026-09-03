@@ -3,7 +3,14 @@ import { getApiUrlDynamic } from './api-config'
 
 // Create axios instance
 // Note: baseURL will be set dynamically per request in the interceptor
+// Varsayilan istek zaman asimi. Timeout olmadan yavas/asili kalan bir istek sayfayi
+// sonsuza kadar "Yukleniyor" durumunda birakiyordu. Buyuk liste ceken sayfalar bu
+// degeri istek bazinda LONG_REQUEST_TIMEOUT_MS ile yukseltir.
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
+export const LONG_REQUEST_TIMEOUT_MS = 180_000
+
 const apiClient = axios.create({
+  timeout: DEFAULT_REQUEST_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
   },
