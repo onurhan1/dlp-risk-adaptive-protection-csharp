@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Helpers;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
 
@@ -96,9 +97,19 @@ public class WeeklyFlagService : IWeeklyFlagService
         result.HighVolume = result.HighVolume.OrderByDescending(u => u.TriggerCount).ToList();
         result.MassiveMatches = result.MassiveMatches.OrderByDescending(u => u.TriggerCount).ToList();
 
-        result.PersonalEmailSenders = await EnrichUsersAsync(result.PersonalEmailSenders);
-        result.HighVolume = await EnrichUsersAsync(result.HighVolume);
-        result.MassiveMatches = await EnrichUsersAsync(result.MassiveMatches);
+        // Uc listede ayni kullanici tekrar edebiliyor. Profilleri tek seferde, tekillestirilmis
+        // ve sinirli paralellikle cek; onceden her liste icin kullanici basina ayri LDAP cagrisi yapiliyordu.
+        var profiles = await DirectoryProfileLoader.LoadAsync(
+            _directorySettings,
+            result.PersonalEmailSenders
+                .Concat(result.HighVolume)
+                .Concat(result.MassiveMatches)
+                .Select(user => user.UserEmail),
+            _logger);
+
+        result.PersonalEmailSenders = ApplyProfiles(result.PersonalEmailSenders, profiles);
+        result.HighVolume = ApplyProfiles(result.HighVolume, profiles);
+        result.MassiveMatches = ApplyProfiles(result.MassiveMatches, profiles);
 
         return result;
     }
@@ -217,36 +228,27 @@ public class WeeklyFlagService : IWeeklyFlagService
             SampleIncidents: samples);
     }
 
-    private async Task<List<WeeklyFlagUserDto>> EnrichUsersAsync(List<WeeklyFlagUserDto> users)
+    /// <summary>Onceden toplanmis LDAP profillerini kullanici listesine uygular.</summary>
+    private static List<WeeklyFlagUserDto> ApplyProfiles(
+        List<WeeklyFlagUserDto> users,
+        IReadOnlyDictionary<string, LdapUserLookupResult> profiles)
     {
-        var enriched = new List<WeeklyFlagUserDto>(users.Count);
-        foreach (var user in users)
-        {
-            try
+        return users
+            .Select(user =>
             {
-                var profile = await _directorySettings.LookupLdapUserAsync(user.UserEmail);
-                if (!profile.Success)
-                {
-                    enriched.Add(user);
-                    continue;
-                }
+                if (string.IsNullOrWhiteSpace(user.UserEmail) ||
+                    !profiles.TryGetValue(user.UserEmail, out var profile))
+                    return user;
 
-                enriched.Add(user with
+                return user with
                 {
                     FullName = FirstNonEmpty(profile.FullName, user.FullName),
                     Team = FirstNonEmpty(profile.Department, user.Team),
                     ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail,
                     Gender = FirstNonEmpty(profile.Gender, user.Gender)
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "LDAP enrichment failed for weekly flag user {UserEmail}", user.UserEmail);
-                enriched.Add(user);
-            }
-        }
-
-        return enriched;
+                };
+            })
+            .ToList();
     }
 
     private static string? FirstNonEmpty(params string?[] values) =>
