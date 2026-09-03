@@ -228,6 +228,9 @@ END $$;");
                              | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
         });
 
+        // Sikistirma yonlendirmeden once devreye girmeli ki tum endpoint yanitlarini kapsasin.
+        app.UseResponseCompression();
+
         app.UseRouting();
         app.UseCors();
         app.UseRateLimiter();

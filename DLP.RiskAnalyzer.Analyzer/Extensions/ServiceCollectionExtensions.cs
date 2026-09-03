@@ -14,6 +14,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 
 namespace DLP.RiskAnalyzer.Analyzer.Extensions;
 
@@ -196,6 +198,19 @@ public static class ServiceCollectionExtensions
             .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory))
             .SetApplicationName("DLP-RiskAnalyzer");
         services.AddMemoryCache();
+
+        // ── Response Compression ─────────────────────────────────────────────────
+        // Incident listeleri onbinlerce satir donebiliyor; sikistirilmamis JSON hem agi
+        // hem de tarayiciyi bogazliyordu. Seviye olarak Fastest secildi: buyuk JSON'da
+        // sikistirma orani neredeyse ayni, CPU maliyeti belirgin sekilde dusuk.
+        services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+        });
+        services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+        services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
         // ── Health Checks ────────────────────────────────────────────────────────
         var dbConnectionString = configuration.GetConnectionString("DefaultConnection");
