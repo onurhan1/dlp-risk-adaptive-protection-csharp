@@ -11,6 +11,12 @@ public class IncidentRepositoryTests : IDisposable
     private readonly AnalyzerDbContext _db;
     private readonly IncidentRepository _sut;
 
+    // Incident'in birincil anahtari (Id, Timestamp). Helper Id'yi bos biraktigi ve
+    // Timestamp varsayilani DateTime.UtcNow oldugu icin ayni tick icinde uretilen
+    // kayitlar cakisiyor ve EF "another instance with the same key" hatasi veriyordu.
+    // Her kayda benzersiz Id vererek testi saatin cozunurlugunden bagimsiz kiliyoruz.
+    private int _nextIncidentId;
+
     public IncidentRepositoryTests()
     {
         var options = new DbContextOptionsBuilder<AnalyzerDbContext>()
@@ -32,6 +38,7 @@ public class IncidentRepositoryTests : IDisposable
     {
         return new Incident
         {
+            Id = ++_nextIncidentId,
             UserEmail = user,
             Timestamp = ts ?? DateTime.UtcNow,
             RiskScore = riskScore,
