@@ -7,6 +7,7 @@ using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -44,17 +45,35 @@ public class DirectorySettingsService : IDirectorySettingsService
     private const string LdapServicePasswordKey = "ldap_service_password_protected";
     private static readonly TimeSpan LdapResponseTimeout = TimeSpan.FromSeconds(30);
 
+    // LDAP arama sonuclari cache'lenir: incident/haftalik sorgu listeleri ayni kullanicilari
+    // her istekte tekrar tekrar sorguluyordu ve her sorgu yeni bir TCP + bind + search demekti.
+    private const string LdapSettingsCacheKey = "directory:ldap:settings";
+    private const string LdapServicePasswordCacheKey = "directory:ldap:service-password";
+    private const string LdapUserCacheKeyPrefix = "directory:ldap:user:";
+    private static readonly TimeSpan LdapSettingsCacheTtl = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan LdapUserHitCacheTtl = TimeSpan.FromMinutes(60);
+    private static readonly TimeSpan LdapUserMissCacheTtl = TimeSpan.FromMinutes(10);
+
+    // LDAP ayarlari degistiginde onbellekteki tum kullanici kayitlarini gecersiz kilar.
+    private static long _ldapCacheGeneration;
+
     private readonly AnalyzerDbContext _context;
     private readonly IDataProtector _protector;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<DirectorySettingsService> _logger;
+
+    // DbContext thread-safe degil; paralel LDAP aramalarinda ayar/parola okumalarini seri hale getirir.
+    private readonly SemaphoreSlim _settingsReadGate = new(1, 1);
 
     public DirectorySettingsService(
         AnalyzerDbContext context,
         IDataProtectionProvider dataProtectionProvider,
+        IMemoryCache cache,
         ILogger<DirectorySettingsService> logger)
     {
         _context = context;
         _protector = dataProtectionProvider.CreateProtector("Directory.SettingsProtector");
+        _cache = cache;
         _logger = logger;
     }
 
@@ -306,6 +325,8 @@ public class DirectorySettingsService : IDirectorySettingsService
         if (!string.IsNullOrWhiteSpace(request.ServicePassword))
             await UpsertAsync(LdapServicePasswordKey, _protector.Protect(request.ServicePassword), ct);
 
+        InvalidateLdapCaches();
+
         return await GetLdapAsync(ct);
     }
 
@@ -387,7 +408,9 @@ public class DirectorySettingsService : IDirectorySettingsService
         if (string.IsNullOrWhiteSpace(username))
             return LdapLookupResult(false, username, "Kullanici adi zorunludur");
 
-        var settings = await GetLdapAsync(ct);
+        // Yapilandirma kontrolleri cache'ten geldigi icin ucuzdur ve arama cache'ini
+        // "LDAP kapali" kayitlariyla doldurmamak icin once burada yapilir.
+        var settings = await GetLdapCachedAsync(ct);
         if (!settings.Enabled)
             return LdapLookupResult(false, username, "LDAP aktif degil");
         if (!settings.IsConfigured)
@@ -395,10 +418,30 @@ public class DirectorySettingsService : IDirectorySettingsService
         if (string.IsNullOrWhiteSpace(settings.SearchBase))
             return LdapLookupResult(false, username, "LDAP arama tabani yapilandirilmamis");
 
-        var servicePassword = await GetSecretAsync(LdapServicePasswordKey, ct);
+        var servicePassword = await GetLdapServicePasswordCachedAsync(ct);
         if (string.IsNullOrWhiteSpace(servicePassword))
             return LdapLookupResult(false, username, "LDAP servis hesabi sifresi kayitli degil");
 
+        // Ayni kullanici hem tek istek icinde hem de istekler arasinda defalarca aranabiliyor.
+        // Sonucu cache'ten donmek, kullanici basina TCP + bind + search maliyetini ortadan kaldirir.
+        var cacheKey = LdapUserCacheKeyPrefix
+            + Interlocked.Read(ref _ldapCacheGeneration).ToString()
+            + ":" + username.Trim().ToLowerInvariant();
+
+        if (_cache.TryGetValue<LdapUserLookupResult>(cacheKey, out var cachedResult) && cachedResult is not null)
+            return cachedResult;
+
+        var result = await SearchLdapUserAsync(settings, servicePassword, username, ct);
+        _cache.Set(cacheKey, result, result.Success ? LdapUserHitCacheTtl : LdapUserMissCacheTtl);
+        return result;
+    }
+
+    private async Task<LdapUserLookupResult> SearchLdapUserAsync(
+        LdapSettingsResponse settings,
+        string servicePassword,
+        string username,
+        CancellationToken ct)
+    {
         var normalizedUsername = NormalizeLoginUsername(username);
         try
         {
@@ -671,6 +714,62 @@ public class DirectorySettingsService : IDirectorySettingsService
         }
 
         await _context.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// LDAP ayarlarini onbellekten doner. Cache bos ise DbContext'e yalniz tek bir cagri
+    /// girecek sekilde kilitler; paralel arama yapan cagiricilar icin gereklidir.
+    /// </summary>
+    private async Task<LdapSettingsResponse> GetLdapCachedAsync(CancellationToken ct)
+    {
+        if (_cache.TryGetValue<LdapSettingsResponse>(LdapSettingsCacheKey, out var cached) && cached is not null)
+            return cached;
+
+        await _settingsReadGate.WaitAsync(ct);
+        try
+        {
+            if (_cache.TryGetValue<LdapSettingsResponse>(LdapSettingsCacheKey, out cached) && cached is not null)
+                return cached;
+
+            var fresh = await GetLdapAsync(ct);
+            _cache.Set(LdapSettingsCacheKey, fresh, LdapSettingsCacheTtl);
+            return fresh;
+        }
+        finally
+        {
+            _settingsReadGate.Release();
+        }
+    }
+
+    /// <summary>LDAP servis hesabi sifresini onbellekten doner (bkz. <see cref="GetLdapCachedAsync"/>).</summary>
+    private async Task<string?> GetLdapServicePasswordCachedAsync(CancellationToken ct)
+    {
+        if (_cache.TryGetValue<string>(LdapServicePasswordCacheKey, out var cached) && !string.IsNullOrWhiteSpace(cached))
+            return cached;
+
+        await _settingsReadGate.WaitAsync(ct);
+        try
+        {
+            if (_cache.TryGetValue<string>(LdapServicePasswordCacheKey, out cached) && !string.IsNullOrWhiteSpace(cached))
+                return cached;
+
+            var fresh = await GetSecretAsync(LdapServicePasswordKey, ct);
+            if (!string.IsNullOrWhiteSpace(fresh))
+                _cache.Set(LdapServicePasswordCacheKey, fresh, LdapSettingsCacheTtl);
+            return fresh;
+        }
+        finally
+        {
+            _settingsReadGate.Release();
+        }
+    }
+
+    /// <summary>LDAP ayarlari kaydedilince ayar, parola ve tum kullanici onbellegini gecersiz kilar.</summary>
+    private void InvalidateLdapCaches()
+    {
+        _cache.Remove(LdapSettingsCacheKey);
+        _cache.Remove(LdapServicePasswordCacheKey);
+        Interlocked.Increment(ref _ldapCacheGeneration);
     }
 
     private async Task<string?> GetSecretAsync(string key, CancellationToken ct)
