@@ -675,6 +675,7 @@ public class CollectorBackgroundService : BackgroundService
         CancellationToken cancellationToken)
     {
         var allIncidents = new List<DLPIncident>();
+        var seenIncidentIds = new HashSet<int>();
         const int maxPagesPerChunk = 500;
 
         for (var page = 1; page <= maxPagesPerChunk; page++)
@@ -682,14 +683,32 @@ public class CollectorBackgroundService : BackgroundService
             cancellationToken.ThrowIfCancellationRequested();
 
             var pageIncidents = await _collectorService.FetchIncidentsAsync(chunkStart, chunkEnd, page, _pageSize);
-            allIncidents.AddRange(pageIncidents);
+            var newIncidents = pageIncidents
+                .Where(incident => incident.Id <= 0 || seenIncidentIds.Add(incident.Id))
+                .ToList();
+            allIncidents.AddRange(newIncidents);
 
             _logger.LogInformation(
-                "[{RunType}] Chunk page {Page}: fetched {Count} incidents (Accumulated={Accumulated})",
+                "[{RunType}] Chunk page {Page}: fetched {Count} incidents, {NewCount} new (Accumulated={Accumulated})",
                 runType,
                 page,
                 pageIncidents.Count,
+                newIncidents.Count,
                 allIncidents.Count);
+
+            // Some Forcepoint installations ignore start/limit and return the same
+            // response on every call. Stop the chunk instead of looping to 500 pages.
+            if (page > 1 && pageIncidents.Count > 0 && newIncidents.Count == 0)
+            {
+                _logger.LogWarning(
+                    "[{RunType}] Pagination returned no new incident IDs on page {Page} for chunk {Start} - {End}. " +
+                    "Stopping this chunk to prevent repeated collection.",
+                    runType,
+                    page,
+                    chunkStart,
+                    chunkEnd);
+                return allIncidents;
+            }
 
             if (pageIncidents.Count < _pageSize)
             {
