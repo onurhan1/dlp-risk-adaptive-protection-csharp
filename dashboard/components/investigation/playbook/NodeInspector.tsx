@@ -156,7 +156,7 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
         {node.type === 'source.unansweredReminderEscalations' && (
           <p style={hintStyle}>
             Hatırlatma mailinden sonra en az 7 gün daha yanıt vermeyen kayıtları getirir. Mail Gönder node’unda
-            alıcıyı <strong>LDAP yöneticisi</strong> seçin; ardından Rapor Maili Gönder node’unu ekip adresine ve
+            alıcıyı <strong>LDAP yöneticisi</strong> seçin; ardından <strong>Yönetici Eskalasyon Raporu Gönder</strong> node’unu ekip adresine ve
             <strong>Yönetici Eskalasyon Çıktısı</strong> node’unu akışın sonuna bağlayın. Çıktı, hangi kullanıcı için hangi yöneticiye mailin
             gönderildiğini veya onay beklediğini listeler.
           </p>
@@ -173,6 +173,7 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
         )}
         {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={inReminderFlow} inTrackingFlow={inTrackingFlow} />}
         {node.type === 'action.sendTemporaryExceptionsReport' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={false} inTrackingFlow={false} isTemporaryExceptionReport />}
+        {node.type === 'action.sendManagerEscalationReport' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={false} inTrackingFlow={false} isManagerEscalationReport />}
         {node.type === 'output.report' && (
           <div>
             <label style={labelStyle}>Rapor Başlığı</label>
@@ -829,7 +830,7 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
   )
 }
 
-function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow, isTemporaryExceptionReport = false }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean; inTrackingFlow: boolean; isTemporaryExceptionReport?: boolean }) {
+function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow, isTemporaryExceptionReport = false, isManagerEscalationReport = false }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean; inTrackingFlow: boolean; isTemporaryExceptionReport?: boolean; isManagerEscalationReport?: boolean }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
   const incidentColumns = [
@@ -949,7 +950,7 @@ function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow, isTem
       </label>
       <p style={{ ...hintStyle, marginTop: '-4px' }}>HTML rapor mail gövdesinde kalır; seçildiğinde aynı tablo PDF eki olarak da gönderilir.</p>
 
-      <div style={inTrackingFlow || isTemporaryExceptionReport ? { display: 'none' } : undefined}>
+      <div style={inTrackingFlow || isTemporaryExceptionReport || isManagerEscalationReport ? { display: 'none' } : undefined}>
         <label style={labelStyle}>Rapor Sutunlari</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 10px' }}>
           {reportColumns.map(([value, label, description]) => (
@@ -994,6 +995,13 @@ function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow, isTem
       {isTemporaryExceptionReport && (
         <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
           Bu node sabit geçici istisna tablosu üretir: politika, kural, istisna adı, aktiflik ve son senkron bilgileri birlikte gönderilir.
+        </div>
+      )}
+
+      {isManagerEscalationReport && (
+        <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          Bu node sabit eskalasyon tablosu üretir: kullanıcı, kullanıcı adı, birim, LDAP yöneticisi, alıcı e-posta adresi,
+          konu ve gönderim/onay durumu birlikte gönderilir.
         </div>
       )}
 

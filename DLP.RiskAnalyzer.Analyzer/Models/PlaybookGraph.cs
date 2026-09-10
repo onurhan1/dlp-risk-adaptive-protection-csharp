@@ -74,6 +74,7 @@ public static class PlaybookNodeType
     public const string ActionSendMail = "action.sendMail";
     public const string ActionSendReportMail = "action.sendReportMail";
     public const string ActionSendTemporaryExceptionsReport = "action.sendTemporaryExceptionsReport";
+    public const string ActionSendManagerEscalationReport = "action.sendManagerEscalationReport";
     public const string OutputReport = "output.report";
     public const string OutputManagerEscalationReport = "output.managerEscalationReport";
 
@@ -82,7 +83,7 @@ public static class PlaybookNodeType
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
         SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceUnansweredReminderEscalations, SourceTemporaryExceptions, SourceQueryTracking,
         TransformFilter, LogicCondition, LogicMetricThreshold,
-        ActionSendMail, ActionSendReportMail, ActionSendTemporaryExceptionsReport, OutputReport, OutputManagerEscalationReport
+        ActionSendMail, ActionSendReportMail, ActionSendTemporaryExceptionsReport, ActionSendManagerEscalationReport, OutputReport, OutputManagerEscalationReport
     };
 
     public static bool IsTrigger(string type) =>

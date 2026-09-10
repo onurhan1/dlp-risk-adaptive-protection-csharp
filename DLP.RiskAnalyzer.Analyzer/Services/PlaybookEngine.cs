@@ -333,6 +333,7 @@ public class PlaybookEngine : IPlaybookEngine
 
             case PlaybookNodeType.ActionSendReportMail:
             case PlaybookNodeType.ActionSendTemporaryExceptionsReport:
+            case PlaybookNodeType.ActionSendManagerEscalationReport:
                 return SingleOutput(await SendReportMailAsync(node, input, playbook, run, context, ct));
 
             case PlaybookNodeType.OutputReport:
@@ -3182,6 +3183,7 @@ public class PlaybookEngine : IPlaybookEngine
 
                 case PlaybookNodeType.ActionSendReportMail:
                 case PlaybookNodeType.ActionSendTemporaryExceptionsReport:
+                case PlaybookNodeType.ActionSendManagerEscalationReport:
                 {
                     var fixedRecipient = node.GetString("fixed_recipient");
                     if (!string.IsNullOrWhiteSpace(fixedRecipient) && !IsValidEmail(fixedRecipient))
@@ -3258,7 +3260,8 @@ public class PlaybookEngine : IPlaybookEngine
                     "her çalıştırmada gönderilir.");
             if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.ActionSendMail
                                              or PlaybookNodeType.ActionSendReportMail
-                                             or PlaybookNodeType.ActionSendTemporaryExceptionsReport))
+                                             or PlaybookNodeType.ActionSendTemporaryExceptionsReport
+                                             or PlaybookNodeType.ActionSendManagerEscalationReport))
                 result.Warnings.Add("Akışta mail gönderme adımı yok.");
             if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.OutputReport or PlaybookNodeType.OutputManagerEscalationReport))
                 result.Warnings.Add("Akışta rapor çıktısı yok; sonuçlar yine de mail kaydına yazılır.");
