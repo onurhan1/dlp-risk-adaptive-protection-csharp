@@ -149,19 +149,19 @@ public class UserInsightsService : IUserInsightsService
         return result.OrderByDescending(r => r.CurrentScore).ToList();
     }
 
-    public async Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20)
+    public async Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null)
     {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        const int minDaysRequired = RiskConstants.Thresholds.MinDaysForTrend;
+        var rangeEnd = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var hasCustomRange = startDate.HasValue || endDate.HasValue;
+        var rangeStart = startDate ?? PeriodHelper.GetStartDate(rangeEnd, period);
+        var minDaysRequired = hasCustomRange ? 1 : RiskConstants.Thresholds.MinDaysForTrend;
         const double minScore = RiskConstants.Thresholds.MinRiskScoreForTopUsers;
 
-        if (period.ToLower() is "24h" or "daily")
+        if (!hasCustomRange && period.ToLower() is "24h" or "daily")
             return await GetTopUsersFromIncidentsRealTimeAsync(limit);
 
-        var startDate = PeriodHelper.GetStartDate(endDate, period);
-
         var (items, totalCount, totalPages) = await _dailyScoreRepository.GetTopRiskyUsersAsync(
-            startDate, endDate, minDaysRequired, minScore, period, page, pageSize);
+            rangeStart, rangeEnd, minDaysRequired, minScore, hasCustomRange ? "custom" : period, page, pageSize);
 
         return items;
     }
@@ -238,13 +238,13 @@ public class UserInsightsService : IUserInsightsService
         TotalQuarantines = scores.Sum(s => s.QuarantineCount)
     };
 
-    public async Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = RiskConstants.Thresholds.HighImpactMinMatches, int minDailyRiskScore = 0, int page = 1, int pageSize = 20)
+    public async Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = RiskConstants.Thresholds.HighImpactMinMatches, int minDailyRiskScore = 0, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null)
     {
-        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var startDate = endDate.AddDays(-days);
+        var rangeEnd = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var rangeStart = startDate ?? rangeEnd.AddDays(-days);
 
         var (paginatedHits, totalCount) = await _dailyScoreRepository.GetHighImpactScoresAsync(
-            startDate, endDate, minMaxMatches, minDailyRiskScore, page, pageSize);
+            rangeStart, rangeEnd, minMaxMatches, minDailyRiskScore, page, pageSize);
 
         var alertsWithDetails = new List<object>();
         

@@ -161,11 +161,13 @@ public class RiskTrendController : ControllerBase
         [FromQuery] string period = "24h",
         [FromQuery] int limit = 10,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null)
     {
         try
         {
-            var result = await _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
+            var result = await _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize, startDate, endDate);
             return Ok(result);
         }
         catch (Exception ex)
@@ -208,11 +210,13 @@ public class RiskTrendController : ControllerBase
         [FromQuery] int minMaxMatches = 100,
         [FromQuery] int minDailyRiskScore = 0,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null)
     {
         try
         {
-            var result = await _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
+            var result = await _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize, startDate, endDate);
             return Ok(result);
         }
         catch (Exception ex)

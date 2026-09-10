@@ -33,26 +33,39 @@ public class RiskController : ControllerBase
         {
             var query = _context.Incidents.AsQueryable();
             
+            DateTime rangeStart;
+            DateTime rangeEndExclusive;
             if (!startDate.HasValue && !endDate.HasValue)
             {
                 var end = DateTime.UtcNow;
                 var start = end.Date.AddDays(-days);
-                query = query.Where(i => i.Timestamp >= start && i.Timestamp <= end);
+                rangeStart = start;
+                rangeEndExclusive = end.Date.AddDays(1);
             }
             else
             {
-                if (startDate.HasValue)
-                    query = query.Where(i => i.Timestamp >= startDate.Value);
-
-                if (endDate.HasValue)
-                    query = query.Where(i => i.Timestamp <= endDate.Value);
+                rangeStart = (startDate ?? DateTime.UtcNow.AddDays(-days)).Date;
+                rangeEndExclusive = (endDate ?? DateTime.UtcNow).Date.AddDays(1);
             }
+
+            query = query.Where(i => i.Timestamp >= rangeStart && i.Timestamp < rangeEndExclusive);
 
             var total = await query.CountAsync();
             var totalAllTime = await _context.Incidents.CountAsync();
 
             var actionCounts = await GetActionCountsAsync(query);
             var allTimeActionCounts = await GetActionCountsAsync(_context.Incidents.AsQueryable());
+            var activeDates = await query
+                .Select(i => i.Timestamp.Date)
+                .Distinct()
+                .ToListAsync();
+            var activeDateSet = activeDates.ToHashSet();
+            var missingWeekdays = new List<string>();
+            for (var date = rangeStart.Date; date < rangeEndExclusive.Date; date = date.AddDays(1))
+            {
+                if (date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !activeDateSet.Contains(date))
+                    missingWeekdays.Add(date.ToString("yyyy-MM-dd"));
+            }
 
             var authorized = actionCounts.GetValueOrDefault("AUTHORIZED", 0);
             var block = actionCounts.GetValueOrDefault("BLOCK", 0);
@@ -88,6 +101,9 @@ public class RiskController : ControllerBase
                 { "all_time_total", totalAllTime },
                 { "min_date", minDate?.ToString("yyyy-MM-dd") ?? "" },
                 { "max_date", maxDate?.ToString("yyyy-MM-dd") ?? "" },
+                { "period_start", rangeStart.ToString("yyyy-MM-dd") },
+                { "period_end", rangeEndExclusive.AddDays(-1).ToString("yyyy-MM-dd") },
+                { "missing_weekdays", missingWeekdays },
                 { "actions", actionCounts.Select(a => new { action = a.Key, count = a.Value }).ToList() },
                 { "all_time_actions", allTimeActionCounts.Select(a => new { action = a.Key, count = a.Value }).ToList() }
             });

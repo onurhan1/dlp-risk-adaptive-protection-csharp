@@ -36,12 +36,16 @@ export default function TopBreakdownCard({
   title,
   limit = 3,
   barColors = ['#3b82f6', '#2563eb'],
+  startDate,
+  endDate,
   onDataChange
 }: {
   dimension: 'user' | 'department'
   title: string
   limit?: number
   barColors?: [string, string] | string[]
+  startDate?: string
+  endDate?: string
   onDataChange?: (snapshot: BreakdownSnapshot) => void
 }) {
   const { t } = useTranslation()
@@ -63,7 +67,7 @@ export default function TopBreakdownCard({
       try {
         const apiUrl = getApiUrlDynamic()
         const res = await axios.get(`${apiUrl}/api/risk/incidents/top-breakdown`, {
-          params: { dimension, action, days, limit }
+          params: { dimension, action, days, startDate, endDate, limit }
         })
         nextItems = res.data || []
       } catch (error) {
@@ -80,7 +84,7 @@ export default function TopBreakdownCard({
 
     fetchData()
     return () => { cancelled = true }
-  }, [dimension, action, days, limit])
+  }, [dimension, action, days, startDate, endDate, limit])
 
   // Same rule as Top Matched Rules: the bar is relative to the busiest row so the
   // chart stays readable, the label reports the row's share of the listed total.
@@ -100,13 +104,15 @@ export default function TopBreakdownCard({
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={selectStyle}>
-              <option value={7}>{t('dashboard.last1Week')}</option>
-              <option value={14}>{t('dashboard.last2Weeks')}</option>
-              <option value={30}>{t('dashboard.lastMonth')}</option>
-              <option value={90}>{t('dashboard.last3Months')}</option>
-              <option value={180}>{t('dashboard.last6Months')}</option>
-            </select>
+            {!startDate && !endDate && (
+              <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={selectStyle}>
+                <option value={7}>{t('dashboard.last1Week')}</option>
+                <option value={14}>{t('dashboard.last2Weeks')}</option>
+                <option value={30}>{t('dashboard.lastMonth')}</option>
+                <option value={90}>{t('dashboard.last3Months')}</option>
+                <option value={180}>{t('dashboard.last6Months')}</option>
+              </select>
+            )}
           </div>
         </div>
       </div>

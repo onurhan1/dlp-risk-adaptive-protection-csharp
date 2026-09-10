@@ -596,14 +596,14 @@ public class RiskAnalyzerService : IRiskAnalyzerService
     public Task<List<RiskyUserReportItem>> GetRiskyUsersReportAsync(string period) =>
         _userInsights.GetRiskyUsersReportAsync(period);
 
-    public Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20) =>
-        _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize);
+    public Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null) =>
+        _userInsights.GetTopRiskyUsersFromDailyScoresAsync(period, limit, page, pageSize, startDate, endDate);
 
     public Task<List<DailySummaryScoreItem>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate) =>
         _userInsights.GetDailySummaryFromDailyScoresAsync(startDate, endDate);
 
-    public Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20) =>
-        _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize);
+    public Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 100, int minDailyRiskScore = 0, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null) =>
+        _userInsights.GetHighImpactAlertsAsync(days, minMaxMatches, minDailyRiskScore, page, pageSize, startDate, endDate);
 
     private static double CalculateStdDev(IEnumerable<double> source) =>
         UserInsightsService.CalculateStdDev(source);

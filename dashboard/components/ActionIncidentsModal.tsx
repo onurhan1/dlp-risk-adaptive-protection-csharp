@@ -52,6 +52,8 @@ interface ActionIncidentsModalProps {
     onClose: () => void
     action: string
     initialDate?: string  // For single-day mode (Reports page)
+    initialStartDate?: string
+    initialEndDate?: string
 }
 
 // Debounce hook
@@ -186,7 +188,9 @@ export default function ActionIncidentsModal({
     isOpen,
     onClose,
     action,
-    initialDate  // Single day mode for Reports page
+    initialDate,  // Single day mode for Reports page
+    initialStartDate,
+    initialEndDate
 }: ActionIncidentsModalProps) {
     const { t } = useTranslation()
     // Single day mode when initialDate is provided
@@ -197,8 +201,8 @@ export default function ActionIncidentsModal({
 
     // Date range state
     const [dateRange, setDateRange] = useState({
-        start: initialDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-        end: initialDate || format(new Date(), 'yyyy-MM-dd')
+        start: initialDate || initialStartDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+        end: initialDate || initialEndDate || format(new Date(), 'yyyy-MM-dd')
     })
 
     // Pagination state
@@ -253,12 +257,14 @@ export default function ActionIncidentsModal({
         }
     }
 
-    // Update date range when initialDate changes
+    // Keep the detail table aligned with the dashboard's selected date range.
     useEffect(() => {
         if (initialDate) {
             setDateRange({ start: initialDate, end: initialDate })
+        } else if (initialStartDate && initialEndDate) {
+            setDateRange({ start: initialStartDate, end: initialEndDate })
         }
-    }, [initialDate])
+    }, [initialDate, initialStartDate, initialEndDate])
 
     // Fetch incidents when modal opens or filters/pagination change
     useEffect(() => {

@@ -147,6 +147,9 @@ interface ActionSummary {
   allTimeUnknown?: number
   all_time_total?: number
   allTimeTotal?: number
+  period_start?: string
+  period_end?: string
+  missing_weekdays?: string[]
 }
 
 interface ReminderOverview {
@@ -154,20 +157,6 @@ interface ReminderOverview {
   awaiting_second_reply?: number
   reminder_unanswered?: number
   reply_review?: number
-}
-
-const getDashboardPeriodRange = (days: number) => {
-  const today = new Date()
-  if (days === 30) {
-    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-    const end = new Date(today.getFullYear(), today.getMonth(), 0)
-    return { start: format(start, 'yyyy-MM-dd'), end: format(end, 'yyyy-MM-dd') }
-  }
-
-  return {
-    start: format(subDays(today, days), 'yyyy-MM-dd'),
-    end: format(today, 'yyyy-MM-dd')
-  }
 }
 
 export default function Home() {
@@ -188,10 +177,6 @@ export default function Home() {
   const [highImpactPagination, setHighImpactPagination] = useState({ page: 1, pageSize: 20, totalCount: 0, totalPages: 0 })
   const [highImpactLoading, setHighImpactLoading] = useState(false)
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('quarterly')
-  // Period selectors for Data Movement and Top Rules
-  const [dataMovementDays, setDataMovementDays] = useState<number>(30)
-  const [topRulesDays, setTopRulesDays] = useState<number>(30)
   // Pagination for Top Risky Users tables
   const [topUsersPeriodPage, setTopUsersPeriodPage] = useState(1)
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
@@ -206,6 +191,7 @@ export default function Home() {
     start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
   })
+  const [hasInitializedDashboardRange, setHasInitializedDashboardRange] = useState(false)
 
   // Independent date range for Daily Trends Chart - defaulted to roughly "All Time" (from 2023)
   const [trendsDateRange, setTrendsDateRange] = useState({
@@ -250,7 +236,9 @@ export default function Home() {
   const handleChannelData = useCallback((snapshot: ChannelActivitySnapshot) => setChannelSnapshot(snapshot), [])
   const handleUserData = useCallback((snapshot: BreakdownSnapshot) => setUserSnapshot(snapshot), [])
   const handleDeptData = useCallback((snapshot: BreakdownSnapshot) => setDeptSnapshot(snapshot), [])
-  const dataMovementRange = useMemo(() => getDashboardPeriodRange(dataMovementDays), [dataMovementDays])
+  const selectedRangeDays = useMemo(() => Math.max(1, Math.floor(
+    (new Date(dateRange.end).getTime() - new Date(dateRange.start).getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1), [dateRange.end, dateRange.start])
 
   // Restore active manual collect job from localStorage on mount
   useEffect(() => {
@@ -283,7 +271,11 @@ export default function Home() {
 
   useEffect(() => {
     fetchData()
-  }, [selectedDimension, dateRange.start, dateRange.end, selectedPeriod])
+  }, [selectedDimension, dateRange.start, dateRange.end])
+
+  useEffect(() => {
+    setTrendsDateRange({ start: dateRange.start, end: dateRange.end })
+  }, [dateRange.start, dateRange.end])
 
   // Separate effect for Daily Trends
   useEffect(() => {
@@ -327,12 +319,10 @@ export default function Home() {
     try {
       const currentStart = dateRange.start
       const currentEnd = dateRange.end
-      const days = Math.ceil((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24))
+      const days = Math.max(1, Math.floor((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (1000 * 60 * 60 * 24)) + 1)
 
       // Get API URL dynamically for each request
       const apiUrl = getApiUrlDynamic()
-      const topRulesRange = getDashboardPeriodRange(topRulesDays)
-
       // Fetch data from new user_daily_risk_scores based endpoints
       const [deptRes, topUsers24hRes, topUsersPeriodRes, highImpactRes, actionRes, topRulesRes, reminderRes] = await Promise.all([
         axios.get(`${apiUrl}/api/risk/department-summary`, {
@@ -343,22 +333,24 @@ export default function Home() {
         }).catch(() => ({ data: [] })),
         // Top users 24h from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
-          params: { period: '24h', limit: 50 }
+          params: { period: 'custom', startDate: currentStart, endDate: currentEnd, limit: 50 }
         }).catch(() => ({ data: [] })),
         // Top users for selected period from user_daily_risk_scores
         axios.get(`${apiUrl}/api/risk-trends/top-users`, {
-          params: { period: selectedPeriod, limit: 50 }
+          params: { period: 'custom', startDate: currentStart, endDate: currentEnd, limit: 50 }
         }).catch(() => ({ data: [] })),
         // High impact alert - potential data exfiltration
         axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-          params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: 1, pageSize: 20 }
+          params: { startDate: currentStart, endDate: currentEnd, minMaxMatches: 100, minDailyRiskScore: 80, page: 1, pageSize: 20 }
         }).catch(() => ({ data: { data: [], pagination: { page: 1, pageSize: 20, totalCount: 0, totalPages: 0 } } })),
-        axios.get(`${apiUrl}/api/risk/action-summary?days=${days}`).catch(() => ({ data: null })),
+        axios.get(`${apiUrl}/api/risk/action-summary`, {
+          params: { startDate: currentStart, endDate: currentEnd }
+        }).catch(() => ({ data: null })),
         // Optimized: Fetch aggregated top rules directly from backend
         axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
           params: {
-            startDate: topRulesRange.start,
-            endDate: topRulesRange.end,
+            startDate: currentStart,
+            endDate: currentEnd,
             limit: 10
           }
         }).catch(() => ({ data: [] })),
@@ -370,8 +362,14 @@ export default function Home() {
       setReminderOverview(reminderRes.data)
 
       // Set actual data date range from action-summary response
-      if (actionRes.data?.min_date && actionRes.data?.max_date) {
-        setActionDataDateRange({ min: actionRes.data.min_date, max: actionRes.data.max_date })
+      if (actionRes.data?.period_start && actionRes.data?.period_end) {
+        setActionDataDateRange({ min: actionRes.data.period_start, max: actionRes.data.period_end })
+      }
+      // The first lightweight request discovers the oldest available incident date.
+      // Once known, the dashboard defaults to the complete data range through today.
+      if (!hasInitializedDashboardRange && actionRes.data?.min_date) {
+        setHasInitializedDashboardRange(true)
+        setDateRange((current) => ({ ...current, start: actionRes.data.min_date }))
       }
 
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
@@ -403,22 +401,16 @@ export default function Home() {
     setSelectedAction(action)
   }
 
-  const fetchTopRulesForPeriod = async (days: number) => {
-    try {
-      const apiUrl = getApiUrlDynamic()
-      const range = getDashboardPeriodRange(days)
-      const res = await axios.get(`${apiUrl}/api/risk-trends/top-rules`, {
-        params: {
-          startDate: range.start,
-          endDate: range.end,
-          limit: 10
-        }
-      })
-      setTopRules(res.data || [])
-    } catch (error) {
-      console.error('Error fetching rules:', error)
-      setTopRules([])
-    }
+  const applyDatePreset = (preset: 'today' | 'week' | '30days' | 'month' | 'previousMonth') => {
+    const today = new Date()
+    const end = format(today, 'yyyy-MM-dd')
+    if (preset === 'today') return setDateRange({ start: end, end })
+    if (preset === 'week') return setDateRange({ start: format(subDays(today, 6), 'yyyy-MM-dd'), end })
+    if (preset === '30days') return setDateRange({ start: format(subDays(today, 29), 'yyyy-MM-dd'), end })
+    if (preset === 'month') return setDateRange({ start: format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd'), end })
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const previousEnd = new Date(today.getFullYear(), today.getMonth(), 0)
+    setDateRange({ start: format(start, 'yyyy-MM-dd'), end: format(previousEnd, 'yyyy-MM-dd') })
   }
 
   // Manual collect: start collection
@@ -591,15 +583,6 @@ export default function Home() {
 
   const actionLabel = (action: string) => action === 'TOTAL' ? t('dashboard.allActions') : action
 
-  const getAllTimeActionCounts = (summary: ActionSummary) => {
-    const authorized = summary.all_time_authorized ?? summary.allTimeAuthorized ?? summary.authorized
-    const block = summary.all_time_block ?? summary.allTimeBlock ?? summary.block
-    const quarantine = summary.all_time_quarantine ?? summary.allTimeQuarantine ?? summary.quarantine
-    const released = summary.all_time_released ?? summary.allTimeReleased ?? summary.released ?? 0
-    const knownTotal = authorized + block + quarantine + released
-    return { authorized, block, quarantine, released, total: knownTotal }
-  }
-
   // Percentages are carried over from the grids rather than recomputed, so the
   // printed figures match the screen cell for cell.
   const buildReportSections = () => {
@@ -640,7 +623,7 @@ export default function Home() {
     if (topRules.length > 0) {
       sections.push({
         title: t('dashboard.topRules'),
-        subtitle: `${t('dashboard.reportPeriod')}: ${periodLabel(topRulesDays)}`,
+        subtitle: `${t('dashboard.reportPeriod')}: ${dateRange.start} - ${dateRange.end}`,
         label_header: t('dashboard.topRules'),
         value_header: t('dashboard.reportAlertCount'),
         percentage_header: t('dashboard.reportShare'),
@@ -771,6 +754,33 @@ export default function Home() {
           <FileBarChart size={16} /> {t('dashboard.dailyReport')}
         </button>
       </div>
+
+      <section className="card" style={{ marginBottom: '24px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', fontSize: '14px' }}>
+            <Calendar size={17} color="#2563eb" /> Tarih Aralığı
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {[
+              ['today', 'Bugün'], ['week', 'Son 7 gün'], ['30days', 'Son 30 gün'], ['month', 'Bu ay'], ['previousMonth', 'Geçen ay']
+            ].map(([preset, label]) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => applyDatePreset(preset as 'today' | 'week' | '30days' | 'month' | 'previousMonth')}
+                style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--background)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+              >{label}</button>
+            ))}
+            <input type="date" className="filter-input" value={dateRange.start} max={dateRange.end}
+              onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))}
+              style={{ padding: '6px 9px', fontSize: '13px' }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>-</span>
+            <input type="date" className="filter-input" value={dateRange.end} min={dateRange.start} max={todayStr}
+              onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))}
+              style={{ padding: '6px 9px', fontSize: '13px' }} />
+          </div>
+        </div>
+      </section>
 
       {reminderOverview && (
         <section className="card" style={{ marginBottom: '24px' }}>
@@ -1029,12 +1039,11 @@ export default function Home() {
             <div style={{ height: '300px', position: 'relative' }}>
               {(() => {
                 const periodTotal = actionSummary.authorized + actionSummary.block + actionSummary.quarantine + (actionSummary.released || 0)
-                const allTime = getAllTimeActionCounts(actionSummary)
                 const pieItems = [
-                  { label: 'Authorized', value: allTime.authorized, color: '#10b981' },
-                  { label: 'Block', value: allTime.block, color: '#ef4444' },
-                  { label: 'Quarantine', value: allTime.quarantine, color: '#8b5cf6' },
-                  { label: 'Released', value: allTime.released, color: '#f59e0b' },
+                  { label: 'Authorized', value: actionSummary.authorized, color: '#10b981' },
+                  { label: 'Block', value: actionSummary.block, color: '#ef4444' },
+                  { label: 'Quarantine', value: actionSummary.quarantine, color: '#8b5cf6' },
+                  { label: 'Released', value: actionSummary.released || 0, color: '#f59e0b' },
                 ]
                 return (
                   <Plot
@@ -1061,7 +1070,7 @@ export default function Home() {
                       paper_bgcolor: 'transparent',
                       plot_bgcolor: 'transparent',
                       annotations: [{
-                        text: `<b style="font-size:28px">${allTime.total.toLocaleString()}</b><br><span style="font-size:12px;color:${plotTextMuted}">Tüm Zamanlar</span><br><span style="font-size:11px;color:${plotTextMuted}">Dönem: ${periodTotal.toLocaleString()}</span>`,
+                        text: `<b style="font-size:28px">${periodTotal.toLocaleString()}</b><br><span style="font-size:12px;color:${plotTextMuted}">Seçilen dönem</span>`,
                         showarrow: false,
                         font: { size: 24, color: plotTextPrimary, family: 'Inter, sans-serif' },
                         x: 0.5, y: 0.5,
@@ -1094,12 +1103,11 @@ export default function Home() {
             {/* Action Cards Grid — Figma colored left-bar pattern */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
               {(() => {
-                const allTime = getAllTimeActionCounts(actionSummary)
                 return [
-                  { action: 'AUTHORIZED', value: allTime.authorized, color: '#10b981' },
-                  { action: 'BLOCK', value: allTime.block, color: '#ef4444' },
-                  { action: 'QUARANTINE', value: allTime.quarantine, color: '#a855f7' },
-                  { action: 'RELEASED', value: allTime.released, color: '#f59e0b' },
+                  { action: 'AUTHORIZED', value: actionSummary.authorized, color: '#10b981' },
+                  { action: 'BLOCK', value: actionSummary.block, color: '#ef4444' },
+                  { action: 'QUARANTINE', value: actionSummary.quarantine, color: '#a855f7' },
+                  { action: 'RELEASED', value: actionSummary.released || 0, color: '#f59e0b' },
                 ]
               })().map(({ action, value, color }) => (
                 <div
@@ -1129,9 +1137,14 @@ export default function Home() {
               ))}
             </div>
           </div>
+          {(actionSummary.missing_weekdays || []).length > 0 && (
+            <div style={{ marginTop: '16px', padding: '10px 12px', border: '1px solid rgba(245, 158, 11, 0.45)', borderLeft: '4px solid #f59e0b', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', color: 'var(--text-primary)', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+              <AlertCircle size={17} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span><strong>Veri alınamayan iş günleri:</strong> {actionSummary.missing_weekdays?.join(', ')}</span>
+            </div>
+          )}
         </div>
-      )
-      }
+      )}
 
       {/* Daily Incident Trends - Full Width */}
       <div className="card">
@@ -1287,30 +1300,10 @@ export default function Home() {
               <Target size={18} style={{ color: '#ef4444' }} /> {t('dashboard.topRiskyUsers')}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  height: '36px'
-                }}
-              >
-                <option value="weekly">{t('dashboard.lastWeek')}</option>
-                <option value="monthly">{t('dashboard.lastMonth')}</option>
-                <option value="quarterly">{t('dashboard.last3Months')}</option>
-                <option value="6month">{t('dashboard.last6Months')}</option>
-                <option value="yearly">{t('dashboard.lastYear')}</option>
-              </select>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{dateRange.start} - {dateRange.end}</span>
               <GridExport
                 data={topUsersPeriod}
-                fileName={`top-risky-users-${selectedPeriod}`}
+                fileName={`top-risky-users-${dateRange.start}-to-${dateRange.end}`}
                 columns={[
                   { key: 'user_email', header: 'User Email', width: 30 },
                   { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
@@ -1405,17 +1398,17 @@ export default function Home() {
           )}
         </div>
 
-        {/* 24-Hour Top Users - Today's Activity */}
+        {/* Active users for the selected dashboard period */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingRight: '14px' }}>
             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-              <Zap size={18} style={{ color: '#f59e0b' }} /> {t('dashboard.todayActiveUsers')}
+              <Zap size={18} style={{ color: '#f59e0b' }} /> Seçilen Dönemde Aktif Kullanıcılar
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>{t('dashboard.last24h')}</span>
+              <span style={{ fontSize: '12px', backgroundColor: 'var(--surface-hover)', padding: '6px 12px', borderRadius: '6px', color: 'var(--text-muted)', fontWeight: '500', border: '1px solid var(--border)' }}>{dateRange.start} - {dateRange.end}</span>
               <GridExport
                 data={topUsers24h}
-                fileName="todays-active-users"
+                fileName={`active-users-${dateRange.start}-to-${dateRange.end}`}
                 columns={[
                   { key: 'user_email', header: 'User Email', width: 30 },
                   { key: 'risk_score', header: 'Risk Score', width: 12, formatter: (v: number) => Math.round(v).toString() },
@@ -1516,32 +1509,13 @@ export default function Home() {
         <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h2 style={{ margin: 0 }}>{t('dashboard.dataMovement')}</h2>
-            <select
-              value={dataMovementDays}
-              onChange={(e) => setDataMovementDays(Number(e.target.value))}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text-primary)',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              <option value={7}>{t('dashboard.last1Week')}</option>
-              <option value={14}>{t('dashboard.last2Weeks')}</option>
-              <option value={30}>{t('dashboard.lastMonth')}</option>
-              <option value={90}>{t('dashboard.last3Months')}</option>
-              <option value={180}>{t('dashboard.last6Months')}</option>
-            </select>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{dateRange.start} - {dateRange.end}</span>
           </div>
           <div style={{ position: 'relative' }}>
             <ChannelActivity
-              days={dataMovementDays}
-              startDate={dataMovementRange.start}
-              endDate={dataMovementRange.end}
+              days={selectedRangeDays}
+              startDate={dateRange.start}
+              endDate={dateRange.end}
               onDataChange={handleChannelData}
             />
           </div>
@@ -1551,30 +1525,7 @@ export default function Home() {
           <div className="card-header-row" style={{ marginBottom: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <h2 style={{ margin: 0 }}>{t('dashboard.topRules')}</h2>
-              <select
-                value={topRulesDays}
-                onChange={(e) => {
-                  const newDays = Number(e.target.value)
-                  setTopRulesDays(newDays)
-                  fetchTopRulesForPeriod(newDays)
-                }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                  color: 'var(--text-primary)',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value={7}>{t('dashboard.last1Week')}</option>
-                <option value={14}>{t('dashboard.last2Weeks')}</option>
-                <option value={30}>{t('dashboard.lastMonth')}</option>
-                <option value={90}>{t('dashboard.last3Months')}</option>
-                <option value={180}>{t('dashboard.last6Months')}</option>
-              </select>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{dateRange.start} - {dateRange.end}</span>
             </div>
           </div>
           {loading ? (
@@ -1621,6 +1572,8 @@ export default function Home() {
           title={t('dashboard.topMatchedUsers')}
           limit={3}
           barColors={['#8b5cf6', '#7c3aed']}
+          startDate={dateRange.start}
+          endDate={dateRange.end}
           onDataChange={handleUserData}
         />
         <TopBreakdownCard
@@ -1628,6 +1581,8 @@ export default function Home() {
           title={t('dashboard.topMatchedDepartments')}
           limit={3}
           barColors={['#10b981', '#059669']}
+          startDate={dateRange.start}
+          endDate={dateRange.end}
           onDataChange={handleDeptData}
         />
       </div>
@@ -1913,7 +1868,7 @@ export default function Home() {
                 try {
                   const apiUrl = getApiUrlDynamic()
                   const res = await axios.get(`${apiUrl}/api/risk-trends/high-impact-alerts`, {
-                    params: { days: 30, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
+                    params: { startDate: dateRange.start, endDate: dateRange.end, minMaxMatches: 100, minDailyRiskScore: 80, page: newPage, pageSize: 20 }
                   })
                   const data = res.data as HighImpactAlertsResponse
                   setHighImpactAlerts(data?.data || [])
@@ -2172,6 +2127,8 @@ export default function Home() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         action={selectedAction}
+        initialStartDate={dateRange.start}
+        initialEndDate={dateRange.end}
       />
 
       {/* High Risk Users Modal */}

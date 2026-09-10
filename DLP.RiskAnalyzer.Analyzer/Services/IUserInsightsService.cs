@@ -15,7 +15,7 @@ public interface IUserInsightsService
     Task<UserTrendResponse> GetUserQuarterlyTrendAsync(string userEmail);
     Task<List<string>> DetectUserAnomaliesAsync(string userEmail);
     Task<List<RiskyUserReportItem>> GetRiskyUsersReportAsync(string period);
-    Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20);
+    Task<List<TopRiskyUserItem>> GetTopRiskyUsersFromDailyScoresAsync(string period, int limit = 10, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null);
     Task<List<DailySummaryScoreItem>> GetDailySummaryFromDailyScoresAsync(DateOnly startDate, DateOnly endDate);
-    Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 0, int minDailyRiskScore = 0, int page = 1, int pageSize = 20);
+    Task<object> GetHighImpactAlertsAsync(int days = 7, int minMaxMatches = 0, int minDailyRiskScore = 0, int page = 1, int pageSize = 20, DateOnly? startDate = null, DateOnly? endDate = null);
 }
