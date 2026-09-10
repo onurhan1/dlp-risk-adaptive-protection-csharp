@@ -6,6 +6,7 @@ public static class InvestigationQueryStatus
     public const string Queried = "sorgulandi";
     public const string ReplyReview = "cevap_inceleme_bekliyor";
     public const string ReminderUnanswered = "hatirlatma_yanitsiz";
+    public const string Escalated = "ust_birime_aktarildi";
     public const string Completed = "tamamlandi";
 }
 

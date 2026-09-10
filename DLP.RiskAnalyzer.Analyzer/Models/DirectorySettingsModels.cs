@@ -149,6 +149,7 @@ public class LdapUserLookupResult
     public string? LastName { get; set; }
     public string? Department { get; set; }
     public string? Gender { get; set; }
+    public string? ManagerDistinguishedName { get; set; }
     public DateTime TestedAt { get; set; } = DateTime.UtcNow;
 }
 

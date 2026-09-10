@@ -436,6 +436,19 @@ public class DirectorySettingsService : IDirectorySettingsService
         return result;
     }
 
+    public async Task<LdapUserLookupResult> LookupLdapManagerAsync(string username, CancellationToken ct = default)
+    {
+        var employee = await LookupLdapUserAsync(username, ct);
+        if (!employee.Success || string.IsNullOrWhiteSpace(employee.ManagerDistinguishedName))
+            return LdapLookupResult(false, username, "LDAP yonetici bilgisi bulunamadi");
+
+        var managerCommonName = ExtractDistinguishedNameValue(employee.ManagerDistinguishedName, "CN");
+        if (string.IsNullOrWhiteSpace(managerCommonName))
+            return LdapLookupResult(false, username, "LDAP yonetici DN bilgisi okunamadi");
+
+        return await LookupLdapUserAsync(managerCommonName, ct);
+    }
+
     private async Task<LdapUserLookupResult> SearchLdapUserAsync(
         LdapSettingsResponse settings,
         string servicePassword,
@@ -549,6 +562,7 @@ public class DirectorySettingsService : IDirectorySettingsService
         var department = FirstAttribute(attributes, "department", "company", "physicalDeliveryOfficeName", "title");
         var gender = FirstAttribute(attributes, "gender", "sex", "personalTitle")
             ?? InferGenderFromMemberOf(FirstAttribute(attributes, "memberOf"));
+        var managerDn = FirstAttribute(attributes, "manager");
         if (string.IsNullOrWhiteSpace(fullName))
             fullName = string.Join(' ', new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
 
@@ -562,6 +576,7 @@ public class DirectorySettingsService : IDirectorySettingsService
             LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName.Trim(),
             Department = string.IsNullOrWhiteSpace(department) ? null : department.Trim(),
             Gender = string.IsNullOrWhiteSpace(gender) ? null : gender.Trim(),
+            ManagerDistinguishedName = string.IsNullOrWhiteSpace(managerDn) ? null : managerDn.Trim(),
             Message = "LDAP kullanicisi bulundu",
             TestedAt = DateTime.UtcNow
         };
@@ -1554,7 +1569,8 @@ public class DirectorySettingsService : IDirectorySettingsService
             BerOctetString("gender"),
             BerOctetString("sex"),
             BerOctetString("personalTitle"),
-            BerOctetString("memberOf"));
+            BerOctetString("memberOf"),
+            BerOctetString("manager"));
 
         return BuildLdapUserSearchRequest(messageId, searchBase, normalizedUsername, originalUsername, domain, attributes);
     }
@@ -1625,6 +1641,15 @@ public class DirectorySettingsService : IDirectorySettingsService
 
     private static byte[] BerEqualityFilter(string attribute, string value) =>
         BerConstructed(0xA3, BerOctetString(attribute), BerOctetString(value));
+
+    private static string? ExtractDistinguishedNameValue(string distinguishedName, string attribute)
+    {
+        var prefix = attribute + "=";
+        var component = distinguishedName.Split(',')
+            .Select(value => value.Trim())
+            .FirstOrDefault(value => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        return component == null ? null : component[prefix.Length..].Replace("\\,", ",").Trim();
+    }
 
     private static byte GetLdapProtocolOperationTag(byte[] response)
     {

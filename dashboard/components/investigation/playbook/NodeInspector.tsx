@@ -153,6 +153,12 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
             raporu icin Sorgu ve Hatirlatma Takibi kaynagini kullanin.
           </p>
         )}
+        {node.type === 'source.unansweredReminderEscalations' && (
+          <p style={hintStyle}>
+            Hatırlatma mailinden sonra en az 7 gün daha yanıt vermeyen kayıtları getirir. Mail Gönder node’unda
+            alıcıyı <strong>LDAP yöneticisi</strong> seçin; yönetici e-postası bulunamayan kayıtlar onayda kalır.
+          </p>
+        )}
         {node.type === 'source.queryTracking' && <QueryTrackingForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}
@@ -1269,6 +1275,7 @@ function SendMailForm({
           onChange={e => setConfig({ recipient_mode: e.target.value })}
         >
           <option value="user">İşaretlenen kullanıcının kendisi</option>
+          <option value="manager">Kullanıcının LDAP yöneticisi</option>
           <option value="fixed">Sabit bir adres</option>
         </select>
       </div>

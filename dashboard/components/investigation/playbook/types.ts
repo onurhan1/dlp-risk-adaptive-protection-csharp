@@ -29,6 +29,7 @@ export type PlaybookNodeType =
   | 'source.topActionUsers'
   | 'source.highMaxMatchTransfers'
   | 'source.pendingQueryReminders'
+  | 'source.unansweredReminderEscalations'
   | 'source.queryTracking'
   | 'transform.filter'
   | 'logic.condition'
@@ -387,6 +388,17 @@ export const NODE_CATALOG: NodeDefinition[] = [
     description: 'Ilk mailden en az 7 gun sonra cevap gelmeyen kullanicilar icin hatirlatma ve aday raporu hazirlar.',
     icon: Mail,
     color: 'linear-gradient(135deg, #d97706, #ea580c)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {},
+  },
+  {
+    type: 'source.unansweredReminderEscalations',
+    label: 'Yanıtsız Hatırlatma Eskalasyonu',
+    description: 'Hatırlatma sonrası 7 gün daha yanıt vermeyen kullanıcıları yönetici eskalasyonu için listeler.',
+    icon: Mail,
+    color: 'linear-gradient(135deg, #b91c1c, #ea580c)',
     category: 'Kaynak',
     inputs: 1,
     outputs: [{ handle: null }],

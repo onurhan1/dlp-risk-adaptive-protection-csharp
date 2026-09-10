@@ -15,5 +15,6 @@ public interface IDirectorySettingsService
     Task<DirectorySettingsTestResult> TestLdapAsync(LdapSettingsRequest request, CancellationToken ct = default);
     Task<LdapAuthenticationResult> AuthenticateLdapAsync(string username, string password, CancellationToken ct = default);
     Task<LdapUserLookupResult> LookupLdapUserAsync(string username, CancellationToken ct = default);
+    Task<LdapUserLookupResult> LookupLdapManagerAsync(string username, CancellationToken ct = default);
     Task<LdapAttributeDumpResult> DumpLdapUserAttributesAsync(string username, bool includeOperational = false, CancellationToken ct = default);
 }

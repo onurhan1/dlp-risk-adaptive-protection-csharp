@@ -14,7 +14,6 @@ import {
   Users,
   ChevronDown,
   Globe,
-  FileText as FileTextIcon,
   ListChecks,
   Pin,
   RotateCcw,
@@ -245,13 +244,6 @@ export default function Sidebar() {
                   >
                     <Globe size={16} />
                     <span>{t('nav.domainFeatures')}</span>
-                  </Link>
-                  <Link
-                    href="/exceptions/mercek-analiz"
-                    className={`sidebar-subitem ${pathname === '/exceptions/mercek-analiz' ? 'active' : ''}`}
-                  >
-                    <FileTextIcon size={16} />
-                    <span>{t('nav.mercekAnaliz')}</span>
                   </Link>
                   <Link
                     href="/exceptions/exception-list"

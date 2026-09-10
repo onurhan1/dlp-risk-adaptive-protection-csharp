@@ -310,6 +310,9 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourcePendingQueryReminders:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadPendingQueryRemindersAsync(context, ct)));
 
+            case PlaybookNodeType.SourceUnansweredReminderEscalations:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadUnansweredReminderEscalationsAsync(context, ct)));
+
             case PlaybookNodeType.SourceQueryTracking:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadQueryTrackingAsync(node, context, ct)));
 
@@ -721,6 +724,31 @@ public class PlaybookEngine : IPlaybookEngine
         items = await EnrichItemsAsync(items, ct);
 
         context.SetMessage($"Ilk gonderim veya sorgu tarihinden en az 7 gun sonra cevap gelmeyen {items.Count} sorgu listelendi");
+        return items;
+    }
+
+    private async Task<List<PlaybookItem>> LoadUnansweredReminderEscalationsAsync(SendContext context, CancellationToken ct)
+    {
+        var rows = await _context.InvestigationQueries
+            .Where(query => query.QueryStatus == InvestigationQueryStatus.ReminderUnanswered &&
+                            query.ReplyReceivedAt == null &&
+                            query.MailAddress.Contains("@"))
+            .OrderBy(query => query.ReminderSentAt)
+            .Take(MaxRecipientsPerRun)
+            .ToListAsync(ct);
+
+        var items = rows.Select(query => new PlaybookItem(
+            new WeeklyFlagUserDto(query.UserCode, query.FullName, query.Team, query.MailAddress, 1,
+                query.QueryDate ?? query.FirstSentAt ?? query.CreatedAt,
+                query.ReminderSentAt ?? query.UpdatedAt,
+                new List<WeeklyFlagIncidentDto>()),
+            PlaybookNodeType.SourceUnansweredReminderEscalations,
+            query.Id,
+            query.CorrelationCode,
+            query)).ToList();
+
+        items = await EnrichItemsAsync(items, ct);
+        context.SetMessage($"Hatirlatmaya yanit vermeyen {items.Count} kullanici yonetici eskalasyonu icin listelendi");
         return items;
     }
 
@@ -1294,7 +1322,16 @@ public class PlaybookEngine : IPlaybookEngine
         foreach (var item in input)
         {
             var user = item.User;
-            var toEmail = recipientMode == "fixed" ? fixedRecipient! : RecipientOf(user);
+            var manager = recipientMode == "manager"
+                ? await _directorySettings.LookupLdapManagerAsync(RecipientOf(user), ct)
+                : null;
+            var toEmail = recipientMode switch
+            {
+                "fixed" => fixedRecipient!,
+                "manager" when manager?.Success == true && !string.IsNullOrWhiteSpace(manager.Email) => manager.Email!,
+                "manager" => string.Empty,
+                _ => RecipientOf(user)
+            };
             var decision = ResolveTemplateForUser(node, item, defaultTemplate, templateCatalog, templateRules);
             var renderUser = WithPrimaryIncident(user, decision.Incident);
             var correlationCode = item.ExistingCorrelationCode ?? NewCorrelationCode();
@@ -1358,7 +1395,7 @@ public class PlaybookEngine : IPlaybookEngine
                     subject: entry.Subject,
                     body: entry.BodyHtml,
                     isHtml: true,
-                    toName: recipientMode == "fixed" ? null : (user.FullName ?? user.UserEmail),
+                    toName: recipientMode == "manager" ? manager?.FullName : recipientMode == "fixed" ? null : (user.FullName ?? user.UserEmail),
                     ccEmail: ccEmail);
 
                 if (success)
@@ -1630,11 +1667,35 @@ public class PlaybookEngine : IPlaybookEngine
     /// </summary>
     private async Task SyncQueryRecordsSafelyAsync(IEnumerable<PlaybookMailLog> mailLogs, CancellationToken ct)
     {
+        var escalationCodes = mailLogs
+            .Where(mail => mail.Status == PlaybookMailStatus.Sent &&
+                           mail.SourceCriterion == PlaybookNodeType.SourceUnansweredReminderEscalations &&
+                           !string.IsNullOrWhiteSpace(mail.CorrelationCode))
+            .Select(mail => mail.CorrelationCode!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (escalationCodes.Count > 0)
+        {
+            var escalatedQueries = await _context.InvestigationQueries
+                .Where(query => escalationCodes.Contains(query.CorrelationCode!))
+                .ToListAsync(ct);
+            foreach (var query in escalatedQueries)
+            {
+                query.QueryStatus = InvestigationQueryStatus.Escalated;
+                query.ResponseStatus = "Hatirlatmaya yanit gelmedi - ust birime aktarildi";
+                query.Action = "LDAP yoneticisine eskalasyon maili gonderildi";
+                query.UpdatedAt = DateTime.UtcNow;
+                query.UpdatedBy = "Workflow Eskalasyonu";
+            }
+            if (escalatedQueries.Count > 0) await _context.SaveChangesAsync(ct);
+        }
+
         // Report and metric mail are workflow artefacts, not user investigation queries.
         // A query record represents a mail that actually left the service account.
         // Pending entries stay solely in playbook_mail_log until they are approved and sent.
         var entries = mailLogs
-            .Where(mail => mail.Status == PlaybookMailStatus.Sent && IsInvestigationQueryMail(mail))
+            .Where(mail => mail.Status == PlaybookMailStatus.Sent && IsInvestigationQueryMail(mail) &&
+                           mail.SourceCriterion != PlaybookNodeType.SourceUnansweredReminderEscalations)
             .ToList();
         if (entries.Count == 0) return;
 
@@ -2021,6 +2082,7 @@ public class PlaybookEngine : IPlaybookEngine
         PlaybookNodeType.SourceHighRiskUsers => "Haftalık yüksek skorlu kullanıcı",
         PlaybookNodeType.SourceHighMaxMatchTransfers => "Yüksek maksimum eşleşmeli gönderim",
         PlaybookNodeType.SourcePendingQueryReminders => "Hatırlatma için cevap bekleyen sorgu",
+        PlaybookNodeType.SourceUnansweredReminderEscalations => "Yanıtsız hatırlatma yönetici eskalasyonu",
         "top_permit_users" => "En çok Permit olay kaydı",
         "top_block_users" => "En çok Block olay kaydı",
         WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),
@@ -2877,6 +2939,7 @@ public class PlaybookEngine : IPlaybookEngine
                 }
 
                 case PlaybookNodeType.SourcePendingQueryReminders:
+                case PlaybookNodeType.SourceUnansweredReminderEscalations:
                     break;
 
                 case PlaybookNodeType.SourceQueryTracking:
@@ -3004,6 +3067,7 @@ public class PlaybookEngine : IPlaybookEngine
                                              or PlaybookNodeType.SourceTopActionUsers
                                              or PlaybookNodeType.SourceHighMaxMatchTransfers
                                              or PlaybookNodeType.SourcePendingQueryReminders
+                                             or PlaybookNodeType.SourceUnansweredReminderEscalations
                                              or PlaybookNodeType.SourceQueryTracking))
                 result.Warnings.Add("Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.");
 
