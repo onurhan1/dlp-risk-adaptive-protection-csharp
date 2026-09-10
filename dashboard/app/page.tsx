@@ -160,6 +160,43 @@ interface ReminderOverview {
   reply_review?: number
 }
 
+interface MissingWeekdayMonthGroup {
+  year: number
+  month: number
+  monthLabel: string
+  days: number[]
+}
+
+function groupMissingWeekdays(dates: string[]): MissingWeekdayMonthGroup[] {
+  const grouped = new Map<string, MissingWeekdayMonthGroup>()
+
+  for (const value of dates) {
+    const date = new Date(`${value}T00:00:00`)
+    if (Number.isNaN(date.getTime())) continue
+
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const key = `${year}-${month}`
+    const existing = grouped.get(key)
+
+    if (existing) {
+      existing.days.push(date.getDate())
+      continue
+    }
+
+    grouped.set(key, {
+      year,
+      month,
+      monthLabel: new Intl.DateTimeFormat('tr-TR', { month: 'long' }).format(date),
+      days: [date.getDate()],
+    })
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) => right.year - left.year || right.month - left.month)
+    .map(group => ({ ...group, days: group.days.sort((left, right) => left - right) }))
+}
+
 export default function Home() {
   const router = useRouter()
   const { t } = useTranslation()
@@ -183,12 +220,21 @@ export default function Home() {
   const [topUsers24hPage, setTopUsers24hPage] = useState(1)
   const usersPerPage = 10
   const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
+  const missingWeekdayGroups = useMemo(
+    () => groupMissingWeekdays(actionSummary?.missing_weekdays ?? []),
+    [actionSummary?.missing_weekdays]
+  )
   const [reminderOverview, setReminderOverview] = useState<ReminderOverview | null>(null)
   const [actionDataDateRange, setActionDataDateRange] = useState<{ min: string; max: string } | null>(null)
+  const [availableIncidentDateRange, setAvailableIncidentDateRange] = useState<{ min: string; max: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [dailySummaryLoading, setDailySummaryLoading] = useState(true)
   const [selectedDimension, setSelectedDimension] = useState('department')
   const [dateRange, setDateRange] = useState({
+    start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    end: format(new Date(), 'yyyy-MM-dd')
+  })
+  const [draftDateRange, setDraftDateRange] = useState({
     start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
   })
@@ -366,11 +412,15 @@ export default function Home() {
       if (actionRes.data?.period_start && actionRes.data?.period_end) {
         setActionDataDateRange({ min: actionRes.data.period_start, max: actionRes.data.period_end })
       }
+      if (actionRes.data?.min_date && actionRes.data?.max_date) {
+        setAvailableIncidentDateRange({ min: actionRes.data.min_date, max: actionRes.data.max_date })
+      }
       // The first lightweight request discovers the oldest available incident date.
       // Once known, the dashboard defaults to the complete data range through today.
       if (!hasInitializedDashboardRange && actionRes.data?.min_date) {
         setHasInitializedDashboardRange(true)
         setDateRange((current) => ({ ...current, start: actionRes.data.min_date }))
+        setDraftDateRange((current) => ({ ...current, start: actionRes.data.min_date }))
       }
 
       // Set top users from new API (already normalized 0-100 scale with consistency factor)
@@ -405,13 +455,24 @@ export default function Home() {
   const applyDatePreset = (preset: 'today' | 'week' | '30days' | 'month' | 'previousMonth') => {
     const today = new Date()
     const end = format(today, 'yyyy-MM-dd')
-    if (preset === 'today') return setDateRange({ start: end, end })
-    if (preset === 'week') return setDateRange({ start: format(subDays(today, 6), 'yyyy-MM-dd'), end })
-    if (preset === '30days') return setDateRange({ start: format(subDays(today, 29), 'yyyy-MM-dd'), end })
-    if (preset === 'month') return setDateRange({ start: format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd'), end })
+    if (preset === 'today') return setDraftDateRange({ start: end, end })
+    if (preset === 'week') return setDraftDateRange({ start: format(subDays(today, 6), 'yyyy-MM-dd'), end })
+    if (preset === '30days') return setDraftDateRange({ start: format(subDays(today, 29), 'yyyy-MM-dd'), end })
+    if (preset === 'month') return setDraftDateRange({ start: format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd'), end })
     const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     const previousEnd = new Date(today.getFullYear(), today.getMonth(), 0)
-    setDateRange({ start: format(start, 'yyyy-MM-dd'), end: format(previousEnd, 'yyyy-MM-dd') })
+    setDraftDateRange({ start: format(start, 'yyyy-MM-dd'), end: format(previousEnd, 'yyyy-MM-dd') })
+  }
+
+  const applyDateRange = () => {
+    if (draftDateRange.start > draftDateRange.end) return
+    setDateRange(draftDateRange)
+  }
+
+  const resetDateRange = () => {
+    if (!availableIncidentDateRange) return
+    setDraftDateRange({ start: availableIncidentDateRange.min, end: availableIncidentDateRange.max })
+    setDateRange({ start: availableIncidentDateRange.min, end: availableIncidentDateRange.max })
   }
 
   // Manual collect: start collection
@@ -772,13 +833,27 @@ export default function Home() {
                 style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--background)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
               >{label}</button>
             ))}
-            <input type="date" className="filter-input" value={dateRange.start} max={dateRange.end}
-              onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))}
+            <input type="date" className="filter-input" value={draftDateRange.start} max={draftDateRange.end}
+              onChange={(event) => setDraftDateRange((current) => ({ ...current, start: event.target.value }))}
               style={{ padding: '6px 9px', fontSize: '13px' }} />
             <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>-</span>
-            <input type="date" className="filter-input" value={dateRange.end} min={dateRange.start} max={todayStr}
-              onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))}
+            <input type="date" className="filter-input" value={draftDateRange.end} min={draftDateRange.start} max={todayStr}
+              onChange={(event) => setDraftDateRange((current) => ({ ...current, end: event.target.value }))}
               style={{ padding: '6px 9px', fontSize: '13px' }} />
+            <button
+              type="button"
+              onClick={resetDateRange}
+              disabled={!availableIncidentDateRange}
+              title="İlk olay tarihinden son olay tarihine dön"
+              style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--background)', color: 'var(--text-secondary)', cursor: availableIncidentDateRange ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: '600', opacity: availableIncidentDateRange ? 1 : 0.55 }}
+            >Tüm Veriler</button>
+            <button
+              type="button"
+              onClick={applyDateRange}
+              disabled={draftDateRange.start > draftDateRange.end ||
+                (draftDateRange.start === dateRange.start && draftDateRange.end === dateRange.end)}
+              style={{ padding: '6px 12px', border: '1px solid #2563eb', borderRadius: '6px', background: '#2563eb', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '700', opacity: draftDateRange.start > draftDateRange.end || (draftDateRange.start === dateRange.start && draftDateRange.end === dateRange.end) ? 0.55 : 1 }}
+            >Uygula</button>
           </div>
         </div>
       </section>
@@ -1139,9 +1214,20 @@ export default function Home() {
             </div>
           </div>
           {(actionSummary.missing_weekdays || []).length > 0 && (
-            <div style={{ marginTop: '16px', padding: '10px 12px', border: '1px solid rgba(245, 158, 11, 0.45)', borderLeft: '4px solid #f59e0b', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', color: 'var(--text-primary)', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+            <div style={{ marginTop: '16px', padding: '12px', border: '1px solid rgba(245, 158, 11, 0.45)', borderLeft: '4px solid #f59e0b', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', color: 'var(--text-primary)', fontSize: '13px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <AlertCircle size={17} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
-              <span><strong>Veri alınamayan iş günleri:</strong> {actionSummary.missing_weekdays?.join(', ')}</span>
+              <div style={{ minWidth: 0 }}>
+                <strong>Veri alınamayan iş günleri ({actionSummary.missing_weekdays?.length}):</strong>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: '7px' }}>
+                  {missingWeekdayGroups.map(group => (
+                    <div key={`${group.year}-${group.month}`} style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                      <span style={{ fontWeight: 700, color: '#b45309' }}>{group.year}</span>
+                      <span>{group.monthLabel}:</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{group.days.join(', ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

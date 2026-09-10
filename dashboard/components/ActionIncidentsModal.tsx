@@ -193,8 +193,7 @@ export default function ActionIncidentsModal({
     initialEndDate
 }: ActionIncidentsModalProps) {
     const { t } = useTranslation()
-    // Single day mode when initialDate is provided
-    const isSingleDayMode = !!initialDate
+    const hasProvidedDateRange = !!(initialDate || (initialStartDate && initialEndDate))
 
     // Filter options from API
     const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
@@ -219,6 +218,17 @@ export default function ActionIncidentsModal({
         policy: '',
         rule: ''
     })
+
+    // Reuse the dashboard's current range each time the modal is opened.
+    // Without this, a previously opened modal could retain an older range.
+    useEffect(() => {
+        if (!isOpen || !hasProvidedDateRange) return
+
+        setDateRange({
+            start: initialDate || initialStartDate || format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+            end: initialDate || initialEndDate || format(new Date(), 'yyyy-MM-dd')
+        })
+    }, [isOpen, hasProvidedDateRange, initialDate, initialStartDate, initialEndDate])
 
     // Debounced filters for server-side search
     const debouncedUser = useDebounce(filters.user, 500)
@@ -245,8 +255,9 @@ export default function ActionIncidentsModal({
             })
             setFilterOptions(response.data)
 
-            // Set default date range from API if not single day mode
-            if (!isSingleDayMode && response.data.date_range) {
+            // Keep the dashboard/report range when it was explicitly supplied.
+            // The API-wide range is only the default for standalone modal usage.
+            if (!hasProvidedDateRange && response.data.date_range) {
                 setDateRange({
                     start: response.data.date_range.min_date,
                     end: response.data.date_range.max_date
@@ -349,16 +360,6 @@ export default function ActionIncidentsModal({
 
     const actionColor = actionColors[action] || '#3b82f6'
 
-    const dateInputStyle = {
-        padding: '8px 12px',
-        fontSize: '13px',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        backgroundColor: 'var(--background)',
-        color: 'var(--text-primary)',
-        outline: 'none'
-    }
-
     return (
         <>
             {/* Backdrop */}
@@ -447,7 +448,7 @@ export default function ActionIncidentsModal({
                         </button>
                     </div>
 
-                    {/* Date Range Row */}
+                    {/* The dashboard owns the date filter; this is context only. */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -458,32 +459,9 @@ export default function ActionIncidentsModal({
                         borderRadius: '8px'
                     }}>
                         <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {t('modal.dateRange')}:</span>
-                        {isSingleDayMode ? (
-                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                                {new Date(dateRange.start).toLocaleDateString('en-US', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}
-                            </span>
-                        ) : (
-                            <>
-                                <input
-                                    type="date"
-                                    value={dateRange.start}
-                                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                    style={dateInputStyle}
-                                />
-                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{t('common.to')}</span>
-                                <input
-                                    type="date"
-                                    value={dateRange.end}
-                                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                    style={dateInputStyle}
-                                />
-                            </>
-                        )}
+                        <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
+                            {dateRange.start} {t('common.to')} {dateRange.end}
+                        </span>
                     </div>
 
                     {/* Filters Row */}

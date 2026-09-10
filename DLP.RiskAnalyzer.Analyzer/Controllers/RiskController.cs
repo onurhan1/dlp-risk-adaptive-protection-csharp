@@ -128,16 +128,15 @@ public class RiskController : ControllerBase
 
     private static string NormalizeAction(string? action)
     {
-        var value = (action ?? string.Empty).Trim().ToUpperInvariant();
+        // Keep the action cards aligned with /api/risk/incidents/by-action.
+        // That endpoint counts only the displayed action value (plus BLOCKED /
+        // QUARANTINED aliases), so do not fold other legacy values into a card.
+        var value = (action ?? string.Empty).ToUpperInvariant();
         return value switch
         {
             "" => "UNKNOWN",
-            "PERMIT" => "AUTHORIZED",
-            "PERMITTED" => "AUTHORIZED",
-            "AUTHORISED" => "AUTHORIZED",
             "BLOCKED" => "BLOCK",
             "QUARANTINED" => "QUARANTINE",
-            "RELEASE" => "RELEASED",
             _ => value
         };
     }
