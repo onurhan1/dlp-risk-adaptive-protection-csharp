@@ -67,6 +67,35 @@ public static class ViolationTriggerParser
     }
 
     /// <summary>
+    /// Returns all distinct policy names found across the trigger list. An
+    /// incident can match more than one policy, so callers must not rely only
+    /// on the incident's summary Policy column for policy-level analytics.
+    /// </summary>
+    public static IReadOnlyList<string> ExtractAllPolicyNames(string? violationTriggersJson)
+    {
+        var results = new List<string>();
+        if (string.IsNullOrEmpty(violationTriggersJson)) return results;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(violationTriggersJson);
+            var root = doc.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Array) return results;
+
+            foreach (var trigger in root.EnumerateArray())
+            {
+                var name = GetStringProperty(trigger, "PolicyName", "policy_name", "policyName");
+                if (!string.IsNullOrEmpty(name) && !results.Contains(name))
+                    results.Add(name);
+            }
+        }
+        catch (JsonException) { /* Malformed JSON returns a safe empty result. */ }
+
+        return results;
+    }
+
+    /// <summary>
     /// Calculates the maximum NumberMatches value across all classifiers in all triggers.
     /// Returns 0 if not found or JSON is invalid.
     /// </summary>

@@ -77,10 +77,13 @@ public class RiskIncidentsController : ControllerBase
 
             // ── M-02: Rule extraction via ViolationTriggerParser ─────────────
             var rules = new HashSet<string>();
+            var policyNames = new HashSet<string>(policies);
             foreach (var triggerJson in triggers)
             {
                 foreach (var ruleName in ViolationTriggerParser.ExtractAllRuleNames(triggerJson))
                     rules.Add(ruleName);
+                foreach (var policyName in ViolationTriggerParser.ExtractAllPolicyNames(triggerJson))
+                    policyNames.Add(policyName);
             }
 
             return Ok(new
@@ -88,7 +91,7 @@ public class RiskIncidentsController : ControllerBase
                 users        = users,
                 destinations = destinations,
                 channels     = channels,
-                policies     = policies,
+                policies     = policyNames.OrderBy(policyName => policyName).ToList(),
                 rules        = rules.OrderBy(r => r).ToList(),
                 dateRange = new
                 {
@@ -258,8 +261,8 @@ public class RiskIncidentsController : ControllerBase
             // Action filter
             if (normalizedAction != "TOTAL")
             {
-                query = query.Where(i => i.Action != null && 
-                           (i.Action.ToUpper() == normalizedAction || 
+                query = query.Where(i => i.Action != null &&
+                           (i.Action.ToUpper() == normalizedAction ||
                             (normalizedAction == "BLOCK" && i.Action.ToUpper() == "BLOCKED") ||
                             (normalizedAction == "QUARANTINE" && i.Action.ToUpper() == "QUARANTINED")));
             }
@@ -297,7 +300,10 @@ public class RiskIncidentsController : ControllerBase
             // Policy filter
             if (!string.IsNullOrEmpty(policy))
             {
-                query = query.Where(i => i.Policy != null && i.Policy.ToLower().Contains(policy.ToLower()));
+                var policyLower = policy.ToLower();
+                query = query.Where(i =>
+                    (i.Policy != null && i.Policy.ToLower().Contains(policyLower)) ||
+                    (i.ViolationTriggers != null && i.ViolationTriggers.ToLower().Contains(policyLower)));
             }
 
             // Rule filter - filter by ViolationTriggers containing the rule name

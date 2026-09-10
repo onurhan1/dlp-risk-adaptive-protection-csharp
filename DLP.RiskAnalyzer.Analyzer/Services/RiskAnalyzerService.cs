@@ -1,4 +1,5 @@
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Constants;
@@ -368,29 +369,57 @@ public class RiskAnalyzerService : IRiskAnalyzerService
             start = end.AddDays(-days);
         }
 
-        var ruleStats = await _context.Incidents
+        var incidents = await _context.Incidents
+            .AsNoTracking()
             .Where(i => i.Timestamp >= start.ToDateTime(TimeOnly.MinValue) && 
                         i.Timestamp <= end.ToDateTime(TimeOnly.MaxValue))
-            .Where(i => i.Policy != null && i.Policy != "")
-            .GroupBy(i => i.Policy)
-            .Select(g => new
+            .Select(i => new
             {
-                RuleName = g.Key!,
-                TotalAlerts = g.Count(),
-                AvgRiskScore = g.Average(i => (double)(i.RiskScore ?? 0)),
-                UniqueUsers = g.Select(i => i.UserEmail).Distinct().Count()
+                i.Id,
+                i.Policy,
+                i.ViolationTriggers,
+                i.RiskScore,
+                i.UserEmail
             })
-            .OrderByDescending(r => r.TotalAlerts)
-            .Take(limit)
             .ToListAsync();
 
-        return ruleStats.Select(r => new TopRuleItem
+        // A single incident may contain several policy triggers. Count it once
+        // under every matched policy so the policy table and detail filter use
+        // the same incident set.
+        var policyStats = new Dictionary<string, List<(int RiskScore, string UserEmail)>>(StringComparer.Ordinal);
+        foreach (var incident in incidents)
         {
-            RuleName     = r.RuleName,
-            TotalAlerts  = r.TotalAlerts,
-            AvgRiskScore = Math.Round(r.AvgRiskScore, 1),
-            UniqueUsers  = r.UniqueUsers
-        }).ToList();
+            var policies = ViolationTriggerParser.ExtractAllPolicyNames(incident.ViolationTriggers);
+            if (policies.Count == 0 && !string.IsNullOrWhiteSpace(incident.Policy))
+                policies = [incident.Policy];
+
+            foreach (var policy in policies)
+            {
+                if (!policyStats.TryGetValue(policy, out var matches))
+                {
+                    matches = [];
+                    policyStats[policy] = matches;
+                }
+
+                matches.Add((incident.RiskScore ?? 0, incident.UserEmail));
+            }
+        }
+
+        return policyStats
+            .OrderByDescending(entry => entry.Value.Count)
+            .Take(limit)
+            .Select(entry => new TopRuleItem
+            {
+                RuleName = entry.Key,
+                TotalAlerts = entry.Value.Count,
+                AvgRiskScore = Math.Round(entry.Value.Average(match => match.RiskScore), 1),
+                UniqueUsers = entry.Value
+                    .Select(match => match.UserEmail)
+                    .Where(email => !string.IsNullOrWhiteSpace(email))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count()
+            })
+            .ToList();
     }
 
     /// <summary>

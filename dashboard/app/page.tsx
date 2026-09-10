@@ -192,7 +192,7 @@ function groupMissingWeekdays(dates: string[]): MissingWeekdayMonthGroup[] {
     })
   }
 
-  return [...grouped.values()]
+  return Array.from(grouped.values())
     .sort((left, right) => right.year - left.year || right.month - left.month)
     .map(group => ({ ...group, days: group.days.sort((left, right) => left - right) }))
 }
