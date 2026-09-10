@@ -73,6 +73,7 @@ public static class PlaybookNodeType
     public const string LogicMetricThreshold = "logic.metricThreshold";
     public const string ActionSendMail = "action.sendMail";
     public const string ActionSendReportMail = "action.sendReportMail";
+    public const string ActionSendTemporaryExceptionsReport = "action.sendTemporaryExceptionsReport";
     public const string OutputReport = "output.report";
 
     public static readonly string[] All =
@@ -80,7 +81,7 @@ public static class PlaybookNodeType
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
         SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceUnansweredReminderEscalations, SourceTemporaryExceptions, SourceQueryTracking,
         TransformFilter, LogicCondition, LogicMetricThreshold,
-        ActionSendMail, ActionSendReportMail, OutputReport
+        ActionSendMail, ActionSendReportMail, ActionSendTemporaryExceptionsReport, OutputReport
     };
 
     public static bool IsTrigger(string type) =>

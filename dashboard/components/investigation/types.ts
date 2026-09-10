@@ -36,6 +36,7 @@ export interface WeeklyFlagsResult {
 /** Placeholders supported in mail templates, filled from the flagged user. */
 export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{kullanici}}', desc: 'Kullanıcı e-postası' },
+  { token: '{{kullanici_adi}}', desc: 'Kullanıcı adı / giriş adı' },
   { token: '{{tam_ad}}', desc: 'LDAP adıyla hitap' },
   { token: '{{ad_soyad}}', desc: 'LDAP ad soyad' },
   { token: '{{full_name}}', desc: 'LDAP ad soyad' },
@@ -52,6 +53,11 @@ export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{kural}}', desc: 'En yüksek eşleşmeli olayın policy/rule bilgisi' },
   { token: '{{max_match}}', desc: 'En yüksek eşleşme sayısı' },
   { token: '{{max_matches}}', desc: 'En yüksek eşleşme sayısı' },
+  { token: '{{ilk_talep_tarihi}}', desc: 'İlk sorgu mailinin gönderim tarihi' },
+  { token: '{{hatirlatma_tarihi}}', desc: 'Son hatırlatma mailinin gönderim tarihi' },
+  { token: '{{hatirlatma_tarihleri}}', desc: 'Son hatırlatma mailinin gönderim tarihi' },
+  { token: '{{hatirlatma_sayisi}}', desc: 'Gönderilen hatırlatma sayısı' },
+  { token: '{{olay_ozeti}}', desc: 'Olay politikası veya ilk sorgu maili konusu' },
   { token: '{{olaylar}}', desc: 'Örnek olay (incident) özeti' },
 ]
 
@@ -103,6 +109,7 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
   const fullName = user.full_name || user.user_email
   return text
     .replaceAll('{{kullanici}}', user.contact_email || user.user_email)
+    .replaceAll('{{kullanici_adi}}', user.user_email)
     .replaceAll('{{tam_ad}}', salutationName(user))
     .replaceAll('{{ad_soyad}}', fullName)
     .replaceAll('{{full_name}}', fullName)
@@ -119,6 +126,11 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
     .replaceAll('{{kural}}', primaryIncident?.policy || '-')
     .replaceAll('{{max_match}}', String(primaryIncident?.max_matches ?? '-'))
     .replaceAll('{{max_matches}}', String(primaryIncident?.max_matches ?? '-'))
+    .replaceAll('{{ilk_talep_tarihi}}', '-')
+    .replaceAll('{{hatirlatma_tarihi}}', '-')
+    .replaceAll('{{hatirlatma_tarihleri}}', '-')
+    .replaceAll('{{hatirlatma_sayisi}}', '-')
+    .replaceAll('{{olay_ozeti}}', primaryIncident?.policy || '-')
     .replaceAll('{{olaylar}}', incidentsSummary || '-')
 }
 

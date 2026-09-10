@@ -156,13 +156,15 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
         {node.type === 'source.unansweredReminderEscalations' && (
           <p style={hintStyle}>
             Hatırlatma mailinden sonra en az 7 gün daha yanıt vermeyen kayıtları getirir. Mail Gönder node’unda
-            alıcıyı <strong>LDAP yöneticisi</strong> seçin; yönetici e-postası bulunamayan kayıtlar onayda kalır.
+            alıcıyı <strong>LDAP yöneticisi</strong> seçin; ardından Rapor Maili Gönder node’unu ekip adresine ve
+            Rapor Çıktısı node’unu akışın sonuna bağlayın. Çıktı, hangi kullanıcı için hangi yöneticiye mailin
+            gönderildiğini veya onay beklediğini listeler.
           </p>
         )}
         {node.type === 'source.temporaryExceptions' && (
           <p style={hintStyle}>
             Adı Geçici/gecici ile başlayan tüm istisnaları, politika-kural bağlamı ve aktiflik bilgisiyle listeler.
-            Zamanlama node’unu her gün 16:30’a, Mail Gönder yerine Rapor Maili Gönder node’unu ekip adresine bağlayın.
+            Zamanlama node’unu her gün 16:30’a, <strong>Geçici İstisna Raporu Gönder</strong> node’unu ekip adresine bağlayın.
           </p>
         )}
         {node.type === 'source.queryTracking' && <QueryTrackingForm node={node} setConfig={setConfig} />}
@@ -173,6 +175,7 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
           <SendMailForm node={node} setConfig={setConfig} templates={templates} inMetricFlow={inMetricFlow} />
         )}
         {node.type === 'action.sendReportMail' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={inReminderFlow} inTrackingFlow={inTrackingFlow} />}
+        {node.type === 'action.sendTemporaryExceptionsReport' && <ReportMailForm node={node} setConfig={setConfig} inReminderFlow={false} inTrackingFlow={false} isTemporaryExceptionReport />}
         {node.type === 'output.report' && (
           <div>
             <label style={labelStyle}>Rapor Başlığı</label>
@@ -823,7 +826,7 @@ function MetricThresholdForm({ node, setConfig }: { node: PlaybookNode; setConfi
   )
 }
 
-function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean; inTrackingFlow: boolean }) {
+function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow, isTemporaryExceptionReport = false }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void; inReminderFlow: boolean; inTrackingFlow: boolean; isTemporaryExceptionReport?: boolean }) {
   const recipient = String(node.config.fixed_recipient ?? '').trim()
   const ccEmail = String(node.config.cc_email ?? '').trim()
   const incidentColumns = [
@@ -943,7 +946,7 @@ function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow }: { n
       </label>
       <p style={{ ...hintStyle, marginTop: '-4px' }}>HTML rapor mail gövdesinde kalır; seçildiğinde aynı tablo PDF eki olarak da gönderilir.</p>
 
-      <div style={inTrackingFlow ? { display: 'none' } : undefined}>
+      <div style={inTrackingFlow || isTemporaryExceptionReport ? { display: 'none' } : undefined}>
         <label style={labelStyle}>Rapor Sutunlari</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 10px' }}>
           {reportColumns.map(([value, label, description]) => (
@@ -982,6 +985,12 @@ function ReportMailForm({ node, setConfig, inReminderFlow, inTrackingFlow }: { n
         <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
           Bu kaynak sabit takip tablosu uretir: kullanici, ilk sorgu, hatirlatma, cevap ve son islem durumlari ayni raporda gorunur.
           Sutun sirasi takip raporunun anlami korunacak sekilde sabittir.
+        </div>
+      )}
+
+      {isTemporaryExceptionReport && (
+        <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          Bu node sabit geçici istisna tablosu üretir: politika, kural, istisna adı, aktiflik ve son senkron bilgileri birlikte gönderilir.
         </div>
       )}
 

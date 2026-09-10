@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 
 namespace DLP.RiskAnalyzer.Analyzer.Helpers;
@@ -24,7 +25,11 @@ public static class PlaybookMailRenderer
     private static readonly Regex HtmlDocument = new(@"<html[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Substitutes the template placeholders for a flagged user.</summary>
-    public static string ApplyPlaceholders(string? text, WeeklyFlagUserDto user, DateTime nowUtc)
+    public static string ApplyPlaceholders(
+        string? text,
+        WeeklyFlagUserDto user,
+        DateTime nowUtc,
+        InvestigationQueryRecord? investigationQuery = null)
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
 
@@ -32,11 +37,19 @@ public static class PlaybookMailRenderer
         var primary = incidents.FirstOrDefault();
         var incidentDate = primary?.Timestamp ?? user.LastSeen;
         var fullName = string.IsNullOrWhiteSpace(user.FullName) ? user.UserEmail : user.FullName;
+        var firstRequestAt = investigationQuery?.FirstSentAt ?? investigationQuery?.QueryDate;
+        var reminderAt = investigationQuery?.ReminderSentAt;
+        var incidentSummary = primary?.Policy
+            ?? investigationQuery?.Subject
+            ?? investigationQuery?.Notes
+            ?? investigationQuery?.Action
+            ?? "-";
         var summary = string.Join("\n", incidents.Select(i =>
             $"- {i.Timestamp.ToString(DateTimeFormat)} | {Dash(i.Policy)} | {i.MaxMatches} eşleşme | {Dash(i.Destination)}"));
 
         return text
             .Replace("{{kullanici}}", string.IsNullOrWhiteSpace(user.ContactEmail) ? user.UserEmail : user.ContactEmail)
+            .Replace("{{kullanici_adi}}", user.UserEmail)
             .Replace("{{tam_ad}}", SalutationName(user))
             .Replace("{{ad_soyad}}", fullName)
             .Replace("{{full_name}}", fullName)
@@ -53,8 +66,16 @@ public static class PlaybookMailRenderer
             .Replace("{{kural}}", Dash(primary?.Policy))
             .Replace("{{max_match}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{max_matches}}", primary?.MaxMatches.ToString() ?? "-")
+            .Replace("{{ilk_talep_tarihi}}", FormatTurkeyDate(firstRequestAt))
+            .Replace("{{hatirlatma_tarihi}}", FormatTurkeyDate(reminderAt))
+            .Replace("{{hatirlatma_tarihleri}}", FormatTurkeyDate(reminderAt))
+            .Replace("{{hatirlatma_sayisi}}", investigationQuery?.ReminderCount.ToString() ?? "0")
+            .Replace("{{olay_ozeti}}", incidentSummary)
             .Replace("{{olaylar}}", summary.Length > 0 ? summary : "-");
     }
+
+    private static string FormatTurkeyDate(DateTime? value) =>
+        value.HasValue ? RadarTimeZone.ToTurkeyTime(value.Value).ToString(DateFormat) : "-";
 
     private static string SalutationName(WeeklyFlagUserDto user)
     {

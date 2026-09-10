@@ -332,6 +332,7 @@ public class PlaybookEngine : IPlaybookEngine
                 return SingleOutput(await SendMailsAsync(node, input, playbook, run, context, ct));
 
             case PlaybookNodeType.ActionSendReportMail:
+            case PlaybookNodeType.ActionSendTemporaryExceptionsReport:
                 return SingleOutput(await SendReportMailAsync(node, input, playbook, run, context, ct));
 
             case PlaybookNodeType.OutputReport:
@@ -1382,6 +1383,10 @@ public class PlaybookEngine : IPlaybookEngine
             var decision = ResolveTemplateForUser(node, item, defaultTemplate, templateCatalog, templateRules);
             var renderUser = WithPrimaryIncident(user, decision.Incident);
             var correlationCode = item.ExistingCorrelationCode ?? NewCorrelationCode();
+            var effectiveCcEmail = recipientMode == "manager" &&
+                                   item.SourceCriterion == PlaybookNodeType.SourceUnansweredReminderEscalations
+                ? CombineCcEmails(ccEmail, RecipientOf(user))
+                : ccEmail;
 
             var entry = new PlaybookMailLog
             {
@@ -1392,10 +1397,10 @@ public class PlaybookEngine : IPlaybookEngine
                 FullName = user.FullName,
                 Team = user.Team,
                 ToEmail = toEmail,
-                CcEmail = ccEmail,
-                Subject = PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now),
+                CcEmail = effectiveCcEmail,
+                Subject = PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Subject, renderUser, now, item.InvestigationQuery),
                 BodyHtml = PlaybookMailRenderer.ToEmailHtml(
-                    PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Body, renderUser, now)),
+                    PlaybookMailRenderer.ApplyPlaceholders(decision.Template.Body, renderUser, now, item.InvestigationQuery)),
                 TemplateId = decision.TemplateId,
                 TemplateName = decision.TemplateName,
                 TemplateMatchReason = decision.MatchReason,
@@ -1433,7 +1438,14 @@ public class PlaybookEngine : IPlaybookEngine
             {
                 entry.Status = PlaybookMailStatus.Pending;
                 queryLogEntries.Add(entry);
-                processed.Add(item);
+                processed.Add(item with
+                {
+                    Delivery = new MailDeliveryDetails(
+                        recipientMode == "manager" ? manager?.FullName : null,
+                        toEmail,
+                        "Onay bekliyor",
+                        entry.Subject)
+                });
             }
             else
             {
@@ -1443,14 +1455,21 @@ public class PlaybookEngine : IPlaybookEngine
                     body: entry.BodyHtml,
                     isHtml: true,
                     toName: recipientMode == "manager" ? manager?.FullName : recipientMode == "fixed" ? null : (user.FullName ?? user.UserEmail),
-                    ccEmail: ccEmail);
+                    ccEmail: effectiveCcEmail);
 
                 if (success)
                 {
                     entry.Status = PlaybookMailStatus.Sent;
                     entry.SentAt = DateTime.UtcNow;
                     queryLogEntries.Add(entry);
-                    processed.Add(item);
+                    processed.Add(item with
+                    {
+                        Delivery = new MailDeliveryDetails(
+                            recipientMode == "manager" ? manager?.FullName : null,
+                            toEmail,
+                            "Gönderildi",
+                            entry.Subject)
+                    });
                 }
                 else
                 {
@@ -1863,6 +1882,8 @@ public class PlaybookEngine : IPlaybookEngine
             return BuildReportMailHtml(title, intro, payload, now);
         if (payload.Items.Any(item => item.TemporaryException != null))
             return BuildTemporaryExceptionsReportHtml(title, intro, payload, now);
+        if (payload.Items.Any(item => item.Delivery != null))
+            return BuildDeliveryReportHtml(title, intro, payload, now);
         if (payload.Items.Any(item => item.Tracking != null))
             return BuildQueryTrackingReportHtml(title, intro, payload, now);
 
@@ -1985,6 +2006,26 @@ public class PlaybookEngine : IPlaybookEngine
             return new WorkflowTableReport(title, intro, now, headers, rows);
         }
 
+        if (payload.Items.Any(item => item.Delivery != null))
+        {
+            var headers = new[] { "Kullanıcı", "Kullanıcı adı", "Birim", "Yönetici / Alıcı", "Alıcı e-posta", "Mail durumu", "Konu" };
+            var rows = payload.Items.Select(item =>
+            {
+                var delivery = item.Delivery!;
+                return (IReadOnlyList<string>)new[]
+                {
+                    item.User.FullName ?? item.User.UserEmail,
+                    item.User.UserEmail,
+                    item.User.Team ?? "-",
+                    delivery.RecipientName ?? "-",
+                    delivery.RecipientEmail,
+                    delivery.Status,
+                    delivery.Subject
+                };
+            }).ToList();
+            return new WorkflowTableReport(title, intro, now, headers, rows);
+        }
+
         var selectedColumns = columns.Where(IsReportColumn).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (selectedColumns.Count == 0) selectedColumns = DefaultReportColumns.ToList();
         var tableRows = payload.Items.Select(item =>
@@ -2016,6 +2057,21 @@ public class PlaybookEngine : IPlaybookEngine
             }));
 
         return $@"<html><head>{ReportMailStyles()}</head><body><div class=""wrap""><div class=""header""><h1>{Encode(title)}</h1></div><div class=""content"">{introHtml}<div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})</div><table><thead><tr><th>#</th><th>Politika</th><th>Kural</th><th>İstisna Adı</th><th>Aktiflik</th><th>Son Senkron</th></tr></thead><tbody>{rowHtml}</tbody></table></div></div></body></html>";
+    }
+
+    private static string BuildDeliveryReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
+    {
+        var introHtml = string.IsNullOrWhiteSpace(intro)
+            ? "<div class=\"intro\">Yöneticilere gönderilen veya onay için hazırlanan yanıtsız hatırlatma eskalasyonları listelenmiştir.</div>"
+            : $"<div class=\"intro\">{Encode(intro)}</div>";
+        var rows = string.Join("", payload.Items.Select((item, index) =>
+        {
+            var delivery = item.Delivery!;
+            return $"<tr><td>{index + 1}</td><td>{Encode(item.User.FullName ?? item.User.UserEmail)}</td><td>{Encode(item.User.UserEmail)}</td><td>{Encode(item.User.Team ?? "-")}</td><td>{Encode(delivery.RecipientName ?? "-")}</td><td>{Encode(delivery.RecipientEmail)}</td><td>{Encode(delivery.Status)}</td></tr>";
+        }));
+        if (string.IsNullOrEmpty(rows)) rows = "<tr><td colspan=\"7\" class=\"empty\">Kayıt bulunamadı.</td></tr>";
+
+        return $@"<html><head>{ReportMailStyles()}</head><body><div class=""wrap""><div class=""header""><h1>{Encode(title)}</h1></div><div class=""content"">{introHtml}<div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})</div><table><thead><tr><th>#</th><th>Kullanıcı</th><th>Kullanıcı adı</th><th>Birim</th><th>Yönetici / Alıcı</th><th>Alıcı e-posta</th><th>Mail durumu</th></tr></thead><tbody>{rows}</tbody></table></div></div></body></html>";
     }
 
     private static string BuildQueryTrackingReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
@@ -2798,6 +2854,17 @@ public class PlaybookEngine : IPlaybookEngine
     private static string RecipientOf(WeeklyFlagUserDto user) =>
         string.IsNullOrWhiteSpace(user.ContactEmail) ? user.UserEmail : user.ContactEmail;
 
+    private static string? CombineCcEmails(string? configuredCc, string? automaticCc)
+    {
+        var recipients = new[] { configuredCc, automaticCc }
+            .Where(IsValidEmail)
+            .Select(email => email!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return recipients.Count == 0 ? null : string.Join(";", recipients);
+    }
+
     // ── Approval of pending (dry-run) mails ──────────────────────────────────
 
     public async Task<(int Sent, int Failed)> ApprovePendingAsync(int runId, int? mailLogId, CancellationToken ct = default)
@@ -3089,6 +3156,7 @@ public class PlaybookEngine : IPlaybookEngine
                 }
 
                 case PlaybookNodeType.ActionSendReportMail:
+                case PlaybookNodeType.ActionSendTemporaryExceptionsReport:
                 {
                     var fixedRecipient = node.GetString("fixed_recipient");
                     if (!string.IsNullOrWhiteSpace(fixedRecipient) && !IsValidEmail(fixedRecipient))
@@ -3164,7 +3232,8 @@ public class PlaybookEngine : IPlaybookEngine
                     $"'{node.Label}' bir Metrik Eşiği node'una bağlı değil; mail eşik kontrolü olmadan " +
                     "her çalıştırmada gönderilir.");
             if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.ActionSendMail
-                                             or PlaybookNodeType.ActionSendReportMail))
+                                             or PlaybookNodeType.ActionSendReportMail
+                                             or PlaybookNodeType.ActionSendTemporaryExceptionsReport))
                 result.Warnings.Add("Akışta mail gönderme adımı yok.");
             if (!graph.Nodes.Any(n => n.Type == PlaybookNodeType.OutputReport))
                 result.Warnings.Add("Akışta rapor çıktısı yok; sonuçlar yine de mail kaydına yazılır.");

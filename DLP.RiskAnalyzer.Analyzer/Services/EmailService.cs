@@ -97,10 +97,14 @@ public class EmailService : IEmailService
 
             message.To.Add(new MailAddress(toEmail, toName ?? toEmail));
 
-            if (!string.IsNullOrWhiteSpace(ccEmail) &&
-                !string.Equals(ccEmail, toEmail, StringComparison.OrdinalIgnoreCase))
+            var ccRecipients = (ccEmail ?? string.Empty)
+                .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(address => !string.Equals(address, toEmail, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var ccRecipient in ccRecipients)
             {
-                message.CC.Add(new MailAddress(ccEmail));
+                message.CC.Add(new MailAddress(ccRecipient));
             }
 
             foreach (var attachment in attachments)

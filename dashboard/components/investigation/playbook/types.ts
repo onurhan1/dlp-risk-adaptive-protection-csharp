@@ -37,6 +37,7 @@ export type PlaybookNodeType =
   | 'logic.metricThreshold'
   | 'action.sendMail'
   | 'action.sendReportMail'
+  | 'action.sendTemporaryExceptionsReport'
   | 'output.report'
 
 export interface PlaybookNode {
@@ -512,6 +513,24 @@ export const NODE_CATALOG: NodeDefinition[] = [
     },
   },
   {
+    type: 'action.sendTemporaryExceptionsReport',
+    label: 'Geçici İstisna Raporu Gönder',
+    description: 'Geçici istisnaları sabit politika, kural, istisna ve aktiflik tablosuyla ekip adresine gönderir.',
+    icon: Mail,
+    color: 'linear-gradient(135deg, #b45309, #d97706)',
+    category: 'İşlem',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {
+      title: 'Günlük Geçici İstisna Uyarısı',
+      fixed_recipient: '',
+      cc_email: '',
+      subject_override: '',
+      intro: '',
+      attach_pdf: false,
+    },
+  },
+  {
     type: 'output.report',
     label: 'Rapor Çıktısı',
     description: 'Gönderimleri tarih, konu ve durumla raporlar; dışa aktarılabilir.',
@@ -681,6 +700,9 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
     case 'action.sendReportMail':
       return `${config.title || 'Rapor'} -> ${config.fixed_recipient || 'Yonetici E-postasi'}`
 
+    case 'action.sendTemporaryExceptionsReport':
+      return `${config.title || 'Geçici İstisna Raporu'} -> ${config.fixed_recipient || 'Yonetici E-postasi'}`
+
     case 'output.report':
       return config.title || 'Rapor'
 
@@ -824,7 +846,7 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
   // Metric path rules — a metric is one organisation-wide number, so nodes downstream of a
   // metric source behave differently from the per-user path. Mirrors PlaybookEngine.ValidateAsync.
   for (const node of graph.nodes) {
-    if (node.type !== 'action.sendReportMail') continue
+    if (node.type !== 'action.sendReportMail' && node.type !== 'action.sendTemporaryExceptionsReport') continue
     const recipient = String(node.config?.fixed_recipient || '').trim()
     if (recipient && !isValidEmail(recipient)) errors.push(`'${node.label}' rapor alicisi gecerli degil.`)
     const cc = String(node.config?.cc_email || '').trim()
@@ -892,7 +914,7 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
     )) {
       warnings.push('Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.')
     }
-    if (!graph.nodes.some(n => n.type === 'action.sendMail' || n.type === 'action.sendReportMail')) {
+    if (!graph.nodes.some(n => n.type === 'action.sendMail' || n.type === 'action.sendReportMail' || n.type === 'action.sendTemporaryExceptionsReport')) {
       warnings.push('Akışta mail gönderme adımı yok.')
     }
     if (!graph.nodes.some(n => n.type === 'output.report')) {
