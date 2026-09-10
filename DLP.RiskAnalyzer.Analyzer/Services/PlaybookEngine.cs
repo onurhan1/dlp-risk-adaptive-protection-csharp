@@ -797,7 +797,7 @@ public class PlaybookEngine : IPlaybookEngine
         if (string.IsNullOrWhiteSpace(name)) return false;
         var normalized = name.Trim().ToLower(new System.Globalization.CultureInfo("tr-TR"))
             .Replace('ç', 'c').Replace('Ç', 'c').Replace('ı', 'i').Replace('İ', 'i');
-        return normalized.StartsWith("gecici", StringComparison.Ordinal);
+        return normalized.Contains("gecici", StringComparison.Ordinal);
     }
 
     private async Task<List<PlaybookItem>> LoadQueryTrackingAsync(PlaybookNode node, SendContext context, CancellationToken ct)
