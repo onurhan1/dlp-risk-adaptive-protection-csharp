@@ -75,13 +75,14 @@ public static class PlaybookNodeType
     public const string ActionSendReportMail = "action.sendReportMail";
     public const string ActionSendTemporaryExceptionsReport = "action.sendTemporaryExceptionsReport";
     public const string OutputReport = "output.report";
+    public const string OutputManagerEscalationReport = "output.managerEscalationReport";
 
     public static readonly string[] All =
     {
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
         SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceUnansweredReminderEscalations, SourceTemporaryExceptions, SourceQueryTracking,
         TransformFilter, LogicCondition, LogicMetricThreshold,
-        ActionSendMail, ActionSendReportMail, ActionSendTemporaryExceptionsReport, OutputReport
+        ActionSendMail, ActionSendReportMail, ActionSendTemporaryExceptionsReport, OutputReport, OutputManagerEscalationReport
     };
 
     public static bool IsTrigger(string type) =>
@@ -96,7 +97,7 @@ public static class PlaybookNodeType
     /// </summary>
     public static int OutputCount(string type) => type switch
     {
-        OutputReport => 0,
+        OutputReport or OutputManagerEscalationReport => 0,
         LogicCondition or LogicMetricThreshold => 2,
         _ => 1
     };

@@ -39,6 +39,7 @@ export type PlaybookNodeType =
   | 'action.sendReportMail'
   | 'action.sendTemporaryExceptionsReport'
   | 'output.report'
+  | 'output.managerEscalationReport'
 
 export interface PlaybookNode {
   id: string
@@ -415,7 +416,7 @@ export const NODE_CATALOG: NodeDefinition[] = [
     category: 'Kaynak',
     inputs: 1,
     outputs: [{ handle: null }],
-    defaultConfig: {},
+    defaultConfig: { enabled_filter: 'true' },
   },
   {
     type: 'source.queryTracking',
@@ -540,6 +541,17 @@ export const NODE_CATALOG: NodeDefinition[] = [
     inputs: 1,
     outputs: [],
     defaultConfig: { title: 'Haftalık Sorgu Raporu' },
+  },
+  {
+    type: 'output.managerEscalationReport',
+    label: 'Yönetici Eskalasyon Çıktısı',
+    description: 'Yöneticiye gönderilen veya onay bekleyen eskalasyon maillerini kullanıcı ve alıcı bilgileriyle listeler.',
+    icon: FileText,
+    color: 'linear-gradient(135deg, #0f766e, #0891b2)',
+    category: 'Çıktı',
+    inputs: 1,
+    outputs: [],
+    defaultConfig: { title: 'Yönetici Eskalasyon Çıktısı' },
   },
 ]
 
@@ -705,6 +717,9 @@ export function describeNode(node: PlaybookNode, templateNames: Record<number, s
 
     case 'output.report':
       return config.title || 'Rapor'
+
+    case 'output.managerEscalationReport':
+      return config.title || 'Yönetici Eskalasyon Çıktısı'
 
     default:
       return ''
@@ -917,7 +932,7 @@ export function validateGraph(graph: PlaybookGraph): GraphValidation {
     if (!graph.nodes.some(n => n.type === 'action.sendMail' || n.type === 'action.sendReportMail' || n.type === 'action.sendTemporaryExceptionsReport')) {
       warnings.push('Akışta mail gönderme adımı yok.')
     }
-    if (!graph.nodes.some(n => n.type === 'output.report')) {
+    if (!graph.nodes.some(n => n.type === 'output.report' || n.type === 'output.managerEscalationReport')) {
       warnings.push('Akışta rapor çıktısı yok; sonuçlar yine de mail kaydına yazılır.')
     }
   }

@@ -157,15 +157,12 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
           <p style={hintStyle}>
             Hatırlatma mailinden sonra en az 7 gün daha yanıt vermeyen kayıtları getirir. Mail Gönder node’unda
             alıcıyı <strong>LDAP yöneticisi</strong> seçin; ardından Rapor Maili Gönder node’unu ekip adresine ve
-            Rapor Çıktısı node’unu akışın sonuna bağlayın. Çıktı, hangi kullanıcı için hangi yöneticiye mailin
+            <strong>Yönetici Eskalasyon Çıktısı</strong> node’unu akışın sonuna bağlayın. Çıktı, hangi kullanıcı için hangi yöneticiye mailin
             gönderildiğini veya onay beklediğini listeler.
           </p>
         )}
         {node.type === 'source.temporaryExceptions' && (
-          <p style={hintStyle}>
-            Adı Geçici/gecici ile başlayan tüm istisnaları, politika-kural bağlamı ve aktiflik bilgisiyle listeler.
-            Zamanlama node’unu her gün 16:30’a, <strong>Geçici İstisna Raporu Gönder</strong> node’unu ekip adresine bağlayın.
-          </p>
+          <TemporaryExceptionsForm node={node} setConfig={setConfig} />
         )}
         {node.type === 'source.queryTracking' && <QueryTrackingForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
@@ -189,6 +186,12 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
               Bu adıma ulaşan gönderimler tarih, konu, alıcı ve durum bilgisiyle rapora yazılır ve
               CSV / Excel / PDF olarak dışa aktarılabilir.
             </p>
+          </div>
+        )}
+        {node.type === 'output.managerEscalationReport' && (
+          <div style={{ padding: '10px 11px', border: '1px solid var(--border)', background: 'var(--surface-hover)', borderRadius: '6px', fontSize: '12px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+            Mail Gönder node’undan sonra bağlayın. Çıktı; kullanıcı, kullanıcı adı, birim, LDAP yöneticisi, alıcı e-posta adresi,
+            konu ve gönderim durumunu gösterir.
           </div>
         )}
       </div>
@@ -1048,6 +1051,29 @@ function FilterForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Re
         />
         <p style={hintStyle}>Bu adreslere hiçbir zaman mail gönderilmez.</p>
       </div>
+    </>
+  )
+}
+
+function TemporaryExceptionsForm({ node, setConfig }: { node: PlaybookNode; setConfig: (p: Record<string, any>) => void }) {
+  return (
+    <>
+      <div>
+        <label style={labelStyle}>İstisna Aktifliği</label>
+        <select
+          style={inputStyle}
+          value={node.config.enabled_filter ?? 'true'}
+          onChange={event => setConfig({ enabled_filter: event.target.value })}
+        >
+          <option value="true">Aktif</option>
+          <option value="false">Pasif</option>
+          <option value="all">Tümü</option>
+        </select>
+      </div>
+      <p style={hintStyle}>
+        Adında Geçici/gecici geçen istisnaları politika, kural ve aktiflik bilgisiyle listeler. Günlük uyarı için varsayılan seçim Aktif'tir.
+        Zamanlama node’unu her gün 16:30’a, <strong>Geçici İstisna Raporu Gönder</strong> node’unu ekip adresine bağlayın.
+      </p>
     </>
   )
 }

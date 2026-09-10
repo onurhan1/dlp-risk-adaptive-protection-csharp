@@ -314,7 +314,7 @@ public class PlaybookEngine : IPlaybookEngine
                 return SingleOutput(PlaybookPayload.OfItems(await LoadUnansweredReminderEscalationsAsync(context, ct)));
 
             case PlaybookNodeType.SourceTemporaryExceptions:
-                return SingleOutput(PlaybookPayload.OfItems(await LoadTemporaryExceptionsAsync(context, ct)));
+                return SingleOutput(PlaybookPayload.OfItems(await LoadTemporaryExceptionsAsync(node, context, ct)));
 
             case PlaybookNodeType.SourceQueryTracking:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadQueryTrackingAsync(node, context, ct)));
@@ -336,10 +336,19 @@ public class PlaybookEngine : IPlaybookEngine
                 return SingleOutput(await SendReportMailAsync(node, input, playbook, run, context, ct));
 
             case PlaybookNodeType.OutputReport:
+            {
                 context.SetMessage(input.HasMetric
                     ? $"{input.Metric!.Label}: {input.Metric.Value:0.##} rapora yazıldı"
                     : $"{input.Items.Count} satır rapora yazıldı");
                 return new Dictionary<string, PlaybookPayload>(StringComparer.Ordinal);
+            }
+
+            case PlaybookNodeType.OutputManagerEscalationReport:
+            {
+                var deliveries = input.Items.Count(item => item.Delivery != null);
+                context.SetMessage($"{deliveries} yönetici eskalasyonu kullanıcı, alıcı ve mail durumuyla çıktıya yazıldı");
+                return new Dictionary<string, PlaybookPayload>(StringComparer.Ordinal);
+            }
 
             default:
                 throw new InvalidOperationException($"Bilinmeyen node tipi: {node.Type}");
@@ -756,8 +765,9 @@ public class PlaybookEngine : IPlaybookEngine
         return items;
     }
 
-    private async Task<List<PlaybookItem>> LoadTemporaryExceptionsAsync(SendContext context, CancellationToken ct)
+    private async Task<List<PlaybookItem>> LoadTemporaryExceptionsAsync(PlaybookNode node, SendContext context, CancellationToken ct)
     {
+        var enabledFilter = node.GetString("enabled_filter") ?? "true";
         var exceptions = await _context.PolicyRuleExceptions
             .AsNoTracking()
             .OrderBy(exceptionEntry => exceptionEntry.PolicyName)
@@ -768,6 +778,12 @@ public class PlaybookEngine : IPlaybookEngine
 
         var items = exceptions
             .Where(exceptionEntry => IsTemporaryExceptionName(exceptionEntry.ExceptionName))
+            .Where(exceptionEntry => enabledFilter switch
+            {
+                "true" => IsEnabledException(exceptionEntry.Enabled),
+                "false" => !IsEnabledException(exceptionEntry.Enabled),
+                _ => true
+            })
             .Select(exceptionEntry => new PlaybookItem(
                 new WeeklyFlagUserDto(
                     exceptionEntry.ExceptionName,
@@ -788,7 +804,13 @@ public class PlaybookEngine : IPlaybookEngine
             .Take(MaxRecipientsPerRun)
             .ToList();
 
-        context.SetMessage($"Gecici adiyla baslayan {items.Count} policy exception listelendi");
+        var statusLabel = enabledFilter switch
+        {
+            "true" => "aktif",
+            "false" => "pasif",
+            _ => "tum"
+        };
+        context.SetMessage($"Gecici adini iceren {statusLabel} {items.Count} policy exception listelendi");
         return items;
     }
 
@@ -799,6 +821,9 @@ public class PlaybookEngine : IPlaybookEngine
             .Replace('ç', 'c').Replace('Ç', 'c').Replace('ı', 'i').Replace('İ', 'i');
         return normalized.Contains("gecici", StringComparison.Ordinal);
     }
+
+    private static bool IsEnabledException(string? value) =>
+        string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
 
     private async Task<List<PlaybookItem>> LoadQueryTrackingAsync(PlaybookNode node, SendContext context, CancellationToken ct)
     {
@@ -3235,7 +3260,7 @@ public class PlaybookEngine : IPlaybookEngine
                                              or PlaybookNodeType.ActionSendReportMail
                                              or PlaybookNodeType.ActionSendTemporaryExceptionsReport))
                 result.Warnings.Add("Akışta mail gönderme adımı yok.");
-            if (!graph.Nodes.Any(n => n.Type == PlaybookNodeType.OutputReport))
+            if (!graph.Nodes.Any(n => n.Type is PlaybookNodeType.OutputReport or PlaybookNodeType.OutputManagerEscalationReport))
                 result.Warnings.Add("Akışta rapor çıktısı yok; sonuçlar yine de mail kaydına yazılır.");
         }
 
