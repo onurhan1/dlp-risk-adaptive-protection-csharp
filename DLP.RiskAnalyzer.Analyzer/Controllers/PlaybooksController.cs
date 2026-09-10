@@ -386,7 +386,7 @@ public class PlaybooksController : ControllerBase
         entry.CcEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
         entry.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
         entry.Subject = request.Subject?.Trim() ?? string.Empty;
-        entry.BodyHtml = request.BodyHtml ?? string.Empty;
+        entry.BodyHtml = PlaybookMailRenderer.ToEmailHtml(request.BodyHtml);
         entry.ErrorMessage = null;
 
         await _context.SaveChangesAsync(ct);

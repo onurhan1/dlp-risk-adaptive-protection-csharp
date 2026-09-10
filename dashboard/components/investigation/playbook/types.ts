@@ -30,6 +30,7 @@ export type PlaybookNodeType =
   | 'source.highMaxMatchTransfers'
   | 'source.pendingQueryReminders'
   | 'source.unansweredReminderEscalations'
+  | 'source.temporaryExceptions'
   | 'source.queryTracking'
   | 'transform.filter'
   | 'logic.condition'
@@ -399,6 +400,17 @@ export const NODE_CATALOG: NodeDefinition[] = [
     description: 'Hatırlatma sonrası 7 gün daha yanıt vermeyen kullanıcıları yönetici eskalasyonu için listeler.',
     icon: Mail,
     color: 'linear-gradient(135deg, #b91c1c, #ea580c)',
+    category: 'Kaynak',
+    inputs: 1,
+    outputs: [{ handle: null }],
+    defaultConfig: {},
+  },
+  {
+    type: 'source.temporaryExceptions',
+    label: 'Günlük Geçici İstisnalar',
+    description: 'Adı Geçici/gecici ile başlayan istisnaları politika ve kural bilgileriyle raporlar.',
+    icon: ListChecks,
+    color: 'linear-gradient(135deg, #b45309, #d97706)',
     category: 'Kaynak',
     inputs: 1,
     outputs: [{ handle: null }],

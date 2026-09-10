@@ -567,7 +567,7 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
     ccEmail: row.cc_email ?? '',
     fullName: row.full_name ?? '',
     subject: row.subject,
-    bodyHtml: row.body_html,
+    bodyHtml: htmlToPlainText(row.body_html),
   })
 
   const saveChanges = async () => {
@@ -640,7 +640,7 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
           })()}
 
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>Icerik</div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>{editing ? 'İçerik (düz metin)' : 'İçerik önizlemesi'}</div>
             {editing ? (
               <textarea value={form.bodyHtml} onChange={event => setForm(current => ({ ...current, bodyHtml: event.target.value }))} style={{ width: '100%', minHeight: '260px', resize: 'vertical', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }} />
             ) : (
@@ -681,6 +681,15 @@ function parseIncidentSummary(value?: string | null): IncidentSummary | null {
 
 function displayValue(value: unknown): string {
   return value === null || value === undefined || value === '' ? '-' : String(value)
+}
+
+function htmlToPlainText(value?: string | null): string {
+  if (!value) return ''
+  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, '')
+  const documentBody = new DOMParser().parseFromString(value, 'text/html').body
+  return (documentBody.innerText || documentBody.textContent || '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function formatIncidentDate(value: unknown): string {

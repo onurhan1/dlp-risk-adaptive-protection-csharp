@@ -159,6 +159,12 @@ export default function NodeInspector({ node, templates, inMetricFlow = false, i
             alıcıyı <strong>LDAP yöneticisi</strong> seçin; yönetici e-postası bulunamayan kayıtlar onayda kalır.
           </p>
         )}
+        {node.type === 'source.temporaryExceptions' && (
+          <p style={hintStyle}>
+            Adı Geçici/gecici ile başlayan tüm istisnaları, politika-kural bağlamı ve aktiflik bilgisiyle listeler.
+            Zamanlama node’unu her gün 16:30’a, Mail Gönder yerine Rapor Maili Gönder node’unu ekip adresine bağlayın.
+          </p>
+        )}
         {node.type === 'source.queryTracking' && <QueryTrackingForm node={node} setConfig={setConfig} />}
         {node.type === 'transform.filter' && <FilterForm node={node} setConfig={setConfig} />}
         {node.type === 'logic.condition' && <ConditionForm node={node} setConfig={setConfig} />}

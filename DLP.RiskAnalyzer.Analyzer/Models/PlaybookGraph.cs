@@ -66,6 +66,7 @@ public static class PlaybookNodeType
     public const string SourceHighMaxMatchTransfers = "source.highMaxMatchTransfers";
     public const string SourcePendingQueryReminders = "source.pendingQueryReminders";
     public const string SourceUnansweredReminderEscalations = "source.unansweredReminderEscalations";
+    public const string SourceTemporaryExceptions = "source.temporaryExceptions";
     public const string SourceQueryTracking = "source.queryTracking";
     public const string TransformFilter = "transform.filter";
     public const string LogicCondition = "logic.condition";
@@ -77,7 +78,7 @@ public static class PlaybookNodeType
     public static readonly string[] All =
     {
         TriggerSchedule, TriggerManual, SourceWeeklyFlags, SourceIncidentMetric, SourceIncidentUsers,
-        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceUnansweredReminderEscalations, SourceQueryTracking,
+        SourceHighRiskUsers, SourceTopActionUsers, SourceHighMaxMatchTransfers, SourcePendingQueryReminders, SourceUnansweredReminderEscalations, SourceTemporaryExceptions, SourceQueryTracking,
         TransformFilter, LogicCondition, LogicMetricThreshold,
         ActionSendMail, ActionSendReportMail, OutputReport
     };

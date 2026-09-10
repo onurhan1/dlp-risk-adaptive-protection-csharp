@@ -313,6 +313,9 @@ public class PlaybookEngine : IPlaybookEngine
             case PlaybookNodeType.SourceUnansweredReminderEscalations:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadUnansweredReminderEscalationsAsync(context, ct)));
 
+            case PlaybookNodeType.SourceTemporaryExceptions:
+                return SingleOutput(PlaybookPayload.OfItems(await LoadTemporaryExceptionsAsync(context, ct)));
+
             case PlaybookNodeType.SourceQueryTracking:
                 return SingleOutput(PlaybookPayload.OfItems(await LoadQueryTrackingAsync(node, context, ct)));
 
@@ -750,6 +753,50 @@ public class PlaybookEngine : IPlaybookEngine
         items = await EnrichItemsAsync(items, ct);
         context.SetMessage($"Hatirlatmaya yanit vermeyen {items.Count} kullanici yonetici eskalasyonu icin listelendi");
         return items;
+    }
+
+    private async Task<List<PlaybookItem>> LoadTemporaryExceptionsAsync(SendContext context, CancellationToken ct)
+    {
+        var exceptions = await _context.PolicyRuleExceptions
+            .AsNoTracking()
+            .OrderBy(exceptionEntry => exceptionEntry.PolicyName)
+            .ThenBy(exceptionEntry => exceptionEntry.RuleName)
+            .ThenBy(exceptionEntry => exceptionEntry.ExceptionName)
+            .Take(5_000)
+            .ToListAsync(ct);
+
+        var items = exceptions
+            .Where(exceptionEntry => IsTemporaryExceptionName(exceptionEntry.ExceptionName))
+            .Select(exceptionEntry => new PlaybookItem(
+                new WeeklyFlagUserDto(
+                    exceptionEntry.ExceptionName,
+                    exceptionEntry.PolicyName,
+                    exceptionEntry.RuleName,
+                    string.Empty,
+                    1,
+                    exceptionEntry.SyncedAt,
+                    exceptionEntry.SyncedAt,
+                    new List<WeeklyFlagIncidentDto>()),
+                PlaybookNodeType.SourceTemporaryExceptions,
+                TemporaryException: new TemporaryExceptionDetails(
+                    exceptionEntry.PolicyName,
+                    exceptionEntry.RuleName,
+                    exceptionEntry.ExceptionName,
+                    exceptionEntry.Enabled,
+                    exceptionEntry.SyncedAt)))
+            .Take(MaxRecipientsPerRun)
+            .ToList();
+
+        context.SetMessage($"Gecici adiyla baslayan {items.Count} policy exception listelendi");
+        return items;
+    }
+
+    private static bool IsTemporaryExceptionName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var normalized = name.Trim().ToLower(new System.Globalization.CultureInfo("tr-TR"))
+            .Replace('ç', 'c').Replace('Ç', 'c').Replace('ı', 'i').Replace('İ', 'i');
+        return normalized.StartsWith("gecici", StringComparison.Ordinal);
     }
 
     private async Task<List<PlaybookItem>> LoadQueryTrackingAsync(PlaybookNode node, SendContext context, CancellationToken ct)
@@ -1814,6 +1861,8 @@ public class PlaybookEngine : IPlaybookEngine
     {
         if (payload.HasMetric)
             return BuildReportMailHtml(title, intro, payload, now);
+        if (payload.Items.Any(item => item.TemporaryException != null))
+            return BuildTemporaryExceptionsReportHtml(title, intro, payload, now);
         if (payload.Items.Any(item => item.Tracking != null))
             return BuildQueryTrackingReportHtml(title, intro, payload, now);
 
@@ -1877,6 +1926,24 @@ public class PlaybookEngine : IPlaybookEngine
                 ]);
         }
 
+        if (payload.Items.Any(item => item.TemporaryException != null))
+        {
+            var headers = new[] { "Politika", "Kural", "İstisna Adı", "Aktiflik", "Son Senkron" };
+            var rows = payload.Items.Where(item => item.TemporaryException != null).Select(item =>
+            {
+                var exceptionEntry = item.TemporaryException!;
+                return (IReadOnlyList<string>)new[]
+                {
+                    exceptionEntry.PolicyName,
+                    exceptionEntry.RuleName,
+                    exceptionEntry.ExceptionName,
+                    exceptionEntry.Enabled,
+                    RadarTimeZone.ToTurkeyTime(exceptionEntry.SyncedAt).ToString("dd.MM.yyyy HH:mm")
+                };
+            }).ToList();
+            return new WorkflowTableReport(title, intro, now, headers, rows);
+        }
+
         if (payload.Items.Any(item => item.Tracking != null))
         {
             var headers = new[]
@@ -1932,6 +1999,23 @@ public class PlaybookEngine : IPlaybookEngine
             now,
             selectedColumns.Select(ReportColumnLabel).ToList(),
             tableRows);
+    }
+
+    private static string BuildTemporaryExceptionsReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
+    {
+        var introHtml = string.IsNullOrWhiteSpace(intro)
+            ? "<div class=\"intro\">Bu rapor, adı Geçici/gecici ile başlayan istisnaların kontrol edilmesi ve kapatılması için hazırlanmıştır.</div>"
+            : $"<div class=\"intro\">{Encode(intro)}</div>";
+        var rows = payload.Items.Where(item => item.TemporaryException != null).ToList();
+        var rowHtml = rows.Count == 0
+            ? "<tr><td colspan=\"6\" class=\"empty\">Kayıt bulunamadı.</td></tr>"
+            : string.Join("", rows.Select((item, index) =>
+            {
+                var exceptionEntry = item.TemporaryException!;
+                return $"<tr><td>{index + 1}</td><td>{Encode(exceptionEntry.PolicyName)}</td><td>{Encode(exceptionEntry.RuleName)}</td><td>{Encode(exceptionEntry.ExceptionName)}</td><td>{Encode(exceptionEntry.Enabled)}</td><td>{RadarTimeZone.ToTurkeyTime(exceptionEntry.SyncedAt):dd.MM.yyyy HH:mm}</td></tr>";
+            }));
+
+        return $@"<html><head>{ReportMailStyles()}</head><body><div class=""wrap""><div class=""header""><h1>{Encode(title)}</h1></div><div class=""content"">{introHtml}<div class=""meta"">Üretim tarihi: {now:dd.MM.yyyy HH:mm} ({RadarTimeZone.DisplayName})</div><table><thead><tr><th>#</th><th>Politika</th><th>Kural</th><th>İstisna Adı</th><th>Aktiflik</th><th>Son Senkron</th></tr></thead><tbody>{rowHtml}</tbody></table></div></div></body></html>";
     }
 
     private static string BuildQueryTrackingReportHtml(string title, string? intro, PlaybookPayload payload, DateTime now)
@@ -2083,6 +2167,7 @@ public class PlaybookEngine : IPlaybookEngine
         PlaybookNodeType.SourceHighMaxMatchTransfers => "Yüksek maksimum eşleşmeli gönderim",
         PlaybookNodeType.SourcePendingQueryReminders => "Hatırlatma için cevap bekleyen sorgu",
         PlaybookNodeType.SourceUnansweredReminderEscalations => "Yanıtsız hatırlatma yönetici eskalasyonu",
+        PlaybookNodeType.SourceTemporaryExceptions => "Günlük geçici istisnalar",
         "top_permit_users" => "En çok Permit olay kaydı",
         "top_block_users" => "En çok Block olay kaydı",
         WeeklyFlagCriterion.PersonalEmailSenders => WeeklyFlagCriterion.Label(WeeklyFlagCriterion.PersonalEmailSenders),
@@ -2940,6 +3025,7 @@ public class PlaybookEngine : IPlaybookEngine
 
                 case PlaybookNodeType.SourcePendingQueryReminders:
                 case PlaybookNodeType.SourceUnansweredReminderEscalations:
+                case PlaybookNodeType.SourceTemporaryExceptions:
                     break;
 
                 case PlaybookNodeType.SourceQueryTracking:
@@ -3068,6 +3154,7 @@ public class PlaybookEngine : IPlaybookEngine
                                              or PlaybookNodeType.SourceHighMaxMatchTransfers
                                              or PlaybookNodeType.SourcePendingQueryReminders
                                              or PlaybookNodeType.SourceUnansweredReminderEscalations
+                                             or PlaybookNodeType.SourceTemporaryExceptions
                                              or PlaybookNodeType.SourceQueryTracking))
                 result.Warnings.Add("Akışta veri kaynağı yok; hiçbir kullanıcı ya da metrik hesaplanmayacak.");
 

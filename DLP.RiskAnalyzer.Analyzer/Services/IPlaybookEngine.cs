@@ -13,7 +13,8 @@ public record PlaybookItem(
     int? InvestigationQueryId = null,
     string? ExistingCorrelationCode = null,
     InvestigationQueryRecord? InvestigationQuery = null,
-    QueryTrackingDetails? Tracking = null);
+    QueryTrackingDetails? Tracking = null,
+    TemporaryExceptionDetails? TemporaryException = null);
 
 public record QueryTrackingDetails(
     string LifecycleStatus,
@@ -22,6 +23,13 @@ public record QueryTrackingDetails(
     string ReminderStatus,
     DateTime? ReplyAt,
     string? TemplateOrSubject);
+
+public record TemporaryExceptionDetails(
+    string PolicyName,
+    string RuleName,
+    string ExceptionName,
+    string Enabled,
+    DateTime SyncedAt);
 
 /// <summary>One row of a metric's breakdown, e.g. "Email: 214".</summary>
 public record PlaybookMetricBreakdown(string Label, int Count);
