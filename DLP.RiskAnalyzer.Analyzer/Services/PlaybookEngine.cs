@@ -597,7 +597,14 @@ public class PlaybookEngine : IPlaybookEngine
                 var sampleIncidents = sortBy == "max_risk_score"
                     ? list.OrderByDescending(i => i.RiskScore ?? 0).ThenByDescending(i => i.Timestamp).Take(3)
                     : list.OrderByDescending(EffectiveMaxMatches).ThenByDescending(i => i.Timestamp).Take(3);
-                var samples = sampleIncidents.Select(ToWorkflowReportIncident).ToList();
+                // Older high-Max-Match playbooks were created with the generic incident-user
+                // source. Keep them accurate without requiring analysts to rebuild the flow.
+                var useMaxMatchRule = minMatches.HasValue && sortBy == "max_matches";
+                var samples = sampleIncidents
+                    .Select(incident => useMaxMatchRule
+                        ? ToMaxMatchWorkflowReportIncident(incident)
+                        : ToWorkflowReportIncident(incident))
+                    .ToList();
 
                 if (summarizeTopPolicies && samples.Count > 0)
                 {
@@ -680,7 +687,7 @@ public class PlaybookEngine : IPlaybookEngine
                         EffectiveMaxMatches(best),
                         list.Min(i => i.Timestamp),
                         list.Max(i => i.Timestamp),
-                        list.Take(3).Select(ToWorkflowReportIncident).ToList()),
+                        list.Take(3).Select(ToMaxMatchWorkflowReportIncident).ToList()),
                     PlaybookNodeType.SourceHighMaxMatchTransfers);
             })
             .OrderByDescending(i => i.User.TriggerCount)
@@ -1053,6 +1060,21 @@ public class PlaybookEngine : IPlaybookEngine
     private static WeeklyFlagIncidentDto ToWorkflowReportIncident(Incident incident) => new(
         incident.Timestamp,
         FirstNonEmpty(incident.Policy, incident.RuleName),
+        EffectiveMaxMatches(incident),
+        incident.Destination,
+        incident.Channel,
+        incident.RiskScore,
+        FirstNonEmpty(incident.Action, incident.RemediationAction),
+        incident.DataType,
+        incident.Severity);
+
+    /// <summary>
+    /// The high-Max-Match source must describe the rule that produced that maximum,
+    /// rather than the incident's aggregate policy field which may contain every match.
+    /// </summary>
+    private static WeeklyFlagIncidentDto ToMaxMatchWorkflowReportIncident(Incident incident) => new(
+        incident.Timestamp,
+        PolicyRuleLabel(incident),
         EffectiveMaxMatches(incident),
         incident.Destination,
         incident.Channel,

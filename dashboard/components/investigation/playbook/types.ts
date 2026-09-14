@@ -1162,7 +1162,7 @@ export function createTopBlockUsersReportGraph(): PlaybookGraph {
 }
 
 export function createHighMaxMatchTransfersReportGraph(): PlaybookGraph {
-  return createReportGraph('source.incidentUsers', 'Haftalik Yuksek Max Match Veri Gonderimleri', {
+  return createReportGraph('source.highMaxMatchTransfers', 'Haftalik Yuksek Max Match Veri Gonderimleri', {
     days: 7,
     min_matches: 300,
     sort_by: 'max_matches',

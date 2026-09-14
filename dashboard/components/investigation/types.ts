@@ -51,6 +51,7 @@ export const TEMPLATE_PLACEHOLDERS = [
   { token: '{{channel}}', desc: 'En yüksek eşleşmeli olayın kanalı' },
   { token: '{{policy}}', desc: 'En yüksek eşleşmeli olayın policy/rule bilgisi' },
   { token: '{{kural}}', desc: 'En yüksek eşleşmeli olayın policy/rule bilgisi' },
+  { token: '{{max_match_kurali}}', desc: 'Maksimum eşleşmeyi üreten politika/kural' },
   { token: '{{max_match}}', desc: 'En yüksek eşleşme sayısı' },
   { token: '{{max_matches}}', desc: 'En yüksek eşleşme sayısı' },
   { token: '{{ilk_talep_tarihi}}', desc: 'İlk sorgu mailinin gönderim tarihi' },
@@ -124,6 +125,7 @@ export function applyPlaceholders(text: string, user: WeeklyFlagUser | null): st
     .replaceAll('{{channel}}', primaryIncident?.channel || '-')
     .replaceAll('{{policy}}', primaryIncident?.policy || '-')
     .replaceAll('{{kural}}', primaryIncident?.policy || '-')
+    .replaceAll('{{max_match_kurali}}', primaryIncident?.policy || '-')
     .replaceAll('{{max_match}}', String(primaryIncident?.max_matches ?? '-'))
     .replaceAll('{{max_matches}}', String(primaryIncident?.max_matches ?? '-'))
     .replaceAll('{{ilk_talep_tarihi}}', '-')

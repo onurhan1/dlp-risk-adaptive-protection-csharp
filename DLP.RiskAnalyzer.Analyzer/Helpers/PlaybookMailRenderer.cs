@@ -64,6 +64,7 @@ public static class PlaybookMailRenderer
             .Replace("{{channel}}", Dash(primary?.Channel))
             .Replace("{{policy}}", Dash(primary?.Policy))
             .Replace("{{kural}}", Dash(primary?.Policy))
+            .Replace("{{max_match_kurali}}", Dash(primary?.Policy))
             .Replace("{{max_match}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{max_matches}}", primary?.MaxMatches.ToString() ?? "-")
             .Replace("{{ilk_talep_tarihi}}", FormatTurkeyDate(firstRequestAt))

@@ -654,8 +654,9 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
                   contentEditable
                   suppressContentEditableWarning
                   onInput={event => {
+                    const bodyHtml = event.currentTarget.innerHTML
                     setBodyEdited(true)
-                    setForm(current => ({ ...current, bodyHtml: event.currentTarget.innerHTML }))
+                    setForm(current => ({ ...current, bodyHtml }))
                   }}
                   style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', background: 'white', color: '#0f172a', fontSize: '13px', minHeight: '260px', maxHeight: '420px', overflowY: 'auto', wordBreak: 'break-word', lineHeight: 1.55 }}
                   dangerouslySetInnerHTML={{ __html: form.bodyHtml || '<em style="color:#94a3b8">İçerik boş</em>' }}
