@@ -48,7 +48,8 @@ public class PlaybooksController : ControllerBase
         string? CcEmail,
         string? FullName,
         string? Subject,
-        string? BodyHtml);
+        string? BodyHtml,
+        bool BodyEdited = false);
 
     // ── Node catalog ─────────────────────────────────────────────────────────
 
@@ -386,7 +387,10 @@ public class PlaybooksController : ControllerBase
         entry.CcEmail = string.IsNullOrWhiteSpace(request.CcEmail) ? null : request.CcEmail.Trim();
         entry.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
         entry.Subject = request.Subject?.Trim() ?? string.Empty;
-        entry.BodyHtml = PlaybookMailRenderer.ToEmailHtml(request.BodyHtml);
+        // Recipient-only edits must not round-trip the prepared HTML through plain text.
+        // That would discard tables, paragraphs and inline formatting.
+        if (request.BodyEdited)
+            entry.BodyHtml = PlaybookMailRenderer.ToEmailHtml(request.BodyHtml);
         entry.ErrorMessage = null;
 
         await _context.SaveChangesAsync(ct);

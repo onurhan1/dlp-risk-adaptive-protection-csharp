@@ -293,6 +293,7 @@ export default function PlaybookEditorPage() {
     const previousRunId = runs[0]?.id
     const totalNodes = Math.max(1, graph.nodes.length)
     let progressRunId: number | null = null
+    let progressPollingActive = true
 
     const readRunProgress = async (): Promise<PlaybookRun | null> => {
       try {
@@ -311,13 +312,14 @@ export default function PlaybookEditorPage() {
         const percent = isFinished
           ? 100
           : Math.min(95, Math.max(5, Math.round((completed / totalNodes) * 100)))
+        if (!progressPollingActive) return detail
         setRunProgress({ completed, total: totalNodes, percent })
-        setMessage({
-          type: 'info',
-          text: isFinished
-            ? 'Çalıştırma sonucu doğrulanıyor...'
-            : `Çalıştırılıyor: ${completed}/${totalNodes} adım tamamlandı (%${percent})`,
-        })
+        if (!isFinished) {
+          setMessage({
+            type: 'info',
+            text: `Çalıştırılıyor: ${completed}/${totalNodes} adım tamamlandı (%${percent})`,
+          })
+        }
         return detail
       } catch {
         return null
@@ -326,6 +328,9 @@ export default function PlaybookEditorPage() {
 
     const resultMessage = (result: PlaybookRun) => result.status === 'failed'
       ? (result.error_message || 'Çalıştırma başarısız')
+      : result.status === 'awaiting_approval'
+        ? `Çalıştırma tamamlandı: ${result.mails_pending} mail onay bekliyor` +
+          (result.mails_skipped ? `, ${result.mails_skipped} kayıt atlandı` : '')
       : dryRun
         ? `Test tamamlandı: ${result.mails_pending} mail gönderilmeden önizlemeye hazır` +
           (result.mails_skipped ? `, ${result.mails_skipped} kayıt atlandı` : '')
@@ -351,6 +356,7 @@ export default function PlaybookEditorPage() {
       const res = await apiClient.post(`/api/playbooks/${playbookId}/run`, null, {
         params: { dry_run: dryRun },
       })
+      progressPollingActive = false
       await applyRunResult(res.data as PlaybookRun)
     } catch (e: any) {
       // A reverse proxy can terminate a long HTTP response even though the server-side
@@ -363,11 +369,13 @@ export default function PlaybookEditorPage() {
       }
 
       if (persisted) {
+        progressPollingActive = false
         await applyRunResult(persisted)
       } else {
         setMessage({ type: 'error', text: e?.response?.data?.detail || 'Çalıştırma sonucu alınamadı. Çalıştırma Geçmişi üzerinden kontrol edin.' })
       }
     } finally {
+      progressPollingActive = false
       window.clearInterval(progressTimer)
       setRunning(false)
     }

@@ -560,6 +560,8 @@ function MailPreviewModal({ row, onClose }: { row: PlaybookMailRow; onClose: () 
 function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMailRow; onClose: () => void; onSaved: () => Promise<void> }) {
   const canEdit = row.status === 'pending'
   const [editing, setEditing] = useState(false)
+  const [editingBody, setEditingBody] = useState(false)
+  const [bodyEdited, setBodyEdited] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -567,7 +569,7 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
     ccEmail: row.cc_email ?? '',
     fullName: row.full_name ?? '',
     subject: row.subject,
-    bodyHtml: htmlToPlainText(row.body_html),
+    bodyHtml: row.body_html,
   })
 
   const saveChanges = async () => {
@@ -579,7 +581,8 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
         cc_email: form.ccEmail,
         full_name: form.fullName,
         subject: form.subject,
-        body_html: form.bodyHtml,
+        body_edited: bodyEdited,
+        ...(bodyEdited ? { body_html: form.bodyHtml } : {}),
       })
       await onSaved()
     } catch (e: any) {
@@ -601,7 +604,7 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
         </div>
 
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {editing && <div style={{ padding: '10px 12px', border: '1px solid rgba(217,119,6,0.35)', borderRadius: '8px', background: 'rgba(217,119,6,0.08)', fontSize: '12px' }}>Bu mail henuz gonderilmedi. Onaydan once alici, konu ve icerigi duzenleyebilirsiniz.</div>}
+          {editing && <div style={{ padding: '10px 12px', border: '1px solid rgba(217,119,6,0.35)', borderRadius: '8px', background: 'rgba(217,119,6,0.08)', fontSize: '12px' }}>Bu mail henüz gönderilmedi. Alıcı, CC ve konu düzenlendiğinde mevcut HTML taslağı aynen korunur.</div>}
           <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
             <PreviewRow label="Kullanici" value={`${row.user_email}${row.team ? ` - ${row.team}` : ''}`} />
             {editing ? (
@@ -640,9 +643,25 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
           })()}
 
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>{editing ? 'İçerik (düz metin)' : 'İçerik önizlemesi'}</div>
-            {editing ? (
-              <textarea value={form.bodyHtml} onChange={event => setForm(current => ({ ...current, bodyHtml: event.target.value }))} style={{ width: '100%', minHeight: '260px', resize: 'vertical', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '5px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{editingBody ? 'İçerik taslağı' : 'İçerik önizlemesi'}</div>
+              {editing && !editingBody && <button onClick={() => setEditingBody(true)} style={{ ...secondaryButtonStyle, padding: '5px 8px', fontSize: '11px' }}><Pencil size={12} /> İçeriği Düzenle</button>}
+            </div>
+            {editingBody ? (
+              <>
+                <div
+                  key={row.id}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={event => {
+                    setBodyEdited(true)
+                    setForm(current => ({ ...current, bodyHtml: event.currentTarget.innerHTML }))
+                  }}
+                  style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', background: 'white', color: '#0f172a', fontSize: '13px', minHeight: '260px', maxHeight: '420px', overflowY: 'auto', wordBreak: 'break-word', lineHeight: 1.55 }}
+                  dangerouslySetInnerHTML={{ __html: form.bodyHtml || '<em style="color:#94a3b8">İçerik boş</em>' }}
+                />
+                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>Paragraflar ve tablolar korunur. Yalnızca alıcı veya konu değişecekse içeriği düzenlemenize gerek yoktur.</div>
+              </>
             ) : (
               <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', background: 'white', color: '#0f172a', fontSize: '13px', maxHeight: '340px', overflowY: 'auto', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: row.body_html || '<em style="color:#94a3b8">Icerik bos</em>' }} />
             )}
@@ -650,7 +669,7 @@ function EditableMailPreviewModal({ row, onClose, onSaved }: { row: PlaybookMail
 
           {editing && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
             {error && <span style={{ marginRight: 'auto', color: '#b91c1c', fontSize: '12px' }}>{error}</span>}
-            <button onClick={() => { setEditing(false); setError(null) }} disabled={saving} style={{ ...secondaryButtonStyle, padding: '7px 12px', fontSize: '12px' }}>Vazgec</button>
+            <button onClick={() => { setEditing(false); setEditingBody(false); setBodyEdited(false); setError(null) }} disabled={saving} style={{ ...secondaryButtonStyle, padding: '7px 12px', fontSize: '12px' }}>Vazgec</button>
             <button onClick={saveChanges} disabled={saving} style={{ ...secondaryButtonStyle, padding: '7px 12px', fontSize: '12px', color: '#047857' }}><Save size={13} /> {saving ? 'Kaydediliyor...' : 'Degisiklikleri Kaydet'}</button>
           </div>}
           {!canEdit && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Gonderilmis veya atlanmis mail kayitlari denetim izi icin salt okunurdur.</div>}
@@ -681,15 +700,6 @@ function parseIncidentSummary(value?: string | null): IncidentSummary | null {
 
 function displayValue(value: unknown): string {
   return value === null || value === undefined || value === '' ? '-' : String(value)
-}
-
-function htmlToPlainText(value?: string | null): string {
-  if (!value) return ''
-  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, '')
-  const documentBody = new DOMParser().parseFromString(value, 'text/html').body
-  return (documentBody.innerText || documentBody.textContent || '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
 }
 
 function formatIncidentDate(value: unknown): string {
