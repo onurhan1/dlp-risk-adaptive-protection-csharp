@@ -6,22 +6,29 @@ import { format, parseISO, startOfDay, endOfDay } from 'date-fns'
 import Pagination from '@/components/ui/Pagination'
 import GridExport from '@/components/ui/GridExport'
 import { useTranslation } from '@/components/LanguageProvider'
-import type { Incident } from '../_lib/types'
+import type { DateRange, Incident } from '../_lib/types'
 import { normalizeTeamName, getActionStyle } from '../_lib/utils'
-import { DEFAULT_START, DEFAULT_END, ITEMS_PER_PAGE, TABLE_COLUMNS, COLUMN_LABELS, MULTISELECT_COLUMNS, STYLES, UNKNOWN_TEAM, DEFAULT_TEAM_FALLBACK } from '../_lib/constants'
+import { ITEMS_PER_PAGE, TABLE_COLUMNS, COLUMN_LABELS, MULTISELECT_COLUMNS, STYLES, UNKNOWN_TEAM, DEFAULT_TEAM_FALLBACK } from '../_lib/constants'
 
 interface IncidentTableProps {
   incidents: Incident[]
+  dateRange: DateRange
 }
 
-export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
+export default memo(function IncidentTable({ incidents, dateRange }: IncidentTableProps) {
   const { t } = useTranslation()
   const [currentPage, setCurrentPage] = useState(1)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null)
   const [columnFilterSearch, setColumnFilterSearch] = useState<Record<string, string>>({})
-  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({ time: [DEFAULT_START, DEFAULT_END] })
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({ time: [dateRange.start, dateRange.end] })
+
+  // Isı haritasında seçilen dönem API'den yeniden yüklendiğinde olay tablosu da
+  // aynı zaman penceresini kullanır; eski varsayılan tarih filtresinde kalmaz.
+  useEffect(() => {
+    setColumnFilters(current => ({ ...current, time: [dateRange.start, dateRange.end] }))
+  }, [dateRange.start, dateRange.end])
 
   // Pre-compute unique column values
   const columnUniqueValues = useMemo(() => {
@@ -152,15 +159,15 @@ export default memo(function IncidentTable({ incidents }: IncidentTableProps) {
   const totalPages = Math.ceil(filteredIncidents.length / ITEMS_PER_PAGE)
 
   const hasNonDefaultFilters = (Object.entries(columnFilters) as [string, string[]][]).some(([k, v]) => {
-    if (k === 'time') return v[0] !== DEFAULT_START || v[1] !== DEFAULT_END
+    if (k === 'time') return v[0] !== dateRange.start || v[1] !== dateRange.end
     return v && v.length > 0
   })
 
   const clearAllFilters = useCallback(() => {
-    setColumnFilters({ time: [DEFAULT_START, DEFAULT_END] })
+    setColumnFilters({ time: [dateRange.start, dateRange.end] })
     setColumnFilterSearch({})
     setOpenColumnFilter(null)
-  }, [])
+  }, [dateRange.end, dateRange.start])
 
   return (
     <div style={{ background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '32px', borderTop: '3px solid #f59e0b' }}>

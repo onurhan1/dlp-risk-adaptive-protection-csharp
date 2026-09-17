@@ -10,7 +10,8 @@ public interface IDatabaseService
         string? user,
         string? department,
         int limit = 100,
-        string orderBy = "timestamp_desc");
+        string orderBy = "timestamp_desc",
+        int offset = 0);
 
     Task<List<ExceptionIncidentStats>> GetExceptionIncidentStatsAsync(
         DateTime? startDate, DateTime? endDate);

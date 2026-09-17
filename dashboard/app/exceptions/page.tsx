@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react'
 import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
 import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
 import LoadingOverlay from '@/components/ui/LoadingOverlay'
@@ -8,7 +8,8 @@ import { useTranslation } from '@/components/LanguageProvider'
 import HeatmapSection from './_components/HeatmapSection'
 import IncidentTable from './_components/IncidentTable'
 import ExceptionRecommendation from './_components/ExceptionRecommendation'
-import type { Incident } from './_lib/types'
+import type { DateRange, Incident } from './_lib/types'
+import { DEFAULT_END, DEFAULT_START } from './_lib/constants'
 import { mapIncidentData, normalizeTeamName, extractPoliciesFromIncidents } from './_lib/utils'
 
 export default function AnalyticsPage() {
@@ -20,6 +21,7 @@ export default function AnalyticsPage() {
 }
 
 const INITIAL_PAGE_SIZE = 500
+const BACKGROUND_PAGE_SIZE = 5_000
 
 function AnalyticsPageContent() {
   const { t } = useTranslation()
@@ -27,46 +29,71 @@ function AnalyticsPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [partialCount, setPartialCount] = useState<number | null>(null)
-
-  useEffect(() => {
-    fetchIncidents()
-  }, [])
+  const [activeDateRange, setActiveDateRange] = useState<DateRange>({ start: DEFAULT_START, end: DEFAULT_END })
+  const activeLoadRef = useRef(0)
 
   // Timeout ile diger hatalari ayirir; kullanici "sunucu yavas" ile "istek basarisiz"i ayirt edebilsin.
   const describeError = (err: any) =>
     err?.code === 'ECONNABORTED' ? t('exc.loadTimeout') : t('exc.loadFailed')
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = useCallback(async (dateRange: DateRange = { start: DEFAULT_START, end: DEFAULT_END }) => {
+    const requestId = ++activeLoadRef.current
     setLoading(true)
     setError(null)
     setPartialCount(null)
     try {
-      // compact=true: sayfanin kullandigi 14 alan doner, tam DTO'nun 31 alani degil.
-      const queryParams: any = { limit: INITIAL_PAGE_SIZE, order_by: 'timestamp_desc', compact: true }
+      // Tarih araligi sunucuya gider. Böylece takvim seçimi, sadece ilk 500
+      // kaydin istemci tarafinda filtrelenmesine dönüşmez.
+      const queryParams: any = {
+        startDate: dateRange.start || undefined,
+        endDate: dateRange.end || undefined,
+        orderBy: 'timestamp_desc',
+        compact: true,
+        // Bu ekran LDAP bilgisiyle zenginleştirme gerektirmez. Büyük dönemlerde
+        // LDAP sorguları ikinci yüklemeyi kesintiye uğratıyordu.
+        include_directory: false,
+      }
 
-      // Phase 1: Fast initial load
-      const initialResponse = await apiClient.get('/api/incidents', { params: queryParams })
+      // İlk sayfa hemen görünür; kalan sayfalar sıralı olarak eklenir.
+      const initialResponse = await apiClient.get('/api/incidents', {
+        params: { ...queryParams, limit: INITIAL_PAGE_SIZE, offset: 0 },
+        timeout: LONG_REQUEST_TIMEOUT_MS,
+      })
       const initialData = Array.isArray(initialResponse.data) ? initialResponse.data : []
       const initialMapped = initialData.map(mapIncidentData)
+      if (requestId !== activeLoadRef.current) return
       setIncidents(initialMapped)
       setLoading(false)
 
-      // Phase 2: Load remaining data in background
+      // Kalan kayıtları tek dev istek yerine 5.000'lik sayfalarda al. Bu hem
+      // 500 sınırını ortadan kaldırır hem de uzun tarih aralıklarında daha kararlı çalışır.
       if (initialMapped.length >= INITIAL_PAGE_SIZE) {
+        let loadedCount = initialMapped.length
         try {
-          const fullResponse = await apiClient.get('/api/incidents', {
-            params: { ...queryParams, limit: 1000000000 },
-            timeout: LONG_REQUEST_TIMEOUT_MS
-          })
-          const fullData = Array.isArray(fullResponse.data) ? fullResponse.data : []
-          if (fullData.length >= initialMapped.length) {
-            setIncidents(fullData.map(mapIncidentData))
+          let loaded = initialMapped
+          let offset = initialMapped.length
+
+          while (true) {
+            const response = await apiClient.get('/api/incidents', {
+              params: { ...queryParams, limit: BACKGROUND_PAGE_SIZE, offset },
+              timeout: LONG_REQUEST_TIMEOUT_MS,
+            })
+            const page = Array.isArray(response.data) ? response.data.map(mapIncidentData) : []
+            if (requestId !== activeLoadRef.current) return
+            if (page.length === 0) break
+
+            loaded = [...loaded, ...page]
+            loadedCount = loaded.length
+            setIncidents(loaded)
+            offset += page.length
+
+            if (page.length < BACKGROUND_PAGE_SIZE) break
           }
         } catch (err) {
           // Tablo ilk sayfayla calismaya devam eder; ama analiz eksik veriye dayandigi
           // icin kullanici bunu bilmeli, sessizce gecilmemeli.
           console.error('Error fetching remaining incidents:', err)
-          setPartialCount(initialMapped.length)
+          setPartialCount(loadedCount)
         }
       }
     } catch (err) {
@@ -75,7 +102,16 @@ function AnalyticsPageContent() {
       setIncidents([])
       setLoading(false)
     }
-  }
+  }, [t])
+
+  useEffect(() => {
+    fetchIncidents()
+  }, [fetchIncidents])
+
+  const handleDateRangeApply = useCallback((dateRange: DateRange) => {
+    setActiveDateRange(dateRange)
+    void fetchIncidents(dateRange)
+  }, [fetchIncidents])
 
   // Shared derived data - computed once, passed as props
   const uniqueDepartments = useMemo(() =>
@@ -185,9 +221,10 @@ function AnalyticsPageContent() {
             uniqueDepartments={uniqueDepartments}
             uniqueTeams={uniqueTeams}
             uniqueActions={uniqueActions}
+            onDateRangeApply={handleDateRangeApply}
           />
 
-          <IncidentTable incidents={incidents} />
+          <IncidentTable incidents={incidents} dateRange={activeDateRange} />
 
           <ExceptionRecommendation
             incidents={incidents}

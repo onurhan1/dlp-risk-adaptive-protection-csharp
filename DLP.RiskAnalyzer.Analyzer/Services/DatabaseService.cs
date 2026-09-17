@@ -34,7 +34,8 @@ public class DatabaseService : IDatabaseService
         string? user,
         string? department,
         int limit = 100,
-        string orderBy = "timestamp_desc")
+        string orderBy = "timestamp_desc",
+        int offset = 0)
     {
         var query = _context.Incidents.AsQueryable();
 
@@ -77,7 +78,10 @@ public class DatabaseService : IDatabaseService
             _ => query.OrderByDescending(i => i.Timestamp)
         };
 
-        return await query.Take(limit).ToListAsync();
+        return await query
+            .Skip(Math.Max(0, offset))
+            .Take(Math.Max(1, limit))
+            .ToListAsync();
     }
 
     /// <summary>

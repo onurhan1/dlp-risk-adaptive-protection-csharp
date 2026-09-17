@@ -117,16 +117,18 @@ public class IncidentsController : ControllerBase
         [FromQuery] string?   department,
         [FromQuery] int       limit   = 100,
         [FromQuery] string    orderBy = "timestamp_desc",
+        [FromQuery] int       offset  = 0,
         [FromQuery(Name = "include_directory")] bool includeDirectory = true,
         [FromQuery] bool      compact = false)
     {
         try
         {
             // Cap limit to prevent OOM on large datasets
-            var safeLimitValue = Math.Min(limit, 100000);
+            var safeLimitValue = Math.Clamp(limit, 1, 100000);
+            var safeOffset = Math.Max(0, offset);
 
             var incidents = await _dbService.GetIncidentsAsync(
-                startDate, endDate, user, department, safeLimitValue, orderBy);
+                startDate, endDate, user, department, safeLimitValue, orderBy, safeOffset);
 
             var enrichedIncidents = includeDirectory
                 ? await EnrichAndMapAsync(incidents)

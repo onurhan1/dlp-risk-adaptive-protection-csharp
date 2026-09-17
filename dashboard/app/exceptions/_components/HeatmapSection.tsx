@@ -4,7 +4,7 @@ import React, { useState, useMemo, memo, ChangeEvent } from 'react'
 import { RotateCcw, ChevronUp, ChevronDown, BarChart3 } from 'lucide-react'
 import Pagination from '@/components/ui/Pagination'
 import SearchableMultiSelect from './SearchableMultiSelect'
-import type { Incident, AppliedFilters, HeatmapData } from '../_lib/types'
+import type { Incident, AppliedFilters, DateRange, HeatmapData } from '../_lib/types'
 import { normalizeTeamName, isInDateRange, matchesUserSearch, getHeatmapColor, getTextColor } from '../_lib/utils'
 import {
   DEFAULT_START, DEFAULT_END, TEAMS_PER_PAGE, INITIAL_DOMAIN_COUNT,
@@ -17,9 +17,10 @@ interface HeatmapSectionProps {
   uniqueDepartments: string[]
   uniqueTeams: string[]
   uniqueActions: string[]
+  onDateRangeApply: (dateRange: DateRange) => void
 }
 
-export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniqueTeams, uniqueActions }: HeatmapSectionProps) {
+export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniqueTeams, uniqueActions, onDateRangeApply }: HeatmapSectionProps) {
   const { t } = useTranslation()
   // Heatmap pagination & visibility
   const [heatmapTeamPage, setHeatmapTeamPage] = useState(1)
@@ -42,11 +43,13 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(DEFAULT_APPLIED_FILTERS)
 
   const applyFilters = () => {
+    if (dateRange.start && dateRange.end && dateRange.start > dateRange.end) return
     setAppliedFilters({
       dateRange: { ...dateRange },
       selectedDepartments, selectedTeams, selectedUser,
       selectedFullName, selectedPolicy, selectedDomain, selectedActions
     })
+    onDateRangeApply(dateRange)
   }
 
   const resetFilters = () => {
@@ -60,6 +63,7 @@ export default memo(function HeatmapSection({ incidents, uniqueDepartments, uniq
     setSelectedDomain('')
     setSelectedActions([])
     setAppliedFilters(DEFAULT_APPLIED_FILTERS)
+    onDateRangeApply({ start: DEFAULT_START, end: DEFAULT_END })
   }
 
   // Filtered incidents for heatmap
