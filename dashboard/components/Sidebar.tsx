@@ -19,6 +19,7 @@ import {
   RotateCcw,
   ShieldCheck,
   BrainCircuit,
+  Bot,
   Mail,
   CalendarClock,
   ClipboardList,
@@ -200,6 +201,13 @@ export default function Sidebar() {
                   >
                     <BrainCircuit size={16} />
                     <span>AI Risk Model</span>
+                  </Link>
+                  <Link
+                    href="/ai-behavioral/local-llm"
+                    className={`sidebar-subitem ${pathname === '/ai-behavioral/local-llm' ? 'active' : ''}`}
+                  >
+                    <Bot size={16} />
+                    <span>Yerel LLM Laboratuvarı</span>
                   </Link>
                 </div>
               )}

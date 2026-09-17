@@ -108,6 +108,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IOpenAIService, OpenAIService>();
         services.AddHttpClient<ICopilotService, CopilotService>();
         services.AddHttpClient<IAzureOpenAIService, AzureOpenAIService>();
+        services.AddHttpClient<ILocalLlmLabService, LocalLlmLabService>();
         services.AddHttpClient<IPolicyService, PolicyService>();
 
         return services;
