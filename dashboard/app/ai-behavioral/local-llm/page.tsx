@@ -21,7 +21,7 @@ const INITIAL_SETTINGS: Settings = {
   max_tokens: 1800,
 }
 
-const ALGORITHM_PROMPT = 'Seçili incident verisini incele. RADARın mevcut risk puanını kullanmadan, yalnızca ham olay özelliklerinden 0-100 aralığında denetlenebilir bir risk puanlama algoritması ve riskli kullanıcı sınıflandırması öner. Faktörleri, ağırlıkları, eşikleri, örnek normalizasyonları, doğrulama planını ve sınırlılıkları ver. Sonunda öneriyi JSON olarak özetle.'
+const ALGORITHM_PROMPT = 'Seçili incident verisini incele. RADARın mevcut risk puanını kullanmadan, yalnızca ham olay özelliklerinden 0-100 aralığında denetlenebilir bir risk puanlama algoritması ve riskli kullanıcı sınıflandırması öner. Faktörleri, ağırlıkları, eşikleri, örnek normalizasyonları, doğrulama planını ve sınırlılıkları anlaşılır başlıklar ve maddeler halinde açıkla.'
 
 export default function LocalLlmLabPage() {
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS)
@@ -167,7 +167,7 @@ export default function LocalLlmLabPage() {
 
         <section style={{ ...panelStyle, minHeight: '490px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <PanelTitle icon={<Bot size={17} />} title="Risk Modeli Sohbeti" />
+            <PanelTitle icon={<Bot size={17} />} title="Yerel LLM Sohbeti" />
             <button onClick={() => void send(ALGORITHM_PROMPT)} disabled={!settings.enabled || busy !== null} style={secondaryButtonStyle}><Sparkles size={14} /> Risk Algoritması Oluştur</button>
           </div>
           <div style={{ flex: 1, minHeight: '290px', margin: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 0', overflowY: 'auto' }}>

@@ -223,26 +223,60 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             .Where(message => message.Role is "user" or "assistant" && !string.IsNullOrWhiteSpace(message.Content))
             .TakeLast(10)
             .Select(message => $"{(message.Role == "user" ? "Kullanıcı" : "Asistan")}: {message.Content.Trim()[..Math.Min(message.Content.Trim().Length, 3000)]}");
-        var context = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = false });
+        var context = FormatSnapshot(snapshot);
 
         return $$"""
 Sen RADAR içindeki yerel DLP risk modelleme laboratuvarının analist asistanısın.
-Sana yalnızca salt-okunur incident özeti verildi. Bu veride olmayan olguları kesinmiş gibi iddia etme.
+Kullanıcıyla doğal, kısa ve yardımcı bir Türkçe sohbet yürüt. Selamlaşmaya selamlaşarak karşılık ver;
+her mesajda risk algoritması üretme. Yalnızca kullanıcı risk puanlama, sınıflandırma veya incident analizi isterse
+bu konulara geç. Sana yalnızca salt-okunur incident özeti verildi; bu veride olmayan olguları kesinmiş gibi iddia etme.
 RADAR'ın mevcut risk_score alanı bu bağlama bilinçli olarak dahil edilmemiştir; onu kullanma veya varsayma.
 Bir risk puanlama algoritması istendiğinde 0-100 aralığı, ölçülebilir faktörler, ağırlık toplamı, eşikler,
 doğrulama adımları ve sınırlılıkları öner. Kullanıcı sınıflandırmasını yalnızca ham olay özellikleri,
 yoğunluk, tekrar, max match, şiddet, veri hassasiyeti, aksiyon ve dağılımlardan türet.
 Üretim kuralı değiştirme, kullanıcıya işlem uygulama veya SQL üretme.
-Yanıtlarını Türkçe, denetlenebilir ve kısa başlıklarla yaz. İstenirse öneriyi aşağıdaki JSON şemasında da ver:
-{"algorithm_name":"", "factors":[{"name":"", "weight":0, "normalization":"", "reason":""}], "thresholds":{}, "validation_plan":[], "limitations":[]}
+Yanıtlarını Türkçe, denetlenebilir ve kısa başlıklarla yaz. Kullanıcı açıkça JSON istemedikçe JSON,
+JSON şeması, kod bloğu veya yalnızca yapılandırılmış veri döndürme.
 
-INCIDENT_SNAPSHOT={{context}}
+INCIDENT BAĞLAMI (yalnızca ilgili olduğunda kullan):
+{{context}}
 
 {{string.Join("\n", history)}}
 Kullanıcı: {{request.Message.Trim()}}
 Asistan:
 """;
     }
+
+    private static string FormatSnapshot(LocalLlmIncidentSnapshot snapshot)
+    {
+        var text = new StringBuilder()
+            .AppendLine($"Dönem: {snapshot.StartUtc:yyyy-MM-dd} - {snapshot.EndUtc:yyyy-MM-dd} (UTC)")
+            .AppendLine($"Toplam olay: {snapshot.TotalIncidents}; benzersiz kullanıcı: {snapshot.UniqueUsers}; en yüksek maximum match: {snapshot.MaximumMatches}.")
+            .AppendLine($"Aksiyon dağılımı: {FormatCounts(snapshot.Actions)}")
+            .AppendLine($"Kanal dağılımı: {FormatCounts(snapshot.Channels)}")
+            .AppendLine($"Politika dağılımı: {FormatCounts(snapshot.Policies)}")
+            .AppendLine("Öne çıkan kullanıcı profilleri:");
+
+        foreach (var user in snapshot.Users)
+        {
+            text.AppendLine($"- Kullanıcı: {user.User}; birim: {user.Department ?? "-"}; olay: {user.IncidentCount}; " +
+                $"max match: {user.MaximumMatches}; en yüksek şiddet: {user.MaximumSeverity}; tekrar: {user.RepeatCount}; " +
+                $"ortalama veri hassasiyeti: {user.AverageDataSensitivity:F1}.");
+        }
+
+        text.AppendLine("Örnek olaylar:");
+        foreach (var incident in snapshot.Samples)
+        {
+            text.AppendLine($"- {incident.Timestamp:yyyy-MM-dd HH:mm}; kullanıcı: {incident.User}; aksiyon: {incident.Action ?? "-"}; " +
+                $"max match: {incident.MaxMatches}; şiddet: {incident.Severity}; tekrar: {incident.RepeatCount}; " +
+                $"politika: {incident.Policy ?? "-"}; kural: {incident.Rule ?? "-"}; kanal: {incident.Channel ?? "-"}; hedef: {incident.Destination ?? "-"}.");
+        }
+
+        return text.ToString();
+    }
+
+    private static string FormatCounts(IReadOnlyList<LocalLlmCount> counts) =>
+        counts.Count == 0 ? "veri yok" : string.Join(", ", counts.Select(item => $"{item.Name}: {item.Count}"));
 
     private static void ValidateSettings(LocalLlmLabSettings settings)
     {
