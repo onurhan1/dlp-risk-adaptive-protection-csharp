@@ -505,9 +505,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
             text.AppendLine("Ayrıntılı zaman çizelgesi:");
             foreach (var item in timelineRows.Where(row => row.User == candidate.User)
-                         .OrderByDescending(row => row.MaxMatches)
-                         .ThenByDescending(row => row.Severity)
-                         .ThenByDescending(row => row.Timestamp)
+                         .OrderBy(row => row.Timestamp)
                          .Take(evidenceRowsPerUser))
             {
                 text.AppendLine($"- {item.Timestamp:yyyy-MM-dd HH:mm}; aksiyon: {item.Action ?? "-"}; politika: {item.Policy ?? "-"}; " +
@@ -518,11 +516,14 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             var userPatterns = crossChannelPatterns.Where(pattern => pattern.User == candidate.User).ToList();
             if (userPatterns.Count > 0)
             {
-                text.AppendLine($"{timeWindowHours} saat içinde aynı politika/kural için farklı kanala geçiş desenleri:");
+                text.AppendLine($"{timeWindowHours} saat içinde aynı politika/kural için gözlenen farklı kanal geçişleri. Bunlar ilişki kanıtıdır; tek başına engel aşma veya aynı verinin aktarıldığını kanıtlamaz:");
                 foreach (var pattern in userPatterns)
                 {
-                    text.AppendLine($"- {pattern.OccurrenceCount} geçiş; veri kapsamı: {pattern.DataContext}; kanallar: {pattern.Channels}; " +
-                        $"ilk: {pattern.FirstSeen:yyyy-MM-dd HH:mm}; son: {pattern.LastSeen:yyyy-MM-dd HH:mm}; max match: {pattern.MaximumMatches}.");
+                    var fromDestination = request.MaskIdentifiers ? MaskDestination(pattern.FromDestination) : pattern.FromDestination;
+                    var toDestination = request.MaskIdentifiers ? MaskDestination(pattern.ToDestination) : pattern.ToDestination;
+                    text.AppendLine($"- {pattern.OccurrenceCount} geçiş; veri kapsamı: {pattern.DataContext}; önce: {pattern.FromChannel} ({pattern.FromAction ?? "-"}, hedef: {fromDestination ?? "-"}); " +
+                        $"sonra: {pattern.ToChannel} ({pattern.ToAction ?? "-"}, hedef: {toDestination ?? "-"}); ilk: {pattern.FirstSeen:yyyy-MM-dd HH:mm}; " +
+                        $"son: {pattern.LastSeen:yyyy-MM-dd HH:mm}; max match: {pattern.MaximumMatches}.");
                 }
             }
         }
@@ -562,13 +563,22 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                         string.IsNullOrWhiteSpace(previous.Channel) ||
                         string.Equals(current.Channel, previous.Channel, StringComparison.OrdinalIgnoreCase)) continue;
 
-                    var channels = string.Compare(current.Channel, previous.Channel, StringComparison.OrdinalIgnoreCase) < 0
-                        ? $"{current.Channel} -> {previous.Channel}"
-                        : $"{previous.Channel} -> {current.Channel}";
-                    var key = $"{current.User}\u001f{dataContext}\u001f{channels}";
+                    var key = $"{current.User}\u001f{dataContext}\u001f{previous.Channel}\u001f{current.Channel}\u001f{previous.Action}\u001f{current.Action}\u001f{previous.Destination}\u001f{current.Destination}";
                     if (!patterns.TryGetValue(key, out var pattern))
                     {
-                        pattern = new CrossChannelPattern(current.User, dataContext, channels, 0, current.Timestamp, current.Timestamp, 0);
+                        pattern = new CrossChannelPattern(
+                            current.User,
+                            dataContext,
+                            previous.Channel,
+                            current.Channel,
+                            previous.Action,
+                            current.Action,
+                            previous.Destination,
+                            current.Destination,
+                            0,
+                            previous.Timestamp,
+                            current.Timestamp,
+                            0);
                     }
 
                     patterns[key] = pattern with
@@ -578,6 +588,10 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                         LastSeen = pattern.LastSeen > current.Timestamp ? pattern.LastSeen : current.Timestamp,
                         MaximumMatches = Math.Max(pattern.MaximumMatches, Math.Max(current.MaxMatches, previous.MaxMatches)),
                     };
+
+                    // The closest matching predecessor is the defensible event sequence.
+                    // Pairing every earlier incident would inflate the apparent transition count.
+                    break;
                 }
             }
         }
@@ -786,7 +800,12 @@ Veri Güvenliği Yönetimi
     private sealed record CrossChannelPattern(
         string User,
         string DataContext,
-        string Channels,
+        string FromChannel,
+        string ToChannel,
+        string? FromAction,
+        string? ToAction,
+        string? FromDestination,
+        string? ToDestination,
         int OccurrenceCount,
         DateTime FirstSeen,
         DateTime LastSeen,
@@ -857,6 +876,8 @@ doğrulama adımları ve sınırlılıkları öner. Kullanıcı sınıflandırma
 yoğunluk, tekrar, max match, şiddet, veri hassasiyeti, aksiyon ve dağılımlardan türet.
 Kullanıcı dar kapsamlı bir davranış veya zaman penceresi isterse, kapsamlı kanıttaki zaman çizelgesini ve çapraz kanal desenlerini özellikle test et.
 Doğrudan kanıt bulunmuyorsa bunu açıkça belirt; eksik kanıtı varsayımla tamamlama.
+Farklı kanal veya hedefe ait iki olay, tek başına aynı verinin tekrar gönderildiğini, engelin aşıldığını veya nedensel bir akışı kanıtlamaz.
+Bu tür bir çıkarımı yalnızca kanıt satırında önceki/sonraki olay, aksiyon ve hedef birlikte destekliyorsa yap; aksi halde "ilişkili olabilir" olarak ifade et.
 Üretim kuralı değiştirme, kullanıcıya işlem uygulama veya SQL üretme.
 Yanıtlarını Türkçe, denetlenebilir ve kısa başlıklarla yaz. Kullanıcı açıkça JSON istemedikçe JSON,
 JSON şeması, kod bloğu veya yalnızca yapılandırılmış veri döndürme.
