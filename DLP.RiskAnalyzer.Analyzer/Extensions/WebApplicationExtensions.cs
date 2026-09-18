@@ -71,6 +71,7 @@ public static class WebApplicationExtensions
         // Done at runtime (idempotent, data-preserving) so no EF migration is required.
         await EnsureSchemasAndMoveTablesAsync(app, logger);
         await EnsureInvestigationQuerySchemaAsync(app, logger);
+        await EnsureLocalLlmConversationSchemaAsync(app, logger);
 
         // Seed default admin user
         logger.LogInformation("=== SEEDING DEFAULT ADMIN USER ===");
@@ -214,6 +215,13 @@ END $$;");
         using var scope = app.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
         await InvestigationQuerySchema.EnsureAsync(context, logger);
+    }
+
+    private static async Task EnsureLocalLlmConversationSchemaAsync(WebApplication app, ILogger logger)
+    {
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AnalyzerDbContext>();
+        await LocalLlmConversationSchema.EnsureAsync(context, logger);
     }
 
     /// <summary>

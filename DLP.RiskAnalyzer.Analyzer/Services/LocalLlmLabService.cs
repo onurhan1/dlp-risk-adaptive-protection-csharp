@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -162,7 +163,78 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             actions, channels, policies, users, samples);
     }
 
-    public async Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, CancellationToken ct)
+    public async Task<IReadOnlyList<LocalLlmConversationSummary>> GetConversationsAsync(string ownerUsername, CancellationToken ct)
+    {
+        var rows = await _context.LocalLlmConversations.AsNoTracking()
+            .Where(conversation => conversation.OwnerUsername == ownerUsername)
+            .OrderByDescending(conversation => conversation.UpdatedAt)
+            .Take(100)
+            .Select(conversation => new
+            {
+                conversation.Id,
+                conversation.Title,
+                conversation.UpdatedAt,
+                MessageCount = conversation.Messages.Count,
+                Preview = conversation.Messages
+                    .OrderByDescending(message => message.CreatedAt)
+                    .Select(message => message.Content)
+                    .FirstOrDefault(),
+            })
+            .ToListAsync(ct);
+
+        return rows.Select(row => new LocalLlmConversationSummary(
+            row.Id,
+            row.Title,
+            row.UpdatedAt,
+            row.MessageCount,
+            Truncate(row.Preview, 140))).ToList();
+    }
+
+    public async Task<LocalLlmConversationDetail> CreateConversationAsync(string ownerUsername, string? title, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var conversation = new LocalLlmConversation
+        {
+            OwnerUsername = ownerUsername,
+            Title = NormalizeTitle(title),
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        _context.LocalLlmConversations.Add(conversation);
+        await _context.SaveChangesAsync(ct);
+        return ToDetail(conversation, []);
+    }
+
+    public async Task<LocalLlmConversationDetail?> GetConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct)
+    {
+        var conversation = await _context.LocalLlmConversations.AsNoTracking()
+            .Where(item => item.Id == conversationId && item.OwnerUsername == ownerUsername)
+            .Select(item => new { item.Id, item.Title, item.CreatedAt, item.UpdatedAt })
+            .FirstOrDefaultAsync(ct);
+        if (conversation == null) return null;
+
+        var messages = await _context.LocalLlmConversationMessages.AsNoTracking()
+            .Where(message => message.ConversationId == conversationId)
+            .OrderBy(message => message.CreatedAt)
+            .Select(message => new LocalLlmChatMessage(message.Role, message.Content))
+            .ToListAsync(ct);
+
+        return new LocalLlmConversationDetail(
+            conversation.Id, conversation.Title, conversation.CreatedAt, conversation.UpdatedAt, messages);
+    }
+
+    public async Task<bool> DeleteConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct)
+    {
+        var conversation = await _context.LocalLlmConversations
+            .FirstOrDefaultAsync(item => item.Id == conversationId && item.OwnerUsername == ownerUsername, ct);
+        if (conversation == null) return false;
+
+        _context.LocalLlmConversations.Remove(conversation);
+        await _context.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, string ownerUsername, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new ArgumentException("Mesaj boş olamaz.", nameof(request));
@@ -171,11 +243,63 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         if (!settings.Enabled)
             throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmemiş.");
 
+        var conversation = request.ConversationId.HasValue
+            ? await _context.LocalLlmConversations.FirstOrDefaultAsync(item =>
+                item.Id == request.ConversationId.Value && item.OwnerUsername == ownerUsername, ct)
+            : null;
+
+        if (request.ConversationId.HasValue && conversation == null)
+            throw new ArgumentException("Sohbet bulunamadı veya erişim yetkiniz yok.", nameof(request));
+
+        if (conversation == null)
+        {
+            var now = DateTime.UtcNow;
+            conversation = new LocalLlmConversation
+            {
+                OwnerUsername = ownerUsername,
+                Title = TitleFromMessage(request.Message),
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            _context.LocalLlmConversations.Add(conversation);
+            await _context.SaveChangesAsync(ct);
+        }
+
+        var persistedHistory = await _context.LocalLlmConversationMessages.AsNoTracking()
+            .Where(message => message.ConversationId == conversation.Id)
+            .OrderBy(message => message.CreatedAt)
+            .Select(message => new LocalLlmChatMessage(message.Role, message.Content))
+            .ToListAsync(ct);
+
+        var messageTime = DateTime.UtcNow;
+        _context.LocalLlmConversationMessages.Add(new LocalLlmConversationMessage
+        {
+            ConversationId = conversation.Id,
+            Role = "user",
+            Content = request.Message.Trim(),
+            CreatedAt = messageTime,
+        });
+        conversation.UpdatedAt = messageTime;
+        if (conversation.Title == "Yeni sohbet") conversation.Title = TitleFromMessage(request.Message);
+        await _context.SaveChangesAsync(ct);
+
         var snapshot = await GetIncidentSnapshotAsync(
             new LocalLlmSnapshotRequest(request.LookbackDays, request.SampleSize, request.MaskIdentifiers), ct);
-        var prompt = BuildPrompt(request, snapshot);
+        var prompt = BuildPrompt(request with { History = persistedHistory }, snapshot);
         var reply = await GenerateAsync(settings, prompt, settings.MaxTokens, ct);
-        return new LocalLlmChatResult(reply, snapshot);
+
+        var replyTime = DateTime.UtcNow;
+        _context.LocalLlmConversationMessages.Add(new LocalLlmConversationMessage
+        {
+            ConversationId = conversation.Id,
+            Role = "assistant",
+            Content = reply,
+            CreatedAt = replyTime,
+        });
+        conversation.UpdatedAt = replyTime;
+        await _context.SaveChangesAsync(ct);
+
+        return new LocalLlmChatResult(conversation.Id, reply, snapshot);
     }
 
     private async Task<IReadOnlyList<LocalLlmCount>> CountByAsync(IQueryable<string?> source, CancellationToken ct)
@@ -190,6 +314,26 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
         return rows.Select(row => new LocalLlmCount(row.Name, row.Count)).ToList();
     }
+
+    private static LocalLlmConversationDetail ToDetail(
+        LocalLlmConversation conversation,
+        IReadOnlyList<LocalLlmChatMessage> messages) =>
+        new(conversation.Id, conversation.Title, conversation.CreatedAt, conversation.UpdatedAt, messages);
+
+    private static string NormalizeTitle(string? title)
+    {
+        var normalized = string.IsNullOrWhiteSpace(title) ? "Yeni sohbet" : title.Trim();
+        return normalized[..Math.Min(normalized.Length, 200)];
+    }
+
+    private static string TitleFromMessage(string message)
+    {
+        var firstLine = message.Trim().ReplaceLineEndings(" ");
+        return NormalizeTitle(firstLine[..Math.Min(firstLine.Length, 80)]);
+    }
+
+    private static string? Truncate(string? value, int length) =>
+        string.IsNullOrWhiteSpace(value) ? value : value.Length <= length ? value : $"{value[..length]}...";
 
     private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, int maxTokens, CancellationToken ct)
     {

@@ -6,7 +6,11 @@ public interface ILocalLlmLabService
     Task SaveSettingsAsync(LocalLlmLabSettings settings, CancellationToken ct);
     Task<string> TestConnectionAsync(LocalLlmLabSettings settings, CancellationToken ct);
     Task<LocalLlmIncidentSnapshot> GetIncidentSnapshotAsync(LocalLlmSnapshotRequest request, CancellationToken ct);
-    Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, CancellationToken ct);
+    Task<IReadOnlyList<LocalLlmConversationSummary>> GetConversationsAsync(string ownerUsername, CancellationToken ct);
+    Task<LocalLlmConversationDetail> CreateConversationAsync(string ownerUsername, string? title, CancellationToken ct);
+    Task<LocalLlmConversationDetail?> GetConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct);
+    Task<bool> DeleteConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct);
+    Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, string ownerUsername, CancellationToken ct);
 }
 
 public sealed record LocalLlmLabSettings(
@@ -25,9 +29,26 @@ public sealed record LocalLlmChatRequest(
     List<LocalLlmChatMessage>? History,
     int LookbackDays = 30,
     int SampleSize = 40,
-    bool MaskIdentifiers = true);
+    bool MaskIdentifiers = true,
+    Guid? ConversationId = null);
 
-public sealed record LocalLlmChatResult(string Reply, LocalLlmIncidentSnapshot Snapshot);
+public sealed record LocalLlmChatResult(Guid ConversationId, string Reply, LocalLlmIncidentSnapshot Snapshot);
+
+public sealed record LocalLlmConversationCreateRequest(string? Title);
+
+public sealed record LocalLlmConversationSummary(
+    Guid Id,
+    string Title,
+    DateTime UpdatedAt,
+    int MessageCount,
+    string? Preview);
+
+public sealed record LocalLlmConversationDetail(
+    Guid Id,
+    string Title,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    IReadOnlyList<LocalLlmChatMessage> Messages);
 
 public sealed record LocalLlmIncidentSnapshot(
     DateTime StartUtc,

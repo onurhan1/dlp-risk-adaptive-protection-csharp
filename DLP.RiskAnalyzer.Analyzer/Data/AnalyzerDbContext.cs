@@ -39,6 +39,8 @@ public class AnalyzerDbContext : DbContext
     public DbSet<InvestigationInboundMail> InvestigationInboundMails { get; set; }
     public DbSet<ScheduledJob> ScheduledJobs { get; set; }
     public DbSet<ScheduledJobRun> ScheduledJobRuns { get; set; }
+    public DbSet<LocalLlmConversation> LocalLlmConversations { get; set; }
+    public DbSet<LocalLlmConversationMessage> LocalLlmConversationMessages { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -706,6 +708,34 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.ProcessedAt).HasColumnName("processed_at").IsRequired();
             entity.HasIndex(e => e.MessageKey).IsUnique();
             entity.HasIndex(e => e.InvestigationQueryId);
+        });
+
+        modelBuilder.Entity<LocalLlmConversation>(entity =>
+        {
+            entity.ToTable("local_llm_conversations", table => table.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OwnerUsername).HasColumnName("owner_username").IsRequired().HasMaxLength(120);
+            entity.Property(e => e.Title).HasColumnName("title").IsRequired().HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.OwnerUsername, e.UpdatedAt });
+            entity.HasMany(e => e.Messages)
+                .WithOne(e => e.Conversation)
+                .HasForeignKey(e => e.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LocalLlmConversationMessage>(entity =>
+        {
+            entity.ToTable("local_llm_conversation_messages", table => table.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            entity.Property(e => e.ConversationId).HasColumnName("conversation_id");
+            entity.Property(e => e.Role).HasColumnName("role").IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Content).HasColumnName("content").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
         });
 
         modelBuilder.Entity<ScheduledJob>(entity =>

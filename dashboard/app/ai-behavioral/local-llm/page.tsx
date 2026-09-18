@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react'
-import { Bot, Database, EyeOff, Loader2, PlugZap, RefreshCw, Save, Send, ShieldCheck, Sparkles } from 'lucide-react'
+import { Bot, Database, EyeOff, Loader2, MessageSquare, Plus, PlugZap, RefreshCw, Save, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
 import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
 
 type Settings = { enabled: boolean; generate_url: string; model: string; temperature: number; max_tokens: number }
@@ -12,6 +12,8 @@ type Snapshot = {
   maximum_matches: number; actions: Count[]; channels: Count[]; policies: Count[]; users: unknown[]; samples: unknown[]
 }
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
+type ConversationSummary = { id: string; title: string; updated_at: string; message_count: number; preview?: string | null }
+type ConversationDetail = { id: string; title: string; created_at: string; updated_at: string; messages: ChatMessage[] }
 
 const INITIAL_SETTINGS: Settings = {
   enabled: false,
@@ -30,9 +32,11 @@ export default function LocalLlmLabPage() {
   const [maskIdentifiers, setMaskIdentifiers] = useState(true)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState<'save' | 'test' | 'chat' | 'snapshot' | null>(null)
+  const [busy, setBusy] = useState<'save' | 'test' | 'chat' | 'snapshot' | 'conversation' | null>(null)
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const snapshotParams = useMemo(() => ({ lookbackDays, sampleSize, maskIdentifiers }), [lookbackDays, sampleSize, maskIdentifiers])
@@ -53,12 +57,21 @@ export default function LocalLlmLabPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [settingsResponse, snapshotResponse] = await Promise.all([
+        const [settingsResponse, snapshotResponse, conversationsResponse] = await Promise.all([
           apiClient.get('/api/local-llm-lab/settings'),
           apiClient.get('/api/local-llm-lab/snapshot', { params: snapshotParams }),
+          apiClient.get('/api/local-llm-lab/conversations'),
         ])
         setSettings({ ...INITIAL_SETTINGS, ...settingsResponse.data })
         setSnapshot(snapshotResponse.data)
+        const savedConversations = Array.isArray(conversationsResponse.data) ? conversationsResponse.data : []
+        setConversations(savedConversations)
+        if (savedConversations.length > 0) {
+          const conversationResponse = await apiClient.get(`/api/local-llm-lab/conversations/${savedConversations[0].id}`)
+          const conversation = conversationResponse.data as ConversationDetail
+          setActiveConversationId(conversation.id)
+          setMessages(conversation.messages || [])
+        }
       } catch (error: any) {
         setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yerel LLM Laboratuvarı yüklenemedi.' })
       } finally {
@@ -69,6 +82,54 @@ export default function LocalLlmLabPage() {
   // Only load once. Subsequent data changes are explicit through the refresh control.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const refreshConversations = useCallback(async () => {
+    const response = await apiClient.get('/api/local-llm-lab/conversations')
+    setConversations(Array.isArray(response.data) ? response.data : [])
+  }, [])
+
+  const selectConversation = async (conversationId: string) => {
+    if (conversationId === activeConversationId || busy !== null) return
+    setBusy('conversation'); setNotice(null)
+    try {
+      const response = await apiClient.get(`/api/local-llm-lab/conversations/${conversationId}`)
+      const conversation = response.data as ConversationDetail
+      setActiveConversationId(conversation.id)
+      setMessages(conversation.messages || [])
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Sohbet açılamadı.' })
+    } finally { setBusy(null) }
+  }
+
+  const createConversation = async () => {
+    if (busy !== null) return
+    setBusy('conversation'); setNotice(null)
+    try {
+      const response = await apiClient.post('/api/local-llm-lab/conversations', {})
+      const conversation = response.data as ConversationDetail
+      setActiveConversationId(conversation.id)
+      setMessages([])
+      await refreshConversations()
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yeni sohbet oluşturulamadı.' })
+    } finally { setBusy(null) }
+  }
+
+  const deleteConversation = async (conversationId: string) => {
+    if (busy !== null || !window.confirm('Bu sohbet ve mesajları silinsin mi?')) return
+    setBusy('conversation'); setNotice(null)
+    try {
+      await apiClient.delete(`/api/local-llm-lab/conversations/${conversationId}`)
+      const remaining = conversations.filter(conversation => conversation.id !== conversationId)
+      setConversations(remaining)
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null)
+        setMessages([])
+      }
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Sohbet silinemedi.' })
+    } finally { setBusy(null) }
+  }
 
   const saveSettings = async () => {
     setBusy('save'); setNotice(null)
@@ -96,17 +157,25 @@ export default function LocalLlmLabPage() {
     const nextMessages = [...messages, { role: 'user' as const, content }]
     setMessages(nextMessages); setInput(''); setBusy('chat'); setNotice(null)
     try {
+      let conversationId = activeConversationId
+      if (!conversationId) {
+        const created = await apiClient.post('/api/local-llm-lab/conversations', {})
+        conversationId = created.data.id
+        setActiveConversationId(conversationId)
+      }
       const response = await apiClient.post('/api/local-llm-lab/chat', {
         message: content,
         history: messages,
         lookbackDays,
         sampleSize,
         maskIdentifiers,
+        conversationId,
       }, { timeout: LONG_REQUEST_TIMEOUT_MS })
       setMessages(current => [...current, { role: 'assistant', content: response.data.reply || 'Model boş yanıt verdi.' }])
+      setActiveConversationId(response.data.conversation_id || conversationId)
       setSnapshot(response.data.snapshot)
+      void refreshConversations()
     } catch (error: any) {
-      setMessages(current => current.filter((item, index) => !(index === current.length - 1 && item.role === 'user' && item.content === content)))
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Model yanıtı alınamadı.' })
     } finally { setBusy(null) }
   }
@@ -146,6 +215,24 @@ export default function LocalLlmLabPage() {
           <button onClick={saveSettings} disabled={busy !== null} style={primaryButtonStyle}><Save size={14} /> {busy === 'save' ? 'Kaydediliyor...' : 'Kaydet'}</button>
           <button onClick={testConnection} disabled={busy !== null} style={secondaryButtonStyle}><PlugZap size={14} /> {busy === 'test' ? 'Test ediliyor...' : 'Test Et'}</button>
         </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: '18px', paddingTop: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '9px' }}>
+            <PanelTitle icon={<MessageSquare size={16} />} title="Sohbet Geçmişi" />
+            <button onClick={() => void createConversation()} disabled={busy !== null} title="Yeni sohbet" style={{ ...secondaryButtonStyle, padding: '6px 7px' }}><Plus size={15} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '310px', overflowY: 'auto' }}>
+            {conversations.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '12px', padding: '5px 1px' }}>Henüz kaydedilmiş sohbet yok.</span>}
+            {conversations.map(conversation => <div key={conversation.id} role="button" tabIndex={0} onClick={() => void selectConversation(conversation.id)} onKeyDown={event => { if (event.key === 'Enter') void selectConversation(conversation.id) }} style={{ display: 'flex', alignItems: 'center', gap: '7px', border: `1px solid ${conversation.id === activeConversationId ? '#2563eb' : 'var(--border)'}`, background: conversation.id === activeConversationId ? 'rgba(37,99,235,.08)' : 'var(--surface)', borderRadius: '6px', padding: '8px', cursor: busy === null ? 'pointer' : 'default' }}>
+              <MessageSquare size={14} color={conversation.id === activeConversationId ? '#2563eb' : '#64748b'} style={{ flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ color: 'var(--text-primary)', fontSize: '12px', fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conversation.title}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>{conversation.preview || `${conversation.message_count} mesaj`} · {formatConversationTime(conversation.updated_at)}</div>
+              </div>
+              <button onClick={event => { event.stopPropagation(); void deleteConversation(conversation.id) }} disabled={busy !== null} title="Sohbeti sil" style={{ border: 0, background: 'transparent', color: '#dc2626', cursor: 'pointer', display: 'inline-flex', padding: '3px' }}><Trash2 size={14} /></button>
+            </div>)}
+          </div>
+        </div>
       </section>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
@@ -170,8 +257,9 @@ export default function LocalLlmLabPage() {
             <PanelTitle icon={<Bot size={17} />} title="Yerel LLM Sohbeti" />
             <button onClick={() => void send(ALGORITHM_PROMPT)} disabled={!settings.enabled || busy !== null} style={secondaryButtonStyle}><Sparkles size={14} /> Risk Algoritması Oluştur</button>
           </div>
+          <div style={{ marginTop: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>{activeConversationId ? 'Seçili sohbet otomatik kaydedilir.' : 'İlk mesajınızla yeni bir sohbet oluşturulur.'}</div>
           <div style={{ flex: 1, minHeight: '290px', margin: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 0', overflowY: 'auto' }}>
-            {messages.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '16px 0' }}>Model bağlantısını kaydedip etkinleştirdikten sonra risk faktörleri, eşikler veya doğrulama planı hakkında konuşabilirsiniz.</div> : messages.map((message, index) => <div key={`${message.role}-${index}`} style={{ margin: '0 0 12px', display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}><div style={{ maxWidth: '88%', whiteSpace: 'pre-wrap', padding: '10px 12px', borderRadius: '7px', background: message.role === 'user' ? '#2563eb' : 'var(--surface-muted, #f1f5f9)', color: message.role === 'user' ? 'white' : 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }}>{message.content}</div></div>)}
+            {messages.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '16px 0' }}>Model bağlantısını kaydedip etkinleştirdikten sonra risk faktörleri, eşikler veya doğrulama planı hakkında konuşabilirsiniz.</div> : messages.map((message, index) => <div key={`${message.role}-${index}`} style={{ margin: '0 0 12px', display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}><div style={{ maxWidth: '88%', minWidth: 0, padding: '10px 12px', borderRadius: '7px', background: message.role === 'user' ? '#2563eb' : 'var(--surface-muted, #f1f5f9)', color: message.role === 'user' ? 'white' : 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }}><MarkdownMessage content={message.content} /></div></div>)}
             {busy === 'chat' && <div style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', gap: '7px', alignItems: 'center' }}><Loader2 size={14} className="spin" /> Yerel model analiz ediyor...</div>}
           </div>
           <form onSubmit={onSubmit} style={{ display: 'flex', gap: '9px', alignItems: 'flex-end' }}>
@@ -186,6 +274,90 @@ export default function LocalLlmLabPage() {
 
 function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) { return <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)', fontWeight: 700, fontSize: '14px' }}>{icon}{title}</div> }
 function Metric({ label, value }: { label: string; value: number }) { return <div style={{ background: 'var(--surface-muted, #f8fafc)', border: '1px solid var(--border)', padding: '9px 10px', borderRadius: '6px' }}><div style={{ color: 'var(--text-muted)', fontSize: '10px' }}>{label}</div><div style={{ color: 'var(--text-primary)', fontSize: '17px', fontWeight: 700, marginTop: '2px' }}>{Number(value).toLocaleString('tr-TR')}</div></div> }
+function formatConversationTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const lines = content.replace(/\r\n/g, '\n').split('\n')
+  const blocks: ReactNode[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    if (!line.trim()) {
+      index += 1
+      continue
+    }
+
+    if (/^\s*```/.test(line)) {
+      const code: string[] = []
+      index += 1
+      while (index < lines.length && !/^\s*```/.test(lines[index])) code.push(lines[index++])
+      if (index < lines.length) index += 1
+      blocks.push(<pre key={`code-${index}`} style={{ margin: '8px 0', padding: '10px', overflowX: 'auto', borderRadius: '5px', background: 'rgba(15,23,42,.12)', fontSize: '12px', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{code.join('\n')}</pre>)
+      continue
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    if (heading) {
+      const size = heading[1].length === 1 ? '17px' : heading[1].length === 2 ? '15px' : '14px'
+      blocks.push(<div key={`heading-${index}`} style={{ fontSize: size, fontWeight: 750, margin: '10px 0 6px' }}>{renderMarkdownInline(heading[2], `heading-${index}`)}</div>)
+      index += 1
+      continue
+    }
+
+    if (/^\s*((---+)|(\*\*\*+)|(___+))\s*$/.test(line)) {
+      blocks.push(<hr key={`rule-${index}`} style={{ border: 0, borderTop: '1px solid currentColor', opacity: .24, margin: '12px 0' }} />)
+      index += 1
+      continue
+    }
+
+    if (isMarkdownTableLine(line) && index + 1 < lines.length && isMarkdownTableDivider(lines[index + 1])) {
+      const header = splitMarkdownTableRow(line)
+      index += 2
+      const rows: string[][] = []
+      while (index < lines.length && isMarkdownTableLine(lines[index])) rows.push(splitMarkdownTableRow(lines[index++]))
+      blocks.push(<div key={`table-${index}`} style={{ margin: '9px 0', overflowX: 'auto', border: '1px solid currentColor', borderRadius: '5px', opacity: .96 }}><table style={{ width: '100%', minWidth: `${Math.max(header.length, 2) * 120}px`, borderCollapse: 'collapse', fontSize: '12px' }}><thead><tr>{header.map((cell, cellIndex) => <th key={`header-${cellIndex}`} style={{ textAlign: 'left', padding: '7px 8px', borderBottom: '1px solid currentColor', background: 'rgba(15,23,42,.09)', verticalAlign: 'top' }}>{renderMarkdownInline(cell, `table-header-${cellIndex}`)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`}>{header.map((_, cellIndex) => <td key={`cell-${rowIndex}-${cellIndex}`} style={{ padding: '7px 8px', borderTop: rowIndex ? '1px solid rgba(100,116,139,.2)' : 0, verticalAlign: 'top' }}>{renderMarkdownInline(row[cellIndex] ?? '', `table-${rowIndex}-${cellIndex}`)}</td>)}</tr>)}</tbody></table></div>)
+      continue
+    }
+
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/)
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/)
+    if (unordered || ordered) {
+      const isOrdered = Boolean(ordered)
+      const items: string[] = []
+      while (index < lines.length) {
+        const item = isOrdered ? lines[index].match(/^\s*\d+[.)]\s+(.+)$/) : lines[index].match(/^\s*[-*+]\s+(.+)$/)
+        if (!item) break
+        items.push(item[1])
+        index += 1
+      }
+      const List = isOrdered ? 'ol' : 'ul'
+      blocks.push(<List key={`list-${index}`} style={{ margin: '7px 0', paddingLeft: '21px' }}>{items.map((item, itemIndex) => <li key={`item-${itemIndex}`} style={{ margin: '3px 0' }}>{renderMarkdownInline(item, `list-${itemIndex}`)}</li>)}</List>)
+      continue
+    }
+
+    const paragraph: string[] = []
+    while (index < lines.length && lines[index].trim() && !/^\s*```/.test(lines[index]) && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*((---+)|(\*\*\*+)|(___+))\s*$/.test(lines[index]) && !(isMarkdownTableLine(lines[index]) && isMarkdownTableDivider(lines[index + 1] ?? '')) && !/^\s*[-*+]\s+/.test(lines[index]) && !/^\s*\d+[.)]\s+/.test(lines[index])) paragraph.push(lines[index++])
+    blocks.push(<p key={`paragraph-${index}`} style={{ margin: '0 0 9px', whiteSpace: 'pre-wrap' }}>{paragraph.map((paragraphLine, lineIndex) => <span key={`line-${lineIndex}`}>{lineIndex > 0 && <br />}{renderMarkdownInline(paragraphLine, `paragraph-${lineIndex}`)}</span>)}</p>)
+  }
+
+  return <>{blocks}</>
+}
+
+function renderMarkdownInline(value: string, keyPrefix: string): ReactNode[] {
+  return value.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={`${keyPrefix}-bold-${index}`}>{part.slice(2, -2)}</strong>
+    if (part.startsWith('`') && part.endsWith('`')) return <code key={`${keyPrefix}-code-${index}`} style={{ padding: '1px 4px', borderRadius: '3px', background: 'rgba(15,23,42,.11)', fontSize: '.92em' }}>{part.slice(1, -1)}</code>
+    return <span key={`${keyPrefix}-text-${index}`}>{part}</span>
+  })
+}
+
+function isMarkdownTableLine(line: string) { return /^\s*\|.*\|\s*$/.test(line) }
+function isMarkdownTableDivider(line: string) { return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line) }
+function splitMarkdownTableRow(line: string) { return line.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim()) }
 
 const panelStyle: CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 2px rgba(15,23,42,.03)' }
 const labelStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: '5px', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, marginTop: '11px' }
