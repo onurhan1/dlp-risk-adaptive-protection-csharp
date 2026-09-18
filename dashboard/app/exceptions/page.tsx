@@ -176,7 +176,7 @@ function AnalyticsPageContent() {
             <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
             <span style={{ flex: 1, fontSize: '14px', color: 'var(--text-primary)' }}>{error}</span>
             <button
-              onClick={fetchIncidents}
+              onClick={() => void fetchIncidents(activeDateRange)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
                 background: 'var(--surface-hover)', color: 'var(--text-primary)',
@@ -201,7 +201,7 @@ function AnalyticsPageContent() {
               {t('exc.partialData', { count: partialCount })}
             </span>
             <button
-              onClick={fetchIncidents}
+              onClick={() => void fetchIncidents(activeDateRange)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px',
                 background: 'var(--surface-hover)', color: 'var(--text-primary)',
