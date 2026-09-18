@@ -422,10 +422,12 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         // This query intentionally reads every raw event for the selected candidates.
         // It powers temporal pattern detection; the model only receives a configurable
         // subset of timeline rows so a large period cannot exhaust its context window.
-        var timelineRows = await incidents
+        var timelineSourceRows = await incidents
             .Where(incident => candidateUsers.Contains(incident.UserEmail!))
-            .Select(incident => new ComprehensiveTimelineEvent(
-                incident.UserEmail!,
+            .OrderBy(incident => incident.Timestamp)
+            .Select(incident => new
+            {
+                User = incident.UserEmail!,
                 incident.Timestamp,
                 incident.Action,
                 incident.Policy,
@@ -435,9 +437,21 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                 incident.MaxMatches,
                 incident.Severity,
                 incident.DataSensitivity,
-                incident.RepeatCount))
-            .OrderBy(item => item.Timestamp)
+                incident.RepeatCount,
+            })
             .ToListAsync(ct);
+        var timelineRows = timelineSourceRows.Select(incident => new ComprehensiveTimelineEvent(
+            incident.User,
+            incident.Timestamp,
+            incident.Action,
+            incident.Policy,
+            incident.RuleName,
+            incident.Channel,
+            incident.Destination,
+            incident.MaxMatches,
+            incident.Severity,
+            incident.DataSensitivity,
+            incident.RepeatCount)).ToList();
         var crossChannelPatterns = FindCrossChannelPatterns(timelineRows, timeWindowHours);
 
         var evidenceRows = await incidents
