@@ -22,6 +22,9 @@ public sealed class SecurityAgentService : ISecurityAgentService
     private static readonly Regex SensitiveConfigKey = new(
         "password|secret|token|credential|api[_-]?key|body|html|subject|recipient|template|(^|_)(to|cc|bcc|mail|email)($|_)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex LastDaysPattern = new(
+        "\\bson\\s+(\\d{1,3})\\s+g(?:ü|u)n\\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly AnalyzerDbContext _context;
     private readonly IPlaybookEngine _playbookEngine;
@@ -106,7 +109,7 @@ public sealed class SecurityAgentService : ISecurityAgentService
         var settings = await GetSettingsAsync(ct);
         if (!settings.Enabled) throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmelidir.");
 
-        var context = await GetContextAsync(new SecurityAgentContextRequest(request.StartUtc, request.EndUtc), ct);
+        var context = await GetContextAsync(ResolveChatContextRequest(request), ct);
         var reply = await GenerateAsync(settings, BuildPrompt(request, context), ct);
         return new SecurityAgentChatResult(reply, context);
     }
@@ -118,27 +121,17 @@ public sealed class SecurityAgentService : ISecurityAgentService
         if (!settings.Enabled) throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmelidir.");
 
         var context = await GetContextAsync(new SecurityAgentContextRequest(request.StartUtc, request.EndUtc), ct);
-        var summary = await GenerateAsync(settings, $"{BuildPrompt(new SecurityAgentChatRequest(request.Goal), context)}\nBu hedef için önerilen workflow taslağının amacını, kontrol etmek istediği anomaliyi ve kullanıcının editörde yapılandırması gereken filtre/eşik alanlarını en fazla 8 maddede açıkla.", ct);
-        var nodes = new List<PlaybookNode>
-        {
-            new() { Id = "agent-1", Type = PlaybookNodeType.TriggerManual, Label = "Manuel Tetikleyici", X = 100, Y = 180 },
-            new() { Id = "agent-2", Type = PlaybookNodeType.SourceIncidentUsers, Label = "Olay Kaydı Kullanıcıları", X = 360, Y = 180 },
-            new() { Id = "agent-3", Type = PlaybookNodeType.TransformFilter, Label = "Agent Önerisi Filtresi", X = 620, Y = 180 },
-            new() { Id = "agent-4", Type = PlaybookNodeType.OutputReport, Label = "Agent Taslak Çıktısı", X = 880, Y = 180 }
-        };
-        var graph = new PlaybookGraph
-        {
-            Nodes = nodes,
-            Edges = nodes.Skip(1).Select((node, index) => new PlaybookEdge { Id = $"agent-edge-{index + 1}", Source = nodes[index].Id, Target = node.Id }).ToList()
-        };
+        var planResponse = await GenerateAsync(settings, BuildWorkflowPlanPrompt(request.Goal, context), ct);
+        var plan = BuildWorkflowPlan(planResponse, request.Goal);
+        var graph = plan.Graph;
         var validation = await _playbookEngine.ValidateAsync(graph, ct);
         var now = DateTime.UtcNow;
-        var name = $"Agent Taslağı - {request.Goal.Trim()}";
+        var name = plan.Name;
         if (name.Length > 200) name = name[..200];
         var playbook = new Playbook
         {
             Name = name,
-            Description = summary.Length > 1000 ? summary[..1000] : summary,
+            Description = plan.Summary.Length > 1000 ? plan.Summary[..1000] : plan.Summary,
             GraphJson = PlaybookJson.Serialize(graph),
             Enabled = false,
             AutoSend = false,
@@ -147,9 +140,9 @@ public sealed class SecurityAgentService : ISecurityAgentService
         };
         _context.Playbooks.Add(playbook);
         await _context.SaveChangesAsync(ct);
-        var warnings = validation.Errors.Concat(validation.Warnings).ToList();
-        warnings.Add("Taslak pasif kaydedildi. Filtre ve eşik alanlarını editörde doldurun; sonra Test Et ile sonucu doğrulayın.");
-        return new SecurityAgentWorkflowDraftResult(playbook.Id, playbook.Name, summary, warnings);
+        var warnings = plan.Warnings.Concat(validation.Errors).Concat(validation.Warnings).ToList();
+        warnings.Add("Taslak pasif kaydedildi. Çalıştırmadan önce node ayarlarını kontrol edin ve Test Et ile sonucu doğrulayın.");
+        return new SecurityAgentWorkflowDraftResult(playbook.Id, playbook.Name, plan.Summary, warnings);
     }
 
     private async Task<LocalLlmLabSettings> GetSettingsAsync(CancellationToken ct)
@@ -193,6 +186,212 @@ public sealed class SecurityAgentService : ISecurityAgentService
 
         return text.Length > 180 ? $"{text[..177]}..." : text;
     }
+
+    private static SecurityAgentContextRequest ResolveChatContextRequest(SecurityAgentChatRequest request)
+    {
+        var message = request.Message;
+        var now = DateTime.UtcNow;
+        var normalized = message.ToLowerInvariant();
+
+        if (normalized.Contains("son bir hafta") || normalized.Contains("son 1 hafta") ||
+            normalized.Contains("son 7 gün") || normalized.Contains("son 7 gun") ||
+            normalized.Contains("geçen hafta") || normalized.Contains("gecen hafta"))
+        {
+            return new SecurityAgentContextRequest(now.AddDays(-7), now);
+        }
+
+        if (normalized.Contains("son bir ay") || normalized.Contains("son 1 ay") || normalized.Contains("son 30 gün") || normalized.Contains("son 30 gun"))
+        {
+            return new SecurityAgentContextRequest(now.AddDays(-30), now);
+        }
+
+        var match = LastDaysPattern.Match(message);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var days))
+        {
+            return new SecurityAgentContextRequest(now.AddDays(-Math.Clamp(days, 1, 366)), now);
+        }
+
+        return new SecurityAgentContextRequest(request.StartUtc, request.EndUtc);
+    }
+
+    private static string BuildWorkflowPlanPrompt(string goal, SecurityAgentContext context) => $$"""
+{{BuildPrompt(new SecurityAgentChatRequest(goal), context)}}
+
+Şimdi açıklama yerine editöre kaydedilecek gerçek bir workflow grafiği tasarla.
+Yalnızca aşağıdaki node türlerini kullan: {{string.Join(", ", PlaybookNodeType.All)}}.
+Yalnızca JSON döndür; Markdown, kod bloğu veya JSON dışı metin kullanma.
+
+JSON şeması:
+{
+  "name": "Kısa workflow adı",
+  "summary": "Taslağın hangi riski yakaladığı ve neden seçildiği",
+  "nodes": [
+    { "type": "trigger.manual", "label": "Manuel Tetikleyici", "config": {} },
+    { "type": "source.incidentUsers", "label": "Riskli kullanıcılar", "config": { "days": 7, "min_matches": 300, "channels": ["EMAIL"] } }
+  ],
+  "edges": [{ "source": 0, "target": 1 }, { "source": 1, "target": 2, "source_handle": "true" }]
+}
+
+Kurallar:
+- Tam olarak bir tetikleyici kullan. Zamanlama gerekmedikçe trigger.manual seç.
+- Kullanıcı/olay analizi için uygun bir source.* node seç; boş veya genel bir iskelet üretme.
+- Gerekliyse transform.filter, logic.condition veya logic.metricThreshold ile somut eşik ekle.
+- Kullanıcıya mail gönderen action.sendMail node'u ekleme. Taslak pasif kalacak; mail/rapor adımını kullanıcı editörde ekler.
+- Her akışı output.report veya output.managerEscalationReport ile bitir.
+- source.highRiskUsers için days, top_limit, min_risk_score; source.topActionUsers için days, top_limit, action_kind; source.highMaxMatchTransfers için days, top_limit, min_matches ayarlarını ver.
+- source.incidentUsers veya source.incidentMetric kullanırsan days, top_limit/metric ve ilgili filtreleri somutlaştır.
+- logic.condition için field (triggerCount veya maxMatches), op (gt/gte/lt/lte/eq), value; logic.metricThreshold için op ve value ver.
+- Eşik veya filtreyi bağlamdaki olay dağılımına dayandır; kanıt yoksa muhafazakâr varsayım olduğunu summary içinde belirt.
+""";
+
+    private static AgentWorkflowPlanBuild BuildWorkflowPlan(string rawPlan, string goal)
+    {
+        var warnings = new List<string>();
+        try
+        {
+            var json = ExtractJsonObject(rawPlan);
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) throw new JsonException("Kök değer nesne değil.");
+
+            var graph = new PlaybookGraph();
+            var indexToNodeId = new Dictionary<int, string>();
+            if (!root.TryGetProperty("nodes", out var nodeList) || nodeList.ValueKind != JsonValueKind.Array)
+                throw new JsonException("nodes dizisi bulunamadı.");
+
+            var sourceIndex = 0;
+            foreach (var item in nodeList.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) { sourceIndex++; continue; }
+                var type = GetJsonString(item, "type");
+                if (string.IsNullOrWhiteSpace(type) || !PlaybookNodeType.All.Contains(type))
+                {
+                    warnings.Add($"Modelin önerdiği bilinmeyen node tipi atlandı: {type ?? "boş"}.");
+                    sourceIndex++;
+                    continue;
+                }
+
+                var config = item.TryGetProperty("config", out var configElement) && configElement.ValueKind == JsonValueKind.Object
+                    ? SanitizeAgentConfig(configElement)
+                    : new Dictionary<string, JsonElement>();
+                ApplyNodeDefaults(type, config);
+                var node = new PlaybookNode
+                {
+                    Id = $"agent-{graph.Nodes.Count + 1}",
+                    Type = type,
+                    Label = TrimText(GetJsonString(item, "label") ?? type, 100),
+                    Config = config,
+                    X = 100 + (graph.Nodes.Count % 4) * 270,
+                    Y = 160 + (graph.Nodes.Count / 4) * 190
+                };
+                indexToNodeId[sourceIndex] = node.Id;
+                graph.Nodes.Add(node);
+                sourceIndex++;
+                if (graph.Nodes.Count >= 9) { warnings.Add("Model planındaki node sayısı 9 ile sınırlandı."); break; }
+            }
+
+            if (graph.Nodes.Count == 0) throw new JsonException("Geçerli node bulunamadı.");
+            if (graph.Nodes.Count(node => PlaybookNodeType.IsTrigger(node.Type)) != 1)
+                throw new JsonException("Plan tam olarak bir tetikleyici içermiyor.");
+
+            if (root.TryGetProperty("edges", out var edgeList) && edgeList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in edgeList.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+                    var source = GetJsonInt(item, "source") ?? GetJsonInt(item, "from");
+                    var target = GetJsonInt(item, "target") ?? GetJsonInt(item, "to");
+                    if (source is null || target is null || !indexToNodeId.TryGetValue(source.Value, out var sourceId) || !indexToNodeId.TryGetValue(target.Value, out var targetId) || sourceId == targetId)
+                    {
+                        warnings.Add("Model planındaki geçersiz bağlantı atlandı.");
+                        continue;
+                    }
+                    graph.Edges.Add(new PlaybookEdge { Id = $"agent-edge-{graph.Edges.Count + 1}", Source = sourceId, Target = targetId, SourceHandle = GetJsonString(item, "source_handle") });
+                }
+            }
+
+            if (graph.Edges.Count == 0)
+            {
+                for (var index = 1; index < graph.Nodes.Count; index++)
+                    graph.Edges.Add(new PlaybookEdge { Id = $"agent-edge-{index}", Source = graph.Nodes[index - 1].Id, Target = graph.Nodes[index].Id });
+                warnings.Add("Model bağlantı üretmediği için node'lar sıralı bağlandı.");
+            }
+
+            if (!graph.Nodes.Any(node => node.Type is PlaybookNodeType.OutputReport or PlaybookNodeType.OutputManagerEscalationReport))
+            {
+                var output = new PlaybookNode { Id = $"agent-{graph.Nodes.Count + 1}", Type = PlaybookNodeType.OutputReport, Label = "Agent Öneri Çıktısı", X = 100 + (graph.Nodes.Count % 4) * 270, Y = 160 + (graph.Nodes.Count / 4) * 190, Config = new Dictionary<string, JsonElement>() };
+                ApplyNodeDefaults(output.Type, output.Config);
+                graph.Nodes.Add(output);
+                var previous = graph.Nodes[^2];
+                graph.Edges.Add(new PlaybookEdge { Id = $"agent-edge-{graph.Edges.Count + 1}", Source = previous.Id, Target = output.Id });
+                warnings.Add("Planın çıktısı olmadığı için rapor çıktısı eklendi.");
+            }
+
+            var name = TrimText(GetJsonString(root, "name") ?? $"Agent Taslağı - {goal}", 200);
+            var summary = TrimText(GetJsonString(root, "summary") ?? $"Agent tarafından önerilen workflow: {goal}", 1000);
+            return new AgentWorkflowPlanBuild(graph, name, summary, warnings);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            warnings.Add("Yerel model yapılandırılmış plan üretemedi; düzenlenebilir temel taslak oluşturuldu.");
+            return CreateFallbackWorkflowPlan(goal, warnings);
+        }
+    }
+
+    private static AgentWorkflowPlanBuild CreateFallbackWorkflowPlan(string goal, List<string> warnings)
+    {
+        var nodes = new List<PlaybookNode>
+        {
+            new() { Id = "agent-1", Type = PlaybookNodeType.TriggerManual, Label = "Manuel Tetikleyici", X = 100, Y = 180 },
+            new() { Id = "agent-2", Type = PlaybookNodeType.SourceIncidentUsers, Label = "Olay Kaydı Kullanıcıları", X = 360, Y = 180, Config = new Dictionary<string, JsonElement>() },
+            new() { Id = "agent-3", Type = PlaybookNodeType.TransformFilter, Label = "Agent Önerisi Filtresi", X = 620, Y = 180 },
+            new() { Id = "agent-4", Type = PlaybookNodeType.OutputReport, Label = "Agent Taslak Çıktısı", X = 880, Y = 180, Config = new Dictionary<string, JsonElement>() }
+        };
+        foreach (var node in nodes) ApplyNodeDefaults(node.Type, node.Config);
+        return new AgentWorkflowPlanBuild(
+            new PlaybookGraph { Nodes = nodes, Edges = nodes.Skip(1).Select((node, index) => new PlaybookEdge { Id = $"agent-edge-{index + 1}", Source = nodes[index].Id, Target = node.Id }).ToList() },
+            TrimText($"Agent Taslağı - {goal}", 200),
+            $"Agent planı ayrıştırılamadığı için temel taslak oluşturuldu: {goal}",
+            warnings);
+    }
+
+    private static Dictionary<string, JsonElement> SanitizeAgentConfig(JsonElement config) => config.EnumerateObject()
+        .Where(item => !SensitiveConfigKey.IsMatch(item.Name) && item.Value.ValueKind is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False or JsonValueKind.Array)
+        .Take(16)
+        .ToDictionary(item => item.Name, item => item.Value.Clone(), StringComparer.Ordinal);
+
+    private static void ApplyNodeDefaults(string type, Dictionary<string, JsonElement> config)
+    {
+        void Set(string key, object value) { if (!config.ContainsKey(key)) config[key] = JsonSerializer.SerializeToElement(value); }
+        switch (type)
+        {
+            case PlaybookNodeType.TriggerSchedule: Set("frequency", "weekly"); Set("day_of_week", 1); Set("hour", 9); Set("minute", 0); break;
+            case PlaybookNodeType.SourceWeeklyFlags: Set("days", 7); Set("criteria", WeeklyFlagCriterion.All); break;
+            case PlaybookNodeType.SourceIncidentMetric: Set("days", 7); Set("metric", "total_incidents"); Set("breakdown_by", "channel"); break;
+            case PlaybookNodeType.SourceHighRiskUsers: Set("days", 7); Set("top_limit", 25); Set("min_risk_score", 80); break;
+            case PlaybookNodeType.SourceTopActionUsers: Set("days", 7); Set("top_limit", 25); Set("action_kind", "permit"); break;
+            case PlaybookNodeType.SourceHighMaxMatchTransfers: Set("days", 7); Set("top_limit", 25); Set("min_matches", 300); break;
+            case PlaybookNodeType.SourceIncidentUsers: Set("days", 7); Set("top_limit", 25); break;
+            case PlaybookNodeType.LogicCondition: Set("field", "triggerCount"); Set("op", "gte"); Set("value", 2); break;
+            case PlaybookNodeType.LogicMetricThreshold: Set("op", "gte"); Set("value", 1); break;
+            case PlaybookNodeType.ActionSendMail: Set("recipient_mode", "user"); Set("auto_template_by_destination", true); break;
+            case PlaybookNodeType.OutputReport: Set("title", "Agent Öneri Raporu"); break;
+            case PlaybookNodeType.OutputManagerEscalationReport: Set("title", "Agent Yönetici Eskalasyon Çıktısı"); break;
+        }
+    }
+
+    private static string ExtractJsonObject(string value)
+    {
+        var start = value.IndexOf('{');
+        var end = value.LastIndexOf('}');
+        if (start < 0 || end <= start) throw new JsonException("JSON nesnesi bulunamadı.");
+        return value[start..(end + 1)];
+    }
+
+    private static string? GetJsonString(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    private static int? GetJsonInt(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.TryGetInt32(out var result) ? result : null;
+    private static string TrimText(string value, int maxLength) => value.Trim().Length > maxLength ? value.Trim()[..maxLength] : value.Trim();
+    private sealed record AgentWorkflowPlanBuild(PlaybookGraph Graph, string Name, string Summary, List<string> Warnings);
 
     private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, CancellationToken ct)
     {

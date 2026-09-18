@@ -1,8 +1,8 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bot, Loader2, RefreshCw, Send, ShieldCheck, Sparkles, Workflow } from 'lucide-react'
+import { Bot, Loader2, Plus, RefreshCw, Send, ShieldCheck, Sparkles, Workflow } from 'lucide-react'
 import apiClient from '@/lib/axios'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
@@ -42,6 +42,14 @@ function normalizeContext(data: any): AgentContext {
     nodeTypes: Array.isArray(data?.nodeTypes) ? data.nodeTypes : Array.isArray(data?.node_types) ? data.node_types : [],
     workflows,
   }
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 const STARTER = 'Aktif workflowlarımı ve son 30 günlük olay dağılımını incele. Kapsama boşluğu olabilecek en önemli üç alanı; kanıtı, olası riski ve eklemem gereken workflow veya node önerisiyle sırala.'
@@ -91,7 +99,10 @@ export default function SecurityAgentPage() {
     try {
       const { data } = await apiClient.post('/api/security-agent/chat', { message, history, startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, { timeout: 600_000 })
       setMessages(current => [...current, { role: 'assistant', content: data.reply }])
-      setContext(normalizeContext(data.context))
+      const refreshedContext = normalizeContext(data.context)
+      setContext(refreshedContext)
+      setStartDate(toDateTimeLocalValue(refreshedContext.startUtc))
+      setEndDate(toDateTimeLocalValue(refreshedContext.endUtc))
     } catch (requestError: any) {
       setError(requestError?.response?.data?.detail || 'Agent yanıtı alınamadı.')
     } finally {
@@ -100,6 +111,13 @@ export default function SecurityAgentPage() {
   }
 
   const submit = (event: FormEvent) => { event.preventDefault(); void send() }
+  const startNewConversation = () => {
+    if (sending || creatingDraft) return
+    setMessages([])
+    setInput('')
+    setError(null)
+    setDraftNotice(null)
+  }
   const createDraft = async () => {
     const goal = [...messages].reverse().find(message => message.role === 'user')?.content || input.trim()
     if (!goal) {
@@ -138,10 +156,10 @@ export default function SecurityAgentPage() {
 
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 365px)', gap: 16, alignItems: 'start' }}>
       <section style={panelStyle}>
-        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} color="#2563eb" /> Agent Sohbeti</strong><span style={{ color: '#047857', fontSize: 12, fontWeight: 700 }}>Salt-okunur</span></div>
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} color="#2563eb" /> Agent Sohbeti</strong><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ color: '#047857', fontSize: 12, fontWeight: 700 }}>Salt-okunur</span><button onClick={startNewConversation} disabled={sending || creatingDraft || messages.length === 0} title="Sohbeti temizle ve yeni bir analiz başlat" style={{ ...secondaryButton, padding: '6px 8px', fontSize: 12 }}><Plus size={14} /> Yeni sohbet</button></div></div>
         <div style={{ height: 480, overflowY: 'auto', padding: 18, background: 'var(--background)' }}>
           {messages.length === 0 && <div style={{ height: '100%', display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--text-secondary)' }}><div><Sparkles size={26} color="#2563eb" /><p style={{ color: 'var(--text-primary)', fontWeight: 800, margin: '12px 0 6px' }}>Kapsama boşluklarını birlikte inceleyelim.</p><p style={{ margin: 0, fontSize: 13 }}>Örnek: “Yüksek eşleşmeli verinin farklı kanallardan aktarılmasına karşı workflowlarım yeterli mi?”</p></div></div>}
-          {messages.map((item, index) => <article key={`${item.role}-${index}`} style={{ marginLeft: item.role === 'user' ? 'auto' : 0, marginBottom: 14, maxWidth: '88%', padding: '11px 13px', borderRadius: 8, background: item.role === 'user' ? '#2563eb' : 'var(--surface)', color: item.role === 'user' ? 'white' : 'var(--text-primary)', border: item.role === 'user' ? 'none' : '1px solid var(--border)', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6 }}>{item.content}</article>)}
+          {messages.map((item, index) => <article key={`${item.role}-${index}`} style={{ marginLeft: item.role === 'user' ? 'auto' : 0, marginBottom: 14, maxWidth: '88%', padding: '11px 13px', borderRadius: 8, background: item.role === 'user' ? '#2563eb' : 'var(--surface)', color: item.role === 'user' ? 'white' : 'var(--text-primary)', border: item.role === 'user' ? 'none' : '1px solid var(--border)', fontSize: 13, lineHeight: 1.6 }}><MarkdownMessage content={item.content} /></article>)}
           {sending && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 13 }}><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Workflow ve olay kapsamı inceleniyor...</div>}
           <div ref={bottom} />
         </div>
@@ -166,6 +184,75 @@ export default function SecurityAgentPage() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div style={{ padding: 10, border: '1px solid var(--border)', borderRadius: 6 }}><div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{label}</div><div style={{ marginTop: 4, fontSize: 17, fontWeight: 800 }}>{value}</div></div> }
+
+function MarkdownMessage({ content }: { content: string }) {
+  const lines = content.replace(/\r\n/g, '\n').split('\n')
+  const blocks: ReactNode[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    if (!line.trim()) { index += 1; continue }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    if (heading) {
+      const size = heading[1].length === 1 ? 17 : heading[1].length === 2 ? 15 : 14
+      blocks.push(<div key={`heading-${index}`} style={{ fontSize: size, fontWeight: 800, margin: '10px 0 6px' }}>{renderMarkdownInline(heading[2], `heading-${index}`)}</div>)
+      index += 1
+      continue
+    }
+
+    if (/^\s*((---+)|(\*\*\*+)|(___+))\s*$/.test(line)) {
+      blocks.push(<hr key={`rule-${index}`} style={{ border: 0, borderTop: '1px solid currentColor', opacity: .22, margin: '12px 0' }} />)
+      index += 1
+      continue
+    }
+
+    if (isMarkdownTableLine(line) && isMarkdownTableDivider(lines[index + 1] ?? '')) {
+      const header = splitMarkdownTableRow(line)
+      index += 2
+      const rows: string[][] = []
+      while (index < lines.length && isMarkdownTableLine(lines[index])) rows.push(splitMarkdownTableRow(lines[index++]))
+      blocks.push(<div key={`table-${index}`} style={{ margin: '9px 0', overflowX: 'auto', border: '1px solid currentColor', borderRadius: 5, opacity: .96 }}><table style={{ width: '100%', minWidth: `${Math.max(header.length, 2) * 120}px`, borderCollapse: 'collapse', fontSize: 12 }}><thead><tr>{header.map((cell, cellIndex) => <th key={`header-${cellIndex}`} style={{ textAlign: 'left', padding: '7px 8px', borderBottom: '1px solid currentColor', background: 'rgba(15,23,42,.09)', verticalAlign: 'top' }}>{renderMarkdownInline(cell, `header-${cellIndex}`)}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`}>{header.map((_, cellIndex) => <td key={`cell-${rowIndex}-${cellIndex}`} style={{ padding: '7px 8px', borderTop: rowIndex ? '1px solid rgba(100,116,139,.2)' : 0, verticalAlign: 'top' }}>{renderMarkdownInline(row[cellIndex] ?? '', `cell-${rowIndex}-${cellIndex}`)}</td>)}</tr>)}</tbody></table></div>)
+      continue
+    }
+
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/)
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/)
+    if (unordered || ordered) {
+      const isOrdered = Boolean(ordered)
+      const items: string[] = []
+      while (index < lines.length) {
+        const item = isOrdered ? lines[index].match(/^\s*\d+[.)]\s+(.+)$/) : lines[index].match(/^\s*[-*+]\s+(.+)$/)
+        if (!item) break
+        items.push(item[1])
+        index += 1
+      }
+      const List = isOrdered ? 'ol' : 'ul'
+      blocks.push(<List key={`list-${index}`} style={{ margin: '7px 0', paddingLeft: 21 }}>{items.map((item, itemIndex) => <li key={`item-${itemIndex}`} style={{ margin: '3px 0' }}>{renderMarkdownInline(item, `list-${itemIndex}`)}</li>)}</List>)
+      continue
+    }
+
+    const paragraph: string[] = []
+    while (index < lines.length && lines[index].trim() && !/^(#{1,3})\s+/.test(lines[index]) && !(isMarkdownTableLine(lines[index]) && isMarkdownTableDivider(lines[index + 1] ?? '')) && !/^\s*[-*+]\s+/.test(lines[index]) && !/^\s*\d+[.)]\s+/.test(lines[index])) paragraph.push(lines[index++])
+    blocks.push(<p key={`paragraph-${index}`} style={{ margin: '0 0 9px', whiteSpace: 'pre-wrap' }}>{paragraph.map((paragraphLine, lineIndex) => <span key={`line-${lineIndex}`}>{lineIndex > 0 && <br />}{renderMarkdownInline(paragraphLine, `paragraph-${lineIndex}`)}</span>)}</p>)
+  }
+
+  return <>{blocks}</>
+}
+
+function renderMarkdownInline(value: string, keyPrefix: string): ReactNode[] {
+  return value.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={`${keyPrefix}-bold-${index}`}>{part.slice(2, -2)}</strong>
+    if (part.startsWith('`') && part.endsWith('`')) return <code key={`${keyPrefix}-code-${index}`} style={{ padding: '1px 4px', borderRadius: 3, background: 'rgba(15,23,42,.11)', fontSize: '.92em' }}>{part.slice(1, -1)}</code>
+    return <span key={`${keyPrefix}-text-${index}`}>{part}</span>
+  })
+}
+
+function isMarkdownTableLine(line: string) { return /^\s*\|.*\|\s*$/.test(line) }
+function isMarkdownTableDivider(line: string) { return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line) }
+function splitMarkdownTableRow(line: string) { return line.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim()) }
+
 const panelStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' } as const
 const inputStyle = { width: '100%', padding: '9px 11px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'var(--surface)', fontSize: 13, outline: 'none' } as const
 const primaryButton = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: '1px solid #1d4ed8', borderRadius: 6, background: '#2563eb', color: 'white', cursor: 'pointer', fontWeight: 700 } as const
