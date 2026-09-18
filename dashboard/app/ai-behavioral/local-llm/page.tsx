@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { Bot, Database, EyeOff, Loader2, MessageSquare, Plus, PlugZap, RefreshCw, Save, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
 import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
@@ -9,11 +9,12 @@ type Settings = { enabled: boolean; generate_url: string; model: string; tempera
 type Count = { name: string; count: number }
 type Snapshot = {
   start_utc: string; end_utc: string; total_incidents: number; unique_users: number
-  maximum_matches: number; actions: Count[]; channels: Count[]; policies: Count[]; users: unknown[]; samples: unknown[]
+  maximum_matches: number; profile_count: number; actions: Count[]; channels: Count[]; policies: Count[]; users: unknown[]; samples: unknown[]
 }
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type ConversationSummary = { id: string; title: string; updated_at: string; message_count: number; preview?: string | null }
 type ConversationDetail = { id: string; title: string; created_at: string; updated_at: string; messages: ChatMessage[] }
+type MailProposal = { id: string; conversation_id: string; user_name: string; full_name?: string | null; department?: string | null; recipient_email?: string | null; subject: string; body: string; incident_summary_json: string; rationale?: string | null; status: 'pending' | 'sent' | 'rejected' | 'failed' | 'unresolved'; created_at: string; updated_at: string; sent_at?: string | null; error_message?: string | null }
 
 const INITIAL_SETTINGS: Settings = {
   enabled: false,
@@ -30,16 +31,31 @@ export default function LocalLlmLabPage() {
   const [lookbackDays, setLookbackDays] = useState(30)
   const [sampleSize, setSampleSize] = useState(40)
   const [maskIdentifiers, setMaskIdentifiers] = useState(true)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [analysisMode, setAnalysisMode] = useState<'standard' | 'comprehensive'>('standard')
+  const [detailedUserLimit, setDetailedUserLimit] = useState(20)
+  const [evidenceRowsPerUser, setEvidenceRowsPerUser] = useState(160)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [mailProposals, setMailProposals] = useState<MailProposal[]>([])
+  const [proposalBusyId, setProposalBusyId] = useState<string | null>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<'save' | 'test' | 'chat' | 'snapshot' | 'conversation' | null>(null)
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  const snapshotParams = useMemo(() => ({ lookbackDays, sampleSize, maskIdentifiers }), [lookbackDays, sampleSize, maskIdentifiers])
+  const snapshotParams = useMemo(() => ({
+    lookbackDays,
+    sampleSize,
+    maskIdentifiers,
+    startUtc: startDate ? `${startDate}T00:00:00.000Z` : undefined,
+    endUtc: endDate ? `${endDate}T23:59:59.999Z` : undefined,
+    comprehensive: analysisMode === 'comprehensive',
+  }), [lookbackDays, sampleSize, maskIdentifiers, startDate, endDate, analysisMode])
 
   const refreshSnapshot = useCallback(async () => {
     setBusy('snapshot')
@@ -71,6 +87,8 @@ export default function LocalLlmLabPage() {
           const conversation = conversationResponse.data as ConversationDetail
           setActiveConversationId(conversation.id)
           setMessages(conversation.messages || [])
+          const proposalsResponse = await apiClient.get(`/api/local-llm-lab/conversations/${conversation.id}/mail-proposals`)
+          setMailProposals(Array.isArray(proposalsResponse.data) ? proposalsResponse.data : [])
         }
       } catch (error: any) {
         setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yerel LLM Laboratuvarı yüklenemedi.' })
@@ -88,6 +106,11 @@ export default function LocalLlmLabPage() {
     setConversations(Array.isArray(response.data) ? response.data : [])
   }, [])
 
+  const refreshMailProposals = useCallback(async (conversationId: string) => {
+    const response = await apiClient.get(`/api/local-llm-lab/conversations/${conversationId}/mail-proposals`)
+    setMailProposals(Array.isArray(response.data) ? response.data : [])
+  }, [])
+
   const selectConversation = async (conversationId: string) => {
     if (conversationId === activeConversationId || busy !== null) return
     setBusy('conversation'); setNotice(null)
@@ -96,6 +119,7 @@ export default function LocalLlmLabPage() {
       const conversation = response.data as ConversationDetail
       setActiveConversationId(conversation.id)
       setMessages(conversation.messages || [])
+      await refreshMailProposals(conversation.id)
     } catch (error: any) {
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Sohbet açılamadı.' })
     } finally { setBusy(null) }
@@ -109,6 +133,7 @@ export default function LocalLlmLabPage() {
       const conversation = response.data as ConversationDetail
       setActiveConversationId(conversation.id)
       setMessages([])
+      setMailProposals([])
       await refreshConversations()
     } catch (error: any) {
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yeni sohbet oluşturulamadı.' })
@@ -125,6 +150,7 @@ export default function LocalLlmLabPage() {
       if (activeConversationId === conversationId) {
         setActiveConversationId(null)
         setMessages([])
+        setMailProposals([])
       }
     } catch (error: any) {
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Sohbet silinemedi.' })
@@ -166,15 +192,21 @@ export default function LocalLlmLabPage() {
       const response = await apiClient.post('/api/local-llm-lab/chat', {
         message: content,
         history: messages,
-        lookbackDays,
-        sampleSize,
-        maskIdentifiers,
-        conversationId,
+        lookback_days: lookbackDays,
+        sample_size: sampleSize,
+        mask_identifiers: maskIdentifiers,
+        start_utc: startDate ? `${startDate}T00:00:00.000Z` : null,
+        end_utc: endDate ? `${endDate}T23:59:59.999Z` : null,
+        comprehensive: analysisMode === 'comprehensive',
+        detailed_user_limit: detailedUserLimit,
+        evidence_rows_per_user: evidenceRowsPerUser,
+        conversation_id: conversationId,
       }, { timeout: LONG_REQUEST_TIMEOUT_MS })
       setMessages(current => [...current, { role: 'assistant', content: response.data.reply || 'Model boş yanıt verdi.' }])
       setActiveConversationId(response.data.conversation_id || conversationId)
       setSnapshot(response.data.snapshot)
       void refreshConversations()
+      if (response.data.conversation_id || conversationId) void refreshMailProposals(response.data.conversation_id || conversationId)
     } catch (error: any) {
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Model yanıtı alınamadı.' })
     } finally { setBusy(null) }
@@ -183,6 +215,40 @@ export default function LocalLlmLabPage() {
   const onSubmit = (event: FormEvent) => { event.preventDefault(); void send() }
   const onInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() }
+  }
+
+  useEffect(() => {
+    const container = chatScrollRef.current
+    if (container) container.scrollTop = container.scrollHeight
+  }, [messages, busy])
+
+  const updateProposal = (proposalId: string, patch: Partial<MailProposal>) => {
+    setMailProposals(current => current.map(proposal => proposal.id === proposalId ? { ...proposal, ...patch } : proposal))
+  }
+
+  const saveProposal = async (proposal: MailProposal) => {
+    setProposalBusyId(proposal.id); setNotice(null)
+    try {
+      const response = await apiClient.put(`/api/local-llm-lab/mail-proposals/${proposal.id}`, {
+        recipient_email: proposal.recipient_email,
+        subject: proposal.subject,
+        body: proposal.body,
+      })
+      updateProposal(proposal.id, response.data)
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Mail taslağı kaydedilemedi.' })
+    } finally { setProposalBusyId(null) }
+  }
+
+  const decideProposal = async (proposal: MailProposal, decision: 'approve' | 'reject') => {
+    setProposalBusyId(proposal.id); setNotice(null)
+    try {
+      const response = await apiClient.post(`/api/local-llm-lab/mail-proposals/${proposal.id}/${decision}`)
+      updateProposal(proposal.id, response.data)
+      setNotice({ type: 'success', text: decision === 'approve' ? 'Mail gönderim sonucu taslağa işlendi.' : 'Mail taslağı reddedildi.' })
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Mail taslağı işlenemedi.' })
+    } finally { setProposalBusyId(null) }
   }
 
   if (loading) return <div className="dashboard-page"><p className="text-muted">Yerel LLM Laboratuvarı yükleniyor...</p></div>
@@ -242,14 +308,22 @@ export default function LocalLlmLabPage() {
             <button onClick={refreshSnapshot} disabled={busy !== null} style={secondaryButtonStyle}><RefreshCw size={14} className={busy === 'snapshot' ? 'spin' : ''} /> Yenile</button>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', margin: '12px 0' }}>
-            <label style={compactLabel}>Dönem<input type="number" min="1" max="180" value={lookbackDays} onChange={event => setLookbackDays(Number(event.target.value))} style={{ ...inputStyle, width: '72px' }} /> gün</label>
+            <label style={compactLabel}>Dönem<input type="number" min="1" max="366" value={lookbackDays} onChange={event => setLookbackDays(Number(event.target.value))} style={{ ...inputStyle, width: '72px' }} /> gün</label>
+            <label style={compactLabel}>Başlangıç<input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
+            <label style={compactLabel}>Bitiş<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
             <label style={compactLabel}>Örnek<input type="number" min="5" max="100" value={sampleSize} onChange={event => setSampleSize(Number(event.target.value))} style={{ ...inputStyle, width: '72px' }} /> kayıt</label>
+            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Ayrıntılı olay geçmişi modele taşınacak öncelikli kullanıcı sayısı.">Ayrıntılı kullanıcı<input type="number" min="1" max="50" value={detailedUserLimit} onChange={event => setDetailedUserLimit(Number(event.target.value))} style={{ ...inputStyle, width: '66px' }} /></label>}
+            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Her kullanıcı için modele aktarılacak en fazla zaman çizelgesi satırı. Sunucudaki desen taraması tüm olaylarda çalışır.">Zaman çizelgesi<input type="number" min="25" max="500" step="25" value={evidenceRowsPerUser} onChange={event => setEvidenceRowsPerUser(Number(event.target.value))} style={{ ...inputStyle, width: '70px' }} /> satır</label>}
             <label style={{ ...compactLabel, cursor: 'pointer' }} title="Kullanıcı ve e-posta/hedef bilgilerini maskeleyerek modele gönderir."><input type="checkbox" checked={maskIdentifiers} onChange={event => setMaskIdentifiers(event.target.checked)} /> <EyeOff size={13} /> Kimlikleri maskele</label>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: '9px' }}>
-            <Metric label="Olay" value={snapshot?.total_incidents ?? 0} /><Metric label="Kullanıcı" value={snapshot?.unique_users ?? 0} /><Metric label="Kullanıcı profili" value={snapshot?.users?.length ?? 0} /><Metric label="En yüksek match" value={snapshot?.maximum_matches ?? 0} />
+          <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
+            <button onClick={() => setAnalysisMode('standard')} style={{ border: 0, padding: '7px 10px', background: analysisMode === 'standard' ? '#e0e7ff' : 'var(--surface)', color: '#1e3a8a', cursor: 'pointer', fontSize: '12px', fontWeight: 650 }}>Hızlı Özet</button>
+            <button onClick={() => setAnalysisMode('comprehensive')} style={{ border: 0, borderLeft: '1px solid var(--border)', padding: '7px 10px', background: analysisMode === 'comprehensive' ? '#d1fae5' : 'var(--surface)', color: '#065f46', cursor: 'pointer', fontSize: '12px', fontWeight: 650 }}>Kapsamlı Anomali Analizi</button>
           </div>
-          <p style={{ margin: '11px 0 0', color: 'var(--text-muted)', fontSize: '11px' }}><ShieldCheck size={12} style={{ verticalAlign: 'text-bottom' }} /> Model yalnızca bu özet, dağılımlar ve en fazla {sampleSize} olay örneğini görür. Veritabanı sorgulama veya güncelleme yetkisi yoktur.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: '9px' }}>
+            <Metric label="Olay" value={snapshot?.total_incidents ?? 0} /><Metric label="Kullanıcı" value={snapshot?.unique_users ?? 0} /><Metric label="Modele aktarılan profil" value={snapshot?.profile_count ?? 0} /><Metric label="En yüksek match" value={snapshot?.maximum_matches ?? 0} />
+          </div>
+          <p style={{ margin: '11px 0 0', color: 'var(--text-muted)', fontSize: '11px' }}><ShieldCheck size={12} style={{ verticalAlign: 'text-bottom' }} /> {analysisMode === 'comprehensive' ? `Tüm kullanıcılar dönem dağılımına dahil edilir. Öncelikli ${detailedUserLimit} kullanıcı için tüm olaylar sunucuda taranır; modele kullanıcı başına en fazla ${evidenceRowsPerUser} zaman çizelgesi satırı ve tam kanıt özeti aktarılır. Prompttaki saat bilgisiyle çapraz kanal desenleri ayrıca hesaplanır.` : `Model özet, dağılımlar ve en fazla ${sampleSize} olay örneğini görür.`} Veritabanı sorgulama veya güncelleme yetkisi yoktur.</p>
         </section>
 
         <section style={{ ...panelStyle, minHeight: '490px', display: 'flex', flexDirection: 'column' }}>
@@ -258,10 +332,41 @@ export default function LocalLlmLabPage() {
             <button onClick={() => void send(ALGORITHM_PROMPT)} disabled={!settings.enabled || busy !== null} style={secondaryButtonStyle}><Sparkles size={14} /> Risk Algoritması Oluştur</button>
           </div>
           <div style={{ marginTop: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>{activeConversationId ? 'Seçili sohbet otomatik kaydedilir.' : 'İlk mesajınızla yeni bir sohbet oluşturulur.'}</div>
-          <div style={{ flex: 1, minHeight: '290px', margin: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 0', overflowY: 'auto' }}>
+          <div ref={chatScrollRef} style={{ height: '380px', minHeight: '220px', margin: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 0', overflowY: 'auto', overscrollBehavior: 'contain' }}>
             {messages.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '16px 0' }}>Model bağlantısını kaydedip etkinleştirdikten sonra risk faktörleri, eşikler veya doğrulama planı hakkında konuşabilirsiniz.</div> : messages.map((message, index) => <div key={`${message.role}-${index}`} style={{ margin: '0 0 12px', display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}><div style={{ maxWidth: '88%', minWidth: 0, padding: '10px 12px', borderRadius: '7px', background: message.role === 'user' ? '#2563eb' : 'var(--surface-muted, #f1f5f9)', color: message.role === 'user' ? 'white' : 'var(--text-primary)', fontSize: '13px', lineHeight: 1.55 }}><MarkdownMessage content={message.content} /></div></div>)}
             {busy === 'chat' && <div style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', gap: '7px', alignItems: 'center' }}><Loader2 size={14} className="spin" /> Yerel model analiz ediyor...</div>}
           </div>
+          {activeConversationId && mailProposals.length > 0 && <section style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '9px' }}>
+              <PanelTitle icon={<Send size={16} />} title="Mail Taslakları" />
+              <span style={{ color: '#a16207', fontSize: '12px', fontWeight: 650 }}>{mailProposals.filter(item => item.status === 'pending').length} onay bekliyor</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto', paddingRight: '2px' }}>
+              {mailProposals.map(proposal => {
+                const editable = proposal.status === 'pending' || proposal.status === 'unresolved' || proposal.status === 'failed'
+                const status = proposalStatusMeta(proposal.status)
+                return <details key={proposal.id} style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                  <summary style={{ cursor: 'pointer', padding: '10px 11px', display: 'flex', alignItems: 'center', gap: '8px', listStyle: 'none' }}>
+                    <span style={{ width: '8px', height: '8px', flexShrink: 0, borderRadius: '50%', background: status.color }} />
+                    <span style={{ flex: 1, minWidth: 0 }}><strong style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{proposal.full_name || proposal.user_name}</strong><span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> · {proposal.recipient_email || 'E-posta bulunamadı'}</span></span>
+                    <span style={{ color: status.color, fontSize: '11px', fontWeight: 650 }}>{status.label}</span>
+                  </summary>
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '11px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                      <label style={compactLabel}>Alıcı<input disabled={!editable || proposalBusyId === proposal.id} value={proposal.recipient_email || ''} onChange={event => updateProposal(proposal.id, { recipient_email: event.target.value })} style={inputStyle} /></label>
+                      <label style={compactLabel}>Konu<input disabled={!editable || proposalBusyId === proposal.id} value={proposal.subject} onChange={event => updateProposal(proposal.id, { subject: event.target.value })} style={inputStyle} /></label>
+                    </div>
+                    <label style={{ ...labelStyle, marginTop: 0 }}>Mail metni<textarea disabled={!editable || proposalBusyId === proposal.id} value={proposal.body} onChange={event => updateProposal(proposal.id, { body: event.target.value })} style={{ ...inputStyle, minHeight: '150px', resize: 'vertical', lineHeight: 1.45 }} /></label>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '8px 0' }}>{proposal.rationale || 'Incident bağlamına göre oluşturuldu.'}{proposal.error_message ? ` Hata: ${proposal.error_message}` : ''}</div>
+                    {editable && <div style={{ display: 'flex', gap: '7px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <button onClick={() => void saveProposal(proposal)} disabled={proposalBusyId === proposal.id} style={secondaryButtonStyle}><Save size={13} /> Taslağı Kaydet</button>
+                      {proposal.status === 'pending' && <><button onClick={() => void decideProposal(proposal, 'reject')} disabled={proposalBusyId === proposal.id} style={{ ...secondaryButtonStyle, color: '#b91c1c' }}>Reddet</button><button onClick={() => void decideProposal(proposal, 'approve')} disabled={proposalBusyId === proposal.id} style={primaryButtonStyle}><Send size={13} /> Onayla ve Gönder</button></>}
+                    </div>}
+                  </div>
+                </details>
+              })}
+            </div>
+          </section>}
           <form onSubmit={onSubmit} style={{ display: 'flex', gap: '9px', alignItems: 'flex-end' }}>
             <textarea value={input} onChange={event => setInput(event.target.value)} onKeyDown={onInputKeyDown} disabled={!settings.enabled || busy === 'chat'} placeholder="Örn. En yüksek riski açıklayan faktörleri ağırlıklarıyla öner." style={{ ...inputStyle, minHeight: '66px', resize: 'vertical', flex: 1 }} />
             <button type="submit" disabled={!settings.enabled || busy === 'chat' || !input.trim()} title="Gönder" style={{ ...primaryButtonStyle, height: '38px', width: '38px', justifyContent: 'center', padding: 0 }}><Send size={16} /></button>
@@ -277,6 +382,13 @@ function Metric({ label, value }: { label: string; value: number }) { return <di
 function formatConversationTime(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+function proposalStatusMeta(status: MailProposal['status']) {
+  if (status === 'sent') return { label: 'Gönderildi', color: '#047857' }
+  if (status === 'rejected') return { label: 'Reddedildi', color: '#64748b' }
+  if (status === 'failed') return { label: 'Gönderim hatası', color: '#dc2626' }
+  if (status === 'unresolved') return { label: 'E-posta bulunamadı', color: '#b45309' }
+  return { label: 'Onay bekliyor', color: '#d97706' }
 }
 
 function MarkdownMessage({ content }: { content: string }) {

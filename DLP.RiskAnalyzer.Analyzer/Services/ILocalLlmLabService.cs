@@ -10,6 +10,10 @@ public interface ILocalLlmLabService
     Task<LocalLlmConversationDetail> CreateConversationAsync(string ownerUsername, string? title, CancellationToken ct);
     Task<LocalLlmConversationDetail?> GetConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct);
     Task<bool> DeleteConversationAsync(Guid conversationId, string ownerUsername, CancellationToken ct);
+    Task<IReadOnlyList<LocalLlmMailProposalDto>> GetMailProposalsAsync(Guid conversationId, string ownerUsername, CancellationToken ct);
+    Task<LocalLlmMailProposalDto?> UpdateMailProposalAsync(Guid proposalId, string ownerUsername, LocalLlmMailProposalUpdateRequest request, CancellationToken ct);
+    Task<LocalLlmMailProposalDto?> ApproveMailProposalAsync(Guid proposalId, string ownerUsername, CancellationToken ct);
+    Task<LocalLlmMailProposalDto?> RejectMailProposalAsync(Guid proposalId, string ownerUsername, CancellationToken ct);
     Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, string ownerUsername, CancellationToken ct);
 }
 
@@ -20,7 +24,13 @@ public sealed record LocalLlmLabSettings(
     double Temperature,
     int MaxTokens);
 
-public sealed record LocalLlmSnapshotRequest(int LookbackDays = 30, int SampleSize = 40, bool MaskIdentifiers = true);
+public sealed record LocalLlmSnapshotRequest(
+    int LookbackDays = 30,
+    int SampleSize = 40,
+    bool MaskIdentifiers = true,
+    DateTime? StartUtc = null,
+    DateTime? EndUtc = null,
+    bool Comprehensive = false);
 
 public sealed record LocalLlmChatMessage(string Role, string Content);
 
@@ -30,9 +40,14 @@ public sealed record LocalLlmChatRequest(
     int LookbackDays = 30,
     int SampleSize = 40,
     bool MaskIdentifiers = true,
+    DateTime? StartUtc = null,
+    DateTime? EndUtc = null,
+    bool Comprehensive = false,
+    int DetailedUserLimit = 20,
+    int EvidenceRowsPerUser = 160,
     Guid? ConversationId = null);
 
-public sealed record LocalLlmChatResult(Guid ConversationId, string Reply, LocalLlmIncidentSnapshot Snapshot);
+public sealed record LocalLlmChatResult(Guid ConversationId, string Reply, LocalLlmIncidentSnapshot Snapshot, int MailDraftsPrepared = 0, int MailDraftsUnresolved = 0);
 
 public sealed record LocalLlmConversationCreateRequest(string? Title);
 
@@ -50,12 +65,32 @@ public sealed record LocalLlmConversationDetail(
     DateTime UpdatedAt,
     IReadOnlyList<LocalLlmChatMessage> Messages);
 
+public sealed record LocalLlmMailProposalUpdateRequest(string? RecipientEmail, string? Subject, string? Body);
+
+public sealed record LocalLlmMailProposalDto(
+    Guid Id,
+    Guid ConversationId,
+    string UserName,
+    string? FullName,
+    string? Department,
+    string? RecipientEmail,
+    string Subject,
+    string Body,
+    string IncidentSummaryJson,
+    string? Rationale,
+    string Status,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    DateTime? SentAt,
+    string? ErrorMessage);
+
 public sealed record LocalLlmIncidentSnapshot(
     DateTime StartUtc,
     DateTime EndUtc,
     int TotalIncidents,
     int UniqueUsers,
     int MaximumMatches,
+    int ProfileCount,
     IReadOnlyList<LocalLlmCount> Actions,
     IReadOnlyList<LocalLlmCount> Channels,
     IReadOnlyList<LocalLlmCount> Policies,

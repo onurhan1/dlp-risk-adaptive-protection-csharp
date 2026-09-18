@@ -37,8 +37,8 @@ public sealed class LocalLlmLabController : ControllerBase
     }
 
     [HttpGet("snapshot")]
-    public async Task<IActionResult> GetSnapshot([FromQuery] int lookbackDays = 30, [FromQuery] int sampleSize = 40, [FromQuery] bool maskIdentifiers = true, CancellationToken ct = default) =>
-        Ok(await _service.GetIncidentSnapshotAsync(new LocalLlmSnapshotRequest(lookbackDays, sampleSize, maskIdentifiers), ct));
+    public async Task<IActionResult> GetSnapshot([FromQuery] int lookbackDays = 30, [FromQuery] int sampleSize = 40, [FromQuery] bool maskIdentifiers = true, [FromQuery] DateTime? startUtc = null, [FromQuery] DateTime? endUtc = null, [FromQuery] bool comprehensive = false, CancellationToken ct = default) =>
+        Ok(await _service.GetIncidentSnapshotAsync(new LocalLlmSnapshotRequest(lookbackDays, sampleSize, maskIdentifiers, startUtc, endUtc, comprehensive), ct));
 
     [HttpGet("conversations")]
     public async Task<IActionResult> GetConversations(CancellationToken ct) =>
@@ -60,6 +60,31 @@ public sealed class LocalLlmLabController : ControllerBase
     {
         var deleted = await _service.DeleteConversationAsync(conversationId, GetOwnerUsername(), ct);
         return deleted ? NoContent() : NotFound(new { detail = "Sohbet bulunamadı." });
+    }
+
+    [HttpGet("conversations/{conversationId:guid}/mail-proposals")]
+    public async Task<IActionResult> GetMailProposals(Guid conversationId, CancellationToken ct) =>
+        Ok(await _service.GetMailProposalsAsync(conversationId, GetOwnerUsername(), ct));
+
+    [HttpPut("mail-proposals/{proposalId:guid}")]
+    public async Task<IActionResult> UpdateMailProposal(Guid proposalId, [FromBody] LocalLlmMailProposalUpdateRequest request, CancellationToken ct)
+    {
+        var proposal = await _service.UpdateMailProposalAsync(proposalId, GetOwnerUsername(), request, ct);
+        return proposal == null ? NotFound(new { detail = "Taslak bulunamadı veya artık düzenlenemez." }) : Ok(proposal);
+    }
+
+    [HttpPost("mail-proposals/{proposalId:guid}/approve")]
+    public async Task<IActionResult> ApproveMailProposal(Guid proposalId, CancellationToken ct)
+    {
+        var proposal = await _service.ApproveMailProposalAsync(proposalId, GetOwnerUsername(), ct);
+        return proposal == null ? BadRequest(new { detail = "Taslak gönderime uygun değil." }) : Ok(proposal);
+    }
+
+    [HttpPost("mail-proposals/{proposalId:guid}/reject")]
+    public async Task<IActionResult> RejectMailProposal(Guid proposalId, CancellationToken ct)
+    {
+        var proposal = await _service.RejectMailProposalAsync(proposalId, GetOwnerUsername(), ct);
+        return proposal == null ? BadRequest(new { detail = "Taslak reddedilemedi." }) : Ok(proposal);
     }
 
     [HttpPost("chat")]

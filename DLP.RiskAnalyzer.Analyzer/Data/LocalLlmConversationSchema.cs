@@ -27,6 +27,30 @@ public static class LocalLlmConversationSchema
         );
         CREATE INDEX IF NOT EXISTS ix_local_llm_conversation_messages_conversation_created
             ON dlp.local_llm_conversation_messages (conversation_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS dlp.local_llm_mail_proposals (
+            id UUID PRIMARY KEY,
+            conversation_id UUID NOT NULL REFERENCES dlp.local_llm_conversations(id) ON DELETE CASCADE,
+            owner_username VARCHAR(120) NOT NULL,
+            user_name VARCHAR(255) NOT NULL,
+            full_name VARCHAR(255),
+            department VARCHAR(255),
+            recipient_email VARCHAR(255),
+            subject VARCHAR(500) NOT NULL,
+            body TEXT NOT NULL,
+            incident_summary_json TEXT NOT NULL DEFAULT '{}',
+            rationale TEXT,
+            source_prompt_hash VARCHAR(64) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP,
+            error_message TEXT
+        );
+        CREATE INDEX IF NOT EXISTS ix_local_llm_mail_proposals_conversation_status
+            ON dlp.local_llm_mail_proposals (conversation_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS ix_local_llm_mail_proposals_owner_status
+            ON dlp.local_llm_mail_proposals (owner_username, status, updated_at DESC);
     ";
 
     public static async Task EnsureAsync(AnalyzerDbContext context, ILogger logger, CancellationToken ct = default)

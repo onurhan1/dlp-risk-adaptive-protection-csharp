@@ -41,6 +41,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<ScheduledJobRun> ScheduledJobRuns { get; set; }
     public DbSet<LocalLlmConversation> LocalLlmConversations { get; set; }
     public DbSet<LocalLlmConversationMessage> LocalLlmConversationMessages { get; set; }
+    public DbSet<LocalLlmMailProposal> LocalLlmMailProposals { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -736,6 +737,26 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Content).HasColumnName("content").IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
+        });
+
+        modelBuilder.Entity<LocalLlmMailProposal>(entity =>
+        {
+            entity.ToTable("local_llm_mail_proposals", table => table.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ConversationId).HasColumnName("conversation_id");
+            entity.Property(e => e.OwnerUsername).HasColumnName("owner_username").HasMaxLength(120);
+            entity.Property(e => e.UserName).HasColumnName("user_name").HasMaxLength(255);
+            entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(255);
+            entity.Property(e => e.Department).HasColumnName("department").HasMaxLength(255);
+            entity.Property(e => e.RecipientEmail).HasColumnName("recipient_email").HasMaxLength(255);
+            entity.Property(e => e.IncidentSummaryJson).HasColumnName("incident_summary_json");
+            entity.Property(e => e.SourcePromptHash).HasColumnName("source_prompt_hash").HasMaxLength(64);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.SentAt).HasColumnName("sent_at");
+            entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+            entity.HasIndex(e => new { e.ConversationId, e.Status, e.CreatedAt });
+            entity.HasIndex(e => new { e.OwnerUsername, e.Status, e.UpdatedAt });
         });
 
         modelBuilder.Entity<ScheduledJob>(entity =>
