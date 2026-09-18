@@ -23,7 +23,8 @@ import {
   Mail,
   CalendarClock,
   ClipboardList,
-  Workflow
+  Workflow,
+  ScrollText
 } from 'lucide-react'
 
 export default function Sidebar() {
@@ -209,6 +210,13 @@ export default function Sidebar() {
                     <Bot size={16} />
                     <span>Yerel LLM Laboratuvarı</span>
                   </Link>
+                  <Link
+                    href="/ai-behavioral/security-agent"
+                    className={`sidebar-subitem ${pathname === '/ai-behavioral/security-agent' ? 'active' : ''}`}
+                  >
+                    <ShieldCheck size={16} />
+                    <span>Güvenlik Agentı</span>
+                  </Link>
                 </div>
               )}
             </div>
@@ -290,6 +298,10 @@ export default function Sidebar() {
             <Link href="/user-management" className={`sidebar-icon ${pathname === '/user-management' ? 'active' : ''}`}>
               <Users size={20} />
               <span>{t('nav.userManagement')}</span>
+            </Link>
+            <Link href="/audit-logs" className={`sidebar-icon ${pathname === '/audit-logs' ? 'active' : ''}`}>
+              <ScrollText size={20} />
+              <span>Denetim Kayıtları</span>
             </Link>
           </>
         )}

@@ -275,6 +275,72 @@ public class PlaybooksController : ControllerBase
         return Ok(runs.Select(r => ToRunDto(r, includeLog: false)));
     }
 
+    /// <summary>
+    /// Cross-workflow execution history for the audit screen. Unlike an individual
+    /// workflow's run panel, this includes scheduled, manual and mail-triggered runs.
+    /// </summary>
+    [HttpGet("runs/audit")]
+    public async Task<IActionResult> GetAuditRuns(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? status,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        await PlaybookSchema.EnsureAsync(_context, _logger, ct);
+
+        page = Math.Max(page, 1);
+        pageSize = pageSize is < 1 or > 500 ? 50 : pageSize;
+
+        var query =
+            from run in _context.PlaybookRuns.AsNoTracking()
+            join playbook in _context.Playbooks.AsNoTracking() on run.PlaybookId equals playbook.Id into playbooks
+            from playbook in playbooks.DefaultIfEmpty()
+            select new { Run = run, PlaybookName = playbook == null ? "Silinmiş workflow" : playbook.Name };
+
+        if (startDate.HasValue) query = query.Where(item => item.Run.StartedAt >= startDate.Value);
+        if (endDate.HasValue) query = query.Where(item => item.Run.StartedAt <= endDate.Value);
+        if (!string.IsNullOrWhiteSpace(status) && status != "all") query = query.Where(item => item.Run.Status == status);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(item => item.PlaybookName.ToLower().Contains(term) || item.Run.TriggerType.ToLower().Contains(term));
+        }
+
+        var total = await query.CountAsync(ct);
+        var rows = await query
+            .OrderByDescending(item => item.Run.StartedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            total,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling(total / (double)pageSize),
+            logs = rows.Select(item => new
+            {
+                id = item.Run.Id,
+                playbook_id = item.Run.PlaybookId,
+                playbook_name = item.PlaybookName,
+                started_at = item.Run.StartedAt,
+                finished_at = item.Run.FinishedAt,
+                status = item.Run.Status,
+                trigger_type = item.Run.TriggerType,
+                dry_run = item.Run.DryRun,
+                mails_sent = item.Run.MailsSent,
+                mails_pending = item.Run.MailsPending,
+                mails_failed = item.Run.MailsFailed,
+                mails_skipped = item.Run.MailsSkipped,
+                error_message = item.Run.ErrorMessage
+            })
+        });
+    }
+
     [HttpGet("runs/{runId:int}")]
     public async Task<IActionResult> GetRun(int runId, CancellationToken ct)
     {

@@ -163,6 +163,18 @@ public class AuditLoggingMiddleware
             return "IncidentView";
         }
 
+        // Keep human-operated AI and workflow actions distinguishable from ordinary API traffic.
+        // The audit screen uses these categories to present their own operational timelines.
+        if (path.StartsWith("/api/local-llm-lab") || path.StartsWith("/api/security-agent"))
+        {
+            return "AgentAction";
+        }
+
+        if (path.StartsWith("/api/playbooks"))
+        {
+            return "WorkflowAction";
+        }
+
         if (path.StartsWith("/api/settings"))
         {
             return "SettingsChange";

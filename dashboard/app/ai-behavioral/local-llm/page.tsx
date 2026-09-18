@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import { Bot, Database, EyeOff, Loader2, MessageSquare, Plus, PlugZap, RefreshCw, Save, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
-import apiClient, { LONG_REQUEST_TIMEOUT_MS } from '@/lib/axios'
+import apiClient from '@/lib/axios'
 
 type Settings = { enabled: boolean; generate_url: string; model: string; temperature: number; max_tokens: number }
 type Count = { name: string; count: number }
@@ -25,6 +25,7 @@ const INITIAL_SETTINGS: Settings = {
 }
 
 const ALGORITHM_PROMPT = 'Seçili incident verisini incele. RADARın mevcut risk puanını kullanmadan, yalnızca ham olay özelliklerinden 0-100 aralığında denetlenebilir bir risk puanlama algoritması ve riskli kullanıcı sınıflandırması öner. Faktörleri, ağırlıkları, eşikleri, örnek normalizasyonları, doğrulama planını ve sınırlılıkları anlaşılır başlıklar ve maddeler halinde açıkla.'
+const LOCAL_LLM_REQUEST_TIMEOUT_MS = 600_000
 
 export default function LocalLlmLabPage() {
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS)
@@ -170,7 +171,7 @@ export default function LocalLlmLabPage() {
   const testConnection = async () => {
     setBusy('test'); setNotice(null)
     try {
-      const response = await apiClient.post('/api/local-llm-lab/test', settings, { timeout: LONG_REQUEST_TIMEOUT_MS })
+      const response = await apiClient.post('/api/local-llm-lab/test', settings, { timeout: LOCAL_LLM_REQUEST_TIMEOUT_MS })
       setNotice({ type: 'success', text: `Bağlantı başarılı: ${response.data?.reply || 'Model yanıt verdi.'}` })
     } catch (error: any) {
       setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yerel LLM bağlantısı kurulamadı.' })
@@ -201,7 +202,7 @@ export default function LocalLlmLabPage() {
         detailed_user_limit: detailedUserLimit,
         evidence_rows_per_user: evidenceRowsPerUser,
         conversation_id: conversationId,
-      }, { timeout: LONG_REQUEST_TIMEOUT_MS })
+      }, { timeout: LOCAL_LLM_REQUEST_TIMEOUT_MS })
       setMessages(current => [...current, { role: 'assistant', content: response.data.reply || 'Model boş yanıt verdi.' }])
       setActiveConversationId(response.data.conversation_id || conversationId)
       setSnapshot(response.data.snapshot)

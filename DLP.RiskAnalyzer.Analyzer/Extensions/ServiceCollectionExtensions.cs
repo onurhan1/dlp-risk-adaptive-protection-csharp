@@ -108,7 +108,12 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IOpenAIService, OpenAIService>();
         services.AddHttpClient<ICopilotService, CopilotService>();
         services.AddHttpClient<IAzureOpenAIService, AzureOpenAIService>();
-        services.AddHttpClient<ILocalLlmLabService, LocalLlmLabService>();
+        // Comprehensive incident prompts can take several minutes on a local model.
+        // Keep a finite limit while avoiding the HttpClient default 100-second cancellation.
+        services.AddHttpClient<ILocalLlmLabService, LocalLlmLabService>(client =>
+            client.Timeout = TimeSpan.FromMinutes(10));
+        services.AddHttpClient<ISecurityAgentService, SecurityAgentService>(client =>
+            client.Timeout = TimeSpan.FromMinutes(10));
         services.AddHttpClient<IPolicyService, PolicyService>();
 
         return services;
