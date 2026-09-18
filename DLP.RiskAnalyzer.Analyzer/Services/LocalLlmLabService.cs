@@ -245,6 +245,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     public async Task<IReadOnlyList<LocalLlmMailProposalDto>> GetMailProposalsAsync(Guid conversationId, string ownerUsername, CancellationToken ct)
     {
+        await EnsureMailProposalStorageAsync(ct);
         var proposals = await _context.LocalLlmMailProposals.AsNoTracking()
             .Where(item => item.ConversationId == conversationId && item.OwnerUsername == ownerUsername)
             .OrderByDescending(item => item.CreatedAt)
@@ -254,6 +255,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     public async Task<LocalLlmMailProposalDto?> UpdateMailProposalAsync(Guid proposalId, string ownerUsername, LocalLlmMailProposalUpdateRequest request, CancellationToken ct)
     {
+        await EnsureMailProposalStorageAsync(ct);
         var proposal = await _context.LocalLlmMailProposals.FirstOrDefaultAsync(item => item.Id == proposalId && item.OwnerUsername == ownerUsername, ct);
         if (proposal == null || proposal.Status is LocalLlmMailProposalStatus.Sent or LocalLlmMailProposalStatus.Rejected) return null;
 
@@ -269,6 +271,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     public async Task<LocalLlmMailProposalDto?> ApproveMailProposalAsync(Guid proposalId, string ownerUsername, CancellationToken ct)
     {
+        await EnsureMailProposalStorageAsync(ct);
         var proposal = await _context.LocalLlmMailProposals.FirstOrDefaultAsync(item => item.Id == proposalId && item.OwnerUsername == ownerUsername, ct);
         if (proposal == null || proposal.Status != LocalLlmMailProposalStatus.Pending || string.IsNullOrWhiteSpace(proposal.RecipientEmail)) return null;
 
@@ -293,6 +296,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     public async Task<LocalLlmMailProposalDto?> RejectMailProposalAsync(Guid proposalId, string ownerUsername, CancellationToken ct)
     {
+        await EnsureMailProposalStorageAsync(ct);
         var proposal = await _context.LocalLlmMailProposals.FirstOrDefaultAsync(item => item.Id == proposalId && item.OwnerUsername == ownerUsername, ct);
         if (proposal == null || proposal.Status != LocalLlmMailProposalStatus.Pending) return null;
         proposal.Status = LocalLlmMailProposalStatus.Rejected;
@@ -303,6 +307,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     public async Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, string ownerUsername, CancellationToken ct)
     {
+        await EnsureMailProposalStorageAsync(ct);
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new ArgumentException("Mesaj boş olamaz.", nameof(request));
 
@@ -884,6 +889,9 @@ Asistan:
 
     private static string FormatCounts(IReadOnlyList<LocalLlmCount> counts) =>
         counts.Count == 0 ? "veri yok" : string.Join(", ", counts.Select(item => $"{item.Name}: {item.Count}"));
+
+    private Task EnsureMailProposalStorageAsync(CancellationToken ct) =>
+        LocalLlmConversationSchema.EnsureAsync(_context, _logger, ct);
 
     private static void ValidateSettings(LocalLlmLabSettings settings)
     {

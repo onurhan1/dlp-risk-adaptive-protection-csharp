@@ -743,14 +743,19 @@ public class AnalyzerDbContext : DbContext
         {
             entity.ToTable("local_llm_mail_proposals", table => table.ExcludeFromMigrations());
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ConversationId).HasColumnName("conversation_id");
             entity.Property(e => e.OwnerUsername).HasColumnName("owner_username").HasMaxLength(120);
             entity.Property(e => e.UserName).HasColumnName("user_name").HasMaxLength(255);
             entity.Property(e => e.FullName).HasColumnName("full_name").HasMaxLength(255);
             entity.Property(e => e.Department).HasColumnName("department").HasMaxLength(255);
             entity.Property(e => e.RecipientEmail).HasColumnName("recipient_email").HasMaxLength(255);
+            entity.Property(e => e.Subject).HasColumnName("subject").HasMaxLength(500);
+            entity.Property(e => e.Body).HasColumnName("body");
             entity.Property(e => e.IncidentSummaryJson).HasColumnName("incident_summary_json");
+            entity.Property(e => e.Rationale).HasColumnName("rationale");
             entity.Property(e => e.SourcePromptHash).HasColumnName("source_prompt_hash").HasMaxLength(64);
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.SentAt).HasColumnName("sent_at");
