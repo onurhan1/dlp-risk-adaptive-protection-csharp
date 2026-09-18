@@ -94,20 +94,32 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         var channels = await CountByAsync(incidents.Select(incident => incident.Channel), ct);
         var policies = await CountByAsync(incidents.Select(incident => incident.Policy ?? incident.RuleName), ct);
 
-        var users = await incidents
+        // PostgreSQL'in çevirebildiği anonim projeksiyon ile sorguyu bitir; maskeleme
+        // ve LocalLlm DTO üretimi EF sorgusunun dışında yapılır.
+        var userRows = await incidents
             .GroupBy(incident => new { incident.UserEmail, incident.Department })
-            .Select(group => new LocalLlmUserProfile(
-                request.MaskIdentifiers ? Mask(group.Key.UserEmail) : group.Key.UserEmail,
+            .Select(group => new
+            {
+                User = group.Key.UserEmail,
                 group.Key.Department,
-                group.Count(),
-                group.Max(incident => incident.Severity),
-                group.Max(incident => incident.MaxMatches),
-                group.Average(incident => (double)incident.DataSensitivity),
-                group.Sum(incident => incident.RepeatCount)))
+                IncidentCount = group.Count(),
+                MaximumSeverity = group.Max(incident => incident.Severity),
+                MaximumMatches = group.Max(incident => incident.MaxMatches),
+                AverageDataSensitivity = group.Average(incident => (double)incident.DataSensitivity),
+                RepeatCount = group.Sum(incident => incident.RepeatCount),
+            })
             .OrderByDescending(user => user.MaximumMatches)
             .ThenByDescending(user => user.IncidentCount)
             .Take(30)
             .ToListAsync(ct);
+        var users = userRows.Select(user => new LocalLlmUserProfile(
+            request.MaskIdentifiers ? Mask(user.User) : user.User,
+            user.Department,
+            user.IncidentCount,
+            user.MaximumSeverity,
+            user.MaximumMatches,
+            user.AverageDataSensitivity,
+            user.RepeatCount)).ToList();
 
         var sampleRows = await incidents
             .OrderByDescending(incident => incident.MaxMatches)
@@ -115,9 +127,10 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             .ThenByDescending(incident => incident.RepeatCount)
             .ThenByDescending(incident => incident.Timestamp)
             .Take(sampleSize)
-            .Select(incident => new LocalLlmIncidentSample(
+            .Select(incident => new
+            {
                 incident.Timestamp,
-                request.MaskIdentifiers ? Mask(incident.UserEmail) : incident.UserEmail,
+                incident.UserEmail,
                 incident.Department,
                 incident.Action,
                 incident.Severity,
@@ -127,12 +140,26 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                 incident.Policy,
                 incident.RuleName,
                 incident.Channel,
-                request.MaskIdentifiers ? MaskDestination(incident.Destination) : incident.Destination))
+                incident.Destination,
+            })
             .ToListAsync(ct);
+        var samples = sampleRows.Select(incident => new LocalLlmIncidentSample(
+            incident.Timestamp,
+            request.MaskIdentifiers ? Mask(incident.UserEmail) : incident.UserEmail,
+            incident.Department,
+            incident.Action,
+            incident.Severity,
+            incident.MaxMatches,
+            incident.DataSensitivity,
+            incident.RepeatCount,
+            incident.Policy,
+            incident.RuleName,
+            incident.Channel,
+            request.MaskIdentifiers ? MaskDestination(incident.Destination) : incident.Destination)).ToList();
 
         return new LocalLlmIncidentSnapshot(
             start, end, total, uniqueUsers, maximumMatches,
-            actions, channels, policies, users, sampleRows);
+            actions, channels, policies, users, samples);
     }
 
     public async Task<LocalLlmChatResult> ChatAsync(LocalLlmChatRequest request, CancellationToken ct)
@@ -151,14 +178,18 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         return new LocalLlmChatResult(reply, snapshot);
     }
 
-    private async Task<IReadOnlyList<LocalLlmCount>> CountByAsync(IQueryable<string?> source, CancellationToken ct) =>
-        await source
-            .Where(value => !string.IsNullOrWhiteSpace(value))
+    private async Task<IReadOnlyList<LocalLlmCount>> CountByAsync(IQueryable<string?> source, CancellationToken ct)
+    {
+        var rows = await source
+            .Where(value => value != null && value != "")
             .GroupBy(value => value!)
-            .Select(group => new LocalLlmCount(group.Key, group.Count()))
+            .Select(group => new { Name = group.Key, Count = group.Count() })
             .OrderByDescending(item => item.Count)
             .Take(12)
             .ToListAsync(ct);
+
+        return rows.Select(row => new LocalLlmCount(row.Name, row.Count)).ToList();
+    }
 
     private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, int maxTokens, CancellationToken ct)
     {
