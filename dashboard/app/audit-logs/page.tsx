@@ -49,6 +49,55 @@ interface WorkflowRun {
   error_message?: string | null
 }
 
+function normalizeAuditLog(row: any): AuditLog {
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    eventType: row.eventType ?? row.event_type ?? '-',
+    userName: row.userName ?? row.user_name ?? '-',
+    userRole: row.userRole ?? row.user_role ?? null,
+    action: row.action ?? '-',
+    resource: row.resource ?? null,
+    details: row.details ?? null,
+    success: Boolean(row.success),
+    errorMessage: row.errorMessage ?? row.error_message ?? null,
+    statusCode: row.statusCode ?? row.status_code ?? null,
+    durationMs: row.durationMs ?? row.duration_ms ?? null,
+  }
+}
+
+function normalizeUserActivityLog(row: any): UserActivityLog {
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    userName: row.userName ?? row.user_name ?? '-',
+    authSource: row.authSource ?? row.auth_source ?? '-',
+    activityType: row.activityType ?? row.activity_type ?? '-',
+    pagePath: row.pagePath ?? row.page_path ?? null,
+    pageTitle: row.pageTitle ?? row.page_title ?? null,
+    actionDetail: row.actionDetail ?? row.action_detail ?? null,
+    sessionDurationSeconds: row.sessionDurationSeconds ?? row.session_duration_seconds ?? null,
+  }
+}
+
+function normalizeWorkflowRun(row: any): WorkflowRun {
+  return {
+    id: row.id,
+    playbook_id: row.playbook_id ?? row.playbookId,
+    playbook_name: row.playbook_name ?? row.playbookName ?? '-',
+    started_at: row.started_at ?? row.startedAt,
+    finished_at: row.finished_at ?? row.finishedAt ?? null,
+    status: row.status ?? 'unknown',
+    trigger_type: row.trigger_type ?? row.triggerType ?? 'manual',
+    dry_run: Boolean(row.dry_run ?? row.dryRun),
+    mails_sent: Number(row.mails_sent ?? row.mailsSent ?? 0),
+    mails_pending: Number(row.mails_pending ?? row.mailsPending ?? 0),
+    mails_failed: Number(row.mails_failed ?? row.mailsFailed ?? 0),
+    mails_skipped: Number(row.mails_skipped ?? row.mailsSkipped ?? 0),
+    error_message: row.error_message ?? row.errorMessage ?? null,
+  }
+}
+
 const inputStyle = {
   height: 36,
   padding: '7px 10px',
@@ -118,7 +167,7 @@ export default function AuditLogsPage() {
       if (tab === 'user') {
         if (eventType) params.activityType = eventType
         const { data } = await apiClient.get('/api/activity/logs', { params })
-        setUserLogs(data.logs ?? [])
+        setUserLogs((data.logs ?? []).map(normalizeUserActivityLog))
         setTotal(data.total ?? 0)
         setTotalPages(data.totalPages ?? 1)
       } else if (tab === 'workflow') {
@@ -126,7 +175,7 @@ export default function AuditLogsPage() {
         if (search.trim()) params.search = search.trim()
         if (workflowStatus !== 'all') params.status = workflowStatus
         const { data } = await apiClient.get('/api/playbooks/runs/audit', { params })
-        setWorkflowRuns(data.logs ?? [])
+        setWorkflowRuns((data.logs ?? []).map(normalizeWorkflowRun))
         setTotal(data.total ?? 0)
         setTotalPages(data.totalPages ?? 1)
       } else {
@@ -134,7 +183,7 @@ export default function AuditLogsPage() {
         if (search.trim()) params.userName = search.trim()
         params.eventType = tab === 'agent' ? 'AgentAction' : eventType
         const { data } = await apiClient.get('/api/logs/audit', { params })
-        setAuditLogs(data.logs ?? [])
+        setAuditLogs((data.logs ?? []).map(normalizeAuditLog))
         setTotal(data.total ?? 0)
         setTotalPages(data.totalPages ?? 1)
       }

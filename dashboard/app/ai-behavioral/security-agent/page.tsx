@@ -18,6 +18,32 @@ type AgentContext = {
   workflows: Array<{ id: number; name: string; enabled: boolean; autoSend: boolean; schedule?: string | null; nodes: string[]; validationErrors: string[]; lastRunStatus?: string | null; pendingMails: number; failedMails: number }>
 }
 
+function normalizeContext(data: any): AgentContext {
+  const workflows = Array.isArray(data?.workflows) ? data.workflows.map((workflow: any) => ({
+    id: workflow.id,
+    name: workflow.name ?? 'Adsız workflow',
+    enabled: Boolean(workflow.enabled),
+    autoSend: Boolean(workflow.autoSend ?? workflow.auto_send),
+    schedule: workflow.schedule ?? null,
+    nodes: Array.isArray(workflow.nodes) ? workflow.nodes : [],
+    validationErrors: Array.isArray(workflow.validationErrors) ? workflow.validationErrors : Array.isArray(workflow.validation_errors) ? workflow.validation_errors : [],
+    lastRunStatus: workflow.lastRunStatus ?? workflow.last_run_status ?? null,
+    pendingMails: Number(workflow.pendingMails ?? workflow.pending_mails ?? 0),
+    failedMails: Number(workflow.failedMails ?? workflow.failed_mails ?? 0),
+  })) : []
+
+  return {
+    startUtc: data?.startUtc ?? data?.start_utc ?? '',
+    endUtc: data?.endUtc ?? data?.end_utc ?? '',
+    workflowCount: Number(data?.workflowCount ?? data?.workflow_count ?? workflows.length),
+    enabledWorkflowCount: Number(data?.enabledWorkflowCount ?? data?.enabled_workflow_count ?? 0),
+    incidentCount: Number(data?.incidentCount ?? data?.incident_count ?? 0),
+    uniqueUsers: Number(data?.uniqueUsers ?? data?.unique_users ?? 0),
+    nodeTypes: Array.isArray(data?.nodeTypes) ? data.nodeTypes : Array.isArray(data?.node_types) ? data.node_types : [],
+    workflows,
+  }
+}
+
 const STARTER = 'Aktif workflowlarımı ve son 30 günlük olay dağılımını incele. Kapsama boşluğu olabilecek en önemli üç alanı; kanıtı, olası riski ve eklemem gereken workflow veya node önerisiyle sırala.'
 
 export default function SecurityAgentPage() {
@@ -39,7 +65,7 @@ export default function SecurityAgentPage() {
     setError(null)
     try {
       const { data } = await apiClient.get('/api/security-agent/context', { params: { startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, timeout: 60_000 })
-      setContext(data)
+      setContext(normalizeContext(data))
     } catch (requestError: any) {
       setError(requestError?.response?.data?.detail || 'Agent bağlamı alınamadı.')
     } finally {
@@ -65,7 +91,7 @@ export default function SecurityAgentPage() {
     try {
       const { data } = await apiClient.post('/api/security-agent/chat', { message, history, startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, { timeout: 600_000 })
       setMessages(current => [...current, { role: 'assistant', content: data.reply }])
-      setContext(data.context)
+      setContext(normalizeContext(data.context))
     } catch (requestError: any) {
       setError(requestError?.response?.data?.detail || 'Agent yanıtı alınamadı.')
     } finally {
@@ -86,7 +112,7 @@ export default function SecurityAgentPage() {
     try {
       const { data } = await apiClient.post('/api/security-agent/workflow-drafts', { goal, startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, { timeout: 600_000 })
       setDraftNotice('Pasif workflow taslağı oluşturuldu. Editörde filtre ve eşikleri tamamlayın.')
-      router.push(`/investigation/agentic-workflows/${data.playbookId}`)
+      router.push(`/investigation/agentic-workflows/${data.playbookId ?? data.playbook_id}`)
     } catch (requestError: any) {
       setError(requestError?.response?.data?.detail || 'Workflow taslağı oluşturulamadı.')
     } finally {
@@ -132,7 +158,7 @@ export default function SecurityAgentPage() {
 
       <aside style={{ display: 'grid', gap: 16 }}>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>İncelenen Bağlam</div><div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><Metric label="Workflow" value={`${fmt(context?.enabledWorkflowCount)} / ${fmt(context?.workflowCount)}`} /><Metric label="Seçili dönem olay" value={fmt(context?.incidentCount)} /><Metric label="Farklı kullanıcı" value={fmt(context?.uniqueUsers)} /><Metric label="Node türü" value={fmt(context?.nodeTypes?.length)} /></div></section>
-        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : context?.workflows.map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {workflow.nodes.length} node</div>{workflow.validationErrors.length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}</div>)}</div></section>
+        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : (context?.workflows ?? []).map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {(workflow.nodes ?? []).length} node</div>{(workflow.validationErrors ?? []).length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}</div>)}</div></section>
         <section style={{ ...panelStyle, padding: 15, background: '#eff6ff', borderColor: '#bfdbfe' }}><strong style={{ fontSize: 13, color: '#1d4ed8' }}>Agent sınırı</strong><p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: '#1e40af' }}>Workflow veya olay kaydı değiştiremez, mail gönderemez ve veritabanına SQL çalıştıramaz. Öneri verir; uygulama adımı sizde kalır.</p></section>
       </aside>
     </div>

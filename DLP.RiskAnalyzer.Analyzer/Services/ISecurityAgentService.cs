@@ -47,4 +47,17 @@ public sealed record SecurityAgentWorkflow(
     DateTime? LastRunAt,
     int PendingMails,
     int FailedMails,
-    IReadOnlyList<string> LastRunNodeSummary);
+    IReadOnlyList<string> LastRunNodeSummary,
+    IReadOnlyList<SecurityAgentNodeCoverage> NodeCoverage,
+    IReadOnlyList<string> Connections,
+    IReadOnlyList<string> ReportRequestKeywords);
+
+/// <summary>
+/// Secret-safe, read-only node details exposed to the local coverage model.
+/// Mail content, recipients, templates and credential-shaped settings are omitted.
+/// </summary>
+public sealed record SecurityAgentNodeCoverage(
+    string Id,
+    string Label,
+    string Type,
+    IReadOnlyList<string> Settings);

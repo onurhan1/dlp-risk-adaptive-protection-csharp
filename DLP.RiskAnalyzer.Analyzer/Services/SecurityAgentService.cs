@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
@@ -18,6 +19,9 @@ public sealed class SecurityAgentService : ISecurityAgentService
     private const string ModelKey = "local_llm_lab_model";
     private const string TemperatureKey = "local_llm_lab_temperature";
     private const string MaxTokensKey = "local_llm_lab_max_tokens";
+    private static readonly Regex SensitiveConfigKey = new(
+        "password|secret|token|credential|api[_-]?key|body|html|subject|recipient|template|(^|_)(to|cc|bcc|mail|email)($|_)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly AnalyzerDbContext _context;
     private readonly IPlaybookEngine _playbookEngine;
@@ -59,12 +63,29 @@ public sealed class SecurityAgentService : ISecurityAgentService
             var lastRun = runs.FirstOrDefault(item => item.PlaybookId == playbook.Id);
             var nodes = graph.Nodes.Select(node => string.IsNullOrWhiteSpace(node.Label) ? node.Type : $"{node.Label} ({node.Type})").ToList();
             allNodeTypes.AddRange(graph.Nodes.Select(node => node.Type));
+            var nodeNames = graph.Nodes.ToDictionary(node => node.Id, node => string.IsNullOrWhiteSpace(node.Label) ? node.Type : node.Label, StringComparer.Ordinal);
+            var nodeCoverage = graph.Nodes.Select(node => new SecurityAgentNodeCoverage(
+                node.Id,
+                string.IsNullOrWhiteSpace(node.Label) ? node.Type : node.Label,
+                node.Type,
+                DescribeSafeSettings(node))).ToList();
+            var connections = graph.Edges.Select(edge =>
+            {
+                var source = nodeNames.GetValueOrDefault(edge.Source, edge.Source);
+                var target = nodeNames.GetValueOrDefault(edge.Target, edge.Target);
+                return string.IsNullOrWhiteSpace(edge.SourceHandle)
+                    ? $"{source} -> {target}"
+                    : $"{source} [{edge.SourceHandle}] -> {target}";
+            }).ToList();
             workflows.Add(new SecurityAgentWorkflow(
                 playbook.Id, playbook.Name, playbook.Enabled, playbook.AutoSend, CronSchedule.Describe(playbook.ScheduleCron), nodes,
                 validation.Errors, lastRun?.Status, lastRun?.StartedAt, pendingMailCounts.GetValueOrDefault(playbook.Id), lastRun?.MailsFailed ?? 0,
                 PlaybookJson.Deserialize<List<PlaybookNodeLog>>(lastRun?.NodeLogJson)
                     ?.Select(node => $"{node.Label}: {node.Status} ({node.ItemsIn}->{node.ItemsOut}, {node.DurationMs} ms){(string.IsNullOrWhiteSpace(node.Message) ? string.Empty : $" - {node.Message}")}")
-                    .ToList() ?? []));
+                    .ToList() ?? [],
+                nodeCoverage,
+                connections,
+                graph.ReportRequestKeywords.Where(value => !string.IsNullOrWhiteSpace(value)).Take(12).ToList()));
         }
 
         var incidents = _context.Incidents.AsNoTracking().Where(item => item.Timestamp >= start && item.Timestamp <= end);
@@ -149,6 +170,30 @@ public sealed class SecurityAgentService : ISecurityAgentService
         return rows.Select(item => new LocalLlmCount(item.Name, item.Count)).ToList();
     }
 
+    private static IReadOnlyList<string> DescribeSafeSettings(PlaybookNode node)
+    {
+        return node.Config
+            .Where(item => !SensitiveConfigKey.IsMatch(item.Key))
+            .Select(item => $"{item.Key}={DescribeJsonValue(item.Value)}")
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Take(12)
+            .ToList();
+    }
+
+    private static string DescribeJsonValue(JsonElement value)
+    {
+        var text = value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? string.Empty,
+            JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => value.ToString(),
+            JsonValueKind.Array => string.Join(", ", value.EnumerateArray().Take(8).Select(DescribeJsonValue)),
+            JsonValueKind.Object => "[nesne]",
+            _ => string.Empty
+        };
+
+        return text.Length > 180 ? $"{text[..177]}..." : text;
+    }
+
     private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, CancellationToken ct)
     {
         var payload = new { model = settings.Model, prompt, stream = false, options = new { temperature = settings.Temperature, num_predict = Math.Clamp(settings.MaxTokens, 256, 4096) } };
@@ -164,7 +209,7 @@ public sealed class SecurityAgentService : ISecurityAgentService
     {
         var history = string.Join("\n", (request.History ?? []).TakeLast(8).Select(item => $"{(item.Role == "assistant" ? "Agent" : "Kullanıcı")}: {item.Content}"));
         var workflows = string.Join("\n\n", context.Workflows.Select(workflow =>
-            $"- #{workflow.Id} {workflow.Name}: etkin={workflow.Enabled}, otomatik_gönderim={workflow.AutoSend}, zamanlama={workflow.Schedule ?? "yok"}, son_çalışma={workflow.LastRunStatus ?? "yok"}, bekleyen_mail={workflow.PendingMails}, başarısız_mail={workflow.FailedMails}\n  Node'lar: {string.Join(" | ", workflow.Nodes.DefaultIfEmpty("yok"))}\n  Doğrulama hataları: {string.Join(" | ", workflow.ValidationErrors.DefaultIfEmpty("yok"))}\n  Son node sonuçları: {string.Join(" | ", workflow.LastRunNodeSummary.DefaultIfEmpty("veri yok"))}"));
+            $"- #{workflow.Id} {workflow.Name}: etkin={workflow.Enabled}, otomatik_gönderim={workflow.AutoSend}, zamanlama={workflow.Schedule ?? "yok"}, son_çalışma={workflow.LastRunStatus ?? "yok"}, bekleyen_mail={workflow.PendingMails}, başarısız_mail={workflow.FailedMails}\n  Node'lar: {string.Join(" | ", workflow.Nodes.DefaultIfEmpty("yok"))}\n  Node ayarları: {string.Join(" || ", workflow.NodeCoverage.Select(node => $"{node.Label} [{node.Type}] => {(node.Settings.Count == 0 ? "ayar yok" : string.Join(", ", node.Settings))}").DefaultIfEmpty("veri yok"))}\n  Bağlantılar: {string.Join(" | ", workflow.Connections.DefaultIfEmpty("bağlantı yok"))}\n  Rapor talep anahtarları: {string.Join(" | ", workflow.ReportRequestKeywords.DefaultIfEmpty("tanımlı değil"))}\n  Doğrulama hataları: {string.Join(" | ", workflow.ValidationErrors.DefaultIfEmpty("yok"))}\n  Son node sonuçları: {string.Join(" | ", workflow.LastRunNodeSummary.DefaultIfEmpty("veri yok"))}"));
         return $"""
 Sen RADAR için salt-okunur Veri Güvenliği Kapsama Agentısın.
 Görevin mevcut workflow, node, son çalıştırma ve olay dağılımına dayanarak gözden kaçabilecek anomali, veri sızıntısı deseni veya operasyonel boşlukları bulmaktır.
@@ -172,6 +217,7 @@ Görevin mevcut workflow, node, son çalıştırma ve olay dağılımına dayana
 Kesin kurallar:
 - Yalnızca aşağıdaki bağlamın kanıtladığı bilgileri kullan. Bilinmeyen noktaları açıkça 'veri yok' diye belirt.
 - Bir kanal veya politikanın workflow tarafından kapsanmadığını söylemeden önce node'ları incele; genel incident kullanıcı veya metrik node'ları dolaylı kapsama sağlayabilir.
+- Node ayarlarındaki filtre, aksiyon, kanal, politika, hedef, zaman penceresi ve eşik bilgilerini; ayrıca bağlantı zincirini birlikte değerlendir. Eksik bağlantı, çalışmayan koşul dalı veya gereğinden geniş/dar eşik görürsen somut olarak belirt.
 - Önerileri önceliklendir: risk gerekçesi, eksik sinyal, önerilen node/filtre/eşik ve doğrulama yöntemi yaz.
 - Mail gönderme, workflow değiştirme, kod yürütme veya veritabanına erişme yetkin yoktur. Yalnızca taslak önerirsin.
 - Türkçe, anlaşılır ve gerektiğinde Markdown tablo kullan.
