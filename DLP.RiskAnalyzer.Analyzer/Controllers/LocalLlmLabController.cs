@@ -1,9 +1,12 @@
 using DLP.RiskAnalyzer.Analyzer.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace DLP.RiskAnalyzer.Analyzer.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/local-llm-lab")]
 public sealed class LocalLlmLabController : ControllerBase
 {
@@ -83,7 +86,13 @@ public sealed class LocalLlmLabController : ControllerBase
 
     private string GetOwnerUsername()
     {
-        var username = User.Identity?.Name?.Trim();
+        var username = User.Identity?.Name
+            ?? User.FindFirst(ClaimTypes.Name)?.Value
+            ?? User.FindFirst("name")?.Value
+            ?? User.FindFirst("unique_name")?.Value
+            ?? User.FindFirst("sub")?.Value;
+
+        username = username?.Trim();
         if (string.IsNullOrWhiteSpace(username))
             throw new UnauthorizedAccessException("Sohbet geçmişi için oturum açmanız gerekir.");
         return username;
