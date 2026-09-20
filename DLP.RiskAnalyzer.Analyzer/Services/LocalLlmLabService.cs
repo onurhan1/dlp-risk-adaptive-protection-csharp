@@ -89,7 +89,10 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         ValidateSettings(settings);
         try
         {
-            var reply = await GenerateAsync(settings, "RADAR bağlantı testi. Yalnızca 'bağlantı başarılı' yaz.", 48, ct);
+            // Qwen3 can spend a small output budget on its reasoning trace before it emits
+            // a final response. Keep this health check intentionally small but large enough
+            // to validate a usable final answer on servers that do not honour think=false.
+            var reply = await GenerateAsync(settings, "RADAR bağlantı testi. Yalnızca 'bağlantı başarılı' yaz.", 256, ct);
             return new LocalLlmHealthCheck(true, "healthy", "Yerel model yanıt verdi.", reply.Trim());
         }
         catch (LocalLlmConnectionException ex)
@@ -1018,6 +1021,16 @@ Veri Güvenliği Yönetimi
                         ? responseText.GetString()?.Trim()
                         : null;
                     if (!string.IsNullOrWhiteSpace(reply)) return reply;
+                    var hasThinking = document.RootElement.TryGetProperty("thinking", out var thinking)
+                        && !string.IsNullOrWhiteSpace(thinking.GetString());
+                    var exhaustedThinkingBudget = hasThinking
+                        && document.RootElement.TryGetProperty("done_reason", out var doneReason)
+                        && string.Equals(doneReason.GetString(), "length", StringComparison.OrdinalIgnoreCase);
+                    if (exhaustedThinkingBudget)
+                    {
+                        throw new LocalLlmConnectionException("thinking_budget_exhausted", "Yerel model düşünme bütçesini tüketti; nihai yanıt üretemedi.",
+                            "Ollama'nın think=false seçeneğini desteklediğini doğrulayın veya maksimum çıktı limitini artırın.", true, StatusCodes.Status502BadGateway);
+                    }
                     throw new LocalLlmConnectionException("empty_response", "Yerel model boş veya beklenen formatta olmayan bir yanıt verdi.",
                         "Modelin Ollama uyumlu /api/generate uç noktasını kullandığını ve model loglarını kontrol edin.", true, StatusCodes.Status502BadGateway);
                 }
@@ -1066,6 +1079,9 @@ Veri Güvenliği Yönetimi
                 model = settings.Model,
                 prompt,
                 stream = false,
+                // The agent needs the final answer, not a reasoning trace. This also avoids
+                // Qwen3 consuming the bounded output budget before producing response text.
+                think = false,
                 options = new { temperature = settings.Temperature, num_predict = Math.Clamp(maxTokens, 64, 4096) },
             }),
         };

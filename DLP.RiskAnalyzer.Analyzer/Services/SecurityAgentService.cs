@@ -485,7 +485,16 @@ Kurallar:
 
     private async Task<LocalModelGeneration> GenerateAsync(LocalLlmLabSettings settings, string prompt, CancellationToken ct)
     {
-        var payload = new { model = settings.Model, prompt, stream = false, options = new { temperature = settings.Temperature, num_predict = Math.Clamp(settings.MaxTokens, 256, 4096) } };
+        var payload = new
+        {
+            model = settings.Model,
+            prompt,
+            stream = false,
+            // Security Agent answers are advisory final text; do not spend its bounded
+            // response budget on Qwen3's separate thinking trace.
+            think = false,
+            options = new { temperature = settings.Temperature, num_predict = Math.Clamp(settings.MaxTokens, 256, 4096) }
+        };
         try
         {
             using var response = await _httpClient.PostAsJsonAsync(settings.GenerateUrl, payload, ct);
@@ -505,8 +514,20 @@ Kurallar:
                     "Generate URL'nin Ollama uyumlu /api/generate uç noktasını gösterdiğini kontrol edin.", false, StatusCodes.Status502BadGateway);
             var reply = content.GetString()?.Trim();
             if (string.IsNullOrWhiteSpace(reply))
+            {
+                var hasThinking = document.RootElement.TryGetProperty("thinking", out var thinking)
+                    && !string.IsNullOrWhiteSpace(thinking.GetString());
+                var exhaustedThinkingBudget = hasThinking
+                    && document.RootElement.TryGetProperty("done_reason", out var doneReason)
+                    && string.Equals(doneReason.GetString(), "length", StringComparison.OrdinalIgnoreCase);
+                if (exhaustedThinkingBudget)
+                {
+                    throw new LocalLlmConnectionException("thinking_budget_exhausted", "Yerel model düşünme bütçesini tüketti; nihai yanıt üretemedi.",
+                        "Ollama'nın think=false seçeneğini desteklediğini doğrulayın veya maksimum çıktı limitini artırın.", true, StatusCodes.Status502BadGateway);
+                }
                 throw new LocalLlmConnectionException("empty_response", "Yerel model boş yanıt verdi.",
                     "Modelin Ollama uyumlu /api/generate uç noktasını kullandığını ve model loglarını kontrol edin.", true, StatusCodes.Status502BadGateway);
+            }
             var isTruncated = document.RootElement.TryGetProperty("done_reason", out var reason)
                 && string.Equals(reason.GetString(), "length", StringComparison.OrdinalIgnoreCase);
             return new LocalModelGeneration(reply, isTruncated);

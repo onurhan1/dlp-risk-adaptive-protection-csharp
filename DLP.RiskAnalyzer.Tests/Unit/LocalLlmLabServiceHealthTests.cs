@@ -18,9 +18,14 @@ public class LocalLlmLabServiceHealthTests
     [Fact]
     public async Task TestConnectionAsync_OllamaResponse_ReturnsHealthyResult()
     {
-        var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        string? requestBody = null;
+        var service = CreateService(request =>
         {
-            Content = new StringContent("{\"response\":\"bağlantı başarılı\"}", Encoding.UTF8, "application/json")
+            requestBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"response\":\"bağlantı başarılı\"}", Encoding.UTF8, "application/json")
+            };
         });
 
         var result = await service.TestConnectionAsync(Settings, CancellationToken.None);
@@ -28,6 +33,23 @@ public class LocalLlmLabServiceHealthTests
         result.Healthy.Should().BeTrue();
         result.Status.Should().Be("healthy");
         result.Reply.Should().Be("bağlantı başarılı");
+        requestBody.Should().Contain("\"think\":false");
+        requestBody.Should().Contain("\"num_predict\":256");
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ThinkingBudgetExhausted_ReturnsSpecificGuidance()
+    {
+        var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"response\":\"\",\"thinking\":\"analiz ediyorum\",\"done_reason\":\"length\"}", Encoding.UTF8, "application/json")
+        });
+
+        var result = await service.TestConnectionAsync(Settings, CancellationToken.None);
+
+        result.Healthy.Should().BeFalse();
+        result.Status.Should().Be("thinking_budget_exhausted");
+        result.SuggestedAction.Should().Contain("think=false");
     }
 
     [Fact]
