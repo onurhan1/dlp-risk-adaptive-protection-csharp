@@ -282,13 +282,16 @@ export default function InvestigationQueriesPage() {
     return () => window.clearInterval(interval)
   }, [])
 
-  const loadRows = async () => {
+  const loadRows = async (showError = true) => {
     setLoading(true)
     try {
-      const [queryRes, workflowMailRes] = await Promise.all([
+      const [queryResult, workflowMailResult] = await Promise.allSettled([
         apiClient.get('/api/investigation/queries'),
         apiClient.get('/api/investigation/queries/workflow-mails'),
       ])
+
+      if (queryResult.status === 'rejected') throw queryResult.reason
+      const queryRes = queryResult.value
 
       const nextRows = (Array.isArray(queryRes.data) ? queryRes.data : []).map((row: any, index: number) => ({
         ...row,
@@ -299,11 +302,19 @@ export default function InvestigationQueriesPage() {
       setSelectedRowKeys(new Set())
       setBulkDeleteMode(false)
       setReplyNotificationCount(nextRows.filter((row: QueryRow) => row.query_status === 'cevap_inceleme_bekliyor').length)
-      setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((row: any) => ({ ...row, mail_date: row.mail_date || '' })))
+      if (workflowMailResult.status === 'fulfilled') {
+        const workflowMailRes = workflowMailResult.value
+        setWorkflowMailRows((Array.isArray(workflowMailRes.data) ? workflowMailRes.data : []).map((row: any) => ({ ...row, mail_date: row.mail_date || '' })))
+      } else {
+        setWorkflowMailRows([])
+        if (showError) flash('warning', 'Workflow mail kayitlari su an yuklenemedi')
+      }
       setSelectedIndex(nextRows.length ? 0 : null)
       setEditor(nextRows.length ? { ...nextRows[0] } : null)
+      return true
     } catch (error: any) {
-      flash('error', error?.response?.data?.detail || 'Sorgulamalar yuklenemedi')
+      if (showError) flash('error', error?.response?.data?.detail || 'Sorgulamalar yuklenemedi')
+      return false
     } finally {
       setLoading(false)
     }
@@ -482,10 +493,13 @@ export default function InvestigationQueriesPage() {
       const result = await apiClient.post('/api/investigation/queries/bulk', { rows: payload })
       const skipped = Number(result.data?.skippedDuplicates || 0)
       const syncWarning = String(result.data?.remediationSyncWarning || '').trim()
-      flash(syncWarning ? 'warning' : 'success', syncWarning || (skipped > 0
+      const savedMessage = syncWarning || (skipped > 0
         ? `Sorgulamalar kaydedildi. ${skipped} yinelenen kayit atlandi.`
-        : 'Sorgulamalar kaydedildi'))
-      await loadRows()
+        : 'Sorgulamalar kaydedildi')
+      const reloaded = await loadRows(false)
+      flash(reloaded ? (syncWarning ? 'warning' : 'success') : 'warning', reloaded
+        ? savedMessage
+        : `${savedMessage} Liste yenilenemedi; Yenile ile tekrar deneyin.`)
     } catch (error: any) {
       flash('error', saveErrorMessage(error))
     } finally {
