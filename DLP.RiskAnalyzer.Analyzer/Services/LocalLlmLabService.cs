@@ -79,11 +79,18 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         await _context.SaveChangesAsync(ct);
     }
 
-    public async Task<string> TestConnectionAsync(LocalLlmLabSettings settings, CancellationToken ct)
+    public async Task<LocalLlmHealthCheck> TestConnectionAsync(LocalLlmLabSettings settings, CancellationToken ct)
     {
         ValidateSettings(settings);
-        var reply = await GenerateAsync(settings, "RADAR bağlantı testi. Yalnızca 'bağlantı başarılı' yaz.", 48, ct);
-        return string.IsNullOrWhiteSpace(reply) ? "Yerel model boş yanıt verdi." : reply.Trim();
+        try
+        {
+            var reply = await GenerateAsync(settings, "RADAR bağlantı testi. Yalnızca 'bağlantı başarılı' yaz.", 48, ct);
+            return new LocalLlmHealthCheck(true, "healthy", "Yerel model yanıt verdi.", reply.Trim());
+        }
+        catch (LocalLlmConnectionException ex)
+        {
+            return new LocalLlmHealthCheck(false, ex.Code, ex.Detail, null, ex.Retryable, ex.SuggestedAction);
+        }
     }
 
     public async Task<LocalLlmIncidentSnapshot> GetIncidentSnapshotAsync(LocalLlmSnapshotRequest request, CancellationToken ct)
@@ -833,7 +840,77 @@ Veri Güvenliği Yönetimi
 
     private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, int maxTokens, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, settings.GenerateUrl)
+        const int maxAttempts = 2;
+        LocalLlmConnectionException? lastFailure = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var request = CreateGenerateRequest(settings, prompt, maxTokens);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                var body = await response.Content.ReadAsStringAsync(ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var failure = FromHttpFailure(response.StatusCode, body);
+                    _logger.LogWarning("Local LLM returned {StatusCode} ({Code})", response.StatusCode, failure.Code);
+                    if (attempt < maxAttempts && failure.Retryable)
+                    {
+                        lastFailure = failure;
+                        await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct);
+                        continue;
+                    }
+                    throw failure;
+                }
+
+                try
+                {
+                    using var document = JsonDocument.Parse(body);
+                    var reply = document.RootElement.TryGetProperty("response", out var responseText)
+                        ? responseText.GetString()?.Trim()
+                        : null;
+                    if (!string.IsNullOrWhiteSpace(reply)) return reply;
+                    throw new LocalLlmConnectionException("empty_response", "Yerel model boş veya beklenen formatta olmayan bir yanıt verdi.",
+                        "Modelin Ollama uyumlu /api/generate uç noktasını kullandığını ve model loglarını kontrol edin.", true, StatusCodes.Status502BadGateway);
+                }
+                catch (JsonException ex)
+                {
+                    throw new LocalLlmConnectionException("invalid_response", "Yerel model geçerli JSON döndürmedi.",
+                        "Generate URL'nin Ollama uyumlu /api/generate uç noktasını gösterdiğini kontrol edin.", false, StatusCodes.Status502BadGateway, ex);
+                }
+            }
+            catch (LocalLlmConnectionException ex) when (attempt < maxAttempts && ex.Retryable)
+            {
+                lastFailure = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct);
+            }
+            catch (HttpRequestException ex)
+            {
+                lastFailure = new LocalLlmConnectionException("unreachable", "Yerel LLM sunucusuna ulaşılamadı.",
+                    "Sunucunun çalıştığını, Generate URL'nin Analyzer makinesinden erişildiğini ve güvenlik duvarını kontrol edin.", true, StatusCodes.Status503ServiceUnavailable, ex);
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct);
+                    continue;
+                }
+            }
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
+            {
+                lastFailure = new LocalLlmConnectionException("timeout", "Yerel model zaman aşımına uğradı.",
+                    "Daha küçük kapsam seçin, modelin yüklü olduğundan emin olun veya yerel model kapasitesini kontrol edin.", true, StatusCodes.Status504GatewayTimeout, ex);
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct);
+                    continue;
+                }
+            }
+        }
+
+        throw lastFailure ?? new LocalLlmConnectionException("unknown", "Yerel LLM yanıtı alınamadı.",
+            "Bağlantı testini çalıştırıp yerel model ayarlarını kontrol edin.", true, StatusCodes.Status502BadGateway);
+    }
+
+    private static HttpRequestMessage CreateGenerateRequest(LocalLlmLabSettings settings, string prompt, int maxTokens) =>
+        new(HttpMethod.Post, settings.GenerateUrl)
         {
             Content = JsonContent.Create(new
             {
@@ -843,18 +920,20 @@ Veri Güvenliği Yönetimi
                 options = new { temperature = settings.Temperature, num_predict = Math.Clamp(maxTokens, 64, 4096) },
             }),
         };
-        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Local LLM returned {StatusCode}: {Body}", response.StatusCode, body[..Math.Min(body.Length, 800)]);
-            throw new InvalidOperationException($"Yerel LLM isteği başarısız oldu ({(int)response.StatusCode}).");
-        }
 
-        using var document = JsonDocument.Parse(body);
-        return document.RootElement.TryGetProperty("response", out var responseText)
-            ? responseText.GetString() ?? string.Empty
-            : string.Empty;
+    private static LocalLlmConnectionException FromHttpFailure(System.Net.HttpStatusCode statusCode, string responseBody)
+    {
+        _ = responseBody; // Do not expose remote response bodies to the UI or logs.
+        var status = (int)statusCode;
+        if (status == StatusCodes.Status404NotFound)
+            return new LocalLlmConnectionException("model_or_endpoint_not_found", "Yerel model veya generate uç noktası bulunamadı.",
+                "Model adını `ollama list` ile doğrulayın; URL genellikle http://sunucu:11434/api/generate olur.", false, StatusCodes.Status502BadGateway);
+        if (status is StatusCodes.Status429TooManyRequests or StatusCodes.Status502BadGateway or StatusCodes.Status503ServiceUnavailable or StatusCodes.Status504GatewayTimeout)
+            return new LocalLlmConnectionException("model_busy", "Yerel model isteği geçici olarak işleyemedi.",
+                "Kısa süre sonra tekrar deneyin; eşzamanlı istekleri ve model kaynak kullanımını kontrol edin.", true, StatusCodes.Status503ServiceUnavailable);
+
+        return new LocalLlmConnectionException("model_rejected_request", $"Yerel LLM isteği başarısız oldu ({status}).",
+            "Generate URL, model adı ve yerel model günlüklerini kontrol edin.", false, StatusCodes.Status502BadGateway);
     }
 
     private static string BuildPrompt(LocalLlmChatRequest request, LocalLlmIncidentSnapshot snapshot, string? comprehensiveEvidence = null)

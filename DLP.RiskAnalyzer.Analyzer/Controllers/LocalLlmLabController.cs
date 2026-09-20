@@ -32,8 +32,15 @@ public sealed class LocalLlmLabController : ControllerBase
     [HttpPost("test")]
     public async Task<IActionResult> Test([FromBody] LocalLlmLabSettings settings, CancellationToken ct)
     {
-        var reply = await _service.TestConnectionAsync(settings, ct);
-        return Ok(new { success = true, reply });
+        try
+        {
+            var health = await _service.TestConnectionAsync(settings, ct);
+            return Ok(health);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { detail = ex.Message });
+        }
     }
 
     [HttpGet("snapshot")]
@@ -101,6 +108,16 @@ public sealed class LocalLlmLabController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { detail = ex.Message });
+        }
+        catch (LocalLlmConnectionException ex)
+        {
+            return StatusCode(ex.StatusCode, new
+            {
+                code = ex.Code,
+                detail = ex.Detail,
+                retryable = ex.Retryable,
+                suggested_action = ex.SuggestedAction
+            });
         }
         catch (Exception ex)
         {

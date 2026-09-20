@@ -15,6 +15,7 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type ConversationSummary = { id: string; title: string; updated_at: string; message_count: number; preview?: string | null }
 type ConversationDetail = { id: string; title: string; created_at: string; updated_at: string; messages: ChatMessage[] }
 type MailProposal = { id: string; conversation_id: string; user_name: string; full_name?: string | null; department?: string | null; recipient_email?: string | null; subject: string; body: string; incident_summary_json: string; rationale?: string | null; status: 'pending' | 'sent' | 'rejected' | 'failed' | 'unresolved'; created_at: string; updated_at: string; sent_at?: string | null; error_message?: string | null }
+type LocalLlmHealth = { healthy: boolean; status: string; detail: string; reply?: string | null; retryable?: boolean; suggested_action?: string | null }
 
 const INITIAL_SETTINGS: Settings = {
   enabled: false,
@@ -26,6 +27,13 @@ const INITIAL_SETTINGS: Settings = {
 
 const ALGORITHM_PROMPT = 'Seçili incident verisini incele. RADARın mevcut risk puanını kullanmadan, yalnızca ham olay özelliklerinden 0-100 aralığında denetlenebilir bir risk puanlama algoritması ve riskli kullanıcı sınıflandırması öner. Faktörleri, ağırlıkları, eşikleri, örnek normalizasyonları, doğrulama planını ve sınırlılıkları anlaşılır başlıklar ve maddeler halinde açıkla.'
 const LOCAL_LLM_REQUEST_TIMEOUT_MS = 600_000
+
+function localLlmError(error: any, fallback: string) {
+  const payload = error?.response?.data
+  const detail = payload?.detail || fallback
+  const action = payload?.suggested_action || payload?.suggestedAction
+  return action ? `${detail} ${action}` : detail
+}
 
 export default function LocalLlmLabPage() {
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS)
@@ -172,9 +180,12 @@ export default function LocalLlmLabPage() {
     setBusy('test'); setNotice(null)
     try {
       const response = await apiClient.post('/api/local-llm-lab/test', settings, { timeout: LOCAL_LLM_REQUEST_TIMEOUT_MS })
-      setNotice({ type: 'success', text: `Bağlantı başarılı: ${response.data?.reply || 'Model yanıt verdi.'}` })
+      const health = response.data as LocalLlmHealth
+      setNotice(health.healthy
+        ? { type: 'success', text: `Bağlantı başarılı: ${health.reply || health.detail}` }
+        : { type: 'error', text: `${health.detail} ${health.suggested_action || ''}`.trim() })
     } catch (error: any) {
-      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Yerel LLM bağlantısı kurulamadı.' })
+      setNotice({ type: 'error', text: localLlmError(error, 'Yerel LLM bağlantısı kurulamadı.') })
     } finally { setBusy(null) }
   }
 
@@ -209,7 +220,7 @@ export default function LocalLlmLabPage() {
       void refreshConversations()
       if (response.data.conversation_id || conversationId) void refreshMailProposals(response.data.conversation_id || conversationId)
     } catch (error: any) {
-      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Model yanıtı alınamadı.' })
+      setNotice({ type: 'error', text: localLlmError(error, 'Model yanıtı alınamadı.') })
     } finally { setBusy(null) }
   }
 

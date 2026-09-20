@@ -4,7 +4,7 @@ public interface ILocalLlmLabService
 {
     Task<LocalLlmLabSettings> GetSettingsAsync(CancellationToken ct);
     Task SaveSettingsAsync(LocalLlmLabSettings settings, CancellationToken ct);
-    Task<string> TestConnectionAsync(LocalLlmLabSettings settings, CancellationToken ct);
+    Task<LocalLlmHealthCheck> TestConnectionAsync(LocalLlmLabSettings settings, CancellationToken ct);
     Task<LocalLlmIncidentSnapshot> GetIncidentSnapshotAsync(LocalLlmSnapshotRequest request, CancellationToken ct);
     Task<IReadOnlyList<LocalLlmConversationSummary>> GetConversationsAsync(string ownerUsername, CancellationToken ct);
     Task<LocalLlmConversationDetail> CreateConversationAsync(string ownerUsername, string? title, CancellationToken ct);
@@ -23,6 +23,33 @@ public sealed record LocalLlmLabSettings(
     string Model,
     double Temperature,
     int MaxTokens);
+
+public sealed record LocalLlmHealthCheck(
+    bool Healthy,
+    string Status,
+    string Detail,
+    string? Reply = null,
+    bool Retryable = false,
+    string? SuggestedAction = null);
+
+public sealed class LocalLlmConnectionException : Exception
+{
+    public LocalLlmConnectionException(string code, string detail, string suggestedAction, bool retryable, int statusCode, Exception? innerException = null)
+        : base(detail, innerException)
+    {
+        Code = code;
+        Detail = detail;
+        SuggestedAction = suggestedAction;
+        Retryable = retryable;
+        StatusCode = statusCode;
+    }
+
+    public string Code { get; }
+    public string Detail { get; }
+    public string SuggestedAction { get; }
+    public bool Retryable { get; }
+    public int StatusCode { get; }
+}
 
 public sealed record LocalLlmSnapshotRequest(
     int LookbackDays = 30,
