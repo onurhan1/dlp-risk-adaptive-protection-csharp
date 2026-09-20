@@ -19,6 +19,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
     private const string ModelKey = "local_llm_lab_model";
     private const string TemperatureKey = "local_llm_lab_temperature";
     private const string MaxTokensKey = "local_llm_lab_max_tokens";
+    private const int MaxComprehensiveEvidenceCharacters = 24_000;
+    private const int MaxPromptHistoryCharactersPerMessage = 1_200;
 
     private readonly AnalyzerDbContext _context;
     private readonly HttpClient _httpClient;
@@ -50,7 +52,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             bool.TryParse(values.GetValueOrDefault(EnabledKey), out var enabled) && enabled,
             values.GetValueOrDefault(GenerateUrlKey, "http://127.0.0.1:11434/api/generate"),
             values.GetValueOrDefault(ModelKey, "qwen3:8b"),
-            double.TryParse(values.GetValueOrDefault(TemperatureKey), out var temperature) ? temperature : 0.2,
+            double.TryParse(values.GetValueOrDefault(TemperatureKey), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var temperature) ? temperature : 0.2,
             int.TryParse(values.GetValueOrDefault(MaxTokensKey), out var maxTokens) ? maxTokens : 1800);
     }
 
@@ -127,7 +130,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             })
             .OrderByDescending(user => user.MaximumMatches)
             .ThenByDescending(user => user.IncidentCount)
-            .Take(request.Comprehensive ? 200 : 30)
+            .Take(request.Comprehensive ? 50 : 30)
             .ToListAsync(ct);
         var users = userRows.Select(user => new LocalLlmUserProfile(
             request.MaskIdentifiers ? Mask(user.User) : user.User,
@@ -413,8 +416,10 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
     {
         var end = request.EndUtc?.ToUniversalTime() ?? DateTime.UtcNow;
         var start = request.StartUtc?.ToUniversalTime() ?? end.AddDays(-Math.Clamp(request.LookbackDays, 1, 365));
-        var detailedUserLimit = Math.Clamp(request.DetailedUserLimit, 1, 50);
-        var evidenceRowsPerUser = Math.Clamp(request.EvidenceRowsPerUser, 25, 500);
+        // These are model-context limits, not query limits. Aggregates and transition scans still
+        // inspect every event in the requested period, but the prompt receives a fixed evidence budget.
+        var detailedUserLimit = Math.Clamp(request.DetailedUserLimit, 1, 8);
+        var evidenceRowsPerUser = Math.Clamp(request.EvidenceRowsPerUser, 8, 18);
         var timeWindowHours = ExtractTimeWindowHours(request.Message);
         var incidents = _context.Incidents.AsNoTracking()
             .Where(incident => incident.Timestamp >= start && incident.Timestamp <= end && incident.UserEmail != null && incident.UserEmail != "");
@@ -509,8 +514,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         var text = new StringBuilder()
             .AppendLine("KAPSAMLI KULLANICI KANITI")
             .AppendLine($"Bu kanıt, {start:yyyy-MM-dd} - {end:yyyy-MM-dd} dönemindeki tüm olay kayıtlarından üretilmiştir.")
-            .AppendLine($"Önceliklendirilmiş {candidates.Count} kullanıcı için olaylar aksiyon/politika/kural/kanal bazında eksiksiz sayısal olarak gruplanmıştır. Her satırdaki olay adedi, o gruba giren tüm kayıtları temsil eder.")
-            .AppendLine($"Her kullanıcı için en fazla {evidenceRowsPerUser} ayrıntılı zaman çizelgesi satırı sunulur. Sunucudaki çapraz kanal taraması ise tüm ham olay kayıtlarında {timeWindowHours} saatlik pencereyle çalıştırılmıştır.");
+            .AppendLine($"Önceliklendirilmiş {candidates.Count} kullanıcı için olaylar aksiyon/politika/kural/kanal bazında sayısal olarak gruplanmıştır. Her satırdaki olay adedi, o gruba giren tüm kayıtları temsil eder.")
+            .AppendLine($"Her kullanıcı için en fazla 8 özet grup, {evidenceRowsPerUser} öncelikli zaman çizelgesi satırı ve 3 çapraz kanal örüntüsü sunulur. Sunucudaki çapraz kanal taraması tüm ham olay kayıtlarında {timeWindowHours} saatlik pencereyle çalıştırılmıştır.");
 
         foreach (var candidate in candidates)
         {
@@ -518,7 +523,11 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             text.AppendLine();
             text.AppendLine($"KULLANICI: {user}; toplam olay: {candidate.IncidentCount}; max match: {candidate.MaximumMatches}; en yüksek şiddet: {candidate.MaximumSeverity}; tekrar: {candidate.RepeatCount}.");
 
-            foreach (var item in evidenceRows.Where(row => row.User == candidate.User))
+            foreach (var item in evidenceRows.Where(row => row.User == candidate.User)
+                         .OrderByDescending(row => row.MaximumMatches)
+                         .ThenByDescending(row => row.MaximumSeverity)
+                         .ThenByDescending(row => row.IncidentCount)
+                         .Take(8))
             {
                 text.AppendLine($"- olay: {item.IncidentCount}; aksiyon: {item.Action ?? "-"}; politika: {item.Policy ?? "-"}; " +
                     $"kural: {item.RuleName ?? "-"}; kanal: {item.Channel ?? "-"}; ilk: {item.FirstSeen:yyyy-MM-dd HH:mm}; son: {item.LastSeen:yyyy-MM-dd HH:mm}; " +
@@ -527,8 +536,13 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
             text.AppendLine("Ayrıntılı zaman çizelgesi:");
             foreach (var item in timelineRows.Where(row => row.User == candidate.User)
-                         .OrderBy(row => row.Timestamp)
-                         .Take(evidenceRowsPerUser))
+                         .OrderByDescending(row => row.MaxMatches)
+                         .ThenByDescending(row => row.Severity)
+                         .ThenByDescending(row => row.DataSensitivity)
+                         .ThenByDescending(row => row.RepeatCount)
+                         .ThenByDescending(row => row.Timestamp)
+                         .Take(evidenceRowsPerUser)
+                         .OrderBy(row => row.Timestamp))
             {
                 text.AppendLine($"- {item.Timestamp:yyyy-MM-dd HH:mm}; aksiyon: {item.Action ?? "-"}; politika: {item.Policy ?? "-"}; " +
                     $"kural: {item.Rule ?? "-"}; kanal: {item.Channel ?? "-"}; hedef: {(request.MaskIdentifiers ? MaskDestination(item.Destination) : item.Destination) ?? "-"}; " +
@@ -539,7 +553,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             if (userPatterns.Count > 0)
             {
                 text.AppendLine($"{timeWindowHours} saat içinde aynı politika/kural için gözlenen farklı kanal geçişleri. Bunlar ilişki kanıtıdır; tek başına engel aşma veya aynı verinin aktarıldığını kanıtlamaz:");
-                foreach (var pattern in userPatterns)
+                foreach (var pattern in userPatterns.Take(3))
                 {
                     var fromDestination = request.MaskIdentifiers ? MaskDestination(pattern.FromDestination) : pattern.FromDestination;
                     var toDestination = request.MaskIdentifiers ? MaskDestination(pattern.ToDestination) : pattern.ToDestination;
@@ -550,7 +564,7 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             }
         }
 
-        return text.ToString();
+        return LimitEvidence(text.ToString());
     }
 
     private static int ExtractTimeWindowHours(string message)
@@ -571,20 +585,18 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         foreach (var userEvents in events.GroupBy(item => item.User))
         {
             var ordered = userEvents.OrderBy(item => item.Timestamp).ToList();
-            for (var currentIndex = 0; currentIndex < ordered.Count; currentIndex++)
+            // Keep only the nearest prior event per policy/rule. The old backwards scan could
+            // become quadratic for a high-volume user inside the time window.
+            var latestByDataContext = new Dictionary<string, ComprehensiveTimelineEvent>(StringComparer.OrdinalIgnoreCase);
+            foreach (var current in ordered)
             {
-                var current = ordered[currentIndex];
                 var dataContext = current.Policy ?? current.Rule;
                 if (string.IsNullOrWhiteSpace(dataContext) || string.IsNullOrWhiteSpace(current.Channel)) continue;
-
-                for (var previousIndex = currentIndex - 1; previousIndex >= 0; previousIndex--)
+                if (latestByDataContext.TryGetValue(dataContext, out var previous) &&
+                    current.Timestamp - previous.Timestamp <= window &&
+                    !string.IsNullOrWhiteSpace(previous.Channel) &&
+                    !string.Equals(current.Channel, previous.Channel, StringComparison.OrdinalIgnoreCase))
                 {
-                    var previous = ordered[previousIndex];
-                    if (current.Timestamp - previous.Timestamp > window) break;
-                    if (!string.Equals(dataContext, previous.Policy ?? previous.Rule, StringComparison.OrdinalIgnoreCase) ||
-                        string.IsNullOrWhiteSpace(previous.Channel) ||
-                        string.Equals(current.Channel, previous.Channel, StringComparison.OrdinalIgnoreCase)) continue;
-
                     var key = $"{current.User}\u001f{dataContext}\u001f{previous.Channel}\u001f{current.Channel}\u001f{previous.Action}\u001f{current.Action}\u001f{previous.Destination}\u001f{current.Destination}";
                     if (!patterns.TryGetValue(key, out var pattern))
                     {
@@ -610,11 +622,9 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                         LastSeen = pattern.LastSeen > current.Timestamp ? pattern.LastSeen : current.Timestamp,
                         MaximumMatches = Math.Max(pattern.MaximumMatches, Math.Max(current.MaxMatches, previous.MaxMatches)),
                     };
-
-                    // The closest matching predecessor is the defensible event sequence.
-                    // Pairing every earlier incident would inflate the apparent transition count.
-                    break;
                 }
+
+                latestByDataContext[dataContext] = current;
             }
         }
 
@@ -623,6 +633,11 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             .ThenByDescending(pattern => pattern.MaximumMatches)
             .ToList();
     }
+
+    private static string LimitEvidence(string value) =>
+        value.Length <= MaxComprehensiveEvidenceCharacters
+            ? value
+            : value[..MaxComprehensiveEvidenceCharacters] + "\n[Kanıt metni güvenli bağlam bütçesi nedeniyle burada sınırlandı.]";
 
     private async Task<MailDraftPreparationResult> PrepareMailDraftsAsync(Guid conversationId, string ownerUsername, LocalLlmChatRequest request, LocalLlmLabSettings settings, CancellationToken ct)
     {
@@ -955,8 +970,8 @@ Veri Güvenliği Yönetimi
     {
         var history = (request.History ?? [])
             .Where(message => message.Role is "user" or "assistant" && !string.IsNullOrWhiteSpace(message.Content))
-            .TakeLast(10)
-            .Select(message => $"{(message.Role == "user" ? "Kullanıcı" : "Asistan")}: {message.Content.Trim()[..Math.Min(message.Content.Trim().Length, 3000)]}");
+            .TakeLast(8)
+            .Select(message => $"{(message.Role == "user" ? "Kullanıcı" : "Asistan")}: {Truncate(message.Content.Trim(), MaxPromptHistoryCharactersPerMessage)}");
         var context = FormatSnapshot(snapshot);
 
         return $$"""
@@ -1057,7 +1072,7 @@ Asistan:
             .AppendLine($"Politika dağılımı: {FormatCounts(snapshot.Policies)}")
             .AppendLine("Öne çıkan kullanıcı profilleri:");
 
-        foreach (var user in snapshot.Users)
+        foreach (var user in snapshot.Users.Take(30))
         {
             text.AppendLine($"- Kullanıcı: {user.User}; birim: {user.Department ?? "-"}; olay: {user.IncidentCount}; " +
                 $"max match: {user.MaximumMatches}; en yüksek şiddet: {user.MaximumSeverity}; tekrar: {user.RepeatCount}; " +
@@ -1065,7 +1080,7 @@ Asistan:
         }
 
         text.AppendLine("Örnek olaylar:");
-        foreach (var incident in snapshot.Samples)
+        foreach (var incident in snapshot.Samples.Take(40))
         {
             text.AppendLine($"- {incident.Timestamp:yyyy-MM-dd HH:mm}; kullanıcı: {incident.User}; aksiyon: {incident.Action ?? "-"}; " +
                 $"max match: {incident.MaxMatches}; şiddet: {incident.Severity}; tekrar: {incident.RepeatCount}; " +

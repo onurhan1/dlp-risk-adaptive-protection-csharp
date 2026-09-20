@@ -43,8 +43,8 @@ export default function LocalLlmLabPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [analysisMode, setAnalysisMode] = useState<'standard' | 'comprehensive'>('standard')
-  const [detailedUserLimit, setDetailedUserLimit] = useState(20)
-  const [evidenceRowsPerUser, setEvidenceRowsPerUser] = useState(160)
+  const [detailedUserLimit, setDetailedUserLimit] = useState(6)
+  const [evidenceRowsPerUser, setEvidenceRowsPerUser] = useState(12)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
@@ -324,8 +324,8 @@ export default function LocalLlmLabPage() {
             <label style={compactLabel}>Başlangıç<input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
             <label style={compactLabel}>Bitiş<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
             {analysisMode === 'standard' && <label style={compactLabel}>Örnek<input type="number" min="5" max="100" value={sampleSize} onChange={event => setSampleSize(Number(event.target.value))} style={{ ...inputStyle, width: '72px' }} /> kayıt</label>}
-            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Ayrıntılı olay geçmişi modele taşınacak öncelikli kullanıcı sayısı.">Ayrıntılı kullanıcı<input type="number" min="1" max="50" value={detailedUserLimit} onChange={event => setDetailedUserLimit(Number(event.target.value))} style={{ ...inputStyle, width: '66px' }} /></label>}
-            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Her kullanıcı için modele aktarılacak en fazla zaman çizelgesi satırı. Sunucudaki desen taraması tüm olaylarda çalışır.">Zaman çizelgesi<input type="number" min="25" max="500" step="25" value={evidenceRowsPerUser} onChange={event => setEvidenceRowsPerUser(Number(event.target.value))} style={{ ...inputStyle, width: '70px' }} /> satır</label>}
+            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Modele taşınacak öncelikli kullanıcı sayısı. Sunucu tüm dönemi tarar, model kanıt bütçesiyle sınırlandırılır.">Ayrıntılı kullanıcı<input type="number" min="1" max="8" value={detailedUserLimit} onChange={event => setDetailedUserLimit(Number(event.target.value))} style={{ ...inputStyle, width: '66px' }} /></label>}
+            {analysisMode === 'comprehensive' && <label style={compactLabel} title="Her kullanıcı için modele aktarılacak öncelikli zaman çizelgesi satırı. Sunucudaki desen taraması tüm olaylarda çalışır.">Zaman çizelgesi<input type="number" min="8" max="18" value={evidenceRowsPerUser} onChange={event => setEvidenceRowsPerUser(Number(event.target.value))} style={{ ...inputStyle, width: '70px' }} /> satır</label>}
             <label style={{ ...compactLabel, cursor: 'pointer' }} title="Kullanıcı ve e-posta/hedef bilgilerini maskeleyerek modele gönderir."><input type="checkbox" checked={maskIdentifiers} onChange={event => setMaskIdentifiers(event.target.checked)} /> <EyeOff size={13} /> Kimlikleri maskele</label>
           </div>
           <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
@@ -335,7 +335,7 @@ export default function LocalLlmLabPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: '9px' }}>
             <Metric label="Olay" value={snapshot?.total_incidents ?? 0} /><Metric label="Kullanıcı" value={snapshot?.unique_users ?? 0} /><Metric label="Modele aktarılan profil" value={snapshot?.profile_count ?? 0} /><Metric label="En yüksek match" value={snapshot?.maximum_matches ?? 0} />
           </div>
-          <p style={{ margin: '11px 0 0', color: 'var(--text-muted)', fontSize: '11px' }}><ShieldCheck size={12} style={{ verticalAlign: 'text-bottom' }} /> {analysisMode === 'comprehensive' ? `Tüm kullanıcılar dönem dağılımına dahil edilir. Öncelikli ${detailedUserLimit} kullanıcı için tüm olaylar sunucuda taranır; modele kullanıcı başına en fazla ${evidenceRowsPerUser} zaman çizelgesi satırı ve tam kanıt özeti aktarılır. Prompttaki saat bilgisiyle çapraz kanal desenleri ayrıca hesaplanır.` : `Model özet, dağılımlar ve en fazla ${sampleSize} olay örneğini görür.`} Veritabanı sorgulama veya güncelleme yetkisi yoktur.</p>
+          <p style={{ margin: '11px 0 0', color: 'var(--text-muted)', fontSize: '11px' }}><ShieldCheck size={12} style={{ verticalAlign: 'text-bottom' }} /> {analysisMode === 'comprehensive' ? `Tüm kullanıcılar dönem dağılımına dahil edilir. Öncelikli ${detailedUserLimit} kullanıcı için tüm olaylar sunucuda taranır; modele kullanıcı başına en fazla ${evidenceRowsPerUser} zaman çizelgesi satırı, 8 sayısal grup ve 3 çapraz kanal örüntüsü aktarılır. Kanıt metni sabit bağlam bütçesiyle sınırlandırılır.` : `Model özet, dağılımlar ve en fazla ${sampleSize} olay örneğini görür.`} Veritabanı sorgulama veya güncelleme yetkisi yoktur.</p>
         </section>
 
         <section style={{ ...panelStyle, minHeight: '490px', display: 'flex', flexDirection: 'column' }}>

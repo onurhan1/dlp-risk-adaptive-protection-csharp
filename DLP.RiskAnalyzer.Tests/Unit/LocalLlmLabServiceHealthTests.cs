@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Services;
+using DLP.RiskAnalyzer.Shared.Models;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -90,14 +91,63 @@ public class LocalLlmLabServiceHealthTests
         result.Snapshot.Users.Should().BeEmpty();
     }
 
-    private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
+    [Fact]
+    public async Task ChatAsync_ComprehensiveRequest_EnforcesBoundedEvidencePrompt()
+    {
+        string? capturedPrompt = null;
+        var service = CreateService(request =>
+        {
+            capturedPrompt = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"response\":\"incelendi\"}", Encoding.UTF8, "application/json")
+            };
+        }, out var context);
+        context.SystemSettings.AddRange(
+            new SystemSetting { Key = "local_llm_lab_enabled", Value = "true" },
+            new SystemSetting { Key = "local_llm_lab_generate_url", Value = Settings.GenerateUrl },
+            new SystemSetting { Key = "local_llm_lab_model", Value = Settings.Model },
+            new SystemSetting { Key = "local_llm_lab_temperature", Value = "0.2" },
+            new SystemSetting { Key = "local_llm_lab_max_tokens", Value = "300" });
+        var now = DateTime.UtcNow;
+        for (var user = 0; user < 10; user++)
+        for (var item = 0; item < 60; item++)
+            context.Incidents.Add(new Incident
+            {
+                UserEmail = $"user{user}@kuveytturk.com.tr",
+                Timestamp = now.AddMinutes(-(user * 60 + item)),
+                Policy = $"Policy-{item}",
+                RuleName = $"Rule-{item}",
+                Channel = item % 2 == 0 ? "EMAIL" : "HTTPS",
+                Destination = $"target{item}@example.com",
+                Action = "BLOCK",
+                MaxMatches = item + 1,
+                Severity = item % 5,
+                DataSensitivity = item % 4,
+                RepeatCount = item % 3
+            });
+        await context.SaveChangesAsync();
+
+        await service.ChatAsync(new LocalLlmChatRequest("Son 7 gün risk analizi yap", null,
+            LookbackDays: 7, Comprehensive: true, DetailedUserLimit: 50, EvidenceRowsPerUser: 500), "test-user", CancellationToken.None);
+
+        capturedPrompt.Should().NotBeNull();
+        capturedPrompt!.Length.Should().BeLessThan(50_000);
+        capturedPrompt.Should().Contain("KAPSAMLI KULLANICI KANITI");
+    }
+
+    private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) =>
+        CreateService(responseFactory, out _);
+
+    private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory, out AnalyzerDbContext context)
     {
         var options = new DbContextOptionsBuilder<AnalyzerDbContext>()
             .UseInMemoryDatabase($"local-llm-health-{Guid.NewGuid():N}")
             .Options;
         var httpClient = new HttpClient(new StubHttpMessageHandler(responseFactory));
+        context = new AnalyzerDbContext(options);
         return new LocalLlmLabService(
-            new AnalyzerDbContext(options),
+            context,
             httpClient,
             new Mock<IDirectorySettingsService>().Object,
             new Mock<IEmailService>().Object,

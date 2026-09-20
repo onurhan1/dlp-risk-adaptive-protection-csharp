@@ -18,7 +18,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 0 | Entegrasyon tabani | Pull sonrasi cakisma cozumlenir, takip kaydi ve dogrulama yapilir. | Tamamlandi |
 | 1 | Yerel model sagligi | Baglanti/model kontrolu, zaman asimi, hata ayrimi ve tekrar deneme. | Tamamlandi |
 | 2 | Dogal sohbet yonlendirme | Selamlasma ve yardim sorulari olaysiz; analiz istegi arac ve kapsam secimiyle calisir. | Tamamlandi |
-| 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Bekliyor |
+| 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Tamamlandi |
 | 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Tamamlandi |
 | 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Bekliyor |
 | 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Bekliyor |
@@ -54,3 +54,5 @@ onay akisina girdidir.
 | 2026-09-20 | 1 | Devam ediyor | Yerel model yanit hatalari saglik kontrolu, ayrintili hata kodu ve kontrollu tekrar deneme ile ele aliniyor. Bu ve sonraki asamalar sadece commitlenecek; push kullanici talimatiyla yapilacak. |
 | 2026-09-20 | 1 | Tamamlandi | Baglanti testi yapilandirilmis saglik sonucu donduruyor. Erisilemeyen sunucu, timeout, bulunamayan model/endpoint, mesgul model, gecersiz veya bos yanit ayrildi; gecici hatalarda bir kontrollu tekrar deneme eklendi. 335 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 2 | Tamamlandi | Sohbet niyeti ayristirildi. Selamlasma ve tesekkur yerel yanitla, model ve olay kaydi cagirmadan tamamlanir; serbest sohbet kucuk model baglamiyla, olay/risk/mail/workflow talepleri ise olay kanitiyla calisir. 336 backend testi basarili. Commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 3 | Devam ediyor | Kapsamli analizdeki aday ve timeline kaniti sabit bir prompt butcesine sinirlanacak; 20K+ olay ham olarak modele aktarilmayacak. |
+| 2026-09-20 | 3 | Tamamlandi | Kapsamli analizde model kaniti 8 kullanici, kullanici basina 8 sayisal grup, 18 timeline satiri ve 3 kanal oruntusu ile sinirlandi; kanit metni 24.000 karakter tavanina alindi. Sunucu tum donemi taramaya devam eder, kanal gecisi taramasi dogrusal hale getirildi. 337 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
