@@ -1,0 +1,52 @@
+# Guvenlik Agent'i Uygulama Takibi
+
+Bu dosya Local LLM Laboratuvari ve Guvenlik Agent'i gelistirmesinin kalici
+calisma kaydidir. Her asama test edilecek, commitlenecek ve onaylanan uzak
+depoya gonderilecektir. Bir asama ancak ilgili test, commit ve push sonrasi
+`Tamamlandi` durumuna gecirilebilir.
+
+## Hedef
+
+Agent; dogal sohbetle analiz istegini anlayacak, milyonlarca olayi modele
+tasimadan kanita dayali risk bulgulari uretecek, e-posta ve workflow taslagi
+hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
+
+## Asama Plani
+
+| No | Asama | Cikti | Durum |
+| --- | --- | --- | --- |
+| 0 | Entegrasyon tabani | Pull sonrasi cakisma cozumlenir, takip kaydi ve dogrulama yapilir. | Tamamlandi |
+| 1 | Yerel model sagligi | Baglanti/model kontrolu, zaman asimi, hata ayrimi ve tekrar deneme. | Bekliyor |
+| 2 | Dogal sohbet yonlendirme | Selamlasma ve yardim sorulari olaysiz; analiz istegi arac ve kapsam secimiyle calisir. | Bekliyor |
+| 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Bekliyor |
+| 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Bekliyor |
+| 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Bekliyor |
+| 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Bekliyor |
+| 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Bekliyor |
+| 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Bekliyor |
+
+## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
+
+Bir hedef adresin sahsi domain'de olmasi tek basina ihlal veya kimlik
+eslesmesi anlami tasimaz. Karar, gorunen ad yerine dogrulanmis `local@domain`
+adresi uzerinden uretilir.
+
+| Kontrol | Kural | Sonuc |
+| --- | --- | --- |
+| Sahsi domain | Merkezi ve surumlenmis saglayici listesi: Gmail/Googlemail, Hotmail/Outlook/Live/MSN, Yahoo, iCloud/Me, Proton ve Yandex. | `isPersonalDomain` |
+| Guvenli ayrisma | Adres bir e-posta ayrisicisi ile okunur; regex yalnizca bicim dogrulamada kullanilir. | Hatali gorunen-ad eslesmesi engellenir. |
+| Kanoniklestirme | Kucuk harf, Turkce karakter normalizasyonu, bosluk/nokta/alt-cizgi/tire temizligi. Gmail icin bilinen nokta ve `+etiket` kurali uygulanir; diger domain'lere genellenmez. | Karsilastirilabilir kullanici adi |
+| Kesin eslesme | Kurumsal gonderen mailbox-onu ile hedef mailbox-onu ayni kanonik degere sahiptir. | Yuksek guven |
+| Isim destegi | Dizin adi/soyadi ile iki parcanin eslesmesi; kisa kullanici adlari, bas harfler ve tek basina benzerlik pozitif sayilmaz. | Orta veya yuksek guven |
+| Bulanik eslesme | Yalniz yeterince uzun degerlerde, sinirli edit mesafesi ve token parcasi korumalariyla kullanilir. | Dusuk/orta guven, insan incelemesi |
+
+Ornek: kurumsal kullanici `abc@kuveytturk.com.tr` hedefe
+`abc@hotmail.com` gonderiyorsa `exact-local-part` ve yuksek guvenli inceleme
+bulgusu uretilir. Bu bulgu otomatik engelleme degil, listeleme/risk sinyali ve
+onay akisina girdidir.
+
+## Tamamlanan Isler Kaydi
+
+| Tarih | Asama | Durum | Not |
+| --- | --- | --- | --- |
+| 2026-09-20 | 0 | Tamamlandi | Uzak depodaki Local LLM Laboratuvari ve Guvenlik Agent'i degisiklikleri alindi. Exceptions sayfasindaki cakismada sayfali yukleme korunarak cozumlendi. `dotnet build --no-restore` ve `dashboard npm run build` basarili. |
