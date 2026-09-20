@@ -28,6 +28,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 10 | Deterministik risk sorgusu | Dogal dilde tarih/esik ayrisma, sunucu tarafli yuksek-risk listesi ve denetlenebilir sonuc metadatasi. | Tamamlandi |
 | 11 | Skor seffafligi | Shadow score formulu, sinyal aciklamalari, esik ve insan denetimi sinirlarinin arayuzde aciklanmasi. | Tamamlandi |
 | 12 | Tekil anahtar dayanikliligi | Bozuk/eski workflow ve skorlama verisinin agent baglamini dusurmemesi, veri hatasinin gorunur kalmasi. | Tamamlandi |
+| 13 | Tekil anahtar korumasi | Yeni node ve Isolation Forest kayitlarinda benzersizlik, eski turetilmis skorlarin SQL ile arsivli temizligi. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -69,3 +70,4 @@ onay akisina girdidir.
 | 2026-09-20 | 10 | Tamamlandi | "Son bir hafta/son N gun/gecen hafta" gibi tarihler sunucuda ayrisir. Yuksek risk listeleme istegi, varsayilan 70+ veya kullanicinin belirttigi skor esigiyle Risk Shadow servisinde hesaplanir; ilk 20 aday, toplam eslesen sayi ve kullanilan donemle birlikte modelden bagimsiz tablo halinde dondurulur. Yerel model kapali veya yanitsiz olsa dahi bu liste calisir. Risk Shadow esik testi ve TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 11 | Tamamlandi | Guvenlik Agent'i Shadow risk kartina acilir hesaplama rehberi eklendi. Formul, 60 gunluk baz cizgisi, Isolation Forest sinyali, 70+/50-69 skor bantlari ve otomatik aksiyon olmamasi ayni baglamda gorunur. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 12 | Tamamlandi | Agent baglami, tekrar eden workflow node ID'lerinde artik cokmez; mevcut workflow dogrulama hatasi yoneticinin duzeltebilmesi icin gorunur kalir. Risk Shadow, harf duyarsiz tekrar eden kullanici anahtarlarini birlestirir ve en yuksek Isolation Forest sinyalini secer. Tekrarlanan anahtar regresyon testi basarili; commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 13 | Tamamlandi | Yeni workflow node/edge kimlikleri UUID ile uretilir; API bos veya tekrarlanan node ID taslagi kaydetmez. Isolation Forest kaydetme adimi kullanici e-posta anahtarlarini harf duyarsiz tekillestirir. SQL onarim betigi, gecmis turetilmis skor tekrarlarini arsivleyip siler ve job+kanonik e-posta benzersizlik indeksi ekler; mevcut bozuk workflow ID'leri ise edge belirsizligi nedeniyle editor ile onarim icin listelenir. Dogrulama ve commit var, push kullanici talimati bekliyor. |

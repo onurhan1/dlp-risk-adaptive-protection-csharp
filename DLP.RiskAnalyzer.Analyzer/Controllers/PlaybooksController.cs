@@ -137,6 +137,7 @@ public class PlaybooksController : ControllerBase
         await PlaybookSchema.EnsureAsync(_context, _logger, ct);
 
         var graph = request.Graph ?? new PlaybookGraph();
+        if (HasInvalidNodeIds(graph)) return BadRequest(new { detail = "Workflow node kimlikleri boş veya tekrarlı olamaz." });
         var validation = await _engine.ValidateAsync(graph, ct);
 
         var now = DateTime.UtcNow;
@@ -171,6 +172,7 @@ public class PlaybooksController : ControllerBase
         if (playbook == null) return NotFound(new { detail = "Agentic Workflow bulunamadı" });
 
         var graph = request.Graph ?? new PlaybookGraph();
+        if (HasInvalidNodeIds(graph)) return BadRequest(new { detail = "Workflow node kimlikleri boş veya tekrarlı olamaz." });
         var validation = await _engine.ValidateAsync(graph, ct);
 
         // Drafts are saved freely; enabling a schedule is what requires a valid graph.
@@ -584,6 +586,10 @@ public class PlaybooksController : ControllerBase
     /// Recomputes the denormalised scheduling columns the background service reads. Enabling
     /// without a schedule trigger is a no-op: there would be nothing for the scheduler to fire.
     /// </summary>
+    private static bool HasInvalidNodeIds(PlaybookGraph graph) => graph.Nodes
+        .GroupBy(node => node.Id?.Trim() ?? string.Empty, StringComparer.Ordinal)
+        .Any(group => string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1);
+
     private static void ApplySchedule(Playbook playbook, PlaybookGraph graph, bool enabled, DateTime nowUtc)
     {
         var cron = BuildCronFor(graph);

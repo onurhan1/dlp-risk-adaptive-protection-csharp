@@ -1009,9 +1009,10 @@ export function isValidEmail(value: any): boolean {
 
 let idCounter = 0
 
-/** Node/edge ids only need to be unique within one graph; a counter plus time is enough. */
+/** Node/edge IDs must remain unique even when two editor sessions save during the same millisecond. */
 export function newId(prefix: string): string {
   idCounter += 1
+  if (typeof globalThis.crypto?.randomUUID === 'function') return `${prefix}_${globalThis.crypto.randomUUID()}`
   return `${prefix}_${Date.now().toString(36)}${idCounter.toString(36)}`
 }
 

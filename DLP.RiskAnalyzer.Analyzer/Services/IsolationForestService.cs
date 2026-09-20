@@ -340,10 +340,22 @@ public class IsolationForestService : IIsolationForestService
             var results = engine.Run(scoringIncidents, historicalIncidents);
             var jobId = Guid.NewGuid().ToString("N")[..12];
 
+            // Source systems may surface the same mailbox with casing differences. A scoring run
+            // has exactly one authoritative result per canonical mailbox; keep the strongest
+            // anomaly signal before persistence so the database uniqueness invariant is upheld.
+            var uniqueResults = results
+                .Where(result => !string.IsNullOrWhiteSpace(result.UserEmail))
+                .GroupBy(result => result.UserEmail.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group
+                    .OrderByDescending(result => result.IFScore)
+                    .ThenByDescending(result => result.BaselineIncidentCount)
+                    .First())
+                .ToList();
+
             // Persist
-            var entities = results.Select(r => new IsolationForestScore
+            var entities = uniqueResults.Select(r => new IsolationForestScore
             {
-                UserEmail = r.UserEmail,
+                UserEmail = r.UserEmail.Trim(),
                 Department = r.Department,
                 CalculatedAt = calculatedAt,
                 LookbackDays = ScoreWindowDays,
@@ -376,13 +388,13 @@ public class IsolationForestService : IIsolationForestService
 
             _logger.LogInformation(
                 "IsolationForestService: completed. {Users} users scored, {Anomalies} anomalies, jobId={JobId}",
-                results.Count, results.Count(r => r.IsAnomaly), jobId);
+                uniqueResults.Count, uniqueResults.Count(r => r.IsAnomaly), jobId);
 
             _status = new IsolationForestStatusDto
             {
                 Status = "completed",
                 LastRunAt = calculatedAt,
-                LastUserCount = results.Count,
+                LastUserCount = uniqueResults.Count,
                 IsRunning = false
             };
         }
