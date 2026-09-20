@@ -71,7 +71,14 @@ public sealed class SecurityAgentService : ISecurityAgentService
             var lastRun = runs.FirstOrDefault(item => item.PlaybookId == playbook.Id);
             var nodes = graph.Nodes.Select(node => string.IsNullOrWhiteSpace(node.Label) ? node.Type : $"{node.Label} ({node.Type})").ToList();
             allNodeTypes.AddRange(graph.Nodes.Select(node => node.Type));
-            var nodeNames = graph.Nodes.ToDictionary(node => node.Id, node => string.IsNullOrWhiteSpace(node.Label) ? node.Type : node.Label, StringComparer.Ordinal);
+            // Legacy or hand-edited graphs may contain duplicate node IDs. Validation reports that
+            // configuration error, but context loading must remain available so an admin can repair it.
+            var nodeNames = graph.Nodes
+                .Where(node => !string.IsNullOrWhiteSpace(node.Id))
+                .GroupBy(node => node.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group =>
+                    string.IsNullOrWhiteSpace(group.First().Label) ? group.First().Type : group.First().Label,
+                    StringComparer.Ordinal);
             var nodeCoverage = graph.Nodes.Select(node => new SecurityAgentNodeCoverage(
                 node.Id,
                 string.IsNullOrWhiteSpace(node.Label) ? node.Type : node.Label,

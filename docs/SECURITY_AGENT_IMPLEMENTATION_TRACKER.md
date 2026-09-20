@@ -27,6 +27,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 9 | Inceleme deneyimi | Shadow risk kalibrasyon gorunurlugu, dry-run sonuclari, token butcesi ve insan onayli sablon kutuphanesi. | Tamamlandi |
 | 10 | Deterministik risk sorgusu | Dogal dilde tarih/esik ayrisma, sunucu tarafli yuksek-risk listesi ve denetlenebilir sonuc metadatasi. | Tamamlandi |
 | 11 | Skor seffafligi | Shadow score formulu, sinyal aciklamalari, esik ve insan denetimi sinirlarinin arayuzde aciklanmasi. | Tamamlandi |
+| 12 | Tekil anahtar dayanikliligi | Bozuk/eski workflow ve skorlama verisinin agent baglamini dusurmemesi, veri hatasinin gorunur kalmasi. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -67,3 +68,4 @@ onay akisina girdidir.
 | 2026-09-20 | 9 | Tamamlandi | Shadow risk paneline skor bandi filtresi, anlik analist geri bildirimi ve precision ozeti eklendi. Guvenlik Agent'i 7/30/90 gun kisayollari, kullanma rehberi ve node bazli dry-run sonuc paneli sunuyor. Laboratuvar kanit/token tavani ile donem kisayollarini gosteriyor; insanin bilincli secimiyle LLM onerisi sablon kutuphanesine eklenebiliyor. Dar ekranlarda iki kolonlu ekranlar tek kolona iner. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 10 | Tamamlandi | "Son bir hafta/son N gun/gecen hafta" gibi tarihler sunucuda ayrisir. Yuksek risk listeleme istegi, varsayilan 70+ veya kullanicinin belirttigi skor esigiyle Risk Shadow servisinde hesaplanir; ilk 20 aday, toplam eslesen sayi ve kullanilan donemle birlikte modelden bagimsiz tablo halinde dondurulur. Yerel model kapali veya yanitsiz olsa dahi bu liste calisir. Risk Shadow esik testi ve TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 11 | Tamamlandi | Guvenlik Agent'i Shadow risk kartina acilir hesaplama rehberi eklendi. Formul, 60 gunluk baz cizgisi, Isolation Forest sinyali, 70+/50-69 skor bantlari ve otomatik aksiyon olmamasi ayni baglamda gorunur. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 12 | Tamamlandi | Agent baglami, tekrar eden workflow node ID'lerinde artik cokmez; mevcut workflow dogrulama hatasi yoneticinin duzeltebilmesi icin gorunur kalir. Risk Shadow, harf duyarsiz tekrar eden kullanici anahtarlarini birlestirir ve en yuksek Isolation Forest sinyalini secer. Tekrarlanan anahtar regresyon testi basarili; commit var, push kullanici talimati bekliyor. |

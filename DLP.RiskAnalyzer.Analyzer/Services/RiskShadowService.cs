@@ -41,14 +41,22 @@ public sealed class RiskShadowService(AnalyzerDbContext context) : IRiskShadowSe
 
         var userEmails = current.Select(item => item.UserEmail).Distinct().ToList();
         var baselineStart = start.AddDays(-60);
-        var baselineByUser = (await context.UserDailyRiskScores.AsNoTracking()
+        var baselineRows = await context.UserDailyRiskScores.AsNoTracking()
             .Where(x => userEmails.Contains(x.UserEmail) && x.Date >= baselineStart && x.Date < start)
-            .GroupBy(x => x.UserEmail).Select(g => new { UserEmail = g.Key, Score = g.Average(x => x.DailyRiskScore) }).ToListAsync(ct))
-            .ToDictionary(item => item.UserEmail, item => item.Score, StringComparer.OrdinalIgnoreCase);
+            .Select(x => new { x.UserEmail, x.DailyRiskScore }).ToListAsync(ct);
+        var baselineByUser = baselineRows
+            .GroupBy(item => item.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Average(item => item.DailyRiskScore), StringComparer.OrdinalIgnoreCase);
         var latestAt = await context.IsolationForestScores.AsNoTracking().MaxAsync(x => (DateTime?)x.CalculatedAt, ct);
-        var ifByUser = latestAt == null ? new Dictionary<string, (double Score, int Baseline, bool Anomaly)>() :
-            (await context.IsolationForestScores.AsNoTracking().Where(x => x.CalculatedAt == latestAt).Select(x => new { x.UserEmail, x.IFScore, x.BaselineIncidentCount, x.IsAnomaly }).ToListAsync(ct))
-            .ToDictionary(x => x.UserEmail, x => (Score: x.IFScore, Baseline: x.BaselineIncidentCount, Anomaly: x.IsAnomaly), StringComparer.OrdinalIgnoreCase);
+        var latestScores = await context.IsolationForestScores.AsNoTracking().Where(x => latestAt != null && x.CalculatedAt == latestAt.Value)
+            .Select(x => new { x.UserEmail, x.IFScore, x.BaselineIncidentCount, x.IsAnomaly }).ToListAsync(ct);
+        var ifByUser = latestScores
+            .GroupBy(item => item.UserEmail, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group =>
+            {
+                var chosen = group.OrderByDescending(item => item.IFScore).ThenByDescending(item => item.BaselineIncidentCount).First();
+                return (Score: chosen.IFScore, Baseline: chosen.BaselineIncidentCount, Anomaly: chosen.IsAnomaly);
+            }, StringComparer.OrdinalIgnoreCase);
         var results = new List<RiskShadowCandidate>();
         foreach (var user in current)
         {

@@ -49,4 +49,25 @@ public class RiskShadowServiceTests
         result.MatchingCandidateCount.Should().Be(1);
         result.Candidates.Should().ContainSingle(candidate => candidate.UserEmail == "high@kt.com" && candidate.ShadowScore >= 70);
     }
+
+    [Fact]
+    public async Task GetHighRiskCandidatesAsync_ToleratesDuplicateCaseInsensitiveIsolationForestKeys()
+    {
+        var options = new DbContextOptionsBuilder<AnalyzerDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new AnalyzerDbContext(options);
+        var now = DateTime.UtcNow;
+        var today = DateOnly.FromDateTime(now);
+        db.UserDailyRiskScores.AddRange(
+            new UserDailyRiskScore { UserEmail = "high@kt.com", Team = "IT", Date = today, DailyRiskScore = 80, IncidentCount = 8 },
+            new UserDailyRiskScore { UserEmail = "high@kt.com", Team = "IT", Date = today.AddDays(-35), DailyRiskScore = 20, IncidentCount = 1 });
+        db.IsolationForestScores.AddRange(
+            new IsolationForestScore { UserEmail = "high@kt.com", CalculatedAt = now, IFScore = 75, IsAnomaly = true, BaselineIncidentCount = 12, JobId = "test" },
+            new IsolationForestScore { UserEmail = "HIGH@KT.COM", CalculatedAt = now, IFScore = 90, IsAnomaly = true, BaselineIncidentCount = 12, JobId = "test" });
+        await db.SaveChangesAsync();
+
+        var result = await new RiskShadowService(db).GetHighRiskCandidatesAsync(7, 70, 20, today);
+
+        result.Candidates.Should().ContainSingle();
+        result.Candidates[0].IsolationForestScore.Should().Be(90);
+    }
 }
