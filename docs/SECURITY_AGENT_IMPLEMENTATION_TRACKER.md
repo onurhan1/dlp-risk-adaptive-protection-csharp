@@ -29,6 +29,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 11 | Skor seffafligi | Shadow score formulu, sinyal aciklamalari, esik ve insan denetimi sinirlarinin arayuzde aciklanmasi. | Tamamlandi |
 | 12 | Tekil anahtar dayanikliligi | Bozuk/eski workflow ve skorlama verisinin agent baglamini dusurmemesi, veri hatasinin gorunur kalmasi. | Tamamlandi |
 | 13 | Tekil anahtar korumasi | Yeni node ve Isolation Forest kayitlarinda benzersizlik, eski turetilmis skorlarin SQL ile arsivli temizligi. | Tamamlandi |
+| 14 | API yanit dayanikliligi | Shadow risk adaylarinda camelCase/snake_case uyumu ve eksik sayisal alanlara karsi guvenli arayuz. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -71,3 +72,4 @@ onay akisina girdidir.
 | 2026-09-20 | 11 | Tamamlandi | Guvenlik Agent'i Shadow risk kartina acilir hesaplama rehberi eklendi. Formul, 60 gunluk baz cizgisi, Isolation Forest sinyali, 70+/50-69 skor bantlari ve otomatik aksiyon olmamasi ayni baglamda gorunur. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 12 | Tamamlandi | Agent baglami, tekrar eden workflow node ID'lerinde artik cokmez; mevcut workflow dogrulama hatasi yoneticinin duzeltebilmesi icin gorunur kalir. Risk Shadow, harf duyarsiz tekrar eden kullanici anahtarlarini birlestirir ve en yuksek Isolation Forest sinyalini secer. Tekrarlanan anahtar regresyon testi basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 13 | Tamamlandi | Yeni workflow node/edge kimlikleri UUID ile uretilir; API bos veya tekrarlanan node ID taslagi kaydetmez. Isolation Forest kaydetme adimi kullanici e-posta anahtarlarini harf duyarsiz tekillestirir. SQL onarim betigi, gecmis turetilmis skor tekrarlarini arsivleyip siler ve job+kanonik e-posta benzersizlik indeksi ekler; mevcut bozuk workflow ID'leri ise edge belirsizligi nedeniyle editor ile onarim icin listelenir. Dogrulama ve commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 14 | Tamamlandi | Shadow risk adaylari arayuzde tek bir normalizasyon katmanindan gecirilir. API'nin camelCase veya snake_case serilestirmesi ile eksik/nullable sayisal alanlar artik `toFixed` hatasina yol acmaz. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |

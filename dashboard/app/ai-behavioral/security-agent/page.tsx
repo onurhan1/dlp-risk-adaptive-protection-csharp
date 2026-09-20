@@ -41,8 +41,23 @@ function normalizeHighRiskList(data: any): HighRiskList | null {
     endDate: data.endDate ?? data.end_date ?? '',
     minimumScore: Number(data.minimumScore ?? data.minimum_score ?? 70),
     matchingCandidateCount: Number(data.matchingCandidateCount ?? data.matching_candidate_count ?? 0),
-    candidates: Array.isArray(data.candidates) ? data.candidates : [],
+    candidates: normalizeShadowCandidates(data.candidates),
   }
+}
+
+function normalizeShadowCandidates(data: any): ShadowCandidate[] {
+  if (!Array.isArray(data)) return []
+  return data.map(item => ({
+    userEmail: item?.userEmail ?? item?.user_email ?? 'Bilinmeyen kullanıcı',
+    team: item?.team ?? null,
+    shadowScore: Number(item?.shadowScore ?? item?.shadow_score ?? 0),
+    dailyRiskScore: Number(item?.dailyRiskScore ?? item?.daily_risk_score ?? 0),
+    isolationForestScore: Number(item?.isolationForestScore ?? item?.isolation_forest_score ?? 0),
+    baselineDelta: Number(item?.baselineDelta ?? item?.baseline_delta ?? 0),
+    incidentCount: Number(item?.incidentCount ?? item?.incident_count ?? 0),
+    confidence: item?.confidence ?? 'low',
+    evidence: Array.isArray(item?.evidence) ? item.evidence : [],
+  }))
 }
 
 function normalizeContext(data: any): AgentContext {
@@ -67,7 +82,7 @@ function normalizeContext(data: any): AgentContext {
     incidentCount: Number(data?.incidentCount ?? data?.incident_count ?? 0),
     uniqueUsers: Number(data?.uniqueUsers ?? data?.unique_users ?? 0),
     nodeTypes: Array.isArray(data?.nodeTypes) ? data.nodeTypes : Array.isArray(data?.node_types) ? data.node_types : [],
-    shadowRiskCandidates: Array.isArray(data?.shadowRiskCandidates) ? data.shadowRiskCandidates : Array.isArray(data?.shadow_risk_candidates) ? data.shadow_risk_candidates : [],
+    shadowRiskCandidates: normalizeShadowCandidates(data?.shadowRiskCandidates ?? data?.shadow_risk_candidates),
     reviews: normalizeReviews(data?.reviews),
     workflows,
   }
