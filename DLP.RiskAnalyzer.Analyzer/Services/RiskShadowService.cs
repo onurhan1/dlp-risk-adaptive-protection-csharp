@@ -18,11 +18,33 @@ public sealed class RiskShadowService(AnalyzerDbContext context) : IRiskShadowSe
     public async Task<RiskShadowSnapshot> GetSnapshotAsync(int days = 30, int take = 20, CancellationToken ct = default)
     {
         days = Math.Clamp(days, 7, 90); take = Math.Clamp(take, 1, 50);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var start = today.AddDays(-days + 1);
-        var current = await context.UserDailyRiskScores.AsNoTracking().Where(x => x.Date >= start && x.Date <= today)
+        var candidates = await BuildCandidatesAsync(days, DateOnly.FromDateTime(DateTime.UtcNow), ct);
+        return new(DateTime.UtcNow, days, candidates.Count, candidates.OrderByDescending(x => x.ShadowScore).Take(take).ToList(), await GetReviewSummaryAsync(ct));
+    }
+
+    public async Task<RiskShadowListResult> GetHighRiskCandidatesAsync(int days = 7, double minimumScore = 70, int take = 20, DateOnly? endDate = null, CancellationToken ct = default)
+    {
+        days = Math.Clamp(days, 7, 90); take = Math.Clamp(take, 1, 50); minimumScore = Math.Clamp(minimumScore, 0, 100);
+        var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var candidates = await BuildCandidatesAsync(days, end, ct);
+        var matching = candidates.Where(candidate => candidate.ShadowScore >= minimumScore).OrderByDescending(candidate => candidate.ShadowScore).ToList();
+        return new(DateTime.UtcNow, end.AddDays(-days + 1), end, minimumScore, matching.Count, matching.Take(take).ToList());
+    }
+
+    private async Task<List<RiskShadowCandidate>> BuildCandidatesAsync(int days, DateOnly end, CancellationToken ct)
+    {
+        var start = end.AddDays(-days + 1);
+        var current = await context.UserDailyRiskScores.AsNoTracking().Where(x => x.Date >= start && x.Date <= end)
             .GroupBy(x => new { x.UserEmail, x.Team }).Select(g => new { g.Key.UserEmail, g.Key.Team, Score = g.Average(x => x.DailyRiskScore), Incidents = g.Sum(x => x.IncidentCount) })
-            .OrderByDescending(x => x.Score).Take(take).ToListAsync(ct);
+            .ToListAsync(ct);
+        if (current.Count == 0) return [];
+
+        var userEmails = current.Select(item => item.UserEmail).Distinct().ToList();
+        var baselineStart = start.AddDays(-60);
+        var baselineByUser = (await context.UserDailyRiskScores.AsNoTracking()
+            .Where(x => userEmails.Contains(x.UserEmail) && x.Date >= baselineStart && x.Date < start)
+            .GroupBy(x => x.UserEmail).Select(g => new { UserEmail = g.Key, Score = g.Average(x => x.DailyRiskScore) }).ToListAsync(ct))
+            .ToDictionary(item => item.UserEmail, item => item.Score, StringComparer.OrdinalIgnoreCase);
         var latestAt = await context.IsolationForestScores.AsNoTracking().MaxAsync(x => (DateTime?)x.CalculatedAt, ct);
         var ifByUser = latestAt == null ? new Dictionary<string, (double Score, int Baseline, bool Anomaly)>() :
             (await context.IsolationForestScores.AsNoTracking().Where(x => x.CalculatedAt == latestAt).Select(x => new { x.UserEmail, x.IFScore, x.BaselineIncidentCount, x.IsAnomaly }).ToListAsync(ct))
@@ -30,9 +52,7 @@ public sealed class RiskShadowService(AnalyzerDbContext context) : IRiskShadowSe
         var results = new List<RiskShadowCandidate>();
         foreach (var user in current)
         {
-            var baselineStart = start.AddDays(-60);
-            var baseline = await context.UserDailyRiskScores.AsNoTracking().Where(x => x.UserEmail == user.UserEmail && x.Date >= baselineStart && x.Date < start)
-                .Select(x => (double?)x.DailyRiskScore).AverageAsync(ct) ?? 0;
+            var baseline = baselineByUser.GetValueOrDefault(user.UserEmail);
             var delta = user.Score - baseline;
             ifByUser.TryGetValue(user.UserEmail, out var forest);
             var shadow = Math.Clamp(user.Score * .55 + forest.Score * .30 + Math.Clamp(delta, 0, 30) * .50, 0, 100);
@@ -41,7 +61,7 @@ public sealed class RiskShadowService(AnalyzerDbContext context) : IRiskShadowSe
             results.Add(new(user.UserEmail, user.Team, Math.Round(shadow, 1), Math.Round(user.Score, 1), Math.Round(forest.Score, 1), Math.Round(delta, 1), user.Incidents,
                 forest.Baseline >= 10 ? "high" : forest.Baseline > 0 ? "medium" : "low", evidence));
         }
-        return new(DateTime.UtcNow, days, results.Count, results.OrderByDescending(x => x.ShadowScore).ToList(), await GetReviewSummaryAsync(ct));
+        return results;
     }
 
     private async Task<RiskShadowReviewSummary> GetReviewSummaryAsync(CancellationToken ct)

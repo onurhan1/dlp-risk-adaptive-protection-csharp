@@ -18,7 +18,7 @@ public sealed record SecurityAgentChatRequest(
     IReadOnlyList<LocalLlmChatMessage>? History = null,
     DateTime? StartUtc = null,
     DateTime? EndUtc = null);
-public sealed record SecurityAgentChatResult(string Reply, SecurityAgentContext Context);
+public sealed record SecurityAgentChatResult(string Reply, SecurityAgentContext Context, RiskShadowListResult? HighRiskList = null);
 public sealed record SecurityAgentWorkflowDraftRequest(string Goal, DateTime? StartUtc = null, DateTime? EndUtc = null);
 public sealed record SecurityAgentWorkflowDraftResult(int PlaybookId, string Name, string Summary, IReadOnlyList<string> Warnings);
 public sealed record SecurityAgentWorkflowSimulationResult(

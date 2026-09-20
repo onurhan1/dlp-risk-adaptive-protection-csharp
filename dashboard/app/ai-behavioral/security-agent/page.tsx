@@ -10,6 +10,7 @@ type Count = { name: string; count: number }
 type ShadowCandidate = { userEmail: string; team?: string | null; shadowScore: number; dailyRiskScore: number; isolationForestScore: number; baselineDelta: number; incidentCount: number; confidence: string; evidence: string[] }
 type ReviewSummary = { confirmed: number; falsePositive: number; needsReview: number; reviewed: number; precision: number }
 type SimulationResult = { playbookId: number; runId: number; status: string; dryRun: boolean; pendingMails: number; failedMails: number; skippedMails: number; errorMessage?: string | null; nodeSummary: string[]; workflowName: string }
+type HighRiskList = { startDate: string; endDate: string; minimumScore: number; matchingCandidateCount: number; candidates: ShadowCandidate[] }
 type AgentContext = {
   startUtc: string
   endUtc: string
@@ -30,6 +31,17 @@ function normalizeReviews(data: any, fallback: ReviewSummary = { confirmed: 0, f
     needsReview: Number(data?.needsReview ?? data?.needs_review ?? fallback.needsReview),
     reviewed: Number(data?.reviewed ?? fallback.reviewed),
     precision: Number(data?.precision ?? fallback.precision),
+  }
+}
+
+function normalizeHighRiskList(data: any): HighRiskList | null {
+  if (!data) return null
+  return {
+    startDate: data.startDate ?? data.start_date ?? '',
+    endDate: data.endDate ?? data.end_date ?? '',
+    minimumScore: Number(data.minimumScore ?? data.minimum_score ?? 70),
+    matchingCandidateCount: Number(data.matchingCandidateCount ?? data.matching_candidate_count ?? 0),
+    candidates: Array.isArray(data.candidates) ? data.candidates : [],
   }
 }
 
@@ -86,6 +98,7 @@ export default function SecurityAgentPage() {
   const [reviewedShadow, setReviewedShadow] = useState<Record<string, string>>({})
   const [shadowFilter, setShadowFilter] = useState<'all' | 'high' | 'medium'>('all')
   const [simulation, setSimulation] = useState<SimulationResult | null>(null)
+  const [highRiskList, setHighRiskList] = useState<HighRiskList | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -121,6 +134,7 @@ export default function SecurityAgentPage() {
     try {
       const { data } = await apiClient.post('/api/security-agent/chat', { message, history, startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, { timeout: 600_000 })
       setMessages(current => [...current, { role: 'assistant', content: data.reply }])
+      setHighRiskList(normalizeHighRiskList(data.highRiskList ?? data.high_risk_list))
       const refreshedContext = normalizeContext(data.context)
       setContext(refreshedContext)
       setStartDate(toDateTimeLocalValue(refreshedContext.startUtc))
@@ -139,6 +153,7 @@ export default function SecurityAgentPage() {
     setInput('')
     setError(null)
     setDraftNotice(null)
+    setHighRiskList(null)
   }
   const createDraft = async () => {
     const goal = [...messages].reverse().find(message => message.role === 'user')?.content || input.trim()
@@ -223,6 +238,7 @@ export default function SecurityAgentPage() {
     </header>
     {error && <div style={{ marginBottom: 14, padding: 12, borderRadius: 6, background: '#fee2e2', color: '#b91c1c', fontSize: 13 }}>{error}</div>}
     {draftNotice && <div style={{ marginBottom: 14, padding: 12, borderRadius: 6, background: '#dcfce7', color: '#15803d', fontSize: 13 }}>{draftNotice}</div>}
+    {highRiskList && <section style={{ ...panelStyle, marginBottom: 14, borderColor: '#bfdbfe', background: '#eff6ff' }}><div style={{ padding: '12px 14px', fontWeight: 800, color: '#1e3a8a' }}>Deterministik yüksek risk sorgusu</div><div style={{ padding: '0 14px 14px', color: '#1e40af', fontSize: 12 }}>Dönem: {highRiskList.startDate} – {highRiskList.endDate} UTC · Eşik: {highRiskList.minimumScore.toFixed(0)}+ · Eşleşen: {fmt(highRiskList.matchingCandidateCount)} · Gösterilen: {fmt(highRiskList.candidates.length)}. Tablo, modelden bağımsız olarak sunucu tarafından üretildi.</div></section>}
     {simulation && <section style={{ ...panelStyle, marginBottom: 14, borderColor: simulation.failedMails > 0 ? '#fecaca' : '#a7f3d0' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Son dry-run sonucu · {simulation.workflowName}</div>
       <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>

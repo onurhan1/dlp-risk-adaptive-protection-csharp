@@ -25,6 +25,9 @@ public sealed class SecurityAgentService : ISecurityAgentService
     private static readonly Regex LastDaysPattern = new(
         "\\bson\\s+(\\d{1,3})\\s+g(?:ü|u)n\\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex RiskThresholdPattern = new(
+        "\\b(?:skor|eşik|esik)\\s*(?:>=|≥|üzeri|uzeri|üstü|ustu)?\\s*(\\d{1,3})\\b|\\b(\\d{1,3})\\s*(?:ve\\s*)?(?:üzeri|uzeri|üstü|ustu)\\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly AnalyzerDbContext _context;
     private readonly IPlaybookEngine _playbookEngine;
@@ -109,10 +112,16 @@ public sealed class SecurityAgentService : ISecurityAgentService
     public async Task<SecurityAgentChatResult> ChatAsync(SecurityAgentChatRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Message)) throw new ArgumentException("Mesaj zorunludur.");
+        var context = await GetContextAsync(ResolveChatContextRequest(request), ct);
+        if (TryParseHighRiskListRequest(request.Message, out var minimumScore))
+        {
+            var days = Math.Clamp((int)Math.Ceiling((context.EndUtc - context.StartUtc).TotalDays), 7, 90);
+            var result = await _riskShadowService.GetHighRiskCandidatesAsync(days, minimumScore, 20, DateOnly.FromDateTime(context.EndUtc), ct);
+            return new SecurityAgentChatResult(BuildHighRiskListReply(result), context, result);
+        }
+
         var settings = await GetSettingsAsync(ct);
         if (!settings.Enabled) throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmelidir.");
-
-        var context = await GetContextAsync(ResolveChatContextRequest(request), ct);
         var reply = await GenerateAsync(settings, BuildPrompt(request, context), ct);
         return new SecurityAgentChatResult(reply, context);
     }
@@ -229,6 +238,47 @@ public sealed class SecurityAgentService : ISecurityAgentService
         }
 
         return new SecurityAgentContextRequest(request.StartUtc, request.EndUtc);
+    }
+
+    private static bool TryParseHighRiskListRequest(string message, out double minimumScore)
+    {
+        var normalized = message.ToLowerInvariant();
+        var asksForList = normalized.Contains("liste") || normalized.Contains("list") || normalized.Contains("göster") || normalized.Contains("goster") || normalized.Contains("kimler") || normalized.Contains("kullanıcı") || normalized.Contains("kullanici");
+        var asksForHighRisk = normalized.Contains("yüksek risk") || normalized.Contains("yuksek risk") || normalized.Contains("high risk");
+        minimumScore = 70;
+        var thresholdMatch = RiskThresholdPattern.Match(message);
+        if (thresholdMatch.Success)
+        {
+            var value = thresholdMatch.Groups[1].Success ? thresholdMatch.Groups[1].Value : thresholdMatch.Groups[2].Value;
+            if (double.TryParse(value, out var parsed)) minimumScore = Math.Clamp(parsed, 0, 100);
+        }
+        return asksForList && asksForHighRisk;
+    }
+
+    private static string BuildHighRiskListReply(RiskShadowListResult result)
+    {
+        var period = $"{result.StartDate:yyyy-MM-dd} - {result.EndDate:yyyy-MM-dd} UTC";
+        if (result.MatchingCandidateCount == 0)
+            return $"## Yüksek riskli kullanıcılar\n\nDönem: **{period}**  \nEşik: **{result.MinimumScore:F0}+**\n\nBu eşikte aday bulunamadı. Bu sonuç, günlük risk, kişisel baz çizgisi farkı ve Isolation Forest sinyalinin deterministik birleşimine dayanır.";
+
+        var rows = string.Join("\n", result.Candidates.Select((candidate, index) =>
+            $"| {index + 1} | {candidate.UserEmail} | {candidate.ShadowScore:F1} | {candidate.Confidence} | {candidate.DailyRiskScore:F1} | {candidate.BaselineDelta:+0.0;-0.0;0.0} | {candidate.IsolationForestScore:F1} | {candidate.IncidentCount} |"));
+        var visibleText = result.MatchingCandidateCount > result.Candidates.Count
+            ? $"İlk **{result.Candidates.Count}** aday gösteriliyor; toplam **{result.MatchingCandidateCount}** kullanıcı eşik üzerindedir."
+            : $"Toplam **{result.MatchingCandidateCount}** kullanıcı eşik üzerindedir.";
+        return $"""
+## Yüksek riskli kullanıcılar
+
+Dönem: **{period}**<br />
+Eşik: **{result.MinimumScore:F0}+**<br />
+{visibleText}
+
+| # | Kullanıcı | Shadow skor | Güven | Günlük risk | Baz farkı | IF skor | Olay |
+| --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
+{rows}
+
+Bu liste sunucuda hesaplanmıştır; model yorumu değildir. Skor; günlük risk, kullanıcının kendi baz çizgisinden sapması ve Isolation Forest sinyalini birleştirir. İnceleme öncesinde ilgili olay kanıtlarını doğrulayın.
+""";
     }
 
     private static string BuildWorkflowPlanPrompt(string goal, SecurityAgentContext context) => $$"""

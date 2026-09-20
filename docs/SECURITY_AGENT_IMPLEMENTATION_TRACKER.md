@@ -25,6 +25,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Tamamlandi |
 | 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Tamamlandi |
 | 9 | Inceleme deneyimi | Shadow risk kalibrasyon gorunurlugu, dry-run sonuclari, token butcesi ve insan onayli sablon kutuphanesi. | Tamamlandi |
+| 10 | Deterministik risk sorgusu | Dogal dilde tarih/esik ayrisma, sunucu tarafli yuksek-risk listesi ve denetlenebilir sonuc metadatasi. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -63,3 +64,4 @@ onay akisina girdidir.
 | 2026-09-20 | 8 | Devam ediyor | Mevcut incident, gunluk risk ve Isolation Forest aciklama verileri uzerinde aksiyon almayan, aciklanabilir risk shadow katmani tasarlaniyor. |
 | 2026-09-20 | 8 | Tamamlandi | Gunluk risk, kisisel baz cizgisi farki ve Isolation Forest kanitlari birlesen, salt-okunur shadow risk katmani eklendi. Agent ve arayuz adaylari skor, guven ve kanitla gosterir. Analist dogrulama/yanlis-pozitif geri bildirimi birakabilir; precision metriği kayitli geri bildirimlerden hesaplanir. Bu katman skor, workflow veya mail akislarini otomatik degistirmez. Shadow risk ve mevcut risk skorlama testleri basarili; commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 9 | Tamamlandi | Shadow risk paneline skor bandi filtresi, anlik analist geri bildirimi ve precision ozeti eklendi. Guvenlik Agent'i 7/30/90 gun kisayollari, kullanma rehberi ve node bazli dry-run sonuc paneli sunuyor. Laboratuvar kanit/token tavani ile donem kisayollarini gosteriyor; insanin bilincli secimiyle LLM onerisi sablon kutuphanesine eklenebiliyor. Dar ekranlarda iki kolonlu ekranlar tek kolona iner. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 10 | Tamamlandi | "Son bir hafta/son N gun/gecen hafta" gibi tarihler sunucuda ayrisir. Yuksek risk listeleme istegi, varsayilan 70+ veya kullanicinin belirttigi skor esigiyle Risk Shadow servisinde hesaplanir; ilk 20 aday, toplam eslesen sayi ve kullanilan donemle birlikte modelden bagimsiz tablo halinde dondurulur. Yerel model kapali veya yanitsiz olsa dahi bu liste calisir. Risk Shadow esik testi ve TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |
