@@ -78,6 +78,18 @@ public class LocalLlmLabServiceHealthTests
         result.Retryable.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ChatAsync_CasualGreeting_DoesNotRequireEnabledModelOrIncidentSnapshot()
+    {
+        var service = CreateService(_ => throw new InvalidOperationException("The model must not be called for a casual greeting."));
+
+        var result = await service.ChatAsync(new LocalLlmChatRequest("Naber?", null), "test-user", CancellationToken.None);
+
+        result.Reply.Should().Contain("İyiyim");
+        result.Snapshot.TotalIncidents.Should().Be(0);
+        result.Snapshot.Users.Should().BeEmpty();
+    }
+
     private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
     {
         var options = new DbContextOptionsBuilder<AnalyzerDbContext>()

@@ -17,7 +17,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | --- | --- | --- | --- |
 | 0 | Entegrasyon tabani | Pull sonrasi cakisma cozumlenir, takip kaydi ve dogrulama yapilir. | Tamamlandi |
 | 1 | Yerel model sagligi | Baglanti/model kontrolu, zaman asimi, hata ayrimi ve tekrar deneme. | Tamamlandi |
-| 2 | Dogal sohbet yonlendirme | Selamlasma ve yardim sorulari olaysiz; analiz istegi arac ve kapsam secimiyle calisir. | Bekliyor |
+| 2 | Dogal sohbet yonlendirme | Selamlasma ve yardim sorulari olaysiz; analiz istegi arac ve kapsam secimiyle calisir. | Tamamlandi |
 | 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Bekliyor |
 | 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Tamamlandi |
 | 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Bekliyor |
@@ -53,3 +53,4 @@ onay akisina girdidir.
 | 2026-09-20 | 4 | Tamamlandi | Merkezi e-posta ayrisici/eslestirici eklendi. Yuksek guvenli mailbox-onu eslesmeleri haftalik inceleme listesine ve sahsi sablon yonlendirmesine baglandi; arayuz kaniti gosteriyor. 331 backend testi ve `npx tsc --noEmit` basarili. |
 | 2026-09-20 | 1 | Devam ediyor | Yerel model yanit hatalari saglik kontrolu, ayrintili hata kodu ve kontrollu tekrar deneme ile ele aliniyor. Bu ve sonraki asamalar sadece commitlenecek; push kullanici talimatiyla yapilacak. |
 | 2026-09-20 | 1 | Tamamlandi | Baglanti testi yapilandirilmis saglik sonucu donduruyor. Erisilemeyen sunucu, timeout, bulunamayan model/endpoint, mesgul model, gecersiz veya bos yanit ayrildi; gecici hatalarda bir kontrollu tekrar deneme eklendi. 335 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 2 | Tamamlandi | Sohbet niyeti ayristirildi. Selamlasma ve tesekkur yerel yanitla, model ve olay kaydi cagirmadan tamamlanir; serbest sohbet kucuk model baglamiyla, olay/risk/mail/workflow talepleri ise olay kanitiyla calisir. 336 backend testi basarili. Commit var, push kullanici talimati bekliyor. |

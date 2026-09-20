@@ -318,8 +318,9 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new ArgumentException("Mesaj boş olamaz.", nameof(request));
 
+        var intent = ClassifyChatIntent(request.Message);
         var settings = await GetSettingsAsync(ct);
-        if (!settings.Enabled)
+        if (!settings.Enabled && intent != LocalLlmChatIntent.Casual)
             throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmemiş.");
 
         var conversation = request.ConversationId.HasValue
@@ -362,17 +363,31 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         if (conversation.Title == "Yeni sohbet") conversation.Title = TitleFromMessage(request.Message);
         await _context.SaveChangesAsync(ct);
 
-        var snapshot = await GetIncidentSnapshotAsync(
-            new LocalLlmSnapshotRequest(request.LookbackDays, request.SampleSize, request.MaskIdentifiers, request.StartUtc, request.EndUtc, request.Comprehensive), ct);
-        var comprehensiveEvidence = request.Comprehensive
-            ? await BuildComprehensiveEvidenceAsync(request, ct)
-            : null;
-        var prompt = BuildPrompt(request with { History = persistedHistory }, snapshot, comprehensiveEvidence);
-        var reply = await GenerateAsync(settings, prompt, settings.MaxTokens, ct);
-
-        var draftResult = RequestsMailDraft(request.Message)
-            ? await PrepareMailDraftsAsync(conversation.Id, ownerUsername, request, settings, ct)
-            : MailDraftPreparationResult.Empty;
+        var snapshot = EmptySnapshot();
+        var draftResult = MailDraftPreparationResult.Empty;
+        string reply;
+        if (intent == LocalLlmChatIntent.Casual)
+        {
+            reply = BuildCasualReply(request.Message);
+        }
+        else if (intent == LocalLlmChatIntent.Conversation)
+        {
+            reply = await GenerateAsync(settings, BuildConversationPrompt(request with { History = persistedHistory }),
+                Math.Min(settings.MaxTokens, 700), ct);
+        }
+        else
+        {
+            snapshot = await GetIncidentSnapshotAsync(
+                new LocalLlmSnapshotRequest(request.LookbackDays, request.SampleSize, request.MaskIdentifiers, request.StartUtc, request.EndUtc, request.Comprehensive), ct);
+            var comprehensiveEvidence = request.Comprehensive
+                ? await BuildComprehensiveEvidenceAsync(request, ct)
+                : null;
+            var prompt = BuildPrompt(request with { History = persistedHistory }, snapshot, comprehensiveEvidence);
+            reply = await GenerateAsync(settings, prompt, settings.MaxTokens, ct);
+            draftResult = RequestsMailDraft(request.Message)
+                ? await PrepareMailDraftsAsync(conversation.Id, ownerUsername, request, settings, ct)
+                : MailDraftPreparationResult.Empty;
+        }
         if (draftResult.Prepared > 0 || draftResult.Unresolved > 0)
         {
             reply += $"\n\nMail taslakları hazırlandı: {draftResult.Prepared} onay bekliyor" +
@@ -970,6 +985,65 @@ INCIDENT BAĞLAMI (yalnızca ilgili olduğunda kullan):
 Kullanıcı: {{request.Message.Trim()}}
 Asistan:
 """;
+    }
+
+    private static string BuildConversationPrompt(LocalLlmChatRequest request)
+    {
+        var history = (request.History ?? [])
+            .Where(message => message.Role is "user" or "assistant" && !string.IsNullOrWhiteSpace(message.Content))
+            .TakeLast(8)
+            .Select(message => $"{(message.Role == "user" ? "Kullanıcı" : "Asistan")}: {Truncate(message.Content.Trim(), 800)}");
+        return $$"""
+Sen RADAR içindeki yerel güvenlik asistanısın. Türkçe, doğal ve yardımcı konuş.
+Bu mesaj için olay kaydı veya kullanıcı verisi yüklenmedi. Veriye dayalı analiz, riskli kullanıcı listesi,
+olay incelemesi, e-posta taslağı ya da workflow istenirse önce gerekli dönem ve kapsamı netleştir;
+elinde olmayan kanıtları varmış gibi sunma.
+
+Sohbet geçmişi:
+{{string.Join("\n", history)}}
+
+Kullanıcı: {{request.Message.Trim()}}
+Asistan:
+""";
+    }
+
+    private static LocalLlmChatIntent ClassifyChatIntent(string message)
+    {
+        var value = message.Trim().ToLowerInvariant();
+        var analysisTerms = new[]
+        {
+            "olay", "incident", "risk", "kullanıcı", "kullanici", "user", "incele", "analiz", "araştır", "arastir",
+            "şüpheli", "supheli", "tehlike", "workflow", "akış", "akis", "mail", "e-posta", "eposta", "taslak", "politika", "kural"
+        };
+        if (analysisTerms.Any(value.Contains)) return LocalLlmChatIntent.IncidentAnalysis;
+
+        var casualTerms = new[] { "selam", "merhaba", "naber", "nasılsın", "nasilsin", "günaydın", "gunaydin", "iyi akşamlar", "teşekkür", "tesekkur" };
+        if (value.Length <= 80 && casualTerms.Any(value.Contains)) return LocalLlmChatIntent.Casual;
+
+        return LocalLlmChatIntent.Conversation;
+    }
+
+    private static string BuildCasualReply(string message)
+    {
+        var value = message.Trim().ToLowerInvariant();
+        if (value.Contains("teşekkür") || value.Contains("tesekkur"))
+            return "Rica ederim. İstersen bir dönemi, kullanıcıyı veya incelemek istediğin olayı söyle; birlikte netleştirelim.";
+        if (value.Contains("naber") || value.Contains("nasılsın") || value.Contains("nasilsin"))
+            return "İyiyim, teşekkürler. Olay inceleme, risk analizi, e-posta taslağı veya workflow önerisi konusunda yardımcı olabilirim.";
+        return "Merhaba. İstersen normal sohbet edebiliriz; analiz için de incelemek istediğin dönem veya konuyu yazman yeterli.";
+    }
+
+    private static LocalLlmIncidentSnapshot EmptySnapshot()
+    {
+        var now = DateTime.UtcNow;
+        return new LocalLlmIncidentSnapshot(now, now, 0, 0, 0, 0, [], [], [], [], []);
+    }
+
+    private enum LocalLlmChatIntent
+    {
+        Casual,
+        Conversation,
+        IncidentAnalysis
     }
 
     private static string FormatSnapshot(LocalLlmIncidentSnapshot snapshot)
