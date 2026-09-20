@@ -28,13 +28,15 @@ public sealed class SecurityAgentService : ISecurityAgentService
 
     private readonly AnalyzerDbContext _context;
     private readonly IPlaybookEngine _playbookEngine;
+    private readonly IRiskShadowService _riskShadowService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<SecurityAgentService> _logger;
 
-    public SecurityAgentService(AnalyzerDbContext context, IPlaybookEngine playbookEngine, HttpClient httpClient, ILogger<SecurityAgentService> logger)
+    public SecurityAgentService(AnalyzerDbContext context, IPlaybookEngine playbookEngine, IRiskShadowService riskShadowService, HttpClient httpClient, ILogger<SecurityAgentService> logger)
     {
         _context = context;
         _playbookEngine = playbookEngine;
+        _riskShadowService = riskShadowService;
         _httpClient = httpClient;
         _logger = logger;
     }
@@ -100,7 +102,8 @@ public sealed class SecurityAgentService : ISecurityAgentService
             await CountByAsync(incidents.Select(item => item.Channel), ct),
             await CountByAsync(incidents.Select(item => item.Action), ct),
             await CountByAsync(incidents.Select(item => item.Policy ?? item.RuleName), ct),
-            allNodeTypes.GroupBy(item => item).OrderByDescending(group => group.Count()).Select(group => new LocalLlmCount(group.Key, group.Count())).ToList());
+            allNodeTypes.GroupBy(item => item).OrderByDescending(group => group.Count()).Select(group => new LocalLlmCount(group.Key, group.Count())).ToList(),
+            (await _riskShadowService.GetSnapshotAsync((int)Math.Ceiling((end - start).TotalDays), 12, ct)).Candidates);
     }
 
     public async Task<SecurityAgentChatResult> ChatAsync(SecurityAgentChatRequest request, CancellationToken ct)
@@ -441,6 +444,7 @@ Kanal dağılımı: {FormatCounts(context.Channels)}
 Aksiyon dağılımı: {FormatCounts(context.Actions)}
 Politika dağılımı: {FormatCounts(context.Policies)}
 Kullanılan node türleri: {FormatCounts(context.NodeTypes)}
+Shadow risk adayları: {string.Join(" | ", context.ShadowRiskCandidates.Select(x => $"{x.UserEmail}: {x.ShadowScore:F1}, güven={x.Confidence}").DefaultIfEmpty("veri yok"))}
 
 Workflow'lar:
 {workflows}

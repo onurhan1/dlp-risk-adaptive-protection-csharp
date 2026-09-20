@@ -83,6 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlaybookEngine, PlaybookEngine>();
         services.AddScoped<IScheduledJobService, ScheduledJobService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IRiskShadowService, RiskShadowService>();
 
         // Dev-only seeder — harmless singleton when SeedData:Enabled = false
         services.AddScoped<IDevDataSeeder, DevDataSeeder>();

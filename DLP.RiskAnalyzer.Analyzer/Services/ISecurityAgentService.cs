@@ -37,7 +37,8 @@ public sealed record SecurityAgentContext(
     IReadOnlyList<LocalLlmCount> Channels,
     IReadOnlyList<LocalLlmCount> Actions,
     IReadOnlyList<LocalLlmCount> Policies,
-    IReadOnlyList<LocalLlmCount> NodeTypes);
+    IReadOnlyList<LocalLlmCount> NodeTypes,
+    IReadOnlyList<RiskShadowCandidate> ShadowRiskCandidates);
 
 public sealed record SecurityAgentWorkflow(
     int Id,

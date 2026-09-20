@@ -7,6 +7,7 @@ import apiClient from '@/lib/axios'
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type Count = { name: string; count: number }
+type ShadowCandidate = { userEmail: string; team?: string | null; shadowScore: number; dailyRiskScore: number; isolationForestScore: number; baselineDelta: number; incidentCount: number; confidence: string; evidence: string[] }
 type AgentContext = {
   startUtc: string
   endUtc: string
@@ -15,6 +16,8 @@ type AgentContext = {
   incidentCount: number
   uniqueUsers: number
   nodeTypes: Count[]
+  shadowRiskCandidates: ShadowCandidate[]
+  reviews: { confirmed: number; falsePositive: number; needsReview: number; reviewed: number; precision: number }
   workflows: Array<{ id: number; name: string; enabled: boolean; autoSend: boolean; schedule?: string | null; nodes: string[]; validationErrors: string[]; lastRunStatus?: string | null; pendingMails: number; failedMails: number }>
 }
 
@@ -40,6 +43,8 @@ function normalizeContext(data: any): AgentContext {
     incidentCount: Number(data?.incidentCount ?? data?.incident_count ?? 0),
     uniqueUsers: Number(data?.uniqueUsers ?? data?.unique_users ?? 0),
     nodeTypes: Array.isArray(data?.nodeTypes) ? data.nodeTypes : Array.isArray(data?.node_types) ? data.node_types : [],
+    shadowRiskCandidates: Array.isArray(data?.shadowRiskCandidates) ? data.shadowRiskCandidates : Array.isArray(data?.shadow_risk_candidates) ? data.shadow_risk_candidates : [],
+    reviews: data?.reviews ?? { confirmed: 0, falsePositive: 0, needsReview: 0, reviewed: 0, precision: 0 },
     workflows,
   }
 }
@@ -65,6 +70,7 @@ export default function SecurityAgentPage() {
   const [sending, setSending] = useState(false)
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [simulatingWorkflowId, setSimulatingWorkflowId] = useState<number | null>(null)
+  const [reviewingUser, setReviewingUser] = useState<string | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -151,6 +157,12 @@ export default function SecurityAgentPage() {
       setSimulatingWorkflowId(null)
     }
   }
+  const reviewShadow = async (userEmail: string, verdict: string) => {
+    setReviewingUser(userEmail)
+    try { await apiClient.post('/api/risk-shadow/reviews', { userEmail, verdict }); setDraftNotice(`${userEmail} için shadow değerlendirmesi kaydedildi.`) }
+    catch (requestError: any) { setError(requestError?.response?.data?.detail || 'Değerlendirme kaydedilemedi.') }
+    finally { setReviewingUser(null) }
+  }
   const fmt = (value?: number) => (value ?? 0).toLocaleString('tr-TR')
 
   return <main className="container" style={{ maxWidth: 1480, paddingTop: 24, paddingBottom: 36 }}>
@@ -190,6 +202,7 @@ export default function SecurityAgentPage() {
 
       <aside style={{ display: 'grid', gap: 16 }}>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>İncelenen Bağlam</div><div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><Metric label="Workflow" value={`${fmt(context?.enabledWorkflowCount)} / ${fmt(context?.workflowCount)}`} /><Metric label="Seçili dönem olay" value={fmt(context?.incidentCount)} /><Metric label="Farklı kullanıcı" value={fmt(context?.uniqueUsers)} /><Metric label="Node türü" value={fmt(context?.nodeTypes?.length)} /></div></section>
+        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Shadow risk adayları</div><div style={{ padding: 10, maxHeight: 260, overflowY: 'auto' }}>{(context?.shadowRiskCandidates ?? []).length === 0 ? <div style={{ padding: 8, color: 'var(--text-secondary)', fontSize: 12 }}>Bu dönem için yeterli risk/baz çizgisi verisi yok.</div> : context!.shadowRiskCandidates.map(item => <div key={item.userEmail} style={{ padding: 9, borderBottom: '1px solid var(--border)', fontSize: 12 }}><strong>{item.userEmail}</strong><span style={{ float: 'right', color: item.shadowScore >= 70 ? '#b91c1c' : '#a16207' }}>{item.shadowScore.toFixed(1)}</span><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>Güven: {item.confidence} · Baz farkı: {item.baselineDelta.toFixed(1)} · Olay: {item.incidentCount}</div><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>{(item.evidence ?? []).slice(0, 2).join(' · ')}</div><div style={{ display: 'flex', gap: 5, marginTop: 7 }}><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'confirmed')} style={suggestionButton}>Doğrula</button><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'false_positive')} style={suggestionButton}>Yanlış pozitif</button></div></div>)}</div></section>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : (context?.workflows ?? []).map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {(workflow.nodes ?? []).length} node</div>{(workflow.validationErrors ?? []).length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}<button onClick={() => void simulateWorkflow(workflow.id, workflow.name)} disabled={simulatingWorkflowId !== null || loadingContext} style={{ ...suggestionButton, marginTop: 8 }}>{simulatingWorkflowId === workflow.id ? 'Simüle ediliyor...' : 'Dry-run simüle et'}</button></div>)}</div></section>
         <section style={{ ...panelStyle, padding: 15, background: '#eff6ff', borderColor: '#bfdbfe' }}><strong style={{ fontSize: 13, color: '#1d4ed8' }}>Agent sınırı</strong><p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: '#1e40af' }}>Workflow veya olay kaydı değiştiremez, mail gönderemez ve veritabanına SQL çalıştıramaz. Öneri verir; uygulama adımı sizde kalır.</p></section>
       </aside>

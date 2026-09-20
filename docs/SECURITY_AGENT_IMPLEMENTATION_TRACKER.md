@@ -23,7 +23,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Tamamlandi |
 | 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Tamamlandi |
 | 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Tamamlandi |
-| 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Bekliyor |
+| 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -59,3 +59,5 @@ onay akisina girdidir.
 | 2026-09-20 | 5 | Tamamlandi | Taslaklar olay hedefi, politika ve sablon icerigiyle puanlanarak kayitli kurum sablonunu kullanir. Uygun sablon yoksa model en fazla bir kez yeni JSON sablon onerir; bu onerinin kalici katalogya yazilmasi yasaktir ve taslakta ayri etiketlenir. Model onerisi alinamazsa denetlenebilir varsayilan metin kullanilir. Alici, konu ve govde her durumda kullanici onayindan once duzenlenebilir. 339 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 6 | Tamamlandi | Taslak sahibi, kendi sohbetindeki taslagi duzenleyebilir, onaylayabilir veya reddedebilir; sorgular sahiplik filtresiyle sinirlidir. Onay/red karari veren kullanici, zaman ve karar kalici saklanir ve arayuzde gorunur. Genel audit kaydi Local LLM istek govdelerini (e-posta icerigi dahil) kaydetmez; taslak islemlerinde kaynak kimligi izlenir. 340 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 7 | Tamamlandi | Agent mevcut workflowlari forceDryRun ile simule eder; calistirma kaydi ve node/etki ozeti olusur ancak e-posta gonderimi veya workflow etkinlestirmesi olmaz. Kapsama kaniti salt-okunur baglamda kalir; model yalniz pasif workflow taslagi olusturabilir. 340 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimatiyla yapilacak. |
+| 2026-09-20 | 8 | Devam ediyor | Mevcut incident, gunluk risk ve Isolation Forest aciklama verileri uzerinde aksiyon almayan, aciklanabilir risk shadow katmani tasarlaniyor. |
+| 2026-09-20 | 8 | Tamamlandi | Gunluk risk, kisisel baz cizgisi farki ve Isolation Forest kanitlari birlesen, salt-okunur shadow risk katmani eklendi. Agent ve arayuz adaylari skor, guven ve kanitla gosterir. Analist dogrulama/yanlis-pozitif geri bildirimi birakabilir; precision metriği kayitli geri bildirimlerden hesaplanir. Bu katman skor, workflow veya mail akislarini otomatik degistirmez. Shadow risk ve mevcut risk skorlama testleri basarili; commit var, push kullanici talimati bekliyor. |

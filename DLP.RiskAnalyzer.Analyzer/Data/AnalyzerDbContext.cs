@@ -42,6 +42,7 @@ public class AnalyzerDbContext : DbContext
     public DbSet<LocalLlmConversation> LocalLlmConversations { get; set; }
     public DbSet<LocalLlmConversationMessage> LocalLlmConversationMessages { get; set; }
     public DbSet<LocalLlmMailProposal> LocalLlmMailProposals { get; set; }
+    public DbSet<RiskShadowReview> RiskShadowReviews { get; set; }
 
     // Policy Inventory
     public DbSet<PIPolicy> PIPolicies { get; set; }
@@ -768,6 +769,18 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
             entity.HasIndex(e => new { e.ConversationId, e.Status, e.CreatedAt });
             entity.HasIndex(e => new { e.OwnerUsername, e.Status, e.UpdatedAt });
+        });
+
+        modelBuilder.Entity<RiskShadowReview>(entity =>
+        {
+            entity.ToTable("risk_shadow_reviews", table => table.ExcludeFromMigrations());
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserEmail).HasColumnName("user_email").HasMaxLength(255);
+            entity.Property(e => e.Verdict).HasColumnName("verdict").HasMaxLength(30);
+            entity.Property(e => e.Reviewer).HasColumnName("reviewer").HasMaxLength(120);
+            entity.Property(e => e.Note).HasColumnName("note");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
 
         modelBuilder.Entity<ScheduledJob>(entity =>
