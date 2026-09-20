@@ -8,6 +8,8 @@ import apiClient from '@/lib/axios'
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type Count = { name: string; count: number }
 type ShadowCandidate = { userEmail: string; team?: string | null; shadowScore: number; dailyRiskScore: number; isolationForestScore: number; baselineDelta: number; incidentCount: number; confidence: string; evidence: string[] }
+type ReviewSummary = { confirmed: number; falsePositive: number; needsReview: number; reviewed: number; precision: number }
+type SimulationResult = { playbookId: number; runId: number; status: string; dryRun: boolean; pendingMails: number; failedMails: number; skippedMails: number; errorMessage?: string | null; nodeSummary: string[]; workflowName: string }
 type AgentContext = {
   startUtc: string
   endUtc: string
@@ -17,8 +19,18 @@ type AgentContext = {
   uniqueUsers: number
   nodeTypes: Count[]
   shadowRiskCandidates: ShadowCandidate[]
-  reviews: { confirmed: number; falsePositive: number; needsReview: number; reviewed: number; precision: number }
+  reviews: ReviewSummary
   workflows: Array<{ id: number; name: string; enabled: boolean; autoSend: boolean; schedule?: string | null; nodes: string[]; validationErrors: string[]; lastRunStatus?: string | null; pendingMails: number; failedMails: number }>
+}
+
+function normalizeReviews(data: any, fallback: ReviewSummary = { confirmed: 0, falsePositive: 0, needsReview: 0, reviewed: 0, precision: 0 }): ReviewSummary {
+  return {
+    confirmed: Number(data?.confirmed ?? fallback.confirmed),
+    falsePositive: Number(data?.falsePositive ?? data?.false_positive ?? fallback.falsePositive),
+    needsReview: Number(data?.needsReview ?? data?.needs_review ?? fallback.needsReview),
+    reviewed: Number(data?.reviewed ?? fallback.reviewed),
+    precision: Number(data?.precision ?? fallback.precision),
+  }
 }
 
 function normalizeContext(data: any): AgentContext {
@@ -44,7 +56,7 @@ function normalizeContext(data: any): AgentContext {
     uniqueUsers: Number(data?.uniqueUsers ?? data?.unique_users ?? 0),
     nodeTypes: Array.isArray(data?.nodeTypes) ? data.nodeTypes : Array.isArray(data?.node_types) ? data.node_types : [],
     shadowRiskCandidates: Array.isArray(data?.shadowRiskCandidates) ? data.shadowRiskCandidates : Array.isArray(data?.shadow_risk_candidates) ? data.shadow_risk_candidates : [],
-    reviews: data?.reviews ?? { confirmed: 0, falsePositive: 0, needsReview: 0, reviewed: 0, precision: 0 },
+    reviews: normalizeReviews(data?.reviews),
     workflows,
   }
 }
@@ -71,6 +83,9 @@ export default function SecurityAgentPage() {
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [simulatingWorkflowId, setSimulatingWorkflowId] = useState<number | null>(null)
   const [reviewingUser, setReviewingUser] = useState<string | null>(null)
+  const [reviewedShadow, setReviewedShadow] = useState<Record<string, string>>({})
+  const [shadowFilter, setShadowFilter] = useState<'all' | 'high' | 'medium'>('all')
+  const [simulation, setSimulation] = useState<SimulationResult | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -149,6 +164,18 @@ export default function SecurityAgentPage() {
     setError(null)
     try {
       const { data } = await apiClient.post(`/api/security-agent/workflows/${playbookId}/simulate`, undefined, { timeout: 600_000 })
+      setSimulation({
+        playbookId: Number(data.playbookId ?? data.playbook_id ?? playbookId),
+        runId: Number(data.runId ?? data.run_id ?? 0),
+        status: data.status ?? 'unknown',
+        dryRun: Boolean(data.dryRun ?? data.dry_run),
+        pendingMails: Number(data.pendingMails ?? data.pending_mails ?? 0),
+        failedMails: Number(data.failedMails ?? data.failed_mails ?? 0),
+        skippedMails: Number(data.skippedMails ?? data.skipped_mails ?? 0),
+        errorMessage: data.errorMessage ?? data.error_message ?? null,
+        nodeSummary: Array.isArray(data.nodeSummary) ? data.nodeSummary : Array.isArray(data.node_summary) ? data.node_summary : [],
+        workflowName: name,
+      })
       setDraftNotice(`${name}: dry-run tamamlandı. ${Number(data.pendingMails ?? data.pending_mails ?? 0)} onay bekleyen e-posta, ${Number(data.failedMails ?? data.failed_mails ?? 0)} hata. E-posta gönderilmedi.`)
       await loadContext()
     } catch (requestError: any) {
@@ -159,10 +186,24 @@ export default function SecurityAgentPage() {
   }
   const reviewShadow = async (userEmail: string, verdict: string) => {
     setReviewingUser(userEmail)
-    try { await apiClient.post('/api/risk-shadow/reviews', { userEmail, verdict }); setDraftNotice(`${userEmail} için shadow değerlendirmesi kaydedildi.`) }
+    try {
+      const { data } = await apiClient.post('/api/risk-shadow/reviews', { userEmail, verdict })
+      setReviewedShadow(current => ({ ...current, [userEmail]: verdict }))
+      setContext(current => current ? { ...current, reviews: normalizeReviews(data, current.reviews) } : current)
+      setDraftNotice(`${userEmail} için shadow değerlendirmesi kaydedildi.`)
+    }
     catch (requestError: any) { setError(requestError?.response?.data?.detail || 'Değerlendirme kaydedilemedi.') }
     finally { setReviewingUser(null) }
   }
+  const applyPeriodPreset = (days: number) => {
+    const end = new Date()
+    const start = new Date(end.getTime() - days * 86400000)
+    setStartDate(start.toISOString().slice(0, 16))
+    setEndDate(end.toISOString().slice(0, 16))
+    setDraftNotice(`Son ${days} gün seçildi. Bağlamı yenilemek için “Dönemi İncele”ye basın.`)
+  }
+  const visibleShadowCandidates = (context?.shadowRiskCandidates ?? []).filter(candidate =>
+    shadowFilter === 'all' || (shadowFilter === 'high' ? candidate.shadowScore >= 70 : candidate.shadowScore >= 50 && candidate.shadowScore < 70))
   const fmt = (value?: number) => (value ?? 0).toLocaleString('tr-TR')
 
   return <main className="container" style={{ maxWidth: 1480, paddingTop: 24, paddingBottom: 36 }}>
@@ -172,6 +213,9 @@ export default function SecurityAgentPage() {
         <p style={{ margin: '7px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>Workflow kapsamasını ve seçtiğiniz dönemin olay dağılımını salt-okunur inceler; gözden kaçabilecek güvenlik senaryoları için kanıta dayalı öneri üretir.</p>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, paddingBottom: 1 }} aria-label="Hızlı dönem seçimi">
+          {[7, 30, 90].map(days => <button key={days} onClick={() => applyPeriodPreset(days)} disabled={loadingContext} style={{ ...suggestionButton, padding: '6px 7px' }}>Son {days} gün</button>)}
+        </div>
         <label style={dateLabel}>Başlangıç<input type="datetime-local" value={startDate} onChange={event => setStartDate(event.target.value)} style={dateInput} /></label>
         <label style={dateLabel}>Bitiş<input type="datetime-local" value={endDate} onChange={event => setEndDate(event.target.value)} style={dateInput} /></label>
         <button onClick={() => void loadContext()} disabled={loadingContext} style={secondaryButton}><RefreshCw size={15} style={{ animation: loadingContext ? 'spin 1s linear infinite' : undefined }} /> Dönemi İncele</button>
@@ -179,8 +223,18 @@ export default function SecurityAgentPage() {
     </header>
     {error && <div style={{ marginBottom: 14, padding: 12, borderRadius: 6, background: '#fee2e2', color: '#b91c1c', fontSize: 13 }}>{error}</div>}
     {draftNotice && <div style={{ marginBottom: 14, padding: 12, borderRadius: 6, background: '#dcfce7', color: '#15803d', fontSize: 13 }}>{draftNotice}</div>}
+    {simulation && <section style={{ ...panelStyle, marginBottom: 14, borderColor: simulation.failedMails > 0 ? '#fecaca' : '#a7f3d0' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Son dry-run sonucu · {simulation.workflowName}</div>
+      <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+        <Metric label="Durum" value={simulation.status} /><Metric label="Onay bekleyen mail" value={fmt(simulation.pendingMails)} /><Metric label="Atlanan" value={fmt(simulation.skippedMails)} /><Metric label="Hata" value={fmt(simulation.failedMails)} />
+      </div>
+      <div style={{ padding: '0 14px 14px', color: 'var(--text-secondary)', fontSize: 12 }}>
+        <strong>{simulation.dryRun ? 'E-posta gönderilmedi; bu bir simülasyondur.' : 'Çalıştırma sonucu.'}</strong>{simulation.errorMessage ? ` Hata detayı: ${simulation.errorMessage}` : ''}
+        {simulation.nodeSummary.length > 0 && <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>{simulation.nodeSummary.slice(0, 8).map(node => <li key={node}>{node}</li>)}</ul>}
+      </div>
+    </section>}
 
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 365px)', gap: 16, alignItems: 'start' }}>
+    <div className="security-agent-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 365px)', gap: 16, alignItems: 'start' }}>
       <section style={panelStyle}>
         <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}><strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Bot size={18} color="#2563eb" /> Agent Sohbeti</strong><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ color: '#047857', fontSize: 12, fontWeight: 700 }}>Salt-okunur</span><button onClick={startNewConversation} disabled={sending || creatingDraft || messages.length === 0} title="Sohbeti temizle ve yeni bir analiz başlat" style={{ ...secondaryButton, padding: '6px 8px', fontSize: 12 }}><Plus size={14} /> Yeni sohbet</button></div></div>
         <div style={{ height: 480, overflowY: 'auto', padding: 18, background: 'var(--background)' }}>
@@ -202,11 +256,29 @@ export default function SecurityAgentPage() {
 
       <aside style={{ display: 'grid', gap: 16 }}>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>İncelenen Bağlam</div><div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><Metric label="Workflow" value={`${fmt(context?.enabledWorkflowCount)} / ${fmt(context?.workflowCount)}`} /><Metric label="Seçili dönem olay" value={fmt(context?.incidentCount)} /><Metric label="Farklı kullanıcı" value={fmt(context?.uniqueUsers)} /><Metric label="Node türü" value={fmt(context?.nodeTypes?.length)} /></div></section>
-        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Shadow risk adayları</div><div style={{ padding: 10, maxHeight: 260, overflowY: 'auto' }}>{(context?.shadowRiskCandidates ?? []).length === 0 ? <div style={{ padding: 8, color: 'var(--text-secondary)', fontSize: 12 }}>Bu dönem için yeterli risk/baz çizgisi verisi yok.</div> : context!.shadowRiskCandidates.map(item => <div key={item.userEmail} style={{ padding: 9, borderBottom: '1px solid var(--border)', fontSize: 12 }}><strong>{item.userEmail}</strong><span style={{ float: 'right', color: item.shadowScore >= 70 ? '#b91c1c' : '#a16207' }}>{item.shadowScore.toFixed(1)}</span><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>Güven: {item.confidence} · Baz farkı: {item.baselineDelta.toFixed(1)} · Olay: {item.incidentCount}</div><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>{(item.evidence ?? []).slice(0, 2).join(' · ')}</div><div style={{ display: 'flex', gap: 5, marginTop: 7 }}><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'confirmed')} style={suggestionButton}>Doğrula</button><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'false_positive')} style={suggestionButton}>Yanlış pozitif</button></div></div>)}</div></section>
+        <section style={panelStyle}>
+          <div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Shadow risk adayları</div>
+          <div style={{ padding: '10px 10px 0', color: 'var(--text-secondary)', fontSize: 11 }}>İncelenen: {fmt(context?.reviews.reviewed)} · Doğrulanan: {fmt(context?.reviews.confirmed)} · Yanlış pozitif: {fmt(context?.reviews.falsePositive)} · Precision: %{context?.reviews.precision.toFixed(1) ?? '0.0'}</div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', padding: 10 }}>
+            {([['all', 'Tümü'], ['high', '70+ yüksek'], ['medium', '50–69 orta']] as const).map(([value, label]) => <button key={value} onClick={() => setShadowFilter(value)} style={{ ...suggestionButton, background: shadowFilter === value ? '#dbeafe' : '#eff6ff' }}>{label}</button>)}
+          </div>
+          <div style={{ padding: '0 10px 10px', maxHeight: 260, overflowY: 'auto' }}>
+            {(context?.shadowRiskCandidates ?? []).length === 0 ? <div style={{ padding: 8, color: 'var(--text-secondary)', fontSize: 12 }}>Bu dönem için yeterli risk/baz çizgisi verisi yok.</div> : visibleShadowCandidates.length === 0 ? <div style={{ padding: 8, color: 'var(--text-secondary)', fontSize: 12 }}>Bu skor bandında aday yok.</div> : visibleShadowCandidates.map(item => {
+              const verdict = reviewedShadow[item.userEmail]
+              return <div key={item.userEmail} style={{ padding: 9, borderBottom: '1px solid var(--border)', fontSize: 12 }}><strong>{item.userEmail}</strong><span style={{ float: 'right', color: item.shadowScore >= 70 ? '#b91c1c' : '#a16207' }}>{item.shadowScore.toFixed(1)}</span><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>Güven: {item.confidence} · Baz farkı: {item.baselineDelta.toFixed(1)} · Olay: {item.incidentCount}</div><div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>{(item.evidence ?? []).slice(0, 2).join(' · ')}</div>{verdict ? <div style={{ marginTop: 7, color: verdict === 'confirmed' ? '#047857' : '#a16207', fontWeight: 700 }}>Bu oturumda {verdict === 'confirmed' ? 'doğrulandı' : 'yanlış pozitif olarak işaretlendi'}.</div> : <div style={{ display: 'flex', gap: 5, marginTop: 7 }}><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'confirmed')} style={suggestionButton}>Doğrula</button><button disabled={reviewingUser !== null} onClick={() => void reviewShadow(item.userEmail, 'false_positive')} style={suggestionButton}>Yanlış pozitif</button></div>}</div>
+            })}
+          </div>
+        </section>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : (context?.workflows ?? []).map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {(workflow.nodes ?? []).length} node</div>{(workflow.validationErrors ?? []).length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}<button onClick={() => void simulateWorkflow(workflow.id, workflow.name)} disabled={simulatingWorkflowId !== null || loadingContext} style={{ ...suggestionButton, marginTop: 8 }}>{simulatingWorkflowId === workflow.id ? 'Simüle ediliyor...' : 'Dry-run simüle et'}</button></div>)}</div></section>
         <section style={{ ...panelStyle, padding: 15, background: '#eff6ff', borderColor: '#bfdbfe' }}><strong style={{ fontSize: 13, color: '#1d4ed8' }}>Agent sınırı</strong><p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: '#1e40af' }}>Workflow veya olay kaydı değiştiremez, mail gönderemez ve veritabanına SQL çalıştıramaz. Öneri verir; uygulama adımı sizde kalır.</p></section>
+        <section style={{ ...panelStyle, padding: 15, background: '#f8fafc' }}><strong style={{ fontSize: 13 }}>Nasıl kullanılır?</strong><ol style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}><li>Dönemi seçip bağlamı yenileyin.</li><li>Sohbette kapsama boşluğunu veya araştırma sorusunu yazın.</li><li>Öneriyi inceleyin; gerekirse pasif workflow taslağı oluşturun.</li><li>Editörde kuralları tamamlayıp dry-run ile sonucu doğrulayın.</li></ol></section>
       </aside>
     </div>
+    <style jsx>{`
+      @media (max-width: 900px) {
+        .security-agent-layout { grid-template-columns: minmax(0, 1fr) !important; }
+      }
+    `}</style>
   </main>
 }
 

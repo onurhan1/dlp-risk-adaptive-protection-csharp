@@ -24,6 +24,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Tamamlandi |
 | 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Tamamlandi |
 | 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Tamamlandi |
+| 9 | Inceleme deneyimi | Shadow risk kalibrasyon gorunurlugu, dry-run sonuclari, token butcesi ve insan onayli sablon kutuphanesi. | Tamamlandi |
 
 ## Asama 4 - Sahsi E-posta Kimlik Eslesmesi
 
@@ -61,3 +62,4 @@ onay akisina girdidir.
 | 2026-09-20 | 7 | Tamamlandi | Agent mevcut workflowlari forceDryRun ile simule eder; calistirma kaydi ve node/etki ozeti olusur ancak e-posta gonderimi veya workflow etkinlestirmesi olmaz. Kapsama kaniti salt-okunur baglamda kalir; model yalniz pasif workflow taslagi olusturabilir. 340 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimatiyla yapilacak. |
 | 2026-09-20 | 8 | Devam ediyor | Mevcut incident, gunluk risk ve Isolation Forest aciklama verileri uzerinde aksiyon almayan, aciklanabilir risk shadow katmani tasarlaniyor. |
 | 2026-09-20 | 8 | Tamamlandi | Gunluk risk, kisisel baz cizgisi farki ve Isolation Forest kanitlari birlesen, salt-okunur shadow risk katmani eklendi. Agent ve arayuz adaylari skor, guven ve kanitla gosterir. Analist dogrulama/yanlis-pozitif geri bildirimi birakabilir; precision metriği kayitli geri bildirimlerden hesaplanir. Bu katman skor, workflow veya mail akislarini otomatik degistirmez. Shadow risk ve mevcut risk skorlama testleri basarili; commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 9 | Tamamlandi | Shadow risk paneline skor bandi filtresi, anlik analist geri bildirimi ve precision ozeti eklendi. Guvenlik Agent'i 7/30/90 gun kisayollari, kullanma rehberi ve node bazli dry-run sonuc paneli sunuyor. Laboratuvar kanit/token tavani ile donem kisayollarini gosteriyor; insanin bilincli secimiyle LLM onerisi sablon kutuphanesine eklenebiliyor. Dar ekranlarda iki kolonlu ekranlar tek kolona iner. TypeScript kontrolu basarili; commit var, push kullanici talimati bekliyor. |

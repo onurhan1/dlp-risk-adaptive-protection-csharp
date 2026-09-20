@@ -263,6 +263,30 @@ export default function LocalLlmLabPage() {
     } finally { setProposalBusyId(null) }
   }
 
+  const saveSuggestedTemplate = async (proposal: MailProposal) => {
+    if (proposal.template_origin !== 'suggested') return
+    setProposalBusyId(proposal.id); setNotice(null)
+    try {
+      await apiClient.post('/api/mail-templates', {
+        name: `LLM önerisi — ${proposal.subject.slice(0, 80)}`,
+        subject: proposal.subject,
+        body: proposal.body,
+      })
+      setNotice({ type: 'success', text: 'LLM önerisi şablon kütüphanesine kaydedildi. Gelecek taslaklarda değerlendirmeye alınacak.' })
+    } catch (error: any) {
+      setNotice({ type: 'error', text: error?.response?.data?.detail || 'Şablon kütüphanesine kaydedilemedi.' })
+    } finally { setProposalBusyId(null) }
+  }
+
+  const applyLabPeriodPreset = (days: number) => {
+    setLookbackDays(days)
+    setStartDate('')
+    setEndDate('')
+    setNotice({ type: 'success', text: `Son ${days} gün seçildi. Yeni bağlam için “Yenile”ye basın.` })
+  }
+
+  const evidenceRecordLimit = analysisMode === 'comprehensive' ? detailedUserLimit * evidenceRowsPerUser : sampleSize
+
   if (loading) return <div className="dashboard-page"><p className="text-muted">Yerel LLM Laboratuvarı yükleniyor...</p></div>
 
   return <div className="dashboard-page" style={{ maxWidth: '1540px', margin: '0 auto' }}>
@@ -279,7 +303,7 @@ export default function LocalLlmLabPage() {
 
     {notice && <div style={{ marginBottom: '14px', padding: '11px 13px', borderRadius: '7px', border: `1px solid ${notice.type === 'success' ? 'rgba(5,150,105,.35)' : 'rgba(220,38,38,.35)'}`, background: notice.type === 'success' ? 'rgba(5,150,105,.08)' : 'rgba(220,38,38,.08)', color: notice.type === 'success' ? '#047857' : '#b91c1c', fontSize: '13px' }}>{notice.text}</div>}
 
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: '16px', alignItems: 'start' }}>
+    <div className="local-llm-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: '16px', alignItems: 'start' }}>
       <section style={panelStyle}>
         <PanelTitle icon={<PlugZap size={17} />} title="Model Bağlantısı" />
         <label style={labelStyle}>Generate URL<input value={settings.generate_url} onChange={event => setSettings(current => ({ ...current, generate_url: event.target.value }))} style={inputStyle} placeholder="http://sunucu:11434/api/generate" /></label>
@@ -320,6 +344,9 @@ export default function LocalLlmLabPage() {
             <button onClick={refreshSnapshot} disabled={busy !== null} style={secondaryButtonStyle}><RefreshCw size={14} className={busy === 'snapshot' ? 'spin' : ''} /> Yenile</button>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', margin: '12px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'end', gap: 4, paddingBottom: 1 }} aria-label="Hızlı dönem seçimi">
+              {[7, 30, 90].map(days => <button key={days} onClick={() => applyLabPeriodPreset(days)} disabled={busy !== null} style={{ ...secondaryButtonStyle, padding: '6px 7px', fontSize: 11 }}>Son {days} gün</button>)}
+            </div>
             <label style={compactLabel}>{analysisMode === 'comprehensive' ? 'Son' : 'Dönem'}<input type="number" min="1" max="366" value={lookbackDays} onChange={event => setLookbackDays(Number(event.target.value))} style={{ ...inputStyle, width: '72px' }} /> gün</label>
             <label style={compactLabel}>Başlangıç<input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
             <label style={compactLabel}>Bitiş<input type="date" value={endDate} onChange={event => setEndDate(event.target.value)} style={{ ...inputStyle, width: '136px' }} /></label>
@@ -334,6 +361,9 @@ export default function LocalLlmLabPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))', gap: '9px' }}>
             <Metric label="Olay" value={snapshot?.total_incidents ?? 0} /><Metric label="Kullanıcı" value={snapshot?.unique_users ?? 0} /><Metric label="Modele aktarılan profil" value={snapshot?.profile_count ?? 0} /><Metric label="En yüksek match" value={snapshot?.maximum_matches ?? 0} />
+          </div>
+          <div style={{ marginTop: 10, padding: '9px 10px', border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 6, fontSize: 11, color: '#1e40af' }}>
+            {analysisMode === 'comprehensive' ? <>Kanıt bütçesi: en fazla <strong>{detailedUserLimit}</strong> kullanıcı × <strong>{evidenceRowsPerUser}</strong> zaman çizelgesi = <strong>{evidenceRecordLimit}</strong> satır; ayrıca kullanıcı başına 8 özet grup ve 3 çapraz kanal deseni. Metin kanıtı <strong>24.000 karakter</strong> (yaklaşık 6.000 token, tokenizer’a göre değişir) ile sınırlandırılır.</> : <>Hızlı özet bütçesi: en fazla <strong>{evidenceRecordLimit}</strong> olay örneği ve dönem özetleri. Büyük dönemlerde yön belirlemek için uygundur.</>}
           </div>
           <p style={{ margin: '11px 0 0', color: 'var(--text-muted)', fontSize: '11px' }}><ShieldCheck size={12} style={{ verticalAlign: 'text-bottom' }} /> {analysisMode === 'comprehensive' ? `Tüm kullanıcılar dönem dağılımına dahil edilir. Öncelikli ${detailedUserLimit} kullanıcı için tüm olaylar sunucuda taranır; modele kullanıcı başına en fazla ${evidenceRowsPerUser} zaman çizelgesi satırı, 8 sayısal grup ve 3 çapraz kanal örüntüsü aktarılır. Kanıt metni sabit bağlam bütçesiyle sınırlandırılır.` : `Model özet, dağılımlar ve en fazla ${sampleSize} olay örneğini görür.`} Veritabanı sorgulama veya güncelleme yetkisi yoktur.</p>
         </section>
@@ -376,6 +406,7 @@ export default function LocalLlmLabPage() {
                     {proposal.reviewed_by && <div style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '8px 0' }}>Karar: {proposal.review_decision === 'rejected' ? 'reddedildi' : 'onaylandı'} · {proposal.reviewed_by}{proposal.reviewed_at ? ` · ${formatConversationTime(proposal.reviewed_at)}` : ''}</div>}
                     {editable && <div style={{ display: 'flex', gap: '7px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <button onClick={() => void saveProposal(proposal)} disabled={proposalBusyId === proposal.id} style={secondaryButtonStyle}><Save size={13} /> Taslağı Kaydet</button>
+                      {proposal.template_origin === 'suggested' && <button onClick={() => void saveSuggestedTemplate(proposal)} disabled={proposalBusyId === proposal.id} title="İncelediğiniz LLM önerisini, gelecek taslaklarda kullanılabilecek şablon kütüphanesine ekler" style={{ ...secondaryButtonStyle, color: '#6d28d9' }}><Save size={13} /> Şablon Kütüphanesine Ekle</button>}
                       {proposal.status === 'pending' && <><button onClick={() => void decideProposal(proposal, 'reject')} disabled={proposalBusyId === proposal.id} style={{ ...secondaryButtonStyle, color: '#b91c1c' }}>Reddet</button><button onClick={() => void decideProposal(proposal, 'approve')} disabled={proposalBusyId === proposal.id} style={primaryButtonStyle}><Send size={13} /> Onayla ve Gönder</button></>}
                     </div>}
                   </div>
@@ -390,6 +421,11 @@ export default function LocalLlmLabPage() {
         </section>
       </div>
     </div>
+    <style jsx>{`
+      @media (max-width: 900px) {
+        .local-llm-layout { grid-template-columns: minmax(0, 1fr) !important; }
+      }
+    `}</style>
   </div>
 }
 
