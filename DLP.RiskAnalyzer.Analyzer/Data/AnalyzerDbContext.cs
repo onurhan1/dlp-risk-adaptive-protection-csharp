@@ -752,6 +752,9 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.RecipientEmail).HasColumnName("recipient_email").HasMaxLength(255);
             entity.Property(e => e.Subject).HasColumnName("subject").HasMaxLength(500);
             entity.Property(e => e.Body).HasColumnName("body");
+            entity.Property(e => e.SourceTemplateId).HasColumnName("source_template_id");
+            entity.Property(e => e.SourceTemplateName).HasColumnName("source_template_name").HasMaxLength(255);
+            entity.Property(e => e.TemplateOrigin).HasColumnName("template_origin").HasMaxLength(20);
             entity.Property(e => e.IncidentSummaryJson).HasColumnName("incident_summary_json");
             entity.Property(e => e.Rationale).HasColumnName("rationale");
             entity.Property(e => e.SourcePromptHash).HasColumnName("source_prompt_hash").HasMaxLength(64);

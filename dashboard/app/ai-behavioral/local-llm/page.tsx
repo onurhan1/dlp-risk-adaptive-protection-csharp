@@ -14,7 +14,7 @@ type Snapshot = {
 type ChatMessage = { role: 'user' | 'assistant'; content: string }
 type ConversationSummary = { id: string; title: string; updated_at: string; message_count: number; preview?: string | null }
 type ConversationDetail = { id: string; title: string; created_at: string; updated_at: string; messages: ChatMessage[] }
-type MailProposal = { id: string; conversation_id: string; user_name: string; full_name?: string | null; department?: string | null; recipient_email?: string | null; subject: string; body: string; incident_summary_json: string; rationale?: string | null; status: 'pending' | 'sent' | 'rejected' | 'failed' | 'unresolved'; created_at: string; updated_at: string; sent_at?: string | null; error_message?: string | null }
+type MailProposal = { id: string; conversation_id: string; user_name: string; full_name?: string | null; department?: string | null; recipient_email?: string | null; subject: string; body: string; source_template_id?: number | null; source_template_name?: string | null; template_origin?: 'saved' | 'suggested' | 'fallback'; incident_summary_json: string; rationale?: string | null; status: 'pending' | 'sent' | 'rejected' | 'failed' | 'unresolved'; created_at: string; updated_at: string; sent_at?: string | null; error_message?: string | null }
 type LocalLlmHealth = { healthy: boolean; status: string; detail: string; reply?: string | null; retryable?: boolean; suggested_action?: string | null }
 
 const INITIAL_SETTINGS: Settings = {
@@ -364,6 +364,9 @@ export default function LocalLlmLabPage() {
                     <span style={{ color: status.color, fontSize: '11px', fontWeight: 650 }}>{status.label}</span>
                   </summary>
                   <div style={{ borderTop: '1px solid var(--border)', padding: '11px' }}>
+                    <div style={{ color: proposal.template_origin === 'suggested' ? '#7c3aed' : 'var(--text-muted)', fontSize: '11px', fontWeight: 650, marginBottom: '8px' }}>
+                      {templateOriginLabel(proposal)}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', marginBottom: '8px' }}>
                       <label style={compactLabel}>Alıcı<input disabled={!editable || proposalBusyId === proposal.id} value={proposal.recipient_email || ''} onChange={event => updateProposal(proposal.id, { recipient_email: event.target.value })} style={inputStyle} /></label>
                       <label style={compactLabel}>Konu<input disabled={!editable || proposalBusyId === proposal.id} value={proposal.subject} onChange={event => updateProposal(proposal.id, { subject: event.target.value })} style={inputStyle} /></label>
@@ -401,6 +404,12 @@ function proposalStatusMeta(status: MailProposal['status']) {
   if (status === 'failed') return { label: 'Gönderim hatası', color: '#dc2626' }
   if (status === 'unresolved') return { label: 'E-posta bulunamadı', color: '#b45309' }
   return { label: 'Onay bekliyor', color: '#d97706' }
+}
+
+function templateOriginLabel(proposal: MailProposal) {
+  if (proposal.template_origin === 'saved') return `Kayıtlı şablon: ${proposal.source_template_name || 'Adsız şablon'}`
+  if (proposal.template_origin === 'suggested') return 'Yeni LLM şablon önerisi — kalıcı şablon olarak kaydedilmedi; inceleyip düzenleyin.'
+  return 'Güvenli varsayılan taslak — uygun kayıtlı şablon veya model önerisi bulunamadı.'
 }
 
 function MarkdownMessage({ content }: { content: string }) {

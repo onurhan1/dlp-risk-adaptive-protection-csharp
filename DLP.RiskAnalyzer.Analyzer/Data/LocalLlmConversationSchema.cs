@@ -38,6 +38,9 @@ public static class LocalLlmConversationSchema
             recipient_email VARCHAR(255),
             subject VARCHAR(500) NOT NULL,
             body TEXT NOT NULL,
+            source_template_id INTEGER,
+            source_template_name VARCHAR(255),
+            template_origin VARCHAR(20) NOT NULL DEFAULT 'fallback',
             incident_summary_json TEXT NOT NULL DEFAULT '{}',
             rationale TEXT,
             source_prompt_hash VARCHAR(64) NOT NULL,
@@ -51,6 +54,13 @@ public static class LocalLlmConversationSchema
             ON dlp.local_llm_mail_proposals (conversation_id, status, created_at DESC);
         CREATE INDEX IF NOT EXISTS ix_local_llm_mail_proposals_owner_status
             ON dlp.local_llm_mail_proposals (owner_username, status, updated_at DESC);
+
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS source_template_id INTEGER;
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS source_template_name VARCHAR(255);
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS template_origin VARCHAR(20) NOT NULL DEFAULT 'fallback';
     ";
 
     public static async Task EnsureAsync(AnalyzerDbContext context, ILogger logger, CancellationToken ct = default)

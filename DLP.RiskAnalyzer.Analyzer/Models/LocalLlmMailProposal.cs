@@ -15,6 +15,10 @@ public sealed class LocalLlmMailProposal
     public string? RecipientEmail { get; set; }
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
+    public int? SourceTemplateId { get; set; }
+    public string? SourceTemplateName { get; set; }
+    /// <summary>saved, suggested, or fallback. A suggested template is never persisted automatically.</summary>
+    public string TemplateOrigin { get; set; } = LocalLlmMailTemplateOrigin.Fallback;
     public string IncidentSummaryJson { get; set; } = "{}";
     public string? Rationale { get; set; }
     public string SourcePromptHash { get; set; } = string.Empty;
@@ -23,6 +27,13 @@ public sealed class LocalLlmMailProposal
     public DateTime UpdatedAt { get; set; }
     public DateTime? SentAt { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+public static class LocalLlmMailTemplateOrigin
+{
+    public const string Saved = "saved";
+    public const string Suggested = "suggested";
+    public const string Fallback = "fallback";
 }
 
 public static class LocalLlmMailProposalStatus

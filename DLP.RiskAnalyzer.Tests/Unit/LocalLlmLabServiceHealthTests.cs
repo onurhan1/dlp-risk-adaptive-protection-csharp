@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Services;
 using DLP.RiskAnalyzer.Shared.Models;
 using FluentAssertions;
@@ -136,6 +137,92 @@ public class LocalLlmLabServiceHealthTests
         capturedPrompt.Should().Contain("KAPSAMLI KULLANICI KANITI");
     }
 
+    [Fact]
+    public async Task ChatAsync_MailDraft_UsesCompatibleSavedTemplateWithoutCallingModelAgain()
+    {
+        var calls = 0;
+        var service = CreateService(_ =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"response\":\"incelendi\"}", Encoding.UTF8, "application/json")
+            };
+        }, out var context);
+        EnableLocalModel(context);
+        var now = DateTime.UtcNow;
+        context.MailTemplates.Add(new MailTemplate
+        {
+            Name = "GitHub olay bildirimi",
+            Subject = "GitHub incelemesi - {{tam_ad}}",
+            Body = "Merhaba {{tam_ad}}, {{destination}} hedefine ilişkin {{olay_sayisi}} olay kaydı için açıklama rica ederiz.",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        context.Incidents.Add(new Incident
+        {
+            UserEmail = "deniz@kuveytturk.com.tr",
+            EmailAddress = "deniz@kuveytturk.com.tr",
+            Timestamp = now.AddHours(-1),
+            Policy = "Kritik veri",
+            Destination = "business.github.com",
+            MaxMatches = 9,
+            Severity = 4
+        });
+        await context.SaveChangesAsync();
+
+        var result = await service.ChatAsync(new LocalLlmChatRequest("Son 7 gün için 1 kullanıcı mail taslağı hazırla", null, LookbackDays: 7), "test-user", CancellationToken.None);
+
+        result.MailDraftsPrepared.Should().Be(1);
+        calls.Should().Be(1);
+        var proposal = context.LocalLlmMailProposals.Single();
+        proposal.TemplateOrigin.Should().Be(LocalLlmMailTemplateOrigin.Saved);
+        proposal.SourceTemplateName.Should().Be("GitHub olay bildirimi");
+        proposal.Subject.Should().Contain("deniz");
+        proposal.Body.Should().Contain("business.github.com");
+    }
+
+    [Fact]
+    public async Task ChatAsync_MailDraft_OffersNewTemplateWhenNoSavedTemplateFits()
+    {
+        var calls = 0;
+        var service = CreateService(_ =>
+        {
+            calls++;
+            var response = calls == 1
+                ? "{\"response\":\"incelendi\"}"
+                : "{\"response\":\"{\\\"subject\\\":\\\"Yeni inceleme\\\",\\\"body\\\":\\\"Merhaba {{tam_ad}}, olay kaydı bağlamını ve ilgili iş gerekçesini paylaşmanızı rica ederiz. Bu taslak insan onayı sonrasında değerlendirilecektir.\\\"}\"}";
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(response, Encoding.UTF8, "application/json")
+            };
+        }, out var context);
+        EnableLocalModel(context);
+        var now = DateTime.UtcNow;
+        context.Incidents.Add(new Incident
+        {
+            UserEmail = "ayse@kuveytturk.com.tr",
+            EmailAddress = "ayse@kuveytturk.com.tr",
+            Timestamp = now.AddHours(-1),
+            Policy = "Özel politika",
+            Destination = "unknown.example",
+            MaxMatches = 6,
+            Severity = 3
+        });
+        await context.SaveChangesAsync();
+
+        var result = await service.ChatAsync(new LocalLlmChatRequest("Son 7 gün için 1 kullanıcı mail taslağı hazırla", null, LookbackDays: 7), "test-user", CancellationToken.None);
+
+        result.MailDraftsPrepared.Should().Be(1);
+        calls.Should().Be(2);
+        var proposal = context.LocalLlmMailProposals.Single();
+        proposal.TemplateOrigin.Should().Be(LocalLlmMailTemplateOrigin.Suggested);
+        proposal.SourceTemplateId.Should().BeNull();
+        proposal.SourceTemplateName.Should().Be("Yeni LLM şablon önerisi");
+        proposal.Subject.Should().Be("Yeni inceleme");
+        proposal.Body.Should().Contain("ayse");
+    }
+
     private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) =>
         CreateService(responseFactory, out _);
 
@@ -146,12 +233,30 @@ public class LocalLlmLabServiceHealthTests
             .Options;
         var httpClient = new HttpClient(new StubHttpMessageHandler(responseFactory));
         context = new AnalyzerDbContext(options);
+        var directory = new Mock<IDirectorySettingsService>();
+        directory.Setup(service => service.LookupLdapUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string username, CancellationToken _) => new LdapUserLookupResult
+            {
+                Success = false,
+                Username = username,
+                Message = "LDAP test dışı"
+            });
         return new LocalLlmLabService(
             context,
             httpClient,
-            new Mock<IDirectorySettingsService>().Object,
+            directory.Object,
             new Mock<IEmailService>().Object,
             NullLogger<LocalLlmLabService>.Instance);
+    }
+
+    private static void EnableLocalModel(AnalyzerDbContext context)
+    {
+        context.SystemSettings.AddRange(
+            new SystemSetting { Key = "local_llm_lab_enabled", Value = "true" },
+            new SystemSetting { Key = "local_llm_lab_generate_url", Value = Settings.GenerateUrl },
+            new SystemSetting { Key = "local_llm_lab_model", Value = Settings.Model },
+            new SystemSetting { Key = "local_llm_lab_temperature", Value = "0.2" },
+            new SystemSetting { Key = "local_llm_lab_max_tokens", Value = "300" });
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler

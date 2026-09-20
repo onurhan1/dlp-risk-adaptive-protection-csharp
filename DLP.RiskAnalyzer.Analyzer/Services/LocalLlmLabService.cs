@@ -3,7 +3,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DLP.RiskAnalyzer.Analyzer.Data;
+using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
+using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -670,7 +672,13 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             .Take(take)
             .ToListAsync(ct);
 
-        var aiTemplate = await TryGenerateMailTemplateAsync(settings, request.Message, ct);
+        var templateCatalog = await _context.MailTemplates.AsNoTracking().ToListAsync(ct);
+        // At most one suggestion is generated per request, regardless of recipient count.
+        var needsSuggestion = candidates.Any(candidate =>
+            SelectSavedMailTemplate(templateCatalog, candidate.Policy, candidate.Destination) == null);
+        var suggestedTemplate = needsSuggestion
+            ? await TryGenerateMailTemplateAsync(settings, request.Message, ct)
+            : null;
 
         var prepared = 0;
         var unresolved = 0;
@@ -683,6 +691,15 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                 : FirstEmail(candidate.EmailAddress, candidate.User);
             var fullName = ldap.Success && !string.IsNullOrWhiteSpace(ldap.FullName) ? ldap.FullName.Trim() : username;
             var department = ldap.Success && !string.IsNullOrWhiteSpace(ldap.Department) ? ldap.Department : candidate.Department;
+            var selectedTemplate = SelectSavedMailTemplate(templateCatalog, candidate.Policy, candidate.Destination);
+            var resolution = selectedTemplate != null
+                ? new MailTemplateResolution(selectedTemplate.Subject, selectedTemplate.Body, selectedTemplate.Id, selectedTemplate.Name,
+                    LocalLlmMailTemplateOrigin.Saved, $"Kayıtlı '{selectedTemplate.Name}' şablonu olay hedefi, politika ve içeriğiyle eşleştiği için seçildi.")
+                : suggestedTemplate != null
+                    ? new MailTemplateResolution(suggestedTemplate.Subject, suggestedTemplate.Body, null, "Yeni LLM şablon önerisi",
+                        LocalLlmMailTemplateOrigin.Suggested, "Kayıtlı şablonlar olay bağlamına yeterince uygun bulunmadı; yerel modelin yeni önerisi yalnızca bu onay taslağında kullanıldı ve kalıcı kaydedilmedi.")
+                    : new MailTemplateResolution("Veri Güvenliği Olay Kaydı İncelemeleri Kapsamında", BuildFallbackMailDraft(), null, null,
+                        LocalLlmMailTemplateOrigin.Fallback, "Kayıtlı şablon uygun bulunamadı ve yerel modelden güvenilir yeni şablon önerisi alınamadı; denetlenebilir varsayılan taslak kullanıldı.");
             var now = DateTime.UtcNow;
             var summary = JsonSerializer.Serialize(new
             {
@@ -703,10 +720,13 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
                 FullName = fullName,
                 Department = department,
                 RecipientEmail = recipient,
-                Subject = "Veri Güvenliği Olay Kaydı İncelemeleri Kapsamında",
-                Body = BuildMailDraft(aiTemplate, fullName, candidate.IncidentCount, candidate.MaximumMatches, candidate.Policy, candidate.Destination, candidate.LatestIncidentAt),
+                Subject = RenderMailTemplate(resolution.Subject, username, fullName, department, recipient, candidate.IncidentCount, candidate.MaximumMatches, candidate.Policy, candidate.Destination, candidate.LatestIncidentAt, now),
+                Body = RenderMailTemplate(resolution.Body, username, fullName, department, recipient, candidate.IncidentCount, candidate.MaximumMatches, candidate.Policy, candidate.Destination, candidate.LatestIncidentAt, now),
+                SourceTemplateId = resolution.SourceTemplateId,
+                SourceTemplateName = resolution.SourceTemplateName,
+                TemplateOrigin = resolution.Origin,
                 IncidentSummaryJson = summary,
-                Rationale = $"Son {Math.Clamp(request.LookbackDays, 1, 180)} gündeki yüksek maximum match, şiddet ve olay yoğunluğuna göre önceliklendirildi.",
+                Rationale = $"Son {Math.Clamp(request.LookbackDays, 1, 180)} gündeki yüksek maximum match, şiddet ve olay yoğunluğuna göre önceliklendirildi. {resolution.Rationale}",
                 SourcePromptHash = promptHash,
                 Status = string.IsNullOrWhiteSpace(recipient) ? LocalLlmMailProposalStatus.Unresolved : LocalLlmMailProposalStatus.Pending,
                 CreatedAt = now,
@@ -740,7 +760,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
 
     private static LocalLlmMailProposalDto ToProposalDto(LocalLlmMailProposal proposal) =>
         new(proposal.Id, proposal.ConversationId, proposal.UserName, proposal.FullName, proposal.Department,
-            proposal.RecipientEmail, proposal.Subject, proposal.Body, proposal.IncidentSummaryJson, proposal.Rationale,
+            proposal.RecipientEmail, proposal.Subject, proposal.Body, proposal.SourceTemplateId, proposal.SourceTemplateName,
+            proposal.TemplateOrigin, proposal.IncidentSummaryJson, proposal.Rationale,
             proposal.Status, proposal.CreatedAt, proposal.UpdatedAt, proposal.SentAt, proposal.ErrorMessage);
 
     private static bool RequestsMailDraft(string message)
@@ -769,21 +790,31 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
     private static string? FirstEmail(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && value.Contains('@', StringComparison.Ordinal))?.Trim();
 
-    private async Task<string?> TryGenerateMailTemplateAsync(LocalLlmLabSettings settings, string command, CancellationToken ct)
+    private async Task<GeneratedMailTemplate?> TryGenerateMailTemplateAsync(LocalLlmLabSettings settings, string command, CancellationToken ct)
     {
-        const string prompt = """
-RADAR için Türkçe, kısa ve profesyonel bir olay kaydı inceleme e-posta taslağı yaz.
-Bu metin yalnızca insan onayından sonra gönderilecek bir taslaktır; kesin hüküm, suçlama veya gönderildi ifadesi kullanma.
-Şu yer tutucuları aynen kullan: {{tam_ad}}, {{olay_sayisi}}, {{max_match}}, {{olay_tarihi}}, {{politika}}, {{destination}}.
-Konu satırı yazma, HTML veya Markdown kullanma. Yalnızca mail gövdesini yaz.
+        const string jsonPrompt = """
+RADAR için Türkçe, kısa ve profesyonel yeni bir DLP olay inceleme e-posta şablonu öner.
+Bu yalnızca insan onayına sunulan bir taslaktır; suçlama, kesin hüküm, otomatik karar veya gönderildi ifadesi kullanma.
+Kayıtlı şablonların uygun olmadığı varsayılıyor; kendi muhakemenle yeni bir öneri oluştur.
+Yer tutucular isteğe bağlıdır; kullanırsan yalnızca {{tam_ad}}, {{olay_sayisi}}, {{max_match}}, {{olay_tarihi}}, {{politika}}, {{destination}} kullan.
+Sadece geçerli JSON döndür: {"subject":"...","body":"..."}. HTML, Markdown, açıklama veya kod bloğu ekleme.
 Kullanıcı komutu:
 """;
 
         try
         {
-            var generated = await GenerateAsync(settings, $"{prompt}\n{command}", 700, ct);
-            var body = generated.Trim().Replace("```text", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("```", string.Empty).Trim();
-            return body.Length >= 60 && body.Contains("{{tam_ad}}", StringComparison.OrdinalIgnoreCase) ? body : null;
+            var generated = await GenerateAsync(settings, $"{jsonPrompt}\n{command}", 700, ct);
+            var json = generated.Trim()
+                .Replace("```json", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("```", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            var subject = root.TryGetProperty("subject", out var subjectValue) ? subjectValue.GetString()?.Trim() : null;
+            var body = root.TryGetProperty("body", out var bodyValue) ? bodyValue.GetString()?.Trim() : null;
+            return !string.IsNullOrWhiteSpace(subject) && subject.Length <= 500 && !string.IsNullOrWhiteSpace(body) && body.Length >= 60
+                ? new GeneratedMailTemplate(subject, body)
+                : null;
         }
         catch (Exception ex)
         {
@@ -791,6 +822,84 @@ Kullanıcı komutu:
             return null;
         }
     }
+
+    private static MailTemplate? SelectSavedMailTemplate(IReadOnlyCollection<MailTemplate> templates, string? policy, string? destination)
+    {
+        return templates
+            .Where(template => !string.IsNullOrWhiteSpace(template.Subject) && !string.IsNullOrWhiteSpace(template.Body))
+            .Select(template => new { Template = template, Score = ScoreSavedMailTemplate(template, policy, destination) })
+            .Where(item => item.Score >= 30)
+            .OrderByDescending(item => item.Score)
+            .ThenByDescending(item => item.Template.UpdatedAt)
+            .ThenBy(item => item.Template.Id)
+            .Select(item => item.Template)
+            .FirstOrDefault();
+    }
+
+    private static int ScoreSavedMailTemplate(MailTemplate template, string? policy, string? destination)
+    {
+        var haystack = FoldMailText($"{template.Name} {template.Subject} {template.Body}");
+        var normalizedDestination = FoldMailText(destination);
+        var normalizedPolicy = FoldMailText(policy);
+        var score = 0;
+
+        if (!string.IsNullOrWhiteSpace(normalizedDestination) && haystack.Contains(normalizedDestination)) score += 60;
+        if (haystack.Contains("{{destination}}") || haystack.Contains("{{hedef}}")) score += 20;
+        if (!string.IsNullOrWhiteSpace(normalizedPolicy) && haystack.Contains(normalizedPolicy)) score += 25;
+        if (haystack.Contains("{{policy}}") || haystack.Contains("{{politika}}") || haystack.Contains("{{kural}}")) score += 12;
+        if (PersonalEmailIdentityMatcher.IsPersonalDestination(destination))
+        {
+            if (haystack.Contains("sahsi")) score += 30;
+            if (haystack.Contains("kisisel") || haystack.Contains("personal")) score += 25;
+        }
+        if (normalizedDestination.Contains("github") && haystack.Contains("github")) score += 35;
+        if (haystack.Contains("genel") || haystack.Contains("generic") || haystack.Contains("default")) score += 30;
+        return score;
+    }
+
+    private static string RenderMailTemplate(string template, string username, string fullName, string? department, string? recipient,
+        int incidentCount, int maximumMatches, string? policy, string? destination, DateTime latestIncidentAt, DateTime now)
+    {
+        var user = new WeeklyFlagUserDto(
+            username, fullName, department, recipient ?? username, incidentCount, latestIncidentAt, latestIncidentAt,
+            [new WeeklyFlagIncidentDto(latestIncidentAt, policy, maximumMatches, destination, null)]);
+        var rendered = PlaybookMailRenderer.ApplyPlaceholders(template, user, now);
+        return rendered
+            .Replace("{{olay_sayisi}}", incidentCount.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{{incident_count}}", incidentCount.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{{max_match}}", maximumMatches.ToString(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{{olay_tarihi}}", latestIncidentAt.ToLocalTime().ToString("dd.MM.yyyy"), StringComparison.OrdinalIgnoreCase)
+            .Replace("{{politika}}", policy ?? "-", StringComparison.OrdinalIgnoreCase)
+            .Replace("{{department}}", department ?? "-", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+    }
+
+    private static string BuildFallbackMailDraft() => """
+Merhaba {{tam_ad}},
+
+Veri Güvenliği süreçleri kapsamında yapılan kontrollerde hesabınızla ilişkili olay kayıtları için inceleme ihtiyacı oluşmuştur.
+
+İncelenen dönem içinde {{olay_sayisi}} olay kaydı tespit edilmiştir. En yüksek eşleşme değeri {{max_match}}, son olay kaydı tarihi {{olay_tarihi}} olarak görünmektedir.
+Politika/Kural: {{politika}}
+Hedef: {{destination}}
+
+İlgili işlemi ve iş gereksinimini açıklamanızı rica ederiz.
+
+Saygılarımızla,
+Veri Güvenliği Yönetimi
+""";
+
+    private static string FoldMailText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return value.Trim().ToLowerInvariant()
+            .Replace('ı', 'i').Replace('İ', 'i').Replace('ş', 's').Replace('Ş', 's')
+            .Replace('ğ', 'g').Replace('Ğ', 'g').Replace('ü', 'u').Replace('Ü', 'u')
+            .Replace('ö', 'o').Replace('Ö', 'o').Replace('ç', 'c').Replace('Ç', 'c');
+    }
+
+    private sealed record GeneratedMailTemplate(string Subject, string Body);
+    private sealed record MailTemplateResolution(string Subject, string Body, int? SourceTemplateId, string? SourceTemplateName, string Origin, string Rationale);
 
     private static string BuildMailDraft(string? aiTemplate, string fullName, int incidentCount, int maximumMatches, string? policy, string? destination, DateTime latestIncidentAt)
     {
