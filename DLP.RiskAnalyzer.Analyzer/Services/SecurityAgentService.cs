@@ -145,6 +145,20 @@ public sealed class SecurityAgentService : ISecurityAgentService
         return new SecurityAgentWorkflowDraftResult(playbook.Id, playbook.Name, plan.Summary, warnings);
     }
 
+    public async Task<SecurityAgentWorkflowSimulationResult> SimulateWorkflowAsync(int playbookId, CancellationToken ct)
+    {
+        if (playbookId <= 0) throw new ArgumentException("Geçerli bir workflow seçin.", nameof(playbookId));
+
+        // The engine persists a run/audit record, but forceDryRun guarantees that no mail is sent.
+        var run = await _playbookEngine.RunAsync(playbookId, PlaybookTriggerType.Manual, forceDryRun: true, ct: ct);
+        var nodes = PlaybookJson.Deserialize<List<PlaybookNodeLog>>(run.NodeLogJson)
+            ?.Select(node => $"{node.Label}: {node.Status} ({node.ItemsIn}->{node.ItemsOut})")
+            .ToList() ?? [];
+        return new SecurityAgentWorkflowSimulationResult(
+            playbookId, run.Id, run.Status, run.DryRun, run.MailsPending, run.MailsFailed, run.MailsSkipped,
+            run.ErrorMessage, nodes);
+    }
+
     private async Task<LocalLlmLabSettings> GetSettingsAsync(CancellationToken ct)
     {
         var values = await _context.SystemSettings.AsNoTracking().Where(item => item.Key.StartsWith("local_llm_lab_")).ToDictionaryAsync(item => item.Key, item => item.Value, ct);

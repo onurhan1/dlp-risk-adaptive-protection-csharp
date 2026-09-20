@@ -9,6 +9,7 @@ public interface ISecurityAgentService
     Task<SecurityAgentContext> GetContextAsync(SecurityAgentContextRequest request, CancellationToken ct);
     Task<SecurityAgentChatResult> ChatAsync(SecurityAgentChatRequest request, CancellationToken ct);
     Task<SecurityAgentWorkflowDraftResult> CreateWorkflowDraftAsync(SecurityAgentWorkflowDraftRequest request, CancellationToken ct);
+    Task<SecurityAgentWorkflowSimulationResult> SimulateWorkflowAsync(int playbookId, CancellationToken ct);
 }
 
 public sealed record SecurityAgentContextRequest(DateTime? StartUtc = null, DateTime? EndUtc = null);
@@ -20,6 +21,9 @@ public sealed record SecurityAgentChatRequest(
 public sealed record SecurityAgentChatResult(string Reply, SecurityAgentContext Context);
 public sealed record SecurityAgentWorkflowDraftRequest(string Goal, DateTime? StartUtc = null, DateTime? EndUtc = null);
 public sealed record SecurityAgentWorkflowDraftResult(int PlaybookId, string Name, string Summary, IReadOnlyList<string> Warnings);
+public sealed record SecurityAgentWorkflowSimulationResult(
+    int PlaybookId, int RunId, string Status, bool DryRun, int PendingMails, int FailedMails, int SkippedMails,
+    string? ErrorMessage, IReadOnlyList<string> NodeSummary);
 
 public sealed record SecurityAgentContext(
     DateTime GeneratedAtUtc,

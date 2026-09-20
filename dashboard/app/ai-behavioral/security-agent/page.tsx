@@ -64,6 +64,7 @@ export default function SecurityAgentPage() {
   const [loadingContext, setLoadingContext] = useState(true)
   const [sending, setSending] = useState(false)
   const [creatingDraft, setCreatingDraft] = useState(false)
+  const [simulatingWorkflowId, setSimulatingWorkflowId] = useState<number | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -137,6 +138,19 @@ export default function SecurityAgentPage() {
       setCreatingDraft(false)
     }
   }
+  const simulateWorkflow = async (playbookId: number, name: string) => {
+    setSimulatingWorkflowId(playbookId)
+    setError(null)
+    try {
+      const { data } = await apiClient.post(`/api/security-agent/workflows/${playbookId}/simulate`, undefined, { timeout: 600_000 })
+      setDraftNotice(`${name}: dry-run tamamlandı. ${Number(data.pendingMails ?? data.pending_mails ?? 0)} onay bekleyen e-posta, ${Number(data.failedMails ?? data.failed_mails ?? 0)} hata. E-posta gönderilmedi.`)
+      await loadContext()
+    } catch (requestError: any) {
+      setError(requestError?.response?.data?.detail || 'Workflow simülasyonu tamamlanamadı.')
+    } finally {
+      setSimulatingWorkflowId(null)
+    }
+  }
   const fmt = (value?: number) => (value ?? 0).toLocaleString('tr-TR')
 
   return <main className="container" style={{ maxWidth: 1480, paddingTop: 24, paddingBottom: 36 }}>
@@ -176,7 +190,7 @@ export default function SecurityAgentPage() {
 
       <aside style={{ display: 'grid', gap: 16 }}>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>İncelenen Bağlam</div><div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><Metric label="Workflow" value={`${fmt(context?.enabledWorkflowCount)} / ${fmt(context?.workflowCount)}`} /><Metric label="Seçili dönem olay" value={fmt(context?.incidentCount)} /><Metric label="Farklı kullanıcı" value={fmt(context?.uniqueUsers)} /><Metric label="Node türü" value={fmt(context?.nodeTypes?.length)} /></div></section>
-        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : (context?.workflows ?? []).map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {(workflow.nodes ?? []).length} node</div>{(workflow.validationErrors ?? []).length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}</div>)}</div></section>
+        <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}><Workflow size={16} /> Workflow Durumu</div><div style={{ padding: 10, maxHeight: 330, overflowY: 'auto' }}>{loadingContext ? <div style={{ padding: 10, color: 'var(--text-secondary)', fontSize: 13 }}>Yükleniyor...</div> : (context?.workflows ?? []).map(workflow => <div key={workflow.id} style={{ padding: 10, borderBottom: '1px solid var(--border)' }}><div style={{ fontWeight: 700, fontSize: 13 }}>{workflow.name}</div><div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)' }}>{workflow.enabled ? 'Etkin' : 'Pasif'} · {workflow.schedule || 'Zamanlama yok'} · {(workflow.nodes ?? []).length} node</div>{(workflow.validationErrors ?? []).length > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.validationErrors[0]}</div>}{workflow.failedMails > 0 && <div style={{ marginTop: 5, fontSize: 11, color: '#b91c1c' }}>{workflow.failedMails} başarısız mail</div>}<button onClick={() => void simulateWorkflow(workflow.id, workflow.name)} disabled={simulatingWorkflowId !== null || loadingContext} style={{ ...suggestionButton, marginTop: 8 }}>{simulatingWorkflowId === workflow.id ? 'Simüle ediliyor...' : 'Dry-run simüle et'}</button></div>)}</div></section>
         <section style={{ ...panelStyle, padding: 15, background: '#eff6ff', borderColor: '#bfdbfe' }}><strong style={{ fontSize: 13, color: '#1d4ed8' }}>Agent sınırı</strong><p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: '#1e40af' }}>Workflow veya olay kaydı değiştiremez, mail gönderemez ve veritabanına SQL çalıştıramaz. Öneri verir; uygulama adımı sizde kalır.</p></section>
       </aside>
     </div>

@@ -48,4 +48,18 @@ public sealed class SecurityAgentController : ControllerBase
             return StatusCode(502, new { detail = "Workflow taslağı oluşturulamadı." });
         }
     }
+
+    [HttpPost("workflows/{playbookId:int}/simulate")]
+    public async Task<IActionResult> SimulateWorkflow(int playbookId, CancellationToken ct)
+    {
+        try { return Ok(await _service.SimulateWorkflowAsync(playbookId, ct)); }
+        catch (ArgumentException ex) { return BadRequest(new { detail = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { detail = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { detail = ex.Message }); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Security agent workflow simulation failed for {PlaybookId}", playbookId);
+            return StatusCode(502, new { detail = "Workflow simülasyonu tamamlanamadı." });
+        }
+    }
 }
