@@ -242,7 +242,9 @@ export default function SecurityAgentPage() {
   const reviewShadow = async (userEmail: string, verdict: string) => {
     setReviewingUser(userEmail)
     try {
-      const { data } = await apiClient.post('/api/risk-shadow/reviews', { userEmail, verdict })
+      // The API uses snake_case JSON names. Sending userEmail leaves the required
+      // UserEmail request property empty after model binding and rejects the review.
+      const { data } = await apiClient.post('/api/risk-shadow/reviews', { user_email: userEmail, verdict })
       setReviewedShadow(current => ({ ...current, [userEmail]: verdict }))
       setContext(current => current ? { ...current, reviews: normalizeReviews(data, current.reviews) } : current)
       setDraftNotice(`${userEmail} için shadow değerlendirmesi kaydedildi.`)
