@@ -8,6 +8,7 @@ using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
+using DLP.RiskAnalyzer.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
@@ -2448,7 +2449,7 @@ public class PlaybookEngine : IPlaybookEngine
         if (ruleMatch != null) return ruleMatch.Value;
 
         var incident = SelectTemplateIncidentByTemplateMatch(item, templates, node.GetInt("template_id")) ?? fallbackIncident;
-        var route = DetermineTemplateRoute(item.SourceCriterion, incident?.Destination);
+        var route = DetermineTemplateRoute(item.SourceCriterion, item.User, incident?.Destination);
         var configured = ResolveConfiguredRouteTemplate(node, route, templates);
         if (configured != null) return DecisionFromTemplate(configured, incident, "Destination icin tanimli sablon eslesmesi");
 
@@ -2726,10 +2727,12 @@ public class PlaybookEngine : IPlaybookEngine
             ?? throw new InvalidOperationException($"Mail sablonu bulunamadi (id: {templateId.Value})");
     }
 
-    private static MailTemplateRoute DetermineTemplateRoute(string? criterion, string? destination)
+    private static MailTemplateRoute DetermineTemplateRoute(string? criterion, WeeklyFlagUserDto user, string? destination)
     {
         if (IsGitHubDestination(destination)) return MailTemplateRoute.GitHub;
-        if (criterion == WeeklyFlagCriterion.PersonalEmailSenders || LooksLikePersonalDestination(destination))
+        var personalMatch = PersonalEmailIdentityMatcher.FindBestMatch(
+            user.UserEmail, null, user.FullName, destination);
+        if (criterion == WeeklyFlagCriterion.PersonalEmailSenders || personalMatch?.IsPersonalDomain == true)
             return MailTemplateRoute.Personal;
 
         return MailTemplateRoute.Destination;
@@ -2743,15 +2746,7 @@ public class PlaybookEngine : IPlaybookEngine
 
     private static bool LooksLikePersonalDestination(string? destination)
     {
-        var value = Fold(destination);
-        if (!value.Contains('@')) return false;
-
-        var personalDomains = new[]
-        {
-            "@gmail.", "@hotmail.", "@outlook.", "@yahoo.", "@icloud.",
-            "@live.", "@msn.", "@yandex.", "@proton.", "@me.com"
-        };
-        return personalDomains.Any(value.Contains);
+        return PersonalEmailIdentityMatcher.IsPersonalDestination(destination);
     }
 
     private static MailTemplate? GuessRouteTemplate(

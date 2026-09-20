@@ -21,10 +21,21 @@ export interface WeeklyFlagUser {
   team: string | null
   contact_email: string
   gender?: string | null
+  personal_email_match?: PersonalEmailMatch | null
   trigger_count: number
   first_seen: string
   last_seen: string
   sample_incidents: WeeklyFlagIncident[]
+}
+
+export interface PersonalEmailMatch {
+  recipient: string
+  domain: string
+  is_personal_domain: boolean
+  has_identity_match: boolean
+  match_type: 'none' | 'exact_local_part' | 'exact_full_name' | 'conservative_fuzzy' | string
+  confidence: 'none' | 'low' | 'high' | string
+  evidence: string
 }
 
 export interface WeeklyFlagsResult {

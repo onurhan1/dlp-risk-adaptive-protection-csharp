@@ -19,7 +19,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 1 | Yerel model sagligi | Baglanti/model kontrolu, zaman asimi, hata ayrimi ve tekrar deneme. | Bekliyor |
 | 2 | Dogal sohbet yonlendirme | Selamlasma ve yardim sorulari olaysiz; analiz istegi arac ve kapsam secimiyle calisir. | Bekliyor |
 | 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Bekliyor |
-| 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Bekliyor |
+| 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Tamamlandi |
 | 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Bekliyor |
 | 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Bekliyor |
 | 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Bekliyor |
@@ -50,3 +50,4 @@ onay akisina girdidir.
 | Tarih | Asama | Durum | Not |
 | --- | --- | --- | --- |
 | 2026-09-20 | 0 | Tamamlandi | Uzak depodaki Local LLM Laboratuvari ve Guvenlik Agent'i degisiklikleri alindi. Exceptions sayfasindaki cakismada sayfali yukleme korunarak cozumlendi. `dotnet build --no-restore` ve `dashboard npm run build` basarili. |
+| 2026-09-20 | 4 | Tamamlandi | Merkezi e-posta ayrisici/eslestirici eklendi. Yuksek guvenli mailbox-onu eslesmeleri haftalik inceleme listesine ve sahsi sablon yonlendirmesine baglandi; arayuz kaniti gosteriyor. 331 backend testi ve `npx tsc --noEmit` basarili. |

@@ -32,10 +32,24 @@ function normalizeUser(user: any): WeeklyFlagUser {
     team: user?.team ?? null,
     contact_email: user?.contact_email ?? user?.contactEmail ?? user?.user_email ?? user?.userEmail ?? '',
     gender: user?.gender ?? null,
+    personal_email_match: normalizePersonalEmailMatch(user?.personal_email_match ?? user?.personalEmailMatch),
     trigger_count: Number(user?.trigger_count ?? user?.triggerCount ?? 0),
     first_seen: user?.first_seen ?? user?.firstSeen ?? '',
     last_seen: user?.last_seen ?? user?.lastSeen ?? '',
     sample_incidents: normalizeIncidents(user?.sample_incidents ?? user?.sampleIncidents),
+  }
+}
+
+function normalizePersonalEmailMatch(value: any) {
+  if (!value || typeof value !== 'object') return null
+  return {
+    recipient: value.recipient ?? '',
+    domain: value.domain ?? '',
+    is_personal_domain: Boolean(value.is_personal_domain ?? value.isPersonalDomain),
+    has_identity_match: Boolean(value.has_identity_match ?? value.hasIdentityMatch),
+    match_type: value.match_type ?? value.matchType ?? 'none',
+    confidence: value.confidence ?? 'none',
+    evidence: value.evidence ?? '',
   }
 }
 
@@ -264,6 +278,11 @@ function UserRow({ user, triggerLabel, onSend }: { user: WeeklyFlagUser; trigger
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             {user.contact_email !== user.user_email ? user.contact_email : ''}{user.team ? `${user.contact_email !== user.user_email ? ' · ' : ''}${user.team}` : ''}
           </div>
+          {user.personal_email_match?.has_identity_match && (
+            <div title={user.personal_email_match.evidence} style={{ marginTop: '4px', fontSize: '11px', color: 'var(--warning, #b45309)' }}>
+              Personal mailbox identity match: {user.personal_email_match.recipient} ({user.personal_email_match.confidence})
+            </div>
+          )}
         </div>
         <div style={{ textAlign: 'right', marginRight: '4px' }}>
           <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{user.trigger_count} <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-muted)' }}>{triggerLabel}</span></div>

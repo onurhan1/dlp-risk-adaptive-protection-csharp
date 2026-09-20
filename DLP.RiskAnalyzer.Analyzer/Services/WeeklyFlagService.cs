@@ -2,6 +2,7 @@ using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
 using DLP.RiskAnalyzer.Analyzer.Repositories.Interfaces;
 using DLP.RiskAnalyzer.Shared.Models;
+using DLP.RiskAnalyzer.Shared.Services;
 
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
@@ -63,14 +64,27 @@ public class WeeklyFlagService : IWeeklyFlagService
             {
                 var userIncidents = group.OrderBy(i => i.Timestamp).ToList();
 
-                // --- Section 1: personal email senders (specific policy, 10 min window, >= 2) ---
+                // --- Section 1: personal email senders ---
+                // Preserve the established policy/window signal, and additionally surface a
+                // high-confidence self-addressed public mailbox (for example abc@corp ->
+                // abc@hotmail.com). A personal domain alone is not enough to make this list.
                 var policyHits = userIncidents
                     .Where(i => !string.IsNullOrWhiteSpace(i.Policy) &&
                                 i.Policy!.Trim().Equals(PersonalEmailPolicyName, StringComparison.OrdinalIgnoreCase))
                     .ToList();
-                if (HasWindow(policyHits, PersonalEmailWindow, PersonalEmailMinCount))
+                var confirmedIdentityHits = userIncidents
+                    .Where(HasConfirmedPersonalIdentityMatch)
+                    .ToList();
+                var hasPolicyPattern = HasWindow(policyHits, PersonalEmailWindow, PersonalEmailMinCount);
+                if (hasPolicyPattern || confirmedIdentityHits.Count > 0)
                 {
-                    result.PersonalEmailSenders.Add(BuildUser(group.Key, policyHits, policyHits.Count));
+                    var evidence = policyHits
+                        .Concat(confirmedIdentityHits)
+                        .DistinctBy(incident => incident.Id)
+                        .OrderBy(incident => incident.Timestamp)
+                        .ToList();
+                    result.PersonalEmailSenders.Add(BuildUser(group.Key, evidence,
+                        confirmedIdentityHits.Count > 0 ? confirmedIdentityHits.Count : policyHits.Count));
                 }
 
                 // --- Section 2: high volume (30 min window, >= 10 incidents) ---
@@ -216,6 +230,9 @@ public class WeeklyFlagService : IWeeklyFlagService
                     i.Severity);
             })
             .ToList();
+        var personalEmailMatch = SelectBestPersonalEmailMatch(
+            newestFirst.Select(incident => (Sender: FirstNonEmpty(incident.EmailAddress, incident.UserEmail, userEmail),
+                Login: incident.LoginName, FullName: (string?)null, Destination: incident.Destination)));
 
         return new WeeklyFlagUserDto(
             UserEmail: userEmail,
@@ -225,7 +242,8 @@ public class WeeklyFlagService : IWeeklyFlagService
             TriggerCount: triggerCount,
             FirstSeen: incidents.Min(i => i.Timestamp),
             LastSeen: incidents.Max(i => i.Timestamp),
-            SampleIncidents: samples);
+            SampleIncidents: samples,
+            PersonalEmailMatch: personalEmailMatch);
     }
 
     /// <summary>Onceden toplanmis LDAP profillerini kullanici listesine uygular.</summary>
@@ -240,12 +258,17 @@ public class WeeklyFlagService : IWeeklyFlagService
                     !profiles.TryGetValue(user.UserEmail, out var profile))
                     return user;
 
+                var personalEmailMatch = SelectBestPersonalEmailMatch(user.SampleIncidents.Select(incident =>
+                    (Sender: FirstNonEmpty(profile.Email, user.UserEmail), Login: (string?)null,
+                        FullName: profile.FullName, Destination: incident.Destination))) ?? user.PersonalEmailMatch;
+
                 return user with
                 {
                     FullName = FirstNonEmpty(profile.FullName, user.FullName),
                     Team = FirstNonEmpty(profile.Department, user.Team),
                     ContactEmail = FirstNonEmpty(profile.Email, user.ContactEmail, user.UserEmail) ?? user.ContactEmail,
-                    Gender = FirstNonEmpty(profile.Gender, user.Gender)
+                    Gender = FirstNonEmpty(profile.Gender, user.Gender),
+                    PersonalEmailMatch = personalEmailMatch
                 };
             })
             .ToList();
@@ -253,6 +276,24 @@ public class WeeklyFlagService : IWeeklyFlagService
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    private static bool HasConfirmedPersonalIdentityMatch(Incident incident)
+    {
+        var sender = FirstNonEmpty(incident.EmailAddress, incident.UserEmail);
+        var match = PersonalEmailIdentityMatcher.FindBestMatch(sender, incident.LoginName, null, incident.Destination);
+        return match is { HasIdentityMatch: true, Confidence: PersonalEmailIdentityConfidence.High };
+    }
+
+    private static PersonalEmailIdentityMatch? SelectBestPersonalEmailMatch(
+        IEnumerable<(string? Sender, string? Login, string? FullName, string? Destination)> candidates) =>
+        candidates
+            .Select(candidate => PersonalEmailIdentityMatcher.FindBestMatch(
+                candidate.Sender, candidate.Login, candidate.FullName, candidate.Destination))
+            .Where(match => match?.IsPersonalDomain == true)
+            .Cast<PersonalEmailIdentityMatch>()
+            .OrderByDescending(match => match.Confidence)
+            .ThenBy(match => match.Recipient, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
 
     private static int EffectiveMaxMatches(Incident incident)
     {

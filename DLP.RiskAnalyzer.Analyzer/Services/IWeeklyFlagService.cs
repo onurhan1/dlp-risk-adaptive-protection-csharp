@@ -1,3 +1,5 @@
+using DLP.RiskAnalyzer.Shared.Services;
+
 namespace DLP.RiskAnalyzer.Analyzer.Services;
 
 public record WeeklyFlagIncidentDto(
@@ -20,7 +22,8 @@ public record WeeklyFlagUserDto(
     DateTime FirstSeen,
     DateTime LastSeen,
     List<WeeklyFlagIncidentDto> SampleIncidents,
-    string? Gender = null);
+    string? Gender = null,
+    PersonalEmailIdentityMatch? PersonalEmailMatch = null);
 
 public class WeeklyFlagsResult
 {
