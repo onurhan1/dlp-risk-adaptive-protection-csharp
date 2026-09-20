@@ -160,6 +160,28 @@ public class LocalLlmLabServiceHealthTests
     }
 
     [Fact]
+    public async Task ChatAsync_WeeklySummary_UsesIncidentContextAndNaturalLanguagePeriod()
+    {
+        var service = CreateService(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"response\":\"Haftalık özet hazırlandı.\"}", Encoding.UTF8, "application/json")
+        }, out var context);
+        EnableLocalModel(context);
+        var now = DateTime.UtcNow;
+        context.Incidents.AddRange(
+            new Incident { UserEmail = "recent@kuveytturk.com.tr", Timestamp = now.AddDays(-6), Channel = "EMAIL", Action = "BLOCK", Policy = "Kritik", MaxMatches = 4 },
+            new Incident { UserEmail = "old@kuveytturk.com.tr", Timestamp = now.AddDays(-15), Channel = "WEB", Action = "PERMIT", Policy = "Eski", MaxMatches = 1 });
+        await context.SaveChangesAsync();
+
+        var result = await service.ChatAsync(new LocalLlmChatRequest("Son 1 haftayı özetler misin?", null, LookbackDays: 30), "test-user", CancellationToken.None);
+
+        result.UsesIncidentContext.Should().BeTrue();
+        result.Snapshot.TotalIncidents.Should().Be(1);
+        result.Snapshot.UniqueUsers.Should().Be(1);
+        result.Snapshot.StartUtc.Should().BeCloseTo(DateTime.UtcNow.AddDays(-7), TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
     public async Task ChatAsync_MailDraft_UsesCompatibleSavedTemplateWithoutCallingModelAgain()
     {
         var calls = 0;

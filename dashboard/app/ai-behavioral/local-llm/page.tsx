@@ -216,7 +216,9 @@ export default function LocalLlmLabPage() {
       }, { timeout: LOCAL_LLM_REQUEST_TIMEOUT_MS })
       setMessages(current => [...current, { role: 'assistant', content: response.data.reply || 'Model boş yanıt verdi.' }])
       setActiveConversationId(response.data.conversation_id || conversationId)
-      setSnapshot(response.data.snapshot)
+      // Casual chat intentionally receives no incident data. Keep the analyst's selected
+      // context visible instead of replacing it with that empty conversation snapshot.
+      if (response.data.usesIncidentContext ?? response.data.uses_incident_context) setSnapshot(response.data.snapshot)
       void refreshConversations()
       if (response.data.conversation_id || conversationId) void refreshMailProposals(response.data.conversation_id || conversationId)
     } catch (error: any) {

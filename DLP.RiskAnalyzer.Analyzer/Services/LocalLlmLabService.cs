@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DLP.RiskAnalyzer.Analyzer.Data;
 using DLP.RiskAnalyzer.Analyzer.Helpers;
 using DLP.RiskAnalyzer.Analyzer.Models;
@@ -336,6 +337,13 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
             throw new ArgumentException("Mesaj boş olamaz.", nameof(request));
 
         var intent = ClassifyChatIntent(request.Message);
+        // A date explicitly selected in the UI always wins. For natural-language relative
+        // periods without a selected range, use the requested period instead of the UI default.
+        if (intent == LocalLlmChatIntent.IncidentAnalysis && !request.StartUtc.HasValue && !request.EndUtc.HasValue
+            && TryResolveLookbackDays(request.Message, out var requestedDays))
+        {
+            request = request with { LookbackDays = requestedDays };
+        }
         var settings = await GetSettingsAsync(ct);
         if (!settings.Enabled && intent != LocalLlmChatIntent.Casual)
             throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmemiş.");
@@ -423,7 +431,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         conversation.UpdatedAt = replyTime;
         await _context.SaveChangesAsync(ct);
 
-        return new LocalLlmChatResult(conversation.Id, reply, snapshot, draftResult.Prepared, draftResult.Unresolved);
+        return new LocalLlmChatResult(conversation.Id, reply, snapshot, draftResult.Prepared, draftResult.Unresolved,
+            intent == LocalLlmChatIntent.IncidentAnalysis);
     }
 
     private async Task<string?> BuildComprehensiveEvidenceAsync(LocalLlmChatRequest request, CancellationToken ct)
@@ -1163,7 +1172,8 @@ Asistan:
         var analysisTerms = new[]
         {
             "olay", "incident", "risk", "kullanıcı", "kullanici", "user", "incele", "analiz", "araştır", "arastir",
-            "şüpheli", "supheli", "tehlike", "workflow", "akış", "akis", "mail", "e-posta", "eposta", "taslak", "politika", "kural"
+            "şüpheli", "supheli", "tehlike", "workflow", "akış", "akis", "mail", "e-posta", "eposta", "taslak", "politika", "kural",
+            "özet", "ozet", "özetle", "ozetle", "dağılım", "dagilim", "istatistik", "rapor", "listele", "göster", "goster", "sayım", "sayim"
         };
         if (analysisTerms.Any(value.Contains)) return LocalLlmChatIntent.IncidentAnalysis;
 
@@ -1171,6 +1181,45 @@ Asistan:
         if (value.Length <= 80 && casualTerms.Any(value.Contains)) return LocalLlmChatIntent.Casual;
 
         return LocalLlmChatIntent.Conversation;
+    }
+
+    private static bool TryResolveLookbackDays(string message, out int days)
+    {
+        days = 0;
+        var value = message.Trim().ToLowerInvariant();
+        if (value.Contains("son bir hafta") || value.Contains("son 1 hafta") || value.Contains("geçen hafta") || value.Contains("gecen hafta") ||
+            value.Contains("son 7 gün") || value.Contains("son 7 gun"))
+        {
+            days = 7;
+            return true;
+        }
+        if (value.Contains("son bir ay") || value.Contains("son 1 ay") || value.Contains("geçen ay") || value.Contains("gecen ay") ||
+            value.Contains("son 30 gün") || value.Contains("son 30 gun"))
+        {
+            days = 30;
+            return true;
+        }
+
+        var match = Regex.Match(value, @"\bson\s+(\d{1,3})\s+g(?:ü|u)n\b", RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out days))
+        {
+            days = Math.Clamp(days, 1, 365);
+            return true;
+        }
+        match = Regex.Match(value, @"\bson\s+(\d{1,2})\s+hafta\b", RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var weeks))
+        {
+            days = Math.Clamp(weeks * 7, 1, 365);
+            return true;
+        }
+        match = Regex.Match(value, @"\bson\s+(\d{1,2})\s+ay\b", RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var months))
+        {
+            days = Math.Clamp(months * 30, 1, 365);
+            return true;
+        }
+
+        return false;
     }
 
     private static string BuildCasualReply(string message)

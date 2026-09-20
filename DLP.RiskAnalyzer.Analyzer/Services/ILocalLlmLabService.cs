@@ -74,7 +74,13 @@ public sealed record LocalLlmChatRequest(
     int EvidenceRowsPerUser = 160,
     Guid? ConversationId = null);
 
-public sealed record LocalLlmChatResult(Guid ConversationId, string Reply, LocalLlmIncidentSnapshot Snapshot, int MailDraftsPrepared = 0, int MailDraftsUnresolved = 0);
+public sealed record LocalLlmChatResult(
+    Guid ConversationId,
+    string Reply,
+    LocalLlmIncidentSnapshot Snapshot,
+    int MailDraftsPrepared = 0,
+    int MailDraftsUnresolved = 0,
+    bool UsesIncidentContext = false);
 
 public sealed record LocalLlmConversationCreateRequest(string? Title);
 
