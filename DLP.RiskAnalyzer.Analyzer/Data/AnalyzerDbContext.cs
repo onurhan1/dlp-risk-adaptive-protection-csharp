@@ -759,6 +759,9 @@ public class AnalyzerDbContext : DbContext
             entity.Property(e => e.Rationale).HasColumnName("rationale");
             entity.Property(e => e.SourcePromptHash).HasColumnName("source_prompt_hash").HasMaxLength(64);
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
+            entity.Property(e => e.ReviewedBy).HasColumnName("reviewed_by").HasMaxLength(120);
+            entity.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+            entity.Property(e => e.ReviewDecision).HasColumnName("review_decision").HasMaxLength(20);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.SentAt).HasColumnName("sent_at");

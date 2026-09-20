@@ -291,6 +291,9 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         {
             var sent = await _emailService.SendEmailAsync(proposal.RecipientEmail, proposal.Subject, proposal.Body, isHtml: false, toName: proposal.FullName);
             proposal.Status = sent ? LocalLlmMailProposalStatus.Sent : LocalLlmMailProposalStatus.Failed;
+            proposal.ReviewedBy = ownerUsername;
+            proposal.ReviewedAt = DateTime.UtcNow;
+            proposal.ReviewDecision = "approved";
             proposal.SentAt = sent ? DateTime.UtcNow : null;
             proposal.ErrorMessage = sent ? null : "SMTP gönderimi başarısız oldu.";
         }
@@ -298,6 +301,9 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         {
             _logger.LogWarning(ex, "Local LLM mail proposal send failed for {Recipient}", proposal.RecipientEmail);
             proposal.Status = LocalLlmMailProposalStatus.Failed;
+            proposal.ReviewedBy = ownerUsername;
+            proposal.ReviewedAt = DateTime.UtcNow;
+            proposal.ReviewDecision = "approved";
             proposal.ErrorMessage = ex.Message;
         }
 
@@ -312,6 +318,9 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         var proposal = await _context.LocalLlmMailProposals.FirstOrDefaultAsync(item => item.Id == proposalId && item.OwnerUsername == ownerUsername, ct);
         if (proposal == null || proposal.Status != LocalLlmMailProposalStatus.Pending) return null;
         proposal.Status = LocalLlmMailProposalStatus.Rejected;
+        proposal.ReviewedBy = ownerUsername;
+        proposal.ReviewedAt = DateTime.UtcNow;
+        proposal.ReviewDecision = "rejected";
         proposal.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(ct);
         return ToProposalDto(proposal);
@@ -762,7 +771,8 @@ public sealed class LocalLlmLabService : ILocalLlmLabService
         new(proposal.Id, proposal.ConversationId, proposal.UserName, proposal.FullName, proposal.Department,
             proposal.RecipientEmail, proposal.Subject, proposal.Body, proposal.SourceTemplateId, proposal.SourceTemplateName,
             proposal.TemplateOrigin, proposal.IncidentSummaryJson, proposal.Rationale,
-            proposal.Status, proposal.CreatedAt, proposal.UpdatedAt, proposal.SentAt, proposal.ErrorMessage);
+            proposal.Status, proposal.ReviewedBy, proposal.ReviewedAt, proposal.ReviewDecision,
+            proposal.CreatedAt, proposal.UpdatedAt, proposal.SentAt, proposal.ErrorMessage);
 
     private static bool RequestsMailDraft(string message)
     {

@@ -223,6 +223,35 @@ public class LocalLlmLabServiceHealthTests
         proposal.Body.Should().Contain("ayse");
     }
 
+    [Fact]
+    public async Task RejectMailProposalAsync_RecordsReviewerAndDecision()
+    {
+        var service = CreateService(_ => throw new InvalidOperationException("The model must not be called."), out var context);
+        var proposal = new LocalLlmMailProposal
+        {
+            ConversationId = Guid.NewGuid(),
+            OwnerUsername = "test-user",
+            UserName = "deniz",
+            RecipientEmail = "deniz@kuveytturk.com.tr",
+            Subject = "İnceleme",
+            Body = "Taslak",
+            SourcePromptHash = "test",
+            Status = LocalLlmMailProposalStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        context.LocalLlmMailProposals.Add(proposal);
+        await context.SaveChangesAsync();
+
+        var result = await service.RejectMailProposalAsync(proposal.Id, "test-user", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Status.Should().Be(LocalLlmMailProposalStatus.Rejected);
+        result.ReviewedBy.Should().Be("test-user");
+        result.ReviewDecision.Should().Be("rejected");
+        result.ReviewedAt.Should().NotBeNull();
+    }
+
     private static LocalLlmLabService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responseFactory) =>
         CreateService(responseFactory, out _);
 

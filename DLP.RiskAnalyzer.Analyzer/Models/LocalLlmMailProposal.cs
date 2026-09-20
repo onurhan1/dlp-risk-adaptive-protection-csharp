@@ -23,6 +23,9 @@ public sealed class LocalLlmMailProposal
     public string? Rationale { get; set; }
     public string SourcePromptHash { get; set; } = string.Empty;
     public string Status { get; set; } = LocalLlmMailProposalStatus.Pending;
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public string? ReviewDecision { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? SentAt { get; set; }

@@ -21,7 +21,7 @@ hazirlayacak; gonderim veya etkinlestirme oncesinde insan onayi isteyecek.
 | 3 | Token-butceli risk kaniti | Periyot, aggregate, aday, timeline ve kanit katmanlariyla 20K+ olay ozetlenir. | Tamamlandi |
 | 4 | Sahsi e-posta kimlik eslesmesi | Sahsi domain, mailbox-onu kanoniklestirme ve guven skoru hesaplanir. | Tamamlandi |
 | 5 | Sablon destekli e-posta taslagi | Kayitli e-posta sablonu, olay kaniti ve model taslagi birlestirilir. | Tamamlandi |
-| 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Bekliyor |
+| 6 | Duzenleme, onay ve denetim izi | Taslak duzenleme, yetkili onay/red, audit kaydi ve kontrollu gonderim. | Tamamlandi |
 | 7 | Guvenlik agent'i araclari | Kullanici/olay kaniti, workflow simulasyonu ve yalniz taslak olusturma. | Bekliyor |
 | 8 | Kapsam ve kalite | Kural-kapsama denetimi, shadow mode, olcumleme ve regresyon degerlendirmesi. | Bekliyor |
 
@@ -57,3 +57,4 @@ onay akisina girdidir.
 | 2026-09-20 | 3 | Devam ediyor | Kapsamli analizdeki aday ve timeline kaniti sabit bir prompt butcesine sinirlanacak; 20K+ olay ham olarak modele aktarilmayacak. |
 | 2026-09-20 | 3 | Tamamlandi | Kapsamli analizde model kaniti 8 kullanici, kullanici basina 8 sayisal grup, 18 timeline satiri ve 3 kanal oruntusu ile sinirlandi; kanit metni 24.000 karakter tavanina alindi. Sunucu tum donemi taramaya devam eder, kanal gecisi taramasi dogrusal hale getirildi. 337 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
 | 2026-09-20 | 5 | Tamamlandi | Taslaklar olay hedefi, politika ve sablon icerigiyle puanlanarak kayitli kurum sablonunu kullanir. Uygun sablon yoksa model en fazla bir kez yeni JSON sablon onerir; bu onerinin kalici katalogya yazilmasi yasaktir ve taslakta ayri etiketlenir. Model onerisi alinamazsa denetlenebilir varsayilan metin kullanilir. Alici, konu ve govde her durumda kullanici onayindan once duzenlenebilir. 339 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |
+| 2026-09-20 | 6 | Tamamlandi | Taslak sahibi, kendi sohbetindeki taslagi duzenleyebilir, onaylayabilir veya reddedebilir; sorgular sahiplik filtresiyle sinirlidir. Onay/red karari veren kullanici, zaman ve karar kalici saklanir ve arayuzde gorunur. Genel audit kaydi Local LLM istek govdelerini (e-posta icerigi dahil) kaydetmez; taslak islemlerinde kaynak kimligi izlenir. 340 backend testi ve TypeScript kontrolu basarili. Commit var, push kullanici talimati bekliyor. |

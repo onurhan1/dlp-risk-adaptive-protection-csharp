@@ -45,6 +45,9 @@ public static class LocalLlmConversationSchema
             rationale TEXT,
             source_prompt_hash VARCHAR(64) NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            reviewed_by VARCHAR(120),
+            reviewed_at TIMESTAMP,
+            review_decision VARCHAR(20),
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             sent_at TIMESTAMP,
@@ -61,6 +64,12 @@ public static class LocalLlmConversationSchema
             ADD COLUMN IF NOT EXISTS source_template_name VARCHAR(255);
         ALTER TABLE dlp.local_llm_mail_proposals
             ADD COLUMN IF NOT EXISTS template_origin VARCHAR(20) NOT NULL DEFAULT 'fallback';
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(120);
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+        ALTER TABLE dlp.local_llm_mail_proposals
+            ADD COLUMN IF NOT EXISTS review_decision VARCHAR(20);
     ";
 
     public static async Task EnsureAsync(AnalyzerDbContext context, ILogger logger, CancellationToken ct = default)

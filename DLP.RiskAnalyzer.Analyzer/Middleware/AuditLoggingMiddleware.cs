@@ -190,10 +190,12 @@ public class AuditLoggingMiddleware
 
     private static string? ExtractResource(string path, string method)
     {
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 4 && parts[1] == "local-llm-lab" && parts[2] == "mail-proposals" && Guid.TryParse(parts[3], out var proposalId))
+            return $"LocalLlmMailProposal:{proposalId}";
+
         // Extract resource identifier from path
         // e.g., /api/users/123 -> "User:123"
-        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        
         if (parts.Length >= 3 && int.TryParse(parts[2], out var id))
         {
             var resourceType = parts[1].Replace("api/", "").TrimEnd('s');
@@ -208,7 +210,8 @@ public class AuditLoggingMiddleware
         return path.Contains("/auth/login") ||
                path.Contains("/settings/dlp") ||
                path.Contains("/settings/email") ||
-               path.Contains("/settings/ai");
+               path.Contains("/settings/ai") ||
+               path.StartsWith("/api/local-llm-lab", StringComparison.OrdinalIgnoreCase);
     }
 }
 
