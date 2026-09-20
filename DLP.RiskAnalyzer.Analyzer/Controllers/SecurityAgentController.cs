@@ -23,12 +23,28 @@ public sealed class SecurityAgentController : ControllerBase
     public async Task<IActionResult> GetContext([FromQuery] DateTime? startUtc, [FromQuery] DateTime? endUtc, CancellationToken ct) =>
         Ok(await _service.GetContextAsync(new SecurityAgentContextRequest(startUtc, endUtc), ct));
 
+    [HttpGet("model-health")]
+    public async Task<IActionResult> GetModelHealth(CancellationToken ct)
+    {
+        try { return Ok(await _service.GetModelHealthAsync(ct)); }
+        catch (ArgumentException ex) { return BadRequest(new { detail = ex.Message }); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Security agent local model health check failed");
+            return StatusCode(502, new { detail = "Yerel model durumu kontrol edilemedi." });
+        }
+    }
+
     [HttpPost("chat")]
     public async Task<IActionResult> Chat([FromBody] SecurityAgentChatRequest request, CancellationToken ct)
     {
         try { return Ok(await _service.ChatAsync(request, ct)); }
         catch (ArgumentException ex) { return BadRequest(new { detail = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { detail = ex.Message }); }
+        catch (LocalLlmConnectionException ex)
+        {
+            return StatusCode(ex.StatusCode, new { code = ex.Code, detail = ex.Detail, retryable = ex.Retryable, suggested_action = ex.SuggestedAction });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Security agent chat failed for {User}", User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? "unknown");
@@ -42,6 +58,10 @@ public sealed class SecurityAgentController : ControllerBase
         try { return Ok(await _service.CreateWorkflowDraftAsync(request, ct)); }
         catch (ArgumentException ex) { return BadRequest(new { detail = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { detail = ex.Message }); }
+        catch (LocalLlmConnectionException ex)
+        {
+            return StatusCode(ex.StatusCode, new { code = ex.Code, detail = ex.Detail, retryable = ex.Retryable, suggested_action = ex.SuggestedAction });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Security agent workflow draft failed");

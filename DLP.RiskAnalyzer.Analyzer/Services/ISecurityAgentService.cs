@@ -7,6 +7,7 @@ namespace DLP.RiskAnalyzer.Analyzer.Services;
 public interface ISecurityAgentService
 {
     Task<SecurityAgentContext> GetContextAsync(SecurityAgentContextRequest request, CancellationToken ct);
+    Task<LocalLlmHealthCheck> GetModelHealthAsync(CancellationToken ct);
     Task<SecurityAgentChatResult> ChatAsync(SecurityAgentChatRequest request, CancellationToken ct);
     Task<SecurityAgentWorkflowDraftResult> CreateWorkflowDraftAsync(SecurityAgentWorkflowDraftRequest request, CancellationToken ct);
     Task<SecurityAgentWorkflowSimulationResult> SimulateWorkflowAsync(int playbookId, CancellationToken ct);
@@ -18,7 +19,11 @@ public sealed record SecurityAgentChatRequest(
     IReadOnlyList<LocalLlmChatMessage>? History = null,
     DateTime? StartUtc = null,
     DateTime? EndUtc = null);
-public sealed record SecurityAgentChatResult(string Reply, SecurityAgentContext Context, RiskShadowListResult? HighRiskList = null);
+public sealed record SecurityAgentChatResult(
+    string Reply,
+    SecurityAgentContext Context,
+    RiskShadowListResult? HighRiskList = null,
+    bool IsTruncated = false);
 public sealed record SecurityAgentWorkflowDraftRequest(string Goal, DateTime? StartUtc = null, DateTime? EndUtc = null);
 public sealed record SecurityAgentWorkflowDraftResult(int PlaybookId, string Name, string Summary, IReadOnlyList<string> Warnings);
 public sealed record SecurityAgentWorkflowSimulationResult(

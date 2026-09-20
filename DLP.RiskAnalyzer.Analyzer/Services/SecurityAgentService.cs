@@ -32,14 +32,16 @@ public sealed class SecurityAgentService : ISecurityAgentService
     private readonly AnalyzerDbContext _context;
     private readonly IPlaybookEngine _playbookEngine;
     private readonly IRiskShadowService _riskShadowService;
+    private readonly ILocalLlmLabService _localLlmLabService;
     private readonly HttpClient _httpClient;
     private readonly ILogger<SecurityAgentService> _logger;
 
-    public SecurityAgentService(AnalyzerDbContext context, IPlaybookEngine playbookEngine, IRiskShadowService riskShadowService, HttpClient httpClient, ILogger<SecurityAgentService> logger)
+    public SecurityAgentService(AnalyzerDbContext context, IPlaybookEngine playbookEngine, IRiskShadowService riskShadowService, ILocalLlmLabService localLlmLabService, HttpClient httpClient, ILogger<SecurityAgentService> logger)
     {
         _context = context;
         _playbookEngine = playbookEngine;
         _riskShadowService = riskShadowService;
+        _localLlmLabService = localLlmLabService;
         _httpClient = httpClient;
         _logger = logger;
     }
@@ -116,6 +118,20 @@ public sealed class SecurityAgentService : ISecurityAgentService
             (await _riskShadowService.GetSnapshotAsync((int)Math.Ceiling((end - start).TotalDays), 12, ct)).Candidates);
     }
 
+    public async Task<LocalLlmHealthCheck> GetModelHealthAsync(CancellationToken ct)
+    {
+        var settings = await GetSettingsAsync(ct);
+        if (!settings.Enabled)
+        {
+            return new LocalLlmHealthCheck(false, "disabled", "Yerel LLM Laboratuvarı ayarlardan etkin değil.", null, false,
+                "Yerel LLM Laboratuvarı sayfasından modeli etkinleştirin ve ayarları kaydedin.");
+        }
+
+        // Reuse the laboratory's proven, typed connectivity test so the Agent and Lab
+        // report unreachable hosts, missing models, timeouts and malformed replies alike.
+        return await _localLlmLabService.TestConnectionAsync(settings, ct);
+    }
+
     public async Task<SecurityAgentChatResult> ChatAsync(SecurityAgentChatRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Message)) throw new ArgumentException("Mesaj zorunludur.");
@@ -129,8 +145,8 @@ public sealed class SecurityAgentService : ISecurityAgentService
 
         var settings = await GetSettingsAsync(ct);
         if (!settings.Enabled) throw new InvalidOperationException("Yerel LLM Laboratuvarı ayarlardan etkinleştirilmelidir.");
-        var reply = await GenerateAsync(settings, BuildPrompt(request, context), ct);
-        return new SecurityAgentChatResult(reply, context);
+        var generation = await GenerateAsync(settings, BuildPrompt(request, context), ct);
+        return new SecurityAgentChatResult(generation.Reply, context, null, generation.IsTruncated);
     }
 
     public async Task<SecurityAgentWorkflowDraftResult> CreateWorkflowDraftAsync(SecurityAgentWorkflowDraftRequest request, CancellationToken ct)
@@ -141,7 +157,7 @@ public sealed class SecurityAgentService : ISecurityAgentService
 
         var context = await GetContextAsync(new SecurityAgentContextRequest(request.StartUtc, request.EndUtc), ct);
         var planResponse = await GenerateAsync(settings, BuildWorkflowPlanPrompt(request.Goal, context), ct);
-        var plan = BuildWorkflowPlan(planResponse, request.Goal);
+        var plan = BuildWorkflowPlan(planResponse.Reply, request.Goal);
         var graph = plan.Graph;
         var validation = await _playbookEngine.ValidateAsync(graph, ct);
         var now = DateTime.UtcNow;
@@ -467,16 +483,52 @@ Kurallar:
     private static string TrimText(string value, int maxLength) => value.Trim().Length > maxLength ? value.Trim()[..maxLength] : value.Trim();
     private sealed record AgentWorkflowPlanBuild(PlaybookGraph Graph, string Name, string Summary, List<string> Warnings);
 
-    private async Task<string> GenerateAsync(LocalLlmLabSettings settings, string prompt, CancellationToken ct)
+    private async Task<LocalModelGeneration> GenerateAsync(LocalLlmLabSettings settings, string prompt, CancellationToken ct)
     {
         var payload = new { model = settings.Model, prompt, stream = false, options = new { temperature = settings.Temperature, num_predict = Math.Clamp(settings.MaxTokens, 256, 4096) } };
-        using var response = await _httpClient.PostAsJsonAsync(settings.GenerateUrl, payload, ct);
-        var raw = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Yerel model isteği başarısız oldu ({(int)response.StatusCode}): {raw[..Math.Min(raw.Length, 500)]}");
-        using var document = JsonDocument.Parse(raw);
-        if (!document.RootElement.TryGetProperty("response", out var content)) throw new InvalidOperationException("Yerel model yanıtı 'response' alanını içermiyor.");
-        return string.IsNullOrWhiteSpace(content.GetString()) ? throw new InvalidOperationException("Yerel model boş yanıt verdi.") : content.GetString()!.Trim();
+        try
+        {
+            using var response = await _httpClient.PostAsJsonAsync(settings.GenerateUrl, payload, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                if ((int)response.StatusCode == StatusCodes.Status404NotFound)
+                    throw new LocalLlmConnectionException("model_or_endpoint_not_found", "Yerel model veya generate uç noktası bulunamadı.",
+                        "Model adını `ollama list` ile doğrulayın; URL genellikle http://sunucu:11434/api/generate olur.", false, StatusCodes.Status502BadGateway);
+                throw new LocalLlmConnectionException("model_rejected_request", $"Yerel model isteği başarısız oldu ({(int)response.StatusCode}).",
+                    "Generate URL, model adı ve yerel model günlüklerini kontrol edin.", (int)response.StatusCode >= 500, StatusCodes.Status502BadGateway);
+            }
+
+            using var document = JsonDocument.Parse(raw);
+            if (!document.RootElement.TryGetProperty("response", out var content))
+                throw new LocalLlmConnectionException("invalid_response", "Yerel model yanıtı 'response' alanını içermiyor.",
+                    "Generate URL'nin Ollama uyumlu /api/generate uç noktasını gösterdiğini kontrol edin.", false, StatusCodes.Status502BadGateway);
+            var reply = content.GetString()?.Trim();
+            if (string.IsNullOrWhiteSpace(reply))
+                throw new LocalLlmConnectionException("empty_response", "Yerel model boş yanıt verdi.",
+                    "Modelin Ollama uyumlu /api/generate uç noktasını kullandığını ve model loglarını kontrol edin.", true, StatusCodes.Status502BadGateway);
+            var isTruncated = document.RootElement.TryGetProperty("done_reason", out var reason)
+                && string.Equals(reason.GetString(), "length", StringComparison.OrdinalIgnoreCase);
+            return new LocalModelGeneration(reply, isTruncated);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new LocalLlmConnectionException("unreachable", "Yerel LLM sunucusuna ulaşılamadı.",
+                "Model cihazının açık olduğunu, URL'nin Analyzer makinesinden erişildiğini ve güvenlik duvarını kontrol edin.", true, StatusCodes.Status503ServiceUnavailable, ex);
+        }
+        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
+        {
+            throw new LocalLlmConnectionException("timeout", "Yerel model zaman aşımına uğradı.",
+                "Modelin yüklü olduğundan emin olun, daha küçük kapsam seçin veya model kapasitesini kontrol edin.", true, StatusCodes.Status504GatewayTimeout, ex);
+        }
+        catch (JsonException ex)
+        {
+            throw new LocalLlmConnectionException("invalid_response", "Yerel model geçerli JSON döndürmedi.",
+                "Generate URL'nin Ollama uyumlu /api/generate uç noktasını gösterdiğini kontrol edin.", false, StatusCodes.Status502BadGateway, ex);
+        }
     }
+
+    private sealed record LocalModelGeneration(string Reply, bool IsTruncated);
 
     private static string BuildPrompt(SecurityAgentChatRequest request, SecurityAgentContext context)
     {

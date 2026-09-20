@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import { Bot, Loader2, Plus, RefreshCw, Send, ShieldCheck, Sparkles, Workflow } from 'lucide-react'
 import apiClient from '@/lib/axios'
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string }
+type ChatMessage = { role: 'user' | 'assistant'; content: string; truncated?: boolean }
 type Count = { name: string; count: number }
 type ShadowCandidate = { userEmail: string; team?: string | null; shadowScore: number; dailyRiskScore: number; isolationForestScore: number; baselineDelta: number; incidentCount: number; confidence: string; evidence: string[] }
 type ReviewSummary = { confirmed: number; falsePositive: number; needsReview: number; reviewed: number; precision: number }
+type ModelHealth = { healthy: boolean; status: string; detail: string; reply?: string | null; retryable?: boolean; suggestedAction?: string | null }
 type SimulationResult = { playbookId: number; runId: number; status: string; dryRun: boolean; pendingMails: number; failedMails: number; skippedMails: number; errorMessage?: string | null; nodeSummary: string[]; workflowName: string }
 type HighRiskList = { startDate: string; endDate: string; minimumScore: number; matchingCandidateCount: number; candidates: ShadowCandidate[] }
 type AgentContext = {
@@ -116,6 +117,8 @@ export default function SecurityAgentPage() {
   const [highRiskList, setHighRiskList] = useState<HighRiskList | null>(null)
   const [draftNotice, setDraftNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [modelHealth, setModelHealth] = useState<ModelHealth | null>(null)
+  const [checkingModel, setCheckingModel] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
 
   const loadContext = useCallback(async () => {
@@ -148,7 +151,9 @@ export default function SecurityAgentPage() {
     setError(null)
     try {
       const { data } = await apiClient.post('/api/security-agent/chat', { message, history, startUtc: new Date(startDate).toISOString(), endUtc: new Date(endDate).toISOString() }, { timeout: 600_000 })
-      setMessages(current => [...current, { role: 'assistant', content: data.reply }])
+      const truncated = Boolean(data.isTruncated ?? data.is_truncated)
+      const reply = `${data.reply ?? ''}${truncated ? '\n\n**Yanıt çıktı limitine ulaştığı için kesildi. Yerel LLM Laboratuvarı ayarlarından maksimum çıktı limitini artırın veya daha dar bir soru sorun.**' : ''}`
+      setMessages(current => [...current, { role: 'assistant', content: reply, truncated }])
       setHighRiskList(normalizeHighRiskList(data.highRiskList ?? data.high_risk_list))
       const refreshedContext = normalizeContext(data.context)
       setContext(refreshedContext)
@@ -162,6 +167,26 @@ export default function SecurityAgentPage() {
   }
 
   const submit = (event: FormEvent) => { event.preventDefault(); void send() }
+  const checkModelHealth = async () => {
+    if (checkingModel) return
+    setCheckingModel(true)
+    setError(null)
+    try {
+      const { data } = await apiClient.get('/api/security-agent/model-health', { timeout: 600_000 })
+      setModelHealth({
+        healthy: Boolean(data?.healthy),
+        status: data?.status ?? 'unknown',
+        detail: data?.detail ?? 'Model durumu alınamadı.',
+        reply: data?.reply ?? null,
+        retryable: Boolean(data?.retryable),
+        suggestedAction: data?.suggestedAction ?? data?.suggested_action ?? null,
+      })
+    } catch (requestError: any) {
+      setError(requestError?.response?.data?.detail || 'Yerel model durumu kontrol edilemedi.')
+    } finally {
+      setCheckingModel(false)
+    }
+  }
   const startNewConversation = () => {
     if (sending || creatingDraft) return
     setMessages([])
@@ -286,6 +311,20 @@ export default function SecurityAgentPage() {
       </section>
 
       <aside style={{ display: 'grid', gap: 16 }}>
+        <section style={panelStyle}>
+          <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <strong style={{ fontSize: 13 }}>Yerel model durumu</strong>
+            <button onClick={() => void checkModelHealth()} disabled={checkingModel} style={{ ...suggestionButton, padding: '5px 7px' }}>{checkingModel ? 'Kontrol ediliyor...' : 'Bağlantıyı test et'}</button>
+          </div>
+          <div style={{ padding: 14, fontSize: 12, lineHeight: 1.5, color: modelHealth?.healthy ? '#047857' : modelHealth ? '#b45309' : 'var(--text-secondary)' }}>
+            {!modelHealth && 'Henüz test edilmedi. Test, kayıtlı modelden kısa bir yanıt ister ve cihaz/bağlantı/model hatalarını ayırır.'}
+            {modelHealth && <>
+              <strong>{modelHealth.healthy ? 'Bağlantı sağlıklı' : `Durum: ${modelHealth.status}`}</strong>
+              <div style={{ marginTop: 4 }}>{modelHealth.detail}</div>
+              {modelHealth.suggestedAction && <div style={{ marginTop: 5, color: 'var(--text-secondary)' }}>{modelHealth.suggestedAction}</div>}
+            </>}
+          </div>
+        </section>
         <section style={panelStyle}><div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>İncelenen Bağlam</div><div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><Metric label="Workflow" value={`${fmt(context?.enabledWorkflowCount)} / ${fmt(context?.workflowCount)}`} /><Metric label="Seçili dönem olay" value={fmt(context?.incidentCount)} /><Metric label="Farklı kullanıcı" value={fmt(context?.uniqueUsers)} /><Metric label="Node türü" value={fmt(context?.nodeTypes?.length)} /></div></section>
         <section style={panelStyle}>
           <div style={{ padding: 16, borderBottom: '1px solid var(--border)', fontWeight: 800 }}>Shadow risk adayları</div>
